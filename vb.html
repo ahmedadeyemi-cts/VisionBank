@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Realtime Contact Center Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f7fa;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background: #34495e;
+            color: white;
+            padding: 8px;
+        }
+
+        td {
+            padding: 8px;
+        }
+
+        .state-ready {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .state-notready {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .state-busy {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .collapsible-content {
+            display: none;
+            padding-top: 10px;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Contact Center Realtime Dashboard</h1>
+
+<div id="agentsSection" class="section"></div>
+<div id="queuesSection" class="section"></div>
+<div id="queueStatsSection" class="section"></div>
+<div id="ivrStatsSection" class="section"></div>
+<div id="historicalSection" class="section"></div>
+
+<script>
+    const BASE_URL = "https://pop1-apps.mycontactcenter.net/api";
+    const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
+
+    function createCollapsible(title, contentId) {
+        return `
+            <h2 onclick="toggle('${contentId}')">${title}</h2>
+            <div id="${contentId}" class="collapsible-content"></div>
+        `;
+    }
+
+    function toggle(id) {
+        const elem = document.getElementById(id);
+        elem.style.display = elem.style.display === "none" ? "block" : "none";
+    }
+
+    async function callAPI(endpoint) {
+        try {
+            const response = await fetch(`${BASE_URL}${endpoint}`, {
+                headers: { token: TOKEN }
+            });
+
+            if (!response.ok) return null;
+
+            return await response.json();
+        } catch {
+            return null;
+        }
+    }
+
+    function renderAgents(data) {
+        if (!data) return "<div class='error'>Error loading agent status</div>";
+
+        let table = `
+            <table>
+                <tr>
+                    <th>Agent ID</th>
+                    <th>Name</th>
+                    <th>State</th>
+                    <th>Skill</th>
+                    <th>Timestamp</th>
+                </tr>
+        `;
+
+        data.forEach(a => {
+            let css = "";
+            if (a.state === "Ready") css = "state-ready";
+            else if (a.state === "Not Ready") css = "state-notready";
+            else css = "state-busy";
+
+            table += `
+                <tr>
+                    <td>${a.agentId}</td>
+                    <td>${a.name}</td>
+                    <td class="${css}">${a.state}</td>
+                    <td>${a.skill}</td>
+                    <td>${a.timestamp}</td>
+                </tr>
+            `;
+        });
+
+        return table + "</table>";
+    }
+
+    function renderQueues(data) {
+        if (!data) return "<div class='error'>Error loading queue status</div>";
+
+        let table = `
+            <table>
+                <tr>
+                    <th>Queue</th>
+                    <th>Status</th>
+                    <th>Waiting</th>
+                    <th>Oldest Wait</th>
+                </tr>
+        `;
+
+        data.forEach(q => {
+            table += `
+                <tr>
+                    <td>${q.queueName}</td>
+                    <td>${q.status}</td>
+                    <td>${q.waitingCount}</td>
+                    <td>${q.oldestWaitTime}</td>
+                </tr>
+            `;
+        });
+
+        return table + "</table>";
+    }
+
+    function renderQueueStats(data) {
+        if (!data) return "<div class='error'>Error loading queue statistics</div>";
+
+        let table = `
+            <table>
+                <tr>
+                    <th>Queue</th>
+                    <th>Handled</th>
+                    <th>Abandoned</th>
+                    <th>Service Level</th>
+                </tr>
+        `;
+
+        data.forEach(q => {
+            table += `
+                <tr>
+                    <td>${q.queueName}</td>
+                    <td>${q.handled}</td>
+                    <td>${q.abandoned}</td>
+                    <td>${q.serviceLevel}</td>
+                </tr>
+            `;
+        });
+
+        return table + "</table>";
+    }
+
+    function renderIVRStats(data) {
+        if (!data) return "<div class='error'>Error loading IVR statistics</div>";
+
+        let table = `
+            <table>
+                <tr>
+                    <th>IVR Flow</th>
+                    <th>Entries</th>
+                    <th>Exits</th>
+                </tr>
+        `;
+
+        data.forEach(i => {
+            table += `
+                <tr>
+                    <td>${i.ivrName}</td>
+                    <td>${i.entryCount}</td>
+                    <td>${i.exitCount}</td>
+                </tr>
+            `;
+        });
+
+        return table + "</table>";
+    }
+
+    function renderHistorical(data) {
+        if (!data) return "<div class='error'>Error loading agent sessions</div>";
+
+        let table = `
+            <table>
+                <tr>
+                    <th>Agent ID</th>
+                    <th>Name</th>
+                    <th>Login Time</th>
+                    <th>Logout Time</th>
+                </tr>
+        `;
+
+        data.forEach(h => {
+            table += `
+                <tr>
+                    <td>${h.agentId}</td>
+                    <td>${h.name}</td>
+                    <td>${h.loginTime}</td>
+                    <td>${h.logoutTime}</td>
+                </tr>
+            `;
+        });
+
+        return table + "</table>";
+    }
+
+    async function loadDashboard() {
+        const today = new Date().toISOString().split("T")[0];
+
+        document.getElementById("agentsSection").innerHTML =
+            createCollapsible("Agent Status", "agentContent");
+
+        document.getElementById("queuesSection").innerHTML =
+            createCollapsible("Queue Status", "queueContent");
+
+        document.getElementById("queueStatsSection").innerHTML =
+            createCollapsible("Queue Statistics", "queueStatsContent");
+
+        document.getElementById("ivrStatsSection").innerHTML =
+            createCollapsible("IVR Statistics", "ivrContent");
+
+        document.getElementById("historicalSection").innerHTML =
+            createCollapsible("Agent Sessions Today", "historyContent");
+
+        // Load API data
+        const [agents, queues, queueStats, ivrStats, historical] = await Promise.all([
+            callAPI("/v3/realtime/status/agents"),
+            callAPI("/v3/realtime/status/queues"),
+            callAPI("/v3/realtime/statistics/queues"),
+            callAPI("/v3/realtime/statistics/ivrs"),
+            callAPI(`/v3/hist/agentsessions/${today}`)
+        ]);
+
+        document.getElementById("agentContent").innerHTML = renderAgents(agents);
+        document.getElementById("queueContent").innerHTML = renderQueues(queues);
+        document.getElementById("queueStatsContent").innerHTML = renderQueueStats(queueStats);
+        document.getElementById("ivrContent").innerHTML = renderIVRStats(ivrStats);
+        document.getElementById("historyContent").innerHTML = renderHistorical(historical);
+    }
+
+    // Auto-refresh every 5 seconds
+    loadDashboard();
+    setInterval(loadDashboard, 5000);
+</script>
+
+</body>
+</html>

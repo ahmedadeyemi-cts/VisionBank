@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Realtime Dashboard</title>
+    <title>Contact Center Realtime Dashboard</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -48,18 +49,14 @@
             margin-top: 10px;
         }
 
-        table, th, td {
+        th, td {
             border: 1px solid #ddd;
+            padding: 8px;
         }
 
         th {
             background: #34495e;
             color: white;
-            padding: 8px;
-        }
-
-        td {
-            padding: 8px;
         }
 
         .state-ready {
@@ -82,11 +79,6 @@
             padding-top: 10px;
         }
 
-        .error {
-            color: red;
-            font-weight: bold;
-        }
-
         .footer {
             text-align: center;
             margin-top: 40px;
@@ -104,26 +96,23 @@
 
 <body>
 
-<!-- TOP HEADER WITH VISIONBANK LOGO -->
+<!-- VisionBank Logo -->
 <div style="text-align:center; margin-bottom:10px;">
     <img src="https://www.visionbank.com/assets/images/logo-ef1ce85eaa089c55123f761d44755726.png"
          alt="VisionBank Iowa"
          style="max-width:300px; margin-bottom:10px;">
 </div>
 
-<!-- NEW TITLE WITH BRANDING -->
-<h1><b>VisionBank Contact Center Realtime Dashboard</b></h1>
-
+<h1>VisionBank Contact Center Realtime Dashboard</h1>
 <div class="brand-tagline"><b>VisionBank</b></div>
 
-<!-- DASHBOARD SECTIONS -->
 <div id="agentsSection" class="section"></div>
 <div id="queuesSection" class="section"></div>
 <div id="queueStatsSection" class="section"></div>
 <div id="ivrStatsSection" class="section"></div>
 <div id="historicalSection" class="section"></div>
 
-<!-- FOOTER WITH US SIGNAL LOGO -->
+<!-- Footer -->
 <div class="footer">
     <div class="footer-text">
         Created and maintained by <b>Ahmed Adeyemi</b>, <b>US Signal</b>
@@ -135,13 +124,13 @@
 </div>
 
 <script>
-    const BASE_URL = "https://pop1-apps.mycontactcenter.net/api";
-    const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
+    // 🔥 IMPORTANT: Replace this with your Render.com proxy URL
+    const BASE_URL = "YOUR_PROXY_URL_HERE";
 
-    function createCollapsible(title, contentId) {
+    function createCollapsible(title, id) {
         return `
-            <h2 onclick="toggle('${contentId}')">${title}</h2>
-            <div id="${contentId}" class="collapsible-content"></div>
+            <h2 onclick="toggle('${id}')">${title}</h2>
+            <div id="${id}" class="collapsible-content"></div>
         `;
     }
 
@@ -152,14 +141,11 @@
 
     async function callAPI(endpoint) {
         try {
-            const response = await fetch(`${BASE_URL}${endpoint}`, {
-                headers: { token: TOKEN }
-            });
-
-            if (!response.ok) return null;
-
-            return await response.json();
-        } catch {
+            const res = await fetch(`${BASE_URL}${endpoint}`);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (err) {
+            console.error("Dashboard Error:", err);
             return null;
         }
     }
@@ -167,30 +153,31 @@
     function renderAgents(data) {
         if (!data) return "<div class='error'>Error loading agent status</div>";
 
+        let rows = data.AgentStatus || data;
+
         let table = `
             <table>
-                <tr>
-                    <th>Agent ID</th>
-                    <th>Name</th>
-                    <th>State</th>
-                    <th>Skill</th>
-                    <th>Timestamp</th>
-                </tr>
+            <tr>
+                <th>Full Name</th>
+                <th>Extension</th>
+                <th>State</th>
+                <th>Last Access</th>
+                <th>Login Interval</th>
+            </tr>
         `;
 
-        data.forEach(a => {
-            let css = "";
-            if (a.state === "Ready") css = "state-ready";
-            else if (a.state === "Not Ready") css = "state-notready";
-            else css = "state-busy";
+        rows.forEach(a => {
+            let css = a.AgentStateDesc === "Ready" ? "state-ready"
+                   : a.AgentStateDesc === "Not Ready" ? "state-notready"
+                   : "state-busy";
 
             table += `
                 <tr>
-                    <td>${a.agentId}</td>
-                    <td>${a.name}</td>
-                    <td class="${css}">${a.state}</td>
-                    <td>${a.skill}</td>
-                    <td>${a.timestamp}</td>
+                    <td>${a.FullName}</td>
+                    <td>${a.PhoneExt}</td>
+                    <td class="${css}">${a.AgentStateDesc}</td>
+                    <td>${a.LastAccessDateUtc}</td>
+                    <td>${a.LogonInterval}</td>
                 </tr>
             `;
         });
@@ -199,25 +186,25 @@
     }
 
     function renderQueues(data) {
-        if (!data) return "<div class='error'>Error loading queue status</div>";
+        if (!data) return "<div class='error'>Error loading queues</div>";
+
+        let rows = data.QueueStatus || data;
 
         let table = `
             <table>
                 <tr>
-                    <th>Queue</th>
-                    <th>Status</th>
+                    <th>Queue Name</th>
                     <th>Waiting</th>
                     <th>Oldest Wait</th>
                 </tr>
         `;
 
-        data.forEach(q => {
+        rows.forEach(q => {
             table += `
                 <tr>
-                    <td>${q.queueName}</td>
-                    <td>${q.status}</td>
-                    <td>${q.waitingCount}</td>
-                    <td>${q.oldestWaitTime}</td>
+                    <td>${q.QueueName}</td>
+                    <td>${q.WaitingCount}</td>
+                    <td>${q.OldestWaitTime}</td>
                 </tr>
             `;
         });
@@ -228,6 +215,8 @@
     function renderQueueStats(data) {
         if (!data) return "<div class='error'>Error loading queue statistics</div>";
 
+        let rows = data.QueueStatistics || data;
+
         let table = `
             <table>
                 <tr>
@@ -237,14 +226,13 @@
                     <th>Service Level</th>
                 </tr>
         `;
-
-        data.forEach(q => {
+        rows.forEach(q => {
             table += `
                 <tr>
-                    <td>${q.queueName}</td>
-                    <td>${q.handled}</td>
-                    <td>${q.abandoned}</td>
-                    <td>${q.serviceLevel}</td>
+                    <td>${q.QueueName}</td>
+                    <td>${q.Handled}</td>
+                    <td>${q.Abandoned}</td>
+                    <td>${q.ServiceLevel}</td>
                 </tr>
             `;
         });
@@ -255,21 +243,22 @@
     function renderIVRStats(data) {
         if (!data) return "<div class='error'>Error loading IVR statistics</div>";
 
+        let rows = data.IvrStatistics || data;
+
         let table = `
             <table>
                 <tr>
-                    <th>IVR Flow</th>
+                    <th>IVR Name</th>
                     <th>Entries</th>
                     <th>Exits</th>
                 </tr>
         `;
-
-        data.forEach(i => {
+        rows.forEach(i => {
             table += `
                 <tr>
-                    <td>${i.ivrName}</td>
-                    <td>${i.entryCount}</td>
-                    <td>${i.exitCount}</td>
+                    <td>${i.IvrName}</td>
+                    <td>${i.EntryCount}</td>
+                    <td>${i.ExitCount}</td>
                 </tr>
             `;
         });
@@ -280,23 +269,22 @@
     function renderHistorical(data) {
         if (!data) return "<div class='error'>Error loading agent sessions</div>";
 
+        let rows = data.AgentSessions || data;
+
         let table = `
             <table>
                 <tr>
-                    <th>Agent ID</th>
-                    <th>Name</th>
+                    <th>Agent</th>
                     <th>Login Time</th>
                     <th>Logout Time</th>
                 </tr>
         `;
-
-        data.forEach(h => {
+        rows.forEach(h => {
             table += `
                 <tr>
-                    <td>${h.agentId}</td>
-                    <td>${h.name}</td>
-                    <td>${h.loginTime}</td>
-                    <td>${h.logoutTime}</td>
+                    <td>${h.AgentName}</td>
+                    <td>${h.LoginTimeUtc}</td>
+                    <td>${h.LogoutTimeUtc}</td>
                 </tr>
             `;
         });
@@ -307,34 +295,25 @@
     async function loadDashboard() {
         const today = new Date().toISOString().split("T")[0];
 
-        document.getElementById("agentsSection").innerHTML =
-            createCollapsible("Agent Status", "agentContent");
+        document.getElementById("agentsSection").innerHTML = createCollapsible("Agent Status", "agentContent");
+        document.getElementById("queuesSection").innerHTML = createCollapsible("Queue Status", "queueContent");
+        document.getElementById("queueStatsSection").innerHTML = createCollapsible("Queue Statistics", "queueStatsContent");
+        document.getElementById("ivrStatsSection").innerHTML = createCollapsible("IVR Statistics", "ivrContent");
+        document.getElementById("historicalSection").innerHTML = createCollapsible("Agent Sessions Today", "historyContent");
 
-        document.getElementById("queuesSection").innerHTML =
-            createCollapsible("Queue Status", "queueContent");
-
-        document.getElementById("queueStatsSection").innerHTML =
-            createCollapsible("Queue Statistics", "queueStatsContent");
-
-        document.getElementById("ivrStatsSection").innerHTML =
-            createCollapsible("IVR Statistics", "ivrContent");
-
-        document.getElementById("historicalSection").innerHTML =
-            createCollapsible("Agent Sessions Today", "historyContent");
-
-        const [agents, queues, queueStats, ivrStats, historical] = await Promise.all([
-            callAPI("/v3/realtime/status/agents"),
-            callAPI("/v3/realtime/status/queues"),
-            callAPI("/v3/realtime/statistics/queues"),
-            callAPI("/v3/realtime/statistics/ivrs"),
-            callAPI(`/v3/hist/agentsessions/${today}`)
+        const [agents, queues, qStats, ivrs, history] = await Promise.all([
+            callAPI("/agents"),
+            callAPI("/queues"),
+            callAPI("/queue-stats"),
+            callAPI("/ivr-stats"),
+            callAPI(`/agent-sessions/${today}`)
         ]);
 
         document.getElementById("agentContent").innerHTML = renderAgents(agents);
         document.getElementById("queueContent").innerHTML = renderQueues(queues);
-        document.getElementById("queueStatsContent").innerHTML = renderQueueStats(queueStats);
-        document.getElementById("ivrContent").innerHTML = renderIVRStats(ivrStats);
-        document.getElementById("historyContent").innerHTML = renderHistorical(historical);
+        document.getElementById("queueStatsContent").innerHTML = renderQueueStats(qStats);
+        document.getElementById("ivrContent").innerHTML = renderIVRStats(ivrs);
+        document.getElementById("historyContent").innerHTML = renderHistorical(history);
     }
 
     loadDashboard();

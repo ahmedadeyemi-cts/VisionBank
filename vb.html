@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Vision Bank Realtime Contact Center Dashboard</title>
+    <title>VisionBank Contact Center Realtime Dashboard</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -11,6 +11,18 @@
 
         h1 {
             text-align: center;
+            margin-bottom: 10px;
+            font-size: 34px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .brand-tagline {
+            text-align: center;
+            font-size: 34px;
+            color: #2c3e50;
+            font-weight: bold;
+            margin-top: -5px;
             margin-bottom: 30px;
         }
 
@@ -78,7 +90,14 @@
         .footer {
             text-align: center;
             margin-top: 40px;
-            opacity: 0.85;
+            opacity: 0.9;
+        }
+
+        .footer-text {
+            font-size: 22px;
+            color: #2c3e50;
+            font-weight: bold;
+            margin-bottom: 10px;
         }
     </style>
 </head>
@@ -86,26 +105,33 @@
 <body>
 
 <!-- TOP HEADER WITH VISIONBANK LOGO -->
-<div style="text-align:center; margin-bottom:20px;">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAY0AAAB/CAMAAAAkVG5FAAABBVBMVEX///8AZEgjHyCoqa37//+Ep6EAWj4AAAAgHB34+PgIAAC10s0AW0ETDQ8bFhfNzM2HhYatq6xcWluhoKDq6enK4t8dZ1J5p5na2dnj4uP1//8hHyA1MjMvLS6psrBsbG4pJic+OzympaVWXFwPSjry8vKSnJtaWFl9fX4vMzLBwMF3dXaQjY5QTk8YEhS2t7o6d2QAUzYAVj9GREXHxsZxm5Hg9fCRuq4rbFtIfm1bjH1qnpAASy0HaVE7hG9bl4aDtaalyMFKineyw8CWwbYjclwYIh+jv7cQRzcQLycROCwIFBCNl5dnjoN8kI0gYlHQ8eq8z8yZq6pBa2FpfXpKY16UsKu+VdsRAAAO/UlEQVR4nO2deXvaOB7HqUMj2UEG..." 
-         alt="VisionBank Iowa" 
-         style="max-width:260px; margin-bottom:10px;">
-    <h1>Contact Center Realtime Dashboard</h1>
+<div style="text-align:center; margin-bottom:10px;">
+    <img src="https://www.visionbank.com/assets/images/logo-ef1ce85eaa089c55123f761d44755726.png"
+         alt="VisionBank Iowa"
+         style="max-width:300px; margin-bottom:10px;">
 </div>
+
+<!-- NEW TITLE WITH BRANDING -->
+<h1><b>VisionBank Contact Center Realtime Dashboard</b></h1>
+
+<div class="brand-tagline"><b>VisionBank</b></div>
 
 <!-- DASHBOARD SECTIONS -->
 <div id="agentsSection" class="section"></div>
 <div id="queuesSection" class="section"></div>
-<div id="queueStatsSection" class="section"></div>
+div id="queueStatsSection" class="section"></div>
 <div id="ivrStatsSection" class="section"></div>
 <div id="historicalSection" class="section"></div>
 
 <!-- FOOTER WITH US SIGNAL LOGO -->
 <div class="footer">
-    <p style="font-size:16px; margin-bottom:8px;">Created and maintained by</p>
-    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxMQEBIREhIVFhUVFhUYFhcWFxgYEhsWFxgaFhcdGRgeHSggGhslGxcYITItJSksLi8uFx8zODMtNygtMCsBCgoKDg0OGhAQGzIlICUtLS01LzAtLS0tLS0tLS4tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSsrLS0tLS0tLS0tLf/AABEIAKIBNgMBIgACEQEDEQH..." 
+    <div class="footer-text">
+        Created and maintained by <b>Ahmed Adeyemi</b>, <b>US Signal</b>
+    </div>
+
+    <img src="https://pbs.twimg.com/profile_images/1953824036779069440/y1m7bXKK_400x400.jpg"
          alt="US Signal"
-         style="max-width:200px;">
+         style="max-width:150px; border-radius: 10px;">
 </div>
 
 <script>

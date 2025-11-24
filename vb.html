@@ -4,107 +4,235 @@
     <title>Contact Center Realtime Dashboard</title>
 
     <style>
+        :root {
+            --primary: #1f2933;
+            --primary-light: #243447;
+            --accent-green: #27ae60;
+            --accent-red: #e74c3c;
+            --accent-amber: #f39c12;
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg);
+            color: #111827;
+        }
+
+        /* Header */
+
+        .header-logo {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .header-logo img {
+            max-width: 300px;
         }
 
         h1 {
             text-align: center;
-            margin-bottom: 10px;
+            margin: 0;
+            margin-bottom: 4px;
             font-size: 34px;
-            color: #2c3e50;
+            color: var(--primary);
             font-weight: bold;
         }
 
         .brand-tagline {
             text-align: center;
-            font-size: 34px;
-            color: #2c3e50;
+            font-size: 24px;
+            color: var(--primary);
             font-weight: bold;
-            margin-top: -5px;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }
 
-        h2 {
-            background-color: #2c3e50;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
+        /* Sections */
+
+        .section {
+            margin-bottom: 24px;
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background-color: var(--primary);
+            color: #ffffff;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             cursor: pointer;
         }
 
-        .section {
-            margin-bottom: 25px;
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        .section-title {
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .section-chevron {
+            font-size: 18px;
+            margin-left: 8px;
+        }
+
+        .section-subtitle {
+            font-size: 13px;
+            opacity: 0.85;
+        }
+
+        .section-body {
+            padding: 12px 16px 16px 16px;
+        }
+
+        .summary-bar {
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .summary-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            margin-right: 6px;
+            border-radius: 999px;
+            font-size: 12px;
+            color: #ffffff;
+        }
+
+        .summary-pill.green { background-color: var(--accent-green); }
+        .summary-pill.red   { background-color: var(--accent-red); }
+        .summary-pill.amber { background-color: var(--accent-amber); }
+
+        /* Tables */
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            font-size: 13px;
+            white-space: nowrap;
         }
 
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #e5e7eb;
+            padding: 6px 8px;
+            text-align: left;
         }
 
         th {
-            background: #34495e;
-            color: white;
+            background: #111827;
+            color: #ffffff;
+            font-weight: 600;
         }
 
-        .state-ready {
-            background-color: #2ecc71;
-            color: white;
+        tr:nth-child(even) {
+            background-color: #f9fafb;
         }
 
-        .state-notready {
-            background-color: #e74c3c;
-            color: white;
+        tr:hover {
+            background-color: #eef2ff;
         }
 
-        .state-busy {
-            background-color: #f39c12;
-            color: white;
+        .state-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #ffffff;
         }
 
-        .collapsible-content {
-            display: none;
-            padding-top: 10px;
+        .state-ready-badge   { background-color: var(--accent-green); }
+        .state-notready-badge{ background-color: var(--accent-amber); }
+        .state-busy-badge    { background-color: var(--accent-red); }
+        .state-other-badge   { background-color: #6b7280; }
+
+        .subheader-row th {
+            background: #4b5563;
+            font-size: 12px;
         }
+
+        .group-header {
+            text-align: center;
+            font-weight: 600;
+            background: #111827;
+        }
+
+        .timestamp {
+            font-family: "SF Mono", Menlo, monospace;
+            font-size: 12px;
+        }
+
+        .error {
+            color: var(--accent-red);
+            font-weight: bold;
+            padding: 4px 0;
+        }
+
+        /* Footer */
 
         .footer {
             text-align: center;
-            margin-top: 40px;
-            opacity: 0.9;
+            margin-top: 32px;
+            opacity: 0.95;
         }
 
         .footer-text {
-            font-size: 22px;
-            color: #2c3e50;
+            font-size: 18px;
+            color: var(--primary);
             font-weight: bold;
             margin-bottom: 10px;
+        }
+
+        .footer img {
+            max-width: 150px;
+            border-radius: 10px;
+        }
+
+        /* Collapsible */
+
+        .collapsible-content {
+            display: block;
+        }
+
+        .section.collapsed .collapsible-content {
+            display: none;
+        }
+
+        .section.collapsed .section-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .last-updated {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 4px;
         }
     </style>
 </head>
 
 <body>
 
-<!-- VisionBank Logo -->
-<div style="text-align:center; margin-bottom:10px;">
+<div class="header-logo">
     <img src="https://www.visionbank.com/assets/images/logo-ef1ce85eaa089c55123f761d44755726.png"
-         alt="VisionBank Iowa"
-         style="max-width:300px; margin-bottom:10px;">
+         alt="VisionBank Iowa">
 </div>
 
 <h1>VisionBank Contact Center Realtime Dashboard</h1>
-<div class="brand-tagline"><b>VisionBank</b></div>
+<div class="brand-tagline">VisionBank</div>
 
 <div id="agentsSection" class="section"></div>
 <div id="queuesSection" class="section"></div>
@@ -112,112 +240,154 @@
 <div id="ivrStatsSection" class="section"></div>
 <div id="historicalSection" class="section"></div>
 
-<!-- Footer -->
 <div class="footer">
     <div class="footer-text">
         Created and maintained by <b>Ahmed Adeyemi</b>, <b>US Signal</b>
     </div>
-
     <img src="https://pbs.twimg.com/profile_images/1953824036779069440/y1m7bXKK_400x400.jpg"
-         alt="US Signal"
-         style="max-width:150px; border-radius: 10px;">
+         alt="US Signal">
 </div>
 
 <script>
-    // 🔥 IMPORTANT: Replace this with your Render.com proxy URL
+    // Replace this with your Render proxy URL after deployment
     const BASE_URL = "YOUR_PROXY_URL_HERE";
 
-    function createCollapsible(title, id) {
+    function createSectionHtml(title, id, subtitle = "") {
         return `
-            <h2 onclick="toggle('${id}')">${title}</h2>
-            <div id="${id}" class="collapsible-content"></div>
+            <div class="section-header" onclick="toggleSection('${id}')">
+                <div>
+                    <div class="section-title">${title}</div>
+                    ${subtitle ? `<div class="section-subtitle">${subtitle}</div>` : ""}
+                </div>
+                <div class="section-chevron">▾</div>
+            </div>
+            <div class="section-body">
+                <div id="${id}" class="collapsible-content"></div>
+            </div>
         `;
     }
 
-    function toggle(id) {
-        const elem = document.getElementById(id);
-        elem.style.display = elem.style.display === "none" ? "block" : "none";
+    function toggleSection(contentId) {
+        const sectionBody = document.getElementById(contentId).closest(".section");
+        sectionBody.classList.toggle("collapsed");
     }
 
     async function callAPI(endpoint) {
         try {
             const res = await fetch(`${BASE_URL}${endpoint}`);
-            if (!res.ok) return null;
+            if (!res.ok) {
+                console.error("API error", endpoint, res.status);
+                return null;
+            }
             return await res.json();
         } catch (err) {
-            console.error("Dashboard Error:", err);
+            console.error("Fetch error", endpoint, err);
             return null;
         }
+    }
+
+    function computeAgentSummary(rows) {
+        let total = rows.length;
+        let ready = 0, busy = 0, notReady = 0, other = 0;
+
+        rows.forEach(a => {
+            const s = (a.AgentStateDesc || a.state || "").toLowerCase();
+            if (s.includes("ready") && !s.includes("not")) ready++;
+            else if (s.includes("busy")) busy++;
+            else if (s.includes("not ready") || s.includes("notset") || s.includes("not set")) notReady++;
+            else other++;
+        });
+
+        return { total, ready, busy, notReady, other };
     }
 
     function renderAgents(data) {
         if (!data) return "<div class='error'>Error loading agent status</div>";
 
-        let rows = data.AgentStatus || data;
+        const rows = data.AgentStatus || data;
+        const summary = computeAgentSummary(rows);
 
-        let table = `
+        let html = `
+            <div class="summary-bar">
+                <span>${summary.total} agents tracked.</span>
+                <span class="summary-pill green">${summary.ready} ready</span>
+                <span class="summary-pill red">${summary.busy} busy</span>
+                <span class="summary-pill amber">${summary.notReady} not ready</span>
+                ${summary.other ? `<span class="summary-pill">${summary.other} other</span>` : ""}
+            </div>
+            <div class="table-wrapper">
             <table>
-            <tr>
-                <th>Full Name</th>
-                <th>Extension</th>
-                <th>State</th>
-                <th>Last Access</th>
-                <th>Login Interval</th>
-            </tr>
+                <tr>
+                    <th rowspan="2">Agent</th>
+                    <th rowspan="2">Phone Ext</th>
+                    <th rowspan="2">Status</th>
+                    <th rowspan="2">Last Access</th>
+                    <th rowspan="2">Logon Interval (sec)</th>
+                </tr>
         `;
 
         rows.forEach(a => {
-            let css = a.AgentStateDesc === "Ready" ? "state-ready"
-                   : a.AgentStateDesc === "Not Ready" ? "state-notready"
-                   : "state-busy";
+            const state = a.AgentStateDesc || "Unknown";
+            const stateLower = state.toLowerCase();
+            let css = "state-other-badge";
+            if (stateLower.includes("ready") && !stateLower.includes("not")) css = "state-ready-badge";
+            else if (stateLower.includes("not ready") || stateLower.includes("not set")) css = "state-notready-badge";
+            else if (stateLower.includes("busy")) css = "state-busy-badge";
 
-            table += `
+            html += `
                 <tr>
-                    <td>${a.FullName}</td>
-                    <td>${a.PhoneExt}</td>
-                    <td class="${css}">${a.AgentStateDesc}</td>
-                    <td>${a.LastAccessDateUtc}</td>
-                    <td>${a.LogonInterval}</td>
+                    <td>${a.FullName || ""}</td>
+                    <td>${a.PhoneExt || ""}</td>
+                    <td><span class="state-badge ${css}">${state}</span></td>
+                    <td class="timestamp">${a.LastAccessDateUtc || ""}</td>
+                    <td>${a.LogonInterval != null ? a.LogonInterval : ""}</td>
                 </tr>
             `;
         });
 
-        return table + "</table>";
+        html += "</table></div>";
+        html += `<div class="last-updated">Last updated: ${new Date().toLocaleTimeString()}</div>`;
+        return html;
     }
 
     function renderQueues(data) {
-        if (!data) return "<div class='error'>Error loading queues</div>";
+        if (!data) return "<div class='error'>Error loading queue status</div>";
 
-        let rows = data.QueueStatus || data;
+        const rows = data.QueueStatus || data;
 
-        let table = `
+        let html = `
+            <div class="table-wrapper">
             <table>
                 <tr>
                     <th>Queue Name</th>
+                    <th>Status</th>
                     <th>Waiting</th>
                     <th>Oldest Wait</th>
                 </tr>
         `;
 
         rows.forEach(q => {
-            table += `
+            html += `
                 <tr>
-                    <td>${q.QueueName}</td>
-                    <td>${q.WaitingCount}</td>
-                    <td>${q.OldestWaitTime}</td>
+                    <td>${q.QueueName || q.queueName || ""}</td>
+                    <td>${q.Status || q.status || ""}</td>
+                    <td>${q.WaitingCount != null ? q.WaitingCount : q.waitingCount || 0}</td>
+                    <td>${q.OldestWaitTime || q.oldestWaitTime || ""}</td>
                 </tr>
             `;
         });
 
-        return table + "</table>";
+        html += "</table></div>";
+        return html;
     }
 
     function renderQueueStats(data) {
         if (!data) return "<div class='error'>Error loading queue statistics</div>";
 
-        let rows = data.QueueStatistics || data;
+        const rows = data.QueueStatistics || data;
 
-        let table = `
+        let html = `
+            <div class="table-wrapper">
             <table>
                 <tr>
                     <th>Queue</th>
@@ -226,26 +396,29 @@
                     <th>Service Level</th>
                 </tr>
         `;
+
         rows.forEach(q => {
-            table += `
+            html += `
                 <tr>
-                    <td>${q.QueueName}</td>
-                    <td>${q.Handled}</td>
-                    <td>${q.Abandoned}</td>
-                    <td>${q.ServiceLevel}</td>
+                    <td>${q.QueueName || ""}</td>
+                    <td>${q.Handled != null ? q.Handled : ""}</td>
+                    <td>${q.Abandoned != null ? q.Abandoned : ""}</td>
+                    <td>${q.ServiceLevel != null ? q.ServiceLevel : ""}</td>
                 </tr>
             `;
         });
 
-        return table + "</table>";
+        html += "</table></div>";
+        return html;
     }
 
     function renderIVRStats(data) {
         if (!data) return "<div class='error'>Error loading IVR statistics</div>";
 
-        let rows = data.IvrStatistics || data;
+        const rows = data.IvrStatistics || data;
 
-        let table = `
+        let html = `
+            <div class="table-wrapper">
             <table>
                 <tr>
                     <th>IVR Name</th>
@@ -253,55 +426,69 @@
                     <th>Exits</th>
                 </tr>
         `;
+
         rows.forEach(i => {
-            table += `
+            html += `
                 <tr>
-                    <td>${i.IvrName}</td>
-                    <td>${i.EntryCount}</td>
-                    <td>${i.ExitCount}</td>
+                    <td>${i.IvrName || ""}</td>
+                    <td>${i.EntryCount != null ? i.EntryCount : ""}</td>
+                    <td>${i.ExitCount != null ? i.ExitCount : ""}</td>
                 </tr>
             `;
         });
 
-        return table + "</table>";
+        html += "</table></div>";
+        return html;
     }
 
     function renderHistorical(data) {
         if (!data) return "<div class='error'>Error loading agent sessions</div>";
 
-        let rows = data.AgentSessions || data;
+        const rows = data.AgentSessions || data;
 
-        let table = `
+        let html = `
+            <div class="table-wrapper">
             <table>
                 <tr>
                     <th>Agent</th>
-                    <th>Login Time</th>
-                    <th>Logout Time</th>
+                    <th>Login Time (UTC)</th>
+                    <th>Logout Time (UTC)</th>
                 </tr>
         `;
+
         rows.forEach(h => {
-            table += `
+            html += `
                 <tr>
-                    <td>${h.AgentName}</td>
-                    <td>${h.LoginTimeUtc}</td>
-                    <td>${h.LogoutTimeUtc}</td>
+                    <td>${h.AgentName || h.AgentId || ""}</td>
+                    <td class="timestamp">${h.LoginTimeUtc || ""}</td>
+                    <td class="timestamp">${h.LogoutTimeUtc || ""}</td>
                 </tr>
             `;
         });
 
-        return table + "</table>";
+        html += "</table></div>";
+        return html;
     }
 
     async function loadDashboard() {
         const today = new Date().toISOString().split("T")[0];
 
-        document.getElementById("agentsSection").innerHTML = createCollapsible("Agent Status", "agentContent");
-        document.getElementById("queuesSection").innerHTML = createCollapsible("Queue Status", "queueContent");
-        document.getElementById("queueStatsSection").innerHTML = createCollapsible("Queue Statistics", "queueStatsContent");
-        document.getElementById("ivrStatsSection").innerHTML = createCollapsible("IVR Statistics", "ivrContent");
-        document.getElementById("historicalSection").innerHTML = createCollapsible("Agent Sessions Today", "historyContent");
+        document.getElementById("agentsSection").innerHTML =
+            createSectionHtml("Agent Status", "agentContent", "Live agent presence and status by extension");
 
-        const [agents, queues, qStats, ivrs, history] = await Promise.all([
+        document.getElementById("queuesSection").innerHTML =
+            createSectionHtml("Queue Status", "queueContent", "Current queue depth and wait times");
+
+        document.getElementById("queueStatsSection").innerHTML =
+            createSectionHtml("Queue Statistics", "queueStatsContent", "Handled, abandoned and service level");
+
+        document.getElementById("ivrStatsSection").innerHTML =
+            createSectionHtml("IVR Statistics", "ivrContent", "IVR entry and exit activity");
+
+        document.getElementById("historicalSection").innerHTML =
+            createSectionHtml("Agent Sessions Today", "historyContent", "Logon and logout times for today");
+
+        const [agents, queues, queueStats, ivrStats, historical] = await Promise.all([
             callAPI("/agents"),
             callAPI("/queues"),
             callAPI("/queue-stats"),
@@ -311,9 +498,9 @@
 
         document.getElementById("agentContent").innerHTML = renderAgents(agents);
         document.getElementById("queueContent").innerHTML = renderQueues(queues);
-        document.getElementById("queueStatsContent").innerHTML = renderQueueStats(qStats);
-        document.getElementById("ivrContent").innerHTML = renderIVRStats(ivrs);
-        document.getElementById("historyContent").innerHTML = renderHistorical(history);
+        document.getElementById("queueStatsContent").innerHTML = renderQueueStats(queueStats);
+        document.getElementById("ivrContent").innerHTML = renderIVRStats(ivrStats);
+        document.getElementById("historyContent").innerHTML = renderHistorical(historical);
     }
 
     loadDashboard();

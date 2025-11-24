@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Realtime Contact Center Dashboard</title>
+    <title>Vision Bank Realtime Contact Center Dashboard</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -54,10 +54,12 @@
             background-color: #2ecc71;
             color: white;
         }
+
         .state-notready {
             background-color: #e74c3c;
             color: white;
         }
+
         .state-busy {
             background-color: #f39c12;
             color: white;
@@ -72,18 +74,39 @@
             color: red;
             font-weight: bold;
         }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            opacity: 0.85;
+        }
     </style>
 </head>
 
 <body>
 
-<h1>Contact Center Realtime Dashboard</h1>
+<!-- TOP HEADER WITH VISIONBANK LOGO -->
+<div style="text-align:center; margin-bottom:20px;">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAY0AAAB/CAMAAAAkVG5FAAABBVBMVEX///8AZEgjHyCoqa37//+Ep6EAWj4AAAAgHB34+PgIAAC10s0AW0ETDQ8bFhfNzM2HhYatq6xcWluhoKDq6enK4t8dZ1J5p5na2dnj4uP1//8hHyA1MjMvLS6psrBsbG4pJic+OzympaVWXFwPSjry8vKSnJtaWFl9fX4vMzLBwMF3dXaQjY5QTk8YEhS2t7o6d2QAUzYAVj9GREXHxsZxm5Hg9fCRuq4rbFtIfm1bjH1qnpAASy0HaVE7hG9bl4aDtaalyMFKineyw8CWwbYjclwYIh+jv7cQRzcQLycROCwIFBCNl5dnjoN8kI0gYlHQ8eq8z8yZq6pBa2FpfXpKY16UsKu+VdsRAAAO/UlEQVR4nO2deXvaOB7HqUMj2UEG..." 
+         alt="VisionBank Iowa" 
+         style="max-width:260px; margin-bottom:10px;">
+    <h1>Contact Center Realtime Dashboard</h1>
+</div>
 
+<!-- DASHBOARD SECTIONS -->
 <div id="agentsSection" class="section"></div>
 <div id="queuesSection" class="section"></div>
 <div id="queueStatsSection" class="section"></div>
 <div id="ivrStatsSection" class="section"></div>
 <div id="historicalSection" class="section"></div>
+
+<!-- FOOTER WITH US SIGNAL LOGO -->
+<div class="footer">
+    <p style="font-size:16px; margin-bottom:8px;">Created and maintained by</p>
+    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxMQEBIREhIVFhUVFhUYFhcWFxgYEhsWFxgaFhcdGRgeHSggGhslGxcYITItJSksLi8uFx8zODMtNygtMCsBCgoKDg0OGhAQGzIlICUtLS01LzAtLS0tLS0tLS4tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSsrLS0tLS0tLS0tLf/AABEIAKIBNgMBIgACEQEDEQH..." 
+         alt="US Signal"
+         style="max-width:200px;">
+</div>
 
 <script>
     const BASE_URL = "https://pop1-apps.mycontactcenter.net/api";
@@ -273,7 +296,6 @@
         document.getElementById("historicalSection").innerHTML =
             createCollapsible("Agent Sessions Today", "historyContent");
 
-        // Load API data
         const [agents, queues, queueStats, ivrStats, historical] = await Promise.all([
             callAPI("/v3/realtime/status/agents"),
             callAPI("/v3/realtime/status/queues"),
@@ -289,7 +311,6 @@
         document.getElementById("historyContent").innerHTML = renderHistorical(historical);
     }
 
-    // Auto-refresh every 5 seconds
     loadDashboard();
     setInterval(loadDashboard, 5000);
 </script>

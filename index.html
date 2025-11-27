@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+<header class="header">
+    <div class="header-left">
+        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
+    </div>
+
+    <div class="header-center">
+        <h1>CEG Contact Center Realtime Dashboard</h1>
+        <span class="header-subtitle">VisionBank</span>
+    </div>
+</header>
+
+<main class="main">
+
+    <!-- CURRENT QUEUE STATUS -->
+    <section class="panel">
+        <h2>Current Queue Status</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Queue</th>
+                    <th>Calls</th>
+                    <th>Agents</th>
+                    <th>Max Wait</th>
+                    <th>Avg Wait</th>
+                </tr>
+            </thead>
+            <tbody id="queue-body">
+                <tr>
+                    <td colspan="5" class="loading">Loading queue status...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- AGENT PERFORMANCE -->
+    <section class="panel">
+        <h2>Agent Performance</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>CEG Member</th>
+                    <th>Team</th>
+                    <th>Agent Number</th>
+                    <th>Availability</th>
+                    <th>Duration</th> 
+                    <th>Inbound</th>
+                    <th>Missed</th>
+                    <th>Transferred</th>
+                    <th>Outbound</th>
+                    <th>Avg Handle</th>
+                    <th>Start Date</th>
+                </tr>
+            </thead>
+            <tbody id="agent-body">
+                <tr>
+                    <td colspan="10" class="loading">Loading agent data...</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- REALTIME GLOBAL STATS -->
+    <section class="panel">
+        <h2>Realtime Global Statistics</h2>
+        <div id="global-error" class="error"></div>
+
+        <div class="stat-grid">
+            <div class="stat-card"><div class="stat-value" id="gs-total-queued">--</div><div class="stat-label">Total Calls Queued</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-transferred">--</div><div class="stat-label">Total Calls Transferred</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-abandoned">--</div><div class="stat-label">Total Calls Abandoned</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-max-wait">--</div><div class="stat-label">Maximum Queue Wait Time</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-service-level">--%</div><div class="stat-label">Service Level</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-received">--</div><div class="stat-label">Total Calls Received</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-answer-rate">--%</div><div class="stat-label">Answer Rate</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-abandon-rate">--%</div><div class="stat-label">Abandon Rate</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-callbacks-registered">--</div><div class="stat-label">Callbacks Registered</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-callbacks-waiting">--</div><div class="stat-label">Callbacks Waiting</div></div>
+        </div>
+    </section>
+
+</main>
+
+<footer class="footer">
+    <div class="footer-left">
+        <button id="darkModeToggle" type="button" class="dark-toggle">
+    🌙 Dark Mode
+</button>
+    </div>
+    <div class="footer-right">
+        <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" />
+        <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
+    </div>
+</footer>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

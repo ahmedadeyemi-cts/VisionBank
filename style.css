@@ -45,6 +45,7 @@ body {
     font-weight: bold;
     color: #555;
 }
+
 /* ====== GLOBAL STAT CARDS (RESTORED) ====== */
 .stat-grid {
     display: grid;
@@ -129,7 +130,6 @@ body {
     background: #e67e22;
     color: white;
 }
-/* NEW — Wrap-Up */
 .status-wrapup {
     background: #ff8c42;
     color: white;
@@ -149,6 +149,7 @@ body {
     height: 30px;
     width: auto;
 }
+
 /* ============================================================
    GLASSMORPHISM DARK MODE — Global Behavior
    ============================================================ */
@@ -304,12 +305,22 @@ body,
                 box-shadow 0.45s ease,
                 backdrop-filter 0.45s ease;
 }
-/* ====== QUEUE ALERT (RED WHEN CALLS > 0) ====== */
+
+/* ============================================================
+   ======== NEW: QUEUE ALERT RED COLOR + PULSE ========
+   ============================================================ */
 .queue-alert {
-    color: #e74c3c !important;
-    font-weight: bold;
+    color: #e60000 !important;
+    font-weight: bold !important;
+    animation: pulseAlert 1.2s infinite;
 }
 
 body.dark-mode .queue-alert {
-    color: #ff6b6b !important;
+    color: #ff4d4d !important;
+}
+
+@keyframes pulseAlert {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
 }

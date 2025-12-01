@@ -60,8 +60,9 @@ let alertSettings = {
     enableChime: true,
     enableVoice: true,
     enableNotification: true,
-    cooldownSeconds: 10,       // seconds between alerts
-    highVolumeThreshold: 5     // calls/waiting for "high volume" alert
+    cooldownSeconds: 30,       // default 30s, can change in UI
+    highVolumeThreshold: 5,    // calls/waiting for "high volume"
+    alertTone: "soft"          // soft, bell, urgent, digital, sweep, siren
 };
 
 let lastAlertTimestamp = 0;
@@ -89,6 +90,7 @@ function saveAlertSettings() {
 
 function initAlertAudio() {
     try {
+        // Existing ttsAlert.mp3 in assets
         voiceAudio = new Audio("assets/ttsAlert.mp3");
         voiceAudio.volume = alertSettings.volume;
     } catch (e) {
@@ -117,51 +119,139 @@ function playVoiceAlert() {
     }
 }
 
-function playQueueChimeNormal() {
-    if (!alertSettings.enableChime) return;
+// WebAudio helper
+function playTonePattern(steps) {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioCtx();
-        const frequencies = [740, 880, 660]; // normal pattern
-        const start = ctx.currentTime;
+        const baseStart = ctx.currentTime;
 
-        frequencies.forEach((freq, i) => {
+        steps.forEach((step, i) => {
+            const { freq, type, dur, gap, vol } = step;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-            osc.type = "sine";
+
+            osc.type = type || "sine";
             osc.frequency.value = freq;
-            gain.gain.value = alertSettings.volume;
+
+            gain.gain.value = (vol != null ? vol : alertSettings.volume);
             osc.connect(gain);
             gain.connect(ctx.destination);
-            osc.start(start + i * 0.25);
-            osc.stop(start + i * 0.25 + 0.22);
+
+            const start = baseStart + i * (dur + (gap || 0.05));
+            const end = start + dur;
+
+            osc.start(start);
+            osc.stop(end);
         });
     } catch (err) {
-        console.warn("Normal chime failed:", err);
+        console.warn("Tone pattern failed:", err);
     }
 }
 
-function playQueueChimeHigh() {
+function playSelectedTone(isHigh) {
     if (!alertSettings.enableChime) return;
-    try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        const ctx = new AudioCtx();
-        const frequencies = [660, 1040, 660, 1040]; // more urgent
-        const start = ctx.currentTime;
 
-        frequencies.forEach((freq, i) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "square";
-            osc.frequency.value = freq;
-            gain.gain.value = alertSettings.volume;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(start + i * 0.2);
-            osc.stop(start + i * 0.2 + 0.18);
-        });
-    } catch (err) {
-        console.warn("High-volume chime failed:", err);
+    const tone = alertSettings.alertTone || "soft";
+
+    // High volume uses more urgent patterns
+    if (isHigh) {
+        switch (tone) {
+            case "soft":
+                playTonePattern([
+                    { freq: 900, type: "sine", dur: 0.18 },
+                    { freq: 1100, type: "sine", dur: 0.18 },
+                    { freq: 900, type: "sine", dur: 0.18 },
+                    { freq: 1100, type: "sine", dur: 0.18 }
+                ]);
+                break;
+            case "bell":
+                playTonePattern([
+                    { freq: 1200, type: "triangle", dur: 0.25 },
+                    { freq: 1500, type: "triangle", dur: 0.25 },
+                    { freq: 1000, type: "triangle", dur: 0.25 },
+                    { freq: 1500, type: "triangle", dur: 0.25 }
+                ]);
+                break;
+            case "urgent":
+                playTonePattern([
+                    { freq: 900, type: "square", dur: 0.15 },
+                    { freq: 700, type: "square", dur: 0.15 },
+                    { freq: 900, type: "square", dur: 0.15 },
+                    { freq: 700, type: "square", dur: 0.15 },
+                    { freq: 900, type: "square", dur: 0.15 }
+                ]);
+                break;
+            case "digital":
+                playTonePattern([
+                    { freq: 1300, type: "sawtooth", dur: 0.18 },
+                    { freq: 1600, type: "sawtooth", dur: 0.18 },
+                    { freq: 1900, type: "sawtooth", dur: 0.18 }
+                ]);
+                break;
+            case "sweep":
+                playTonePattern([
+                    { freq: 600, type: "sine", dur: 0.15 },
+                    { freq: 800, type: "sine", dur: 0.15 },
+                    { freq: 1000, type: "sine", dur: 0.15 },
+                    { freq: 1200, type: "sine", dur: 0.15 },
+                    { freq: 1400, type: "sine", dur: 0.15 }
+                ]);
+                break;
+            case "siren":
+            default:
+                playTonePattern([
+                    { freq: 900, type: "square", dur: 0.2 },
+                    { freq: 1200, type: "square", dur: 0.2 },
+                    { freq: 900, type: "square", dur: 0.2 },
+                    { freq: 1200, type: "square", dur: 0.2 }
+                ]);
+                break;
+        }
+    } else {
+        // Normal tone
+        switch (tone) {
+            case "soft":
+                playTonePattern([
+                    { freq: 740, type: "sine", dur: 0.22 },
+                    { freq: 880, type: "sine", dur: 0.22 },
+                    { freq: 660, type: "sine", dur: 0.22 }
+                ]);
+                break;
+            case "bell":
+                playTonePattern([
+                    { freq: 1000, type: "triangle", dur: 0.25 },
+                    { freq: 1300, type: "triangle", dur: 0.25 }
+                ]);
+                break;
+            case "urgent":
+                playTonePattern([
+                    { freq: 900, type: "square", dur: 0.15 },
+                    { freq: 700, type: "square", dur: 0.15 },
+                    { freq: 900, type: "square", dur: 0.15 }
+                ]);
+                break;
+            case "digital":
+                playTonePattern([
+                    { freq: 1300, type: "sawtooth", dur: 0.2 },
+                    { freq: 1600, type: "sawtooth", dur: 0.2 }
+                ]);
+                break;
+            case "sweep":
+                playTonePattern([
+                    { freq: 600, type: "sine", dur: 0.18 },
+                    { freq: 900, type: "sine", dur: 0.18 },
+                    { freq: 1200, type: "sine", dur: 0.18 }
+                ]);
+                break;
+            case "siren":
+            default:
+                playTonePattern([
+                    { freq: 900, type: "square", dur: 0.2 },
+                    { freq: 1200, type: "square", dur: 0.2 }
+                ]);
+                break;
+        }
     }
 }
 
@@ -190,18 +280,14 @@ function handleQueueAlerts(anyAlert, highAlert, maxCalls) {
 
     const now = Date.now();
     const cooldownMs = (alertSettings.cooldownSeconds || 0) * 1000;
+
     if (cooldownMs > 0 && now - lastAlertTimestamp < cooldownMs) {
         return;
     }
 
     lastAlertTimestamp = now;
 
-    if (highAlert) {
-        playQueueChimeHigh();
-    } else {
-        playQueueChimeNormal();
-    }
-
+    playSelectedTone(highAlert);
     playVoiceAlert();
     notifyCallsWaiting(highAlert, maxCalls);
 }
@@ -214,7 +300,7 @@ function initAlertSettingsUI() {
     const openBtn = document.getElementById("alertSettingsButton");
     const closeBtn = document.getElementById("alertSettingsClose");
 
-    if (!panel || !openBtn) return; // safe if HTML not wired yet
+    if (!panel || !openBtn) return;
 
     const volumeSlider = document.getElementById("alertVolumeSlider");
     const chimeChk = document.getElementById("alertEnableChime");
@@ -222,6 +308,7 @@ function initAlertSettingsUI() {
     const notifChk = document.getElementById("alertEnableNotification");
     const cooldownSel = document.getElementById("alertCooldownSelect");
     const highVolSel = document.getElementById("alertHighVolumeSelect");
+    const toneSel = document.getElementById("alertToneSelect");
     const testBtn = document.getElementById("alertTestButton");
 
     // Initialize control values from settings
@@ -231,6 +318,7 @@ function initAlertSettingsUI() {
     if (notifChk) notifChk.checked = alertSettings.enableNotification;
     if (cooldownSel) cooldownSel.value = String(alertSettings.cooldownSeconds);
     if (highVolSel) highVolSel.value = String(alertSettings.highVolumeThreshold);
+    if (toneSel) toneSel.value = alertSettings.alertTone;
 
     openBtn.addEventListener("click", () => {
         panel.classList.add("open");
@@ -286,6 +374,13 @@ function initAlertSettingsUI() {
     if (highVolSel) {
         highVolSel.addEventListener("change", () => {
             alertSettings.highVolumeThreshold = parseInt(highVolSel.value, 10) || 1;
+            saveAlertSettings();
+        });
+    }
+
+    if (toneSel) {
+        toneSel.addEventListener("change", () => {
+            alertSettings.alertTone = toneSel.value || "soft";
             saveAlertSettings();
         });
     }
@@ -352,7 +447,7 @@ async function loadQueueStatus() {
 
         body.innerHTML = html;
 
-        // Panel border + alerts are in their own safe wrapper so they never break the table
+        // Panel border + alerts are guarded so they never break the table
         try {
             const panel = document.getElementById("queue-panel");
             if (panel) {
@@ -442,9 +537,8 @@ async function loadAgentStatus() {
             const outbound = a.DialoutCount ?? 0;
 
             const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
-            const avgHandleSeconds = inbound > 0
-                ? Math.round((a.TotalSecondsOnCall || 0) / inbound)
-                : 0;
+            const avgHandleSeconds =
+                inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
 
             const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
@@ -500,6 +594,18 @@ function initDarkMode() {
 }
 
 // ===============================
+// WALLBOARD MODE
+// ===============================
+function initWallboardMode() {
+    const btn = document.getElementById("wallboardToggle");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+        document.body.classList.toggle("wallboard-mode");
+    });
+}
+
+// ===============================
 // INIT
 // ===============================
 function refreshAll() {
@@ -513,6 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initAlertAudio();
     initAlertSettingsUI();
     initDarkMode();
+    initWallboardMode();
 
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission().catch(() => {});

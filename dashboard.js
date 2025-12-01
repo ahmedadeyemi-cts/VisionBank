@@ -39,7 +39,6 @@ function safe(value, fallback = "--") {
     return value === undefined || value === null ? fallback : value;
 }
 
-// Map status text to availability class
 function getAvailabilityClass(desc) {
     const s = (desc || "").toLowerCase();
 
@@ -51,12 +50,13 @@ function getAvailabilityClass(desc) {
     return "";
 }
 
-// ========================================================
-// VOICE ALERT (LOCAL MP3) + VOLUME CONTROL
-// ========================================================
+// ===============================
+// VOICE ALERT (LOCAL MP3)
+// ===============================
 let alertVolume = 0.65;
 
-let voiceAudio = new Audio("ttsAlert.mp3");
+// IMPORTANT: Correct MP3 path
+let voiceAudio = new Audio("assets/ttsAlert.mp3");
 voiceAudio.volume = alertVolume;
 
 function playVoiceAlert() {
@@ -68,15 +68,14 @@ function playVoiceAlert() {
     }
 }
 
-// Allow UI control of alert volume if needed
 function setAlertVolume(level) {
     alertVolume = Math.min(1, Math.max(0, level));
     voiceAudio.volume = alertVolume;
 }
 
-// ========================================================
-// DESKTOP NOTIFICATION POPUP
-// ========================================================
+// ===============================
+// DESKTOP NOTIFICATION
+// ===============================
 function notifyCallsWaiting() {
     if (Notification.permission === "granted") {
         new Notification("You have calls waiting!", {
@@ -86,9 +85,9 @@ function notifyCallsWaiting() {
     }
 }
 
-// ========================================================
-// TONE CHIME (3-BEEP ALERT)
-// ========================================================
+// ===============================
+// 3-BEEP ALERT CHIME
+// ===============================
 function playQueueChime() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -117,9 +116,9 @@ function playQueueChime() {
     }
 }
 
-// ========================================================
-// LOAD CURRENT QUEUE STATUS (UPDATED WITH ALERTS)
-// ========================================================
+// ===============================
+// LOAD QUEUE STATUS
+// ===============================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
     body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
@@ -140,14 +139,12 @@ async function loadQueueStatus() {
 
         const hasQueueAlert = (calls > 0 || waiting > 0);
 
-        // Alerts
         if (hasQueueAlert) {
             playQueueChime();
             playVoiceAlert();
             notifyCallsWaiting();
         }
 
-        // Blinking panel border
         const panel = document.getElementById("queue-panel");
         if (hasQueueAlert) {
             panel.classList.add("queue-panel-alert");
@@ -155,13 +152,12 @@ async function loadQueueStatus() {
             panel.classList.remove("queue-panel-alert");
         }
 
-        // Red pulsing calls cell
         const callsClass = hasQueueAlert ? "numeric queue-alert" : "numeric";
 
         const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
         const avgWaitSeconds = q.AvgWaitInterval ?? 0;
 
-        const rowHtml = `
+        body.innerHTML = `
             <tr>
                 <td>${safe(q.QueueName, "Unknown")}</td>
                 <td class="${callsClass}">${calls}</td>
@@ -171,17 +167,15 @@ async function loadQueueStatus() {
             </tr>
         `;
 
-        body.innerHTML = rowHtml;
-
     } catch (err) {
         console.error("Queue load error:", err);
         body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
     }
 }
 
-// ========================================================
-// LOAD GLOBAL STATISTICS
-// ========================================================
+// ===============================
+// LOAD GLOBAL STATS
+// ===============================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
     errorDiv.textContent = "";
@@ -222,9 +216,9 @@ function setText(id, value) {
     el.textContent = value === undefined || value === null ? "--" : value;
 }
 
-// ========================================================
-// LOAD AGENT PERFORMANCE
-// ========================================================
+// ===============================
+// LOAD AGENT DATA
+// ===============================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
     body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
@@ -277,9 +271,9 @@ async function loadAgentStatus() {
     }
 }
 
-// ========================================================
-// DARK MODE TOGGLE
-// ========================================================
+// ===============================
+// DARK MODE
+// ===============================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
 
@@ -304,9 +298,9 @@ function initDarkMode() {
     });
 }
 
-// ========================================================
+// ===============================
 // INIT
-// ========================================================
+// ===============================
 function refreshAll() {
     loadQueueStatus();
     loadAgentStatus();

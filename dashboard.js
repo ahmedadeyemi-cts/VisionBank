@@ -32,7 +32,6 @@ function formatTime(sec) {
 
 function formatDate(utc) {
     if (!utc) return "--";
-    // Force UTC and convert to US Central
     return new Date(utc + "Z").toLocaleString("en-US", { timeZone: "America/Chicago" });
 }
 
@@ -44,32 +43,44 @@ function safe(value, fallback = "--") {
 function getAvailabilityClass(desc) {
     const s = (desc || "").toLowerCase();
 
-    // Available → Green
     if (s.includes("available")) return "status-available";
-
-    // On Call / Dialing → Red
-    if (s.includes("on call") || s.includes("dial") || s.includes("talk")) {
-        return "status-oncall";
-    }
-
-    // Busy / Not Set / On Break → Yellow
-    if (s.includes("busy") || s.includes("not set") || s.includes("break")) {
-        return "status-busy";
-    }
-
-    // Ringing / Accept Internal Calls / Wrap-up → Orange
-    if (
-        s.includes("ring") ||
-        s.includes("accept internal") ||
-        s.includes("wrap")
-    ) {
-        return "status-ringing";
-    }
+    if (s.includes("on call") || s.includes("dial") || s.includes("talk")) return "status-oncall";
+    if (s.includes("busy") || s.includes("not set") || s.includes("break")) return "status-busy";
+    if (s.includes("ring") || s.includes("accept internal") || s.includes("wrap")) return "status-ringing";
 
     return "";
 }
+
 // ===============================
-// LOAD CURRENT QUEUE STATUS
+// QUEUE ALERT STATE + CHIME
+// ===============================
+let hadQueueAlert = false;
+
+function playQueueChime() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+
+        osc.onended = () => ctx.close();
+    } catch (e) {
+        console.warn("Unable to play chime:", e);
+    }
+}
+
+// ===============================
+// LOAD CURRENT QUEUE STATUS (UPDATED)
 // ===============================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
@@ -88,13 +99,23 @@ async function loadQueueStatus() {
         const calls = safe(q.TotalCalls, 0);
         const agents = safe(q.TotalLoggedAgents, 0);
 
+        const waiting = safe(q.CallsWaiting ?? q.CallsInQueue ?? 0, 0);
+        const hasQueueAlert = (calls > 0 || waiting > 0);
+
+        if (hasQueueAlert && !hadQueueAlert) {
+            playQueueChime();
+        }
+        hadQueueAlert = hasQueueAlert;
+
+        const callsClass = hasQueueAlert ? "numeric queue-alert" : "numeric";
+
         const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
         const avgWaitSeconds = q.AvgWaitInterval ?? 0;
 
         const rowHtml = `
             <tr>
                 <td>${safe(q.QueueName, "Unknown")}</td>
-                <td class="numeric">${calls}</td>
+                <td class="${callsClass}">${calls}</td>
                 <td class="numeric">${agents}</td>
                 <td class="numeric">${formatTime(maxWaitSeconds)}</td>
                 <td class="numeric">${formatTime(avgWaitSeconds)}</td>
@@ -153,7 +174,7 @@ function setText(id, value) {
 }
 
 // ===============================
-// LOAD AGENT PERFORMANCE (UPDATED: DURATION ADDED)
+// LOAD AGENT PERFORMANCE
 // ===============================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
@@ -175,14 +196,11 @@ async function loadAgentStatus() {
             const transferred = a.ThirdPartyTransferCount ?? 0;
             const outbound = a.DialoutCount ?? 0;
 
-            // Calculate Duration → SecondsInCurrentStatus
             const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
 
-            // Avg Handle Time
             const avgHandleSeconds =
                 inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
 
-            // Availability color map
             const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
             const tr = document.createElement("tr");
@@ -192,11 +210,7 @@ async function loadAgentStatus() {
                 <td>${safe(a.TeamName)}</td>
                 <td>${safe(a.PhoneExt)}</td>
                 <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
-                
-                <!-- DURATION (NEW COLUMN) -->
                 <td class="numeric">${duration}</td>
-
-                <!-- Existing columns -->
                 <td class="numeric">${inbound}</td>
                 <td class="numeric">${missed}</td>
                 <td class="numeric">${transferred}</td>
@@ -220,7 +234,6 @@ async function loadAgentStatus() {
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
 
-    // Detect system preference ON FIRST VISIT
     if (!localStorage.getItem("dashboard-dark-mode")) {
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         if (prefersDark) {
@@ -228,7 +241,6 @@ function initDarkMode() {
             btn.textContent = "☀️ Light Mode";
         }
     } else {
-        // Load stored preference
         const stored = localStorage.getItem("dashboard-dark-mode");
         if (stored === "on") {
             document.body.classList.add("dark-mode");
@@ -236,7 +248,6 @@ function initDarkMode() {
         }
     }
 
-    // Toggle on click
     btn.addEventListener("click", () => {
         const isDark = document.body.classList.toggle("dark-mode");
         btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
@@ -256,7 +267,5 @@ function refreshAll() {
 document.addEventListener("DOMContentLoaded", () => {
     initDarkMode();
     refreshAll();
-
-    // Refresh every 10 seconds
     setInterval(refreshAll, 10000);
 });

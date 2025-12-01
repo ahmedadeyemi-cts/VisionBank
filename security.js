@@ -51,7 +51,7 @@ const SECURITY = {
         }
         if (!localStorage.getItem("mfaEmails")) {
             this.save("mfaEmails", [
-                "security@visionsystems.com"
+                "ahmed.adeyemi@ussignal.com"
             ]);
         }
     },

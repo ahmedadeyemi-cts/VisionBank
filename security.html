@@ -2,104 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VisionBank Security Administration</title>
+    <title>VisionBank Secure Access</title>
     <link rel="stylesheet" href="security.css">
 </head>
 
-<body class="security-body">
-    
-    <!-- HEADER -->
-    <header class="sec-header glass">
-        <img src="assets/VisionBank-Logo.png" class="vb-logo" alt="VisionBank Logo">
-        <h1>VisionBank Security Administration</h1>
-        <p class="subtitle">Access Control • Monitoring • Business Hours</p>
-    </header>
+<body>
 
-    <!-- LOGIN PANEL -->
-    <div id="login-panel" class="glass login-card">
-        <h2>Administrator Login</h2>
+<!-- DARK MODE TOGGLE -->
+<button id="darkToggle" class="dark-toggle">🌙</button>
 
-        <input id="admin-id" placeholder="Admin ID" autocomplete="off">
-        <input id="admin-pin" placeholder="PIN" type="password" autocomplete="off">
+<!-- LOGIN CONTAINER -->
+<div class="login-container glass">
 
-        <button onclick="SECURITY.login()">Log In</button>
+    <img src="assets/visionbank-logo.png" alt="VisionBank Logo" class="vb-logo-large">
 
-        <p id="login-error"></p>
+    <h1 class="login-title">Secure Administrator Login</h1>
+
+    <div id="login-section">
+
+        <input type="text" id="adminUser" placeholder="Admin Username" class="input-field">
+        <input type="password" id="adminPin" placeholder="PIN" class="input-field">
+
+        <button onclick="validateLogin()" class="login-btn">Login</button>
+
+        <p id="login-error" class="error-msg"></p>
+
+        <button onclick="showOverride()" class="override-link">Use Override Key</button>
     </div>
 
-    <!-- DASHBOARD (hidden until authenticated) -->
-    <div id="admin-dashboard" class="dashboard-container" style="display:none;">
+    <!-- MFA SECTION -->
+    <div id="mfa-section" class="hidden">
+        <p class="mfa-instructions">A 6-digit authentication code has been sent to your registered email(s).</p>
 
-        <h2 class="section-title">Security Controls</h2>
+        <input type="text" id="mfaInput" maxlength="6" placeholder="Enter MFA Code" class="input-field">
 
-        <div class="grid-2">
+        <button onclick="verifyMFA()" class="login-btn">Verify Code</button>
 
-            <!-- ALLOWLIST PANEL -->
-            <div class="glass panel">
-                <h3>Allowed IP Addresses</h3>
-                <ul id="ip-list"></ul>
+        <p id="mfa-error" class="error-msg"></p>
 
-                <input id="new-ip" placeholder="Add IP or CIDR">
-                <button onclick="SECURITY.addIP()">Add IP</button>
-            </div>
-
-            <!-- BUSINESS HOURS -->
-            <div class="glass panel">
-                <h3>Business Hours (CST)</h3>
-
-                <label>Start Time</label>
-                <input type="time" id="start-time">
-
-                <label>End Time</label>
-                <input type="time" id="end-time">
-
-                <label>Active Days</label>
-                <select id="active-days" multiple>
-                    <option value="1">Mon</option>
-                    <option value="2">Tue</option>
-                    <option value="3">Wed</option>
-                    <option value="4">Thu</option>
-                    <option value="5">Fri</option>
-                    <option value="6">Sat</option>
-                </select>
-
-                <button onclick="SECURITY.saveHours()">Save Hours</button>
-            </div>
-
-        </div>
-
-        <!-- ADMIN MANAGEMENT -->
-        <div class="glass panel">
-            <h3>Administrators</h3>
-
-            <ul id="admin-list"></ul>
-
-            <input id="new-admin-id" placeholder="New Admin ID">
-            <input id="new-admin-pin" placeholder="New PIN">
-
-            <button onclick="SECURITY.addAdmin()">Add Admin</button>
-        </div>
-
-        <!-- AUDIT LOG -->
-        <div class="glass panel">
-            <h3>Audit Log</h3>
-
-            <button onclick="SECURITY.downloadLog()">Download CSV</button>
-            <ul id="audit-log"></ul>
-        </div>
-
+        <button onclick="resendMFA()" class="override-link">Resend Code</button>
     </div>
 
-    <!-- FOOTER -->
-    <footer class="glass-footer">
-        <div class="footer-right">
-            <img src="assets/US-Signal-Logo.png" class="sec-footer-logo-small">
-            <span>Created and maintained by Ahmed Adeyemi, US Signal</span>
-        </div>
-    </footer>
+    <!-- OVERRIDE SECTION -->
+    <div id="override-section" class="hidden">
+        <input type="password" id="overrideKey" placeholder="Override Key" class="input-field">
 
-    <script src="security.js"></script>
-    <script src="security-dashboard.js"></script>
+        <button onclick="validateOverride()" class="login-btn">Submit Override</button>
+        <p id="override-error" class="error-msg"></p>
+    </div>
+
+</div>
+
+<!-- FOOTER -->
+<footer class="glass-footer">
+    <img src="assets/US Signal Logo.png" class="footer-logo-small">
+    <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
+</footer>
+
+<script src="security.js"></script>
 
 </body>
 </html>

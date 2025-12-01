@@ -46,7 +46,7 @@ body {
     color: #555;
 }
 
-/* ====== GLOBAL STAT CARDS (RESTORED) ====== */
+/* ====== GLOBAL STAT CARDS ====== */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -105,7 +105,6 @@ body {
     border: 1px solid #ddd;
 }
 
-/* Zebra rows */
 .data-table tbody tr:nth-child(odd) {
     background: #f9fafb;
 }
@@ -130,7 +129,6 @@ body {
     background: #e67e22;
     color: white;
 }
-/* NEW — Wrap-Up */
 .status-wrapup {
     background: #ff8c42;
     color: white;
@@ -151,92 +149,23 @@ body {
     width: auto;
 }
 
-/* ============================================================
-   GLASSMORPHISM DARK MODE — Global Behavior
-   ============================================================ */
-
+/* ====== DARK MODE (GLASSY) ====== */
 body.dark-mode {
     background: #0c0c0c !important;
     color: #f5f5f5 !important;
     backdrop-filter: blur(8px);
 }
 
-/* Universal dark text theme EXCEPT availability cells */
-body.dark-mode *:not(.availability-cell)
-               :not(.status-available)
-               :not(.status-oncall)
-               :not(.status-busy)
-               :not(.status-ringing)
-               :not(.status-wrapup) {
-    color: #efefef !important;
-}
-
-/* ============================================================
-   PRESERVE AVAILABILITY COLORS (unchanged)
-   ============================================================ */
-
-body.dark-mode .status-available {
-    background: #2ecc71 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
-}
-
-body.dark-mode .status-oncall {
-    background: #e74c3c !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
-}
-
-body.dark-mode .status-busy {
-    background: #f1c40f !important;
-    color: #000 !important;
-    box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
-}
-
-body.dark-mode .status-ringing {
-    background: #e67e22 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
-}
-
-body.dark-mode .status-wrapup {
-    background: #ff8c42 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(255, 140, 66, 0.6);
-}
-
-/* ============================================================
-   GLASSMORPHIC HEADER & FOOTER
-   ============================================================ */
-
 body.dark-mode .header,
 body.dark-mode .footer {
     background: rgba(32, 32, 32, 0.6) !important;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
-body.dark-mode .header-center h1,
-body.dark-mode .header-subtitle {
-    color: #ffffff !important;
-}
-
-body.dark-mode .logo,
-body.dark-mode .footer-logo {
-    filter: brightness(1.8) contrast(1.1);
-}
-
-/* ============================================================
-   GLASSMORPHIC PANELS
-   ============================================================ */
-
 body.dark-mode .panel {
     background: rgba(35, 35, 35, 0.55) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
 }
 
@@ -245,17 +174,10 @@ body.dark-mode .panel h2 {
     padding: 8px;
     border-radius: 6px;
     color: #ffffff !important;
-    backdrop-filter: blur(10px);
 }
-
-/* ============================================================
-   GLASSMORPHIC TABLES
-   ============================================================ */
 
 body.dark-mode .data-table th {
     background: rgba(255, 255, 255, 0.08) !important;
-    color: #ffffff !important;
-    backdrop-filter: blur(10px);
 }
 
 body.dark-mode .data-table td {
@@ -266,32 +188,38 @@ body.dark-mode .data-table td {
 body.dark-mode .data-table tbody tr:nth-child(odd) {
     background: rgba(255, 255, 255, 0.03) !important;
 }
-
 body.dark-mode .data-table tbody tr:nth-child(even) {
     background: rgba(255, 255, 255, 0.07) !important;
 }
 
-/* ============================================================
-   GLASSMORPHIC STAT CARDS
-   ============================================================ */
-
 body.dark-mode .stat-card {
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 14px rgba(0,0,0,0.45);
 }
 
-body.dark-mode .stat-value,
-body.dark-mode .stat-label {
+/* Preserve availability colors in dark mode */
+body.dark-mode .status-available {
+    background: #2ecc71 !important;
+    color: #ffffff !important;
+}
+body.dark-mode .status-oncall {
+    background: #e74c3c !important;
+    color: #ffffff !important;
+}
+body.dark-mode .status-busy {
+    background: #f1c40f !important;
+    color: #000 !important;
+}
+body.dark-mode .status-ringing {
+    background: #e67e22 !important;
+    color: #ffffff !important;
+}
+body.dark-mode .status-wrapup {
+    background: #ff8c42 !important;
     color: #ffffff !important;
 }
 
-/* ============================================================
-   Smooth Animated Transitions
-   ============================================================ */
-
+/* ====== TRANSITIONS ====== */
 body,
 .header,
 .footer,
@@ -307,10 +235,7 @@ body,
                 backdrop-filter 0.45s ease;
 }
 
-/* ============================================================
-   Loading / error text
-   ============================================================ */
-
+/* ====== LOADING / ERROR ====== */
 .loading {
     font-style: italic;
     color: #777;
@@ -321,10 +246,7 @@ body,
     font-weight: bold;
 }
 
-/* ============================================================
-   Queue alert visuals (calls / wait > 0)
-   ============================================================ */
-
+/* ====== QUEUE ALERT (PANEL + VALUES) ====== */
 .queue-alert {
     border: 2px solid #cc0000;
     box-shadow: 0 0 12px rgba(220, 0, 0, 0.7);
@@ -354,109 +276,7 @@ body.dark-mode .queue-alert-value {
     }
 }
 
-/* ============================================================
-   Alert Settings button & panel (small, floating)
-   ============================================================ */
-
-.alert-settings-btn {
-    position: fixed;
-    top: 10px;
-    right: 16px;
-    z-index: 1000;
-    background: #ffffff;
-    border-radius: 999px;
-    border: 1px solid #d0d0d0;
-    padding: 6px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-}
-
-.alert-settings-btn .alert-icon {
-    font-size: 16px;
-}
-
-body.dark-mode .alert-settings-btn {
-    background: #222;
-    border-color: #555;
-    color: #f5f5f5;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-}
-
-.alert-settings-panel {
-    position: fixed;
-    top: 50px;
-    right: 16px;
-    width: 260px;
-    max-height: 70vh;
-    overflow-y: auto;
-    background: #ffffff;
-    border-radius: 10px;
-    border: 1px solid #d0d0d0;
-    padding: 10px 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
-    z-index: 999;
-    font-size: 12px;
-}
-
-body.dark-mode .alert-settings-panel {
-    background: #1a1a1a;
-    border-color: #555;
-}
-
-.alert-settings-panel h3 {
-    margin: 0 0 6px 0;
-    font-size: 13px;
-    text-align: left;
-}
-
-.alert-row {
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-}
-
-.alert-row label {
-    flex: 1;
-}
-
-.alert-row input[type="range"],
-.alert-row select,
-.alert-row input[type="number"] {
-    width: 100%;
-}
-
-.hidden {
-    display: none;
-}
-/* MAKE ALERT PANEL ALWAYS FLOAT ABOVE EVERYTHING */
-.alert-settings-panel {
-    position: fixed;
-    top: 55px;
-    right: 18px;
-    width: 250px;
-    background: #ffffff;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    padding: 10px 12px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-    z-index: 999999 !important;
-}
-
-/* Dark mode panel */
-body.dark-mode .alert-settings-panel {
-    background: #1b1b1b;
-    border-color: #555;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
-}
-
-/* Floating Alert Settings button */
+/* ====== ALERT SETTINGS BUTTON & PANEL ====== */
 .alert-settings-btn {
     position: fixed;
     top: 10px;
@@ -474,25 +294,177 @@ body.dark-mode .alert-settings-panel {
     box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
-/* Dark mode button */
 body.dark-mode .alert-settings-btn {
     background: #222;
     color: #fff;
     border-color: #555;
 }
 
-/* Hide class */
-.hidden {
-    display: none !important;
+/* Panel */
+.alert-settings-panel {
+    position: fixed;
+    top: 55px;
+    right: 18px;
+    width: 260px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    z-index: 999999 !important;
 }
 
-/* Small form rows */
+body.dark-mode .alert-settings-panel {
+    background: #1b1b1b;
+    border-color: #555;
+}
+
+/* Alert panel rows */
+.alert-settings-panel h3 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+}
+
 .alert-row {
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.alert-row label {
+    flex: 1;
 }
 
 .alert-row input[type="range"],
 .alert-row select,
 .alert-row input[type="number"] {
     width: 100%;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ====== ALERT HISTORY BUTTON & PANEL ====== */
+.alert-history-btn {
+    position: fixed;
+    top: 10px;
+    right: 150px;
+    z-index: 1000000 !important;
+    background: #fff;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+body.dark-mode .alert-history-btn {
+    background: #222;
+    color: #fff;
+    border-color: #555;
+}
+
+.alert-history-panel {
+    position: fixed;
+    top: 55px;
+    right: 290px;
+    width: 260px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    z-index: 999999 !important;
+}
+
+body.dark-mode .alert-history-panel {
+    background: #1b1b1b;
+    border-color: #555;
+}
+
+.alert-history-panel h3 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+}
+
+.alert-history-list {
+    font-size: 11px;
+}
+
+.history-item {
+    border-bottom: 1px solid #eee;
+    padding: 4px 0;
+}
+
+.history-line {
+    line-height: 1.3;
+}
+
+.history-empty {
+    font-style: italic;
+    color: #777;
+}
+
+/* ====== QUEUE TONE OVERRIDES ====== */
+.queue-tone-overrides {
+    max-height: 140px;
+    overflow-y: auto;
+    border-top: 1px solid #eee;
+    margin-top: 4px;
+    padding-top: 4px;
+    font-size: 11px;
+}
+
+.queue-override-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.queue-override-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.queue-override-select {
+    width: 100px;
+    font-size: 11px;
+}
+
+.queue-override-empty {
+    font-style: italic;
+    color: #777;
+}
+
+/* ====== TEST ALERT BUTTON ====== */
+.alert-test-btn {
+    width: 100%;
+    padding: 6px 0;
+    font-size: 12px;
+    border-radius: 6px;
+    border: 1px solid #2ecc71;
+    background: #2ecc71;
+    color: #fff;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+body.dark-mode .alert-test-btn {
+    border-color: #27ae60;
+    background: #27ae60;
 }

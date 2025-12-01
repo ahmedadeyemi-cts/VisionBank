@@ -1,106 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>VisionBank Security Admin</title>
-    <link rel="stylesheet" href="security.css" />
+<meta charset="UTF-8" />
+<title>VisionBank Security Administration</title>
+<link rel="stylesheet" href="security.css" />
 </head>
 <body>
 
 <div class="sec-container">
-    <h1>VisionBank Security Admin Console</h1>
 
-    <!-- AUTH SECTION (login + MFA) -->
-    <div id="auth-section" class="sec-card">
-        <h2>Admin Sign In</h2>
+    <header class="sec-header">
+        <img src="visionbank.png" class="sec-logo">
+        <h1>VisionBank Security Administration</h1>
+        <p class="sec-subtitle">Access Control • Monitoring • Business Hours</p>
+    </header>
 
-        <div id="auth-step-password">
-            <p>Enter the admin password to begin.</p>
-            <input type="password" id="adminPassword" placeholder="Admin password" />
-            <button id="startMfaBtn">Continue</button>
-        </div>
-
-        <div id="auth-step-mfa" style="display:none;">
-            <p>Scan the QR code with your MFA app or camera, then enter the 6-digit code.</p>
-            <div class="mfa-row">
-                <img id="mfaQr" alt="MFA QR Code" />
-                <div class="mfa-right">
-                    <p>Code: <strong id="mfaCodePlain"></strong></p>
-                    <input type="text" id="mfaInput" maxlength="6" placeholder="Enter 6-digit code" />
-                    <button id="mfaSubmitBtn">Verify & Sign In</button>
-                </div>
-            </div>
-        </div>
+    <div id="auth-section" class="auth-box">
+        <h2>Administrator Login</h2>
+        <input type="password" id="admin-pin" placeholder="Enter Admin PIN">
+        <button onclick="SECURITY.verifyPIN()">Login</button>
+        <p id="auth-error" class="error"></p>
     </div>
 
-    <!-- ADMIN SECTION -->
-    <div id="admin-section" style="display:none;">
+    <div id="admin-section" class="hidden">
 
-        <div class="sec-top-bar">
-            <span id="adminStatus"></span>
-            <button id="logoutBtn">Log out</button>
+        <h2 class="section-title">Allowed IP Ranges</h2>
+
+        <div class="panel">
+            <input id="new-ip" placeholder="Add IP or CIDR (e.g., 10.1.1.0/24)">
+            <button onclick="SECURITY.addIP()">Add IP</button>
+
+            <ul id="ip-list"></ul>
         </div>
 
-        <!-- Blocked attempts -->
-        <div class="sec-card">
-            <h2>Blocked Attempts</h2>
-            <table class="sec-table">
-                <thead>
-                    <tr>
-                        <th>IP</th>
-                        <th>Reason</th>
-                        <th>Time</th>
-                        <th>Fingerprint</th>
-                    </tr>
-                </thead>
-                <tbody id="logTableBody"></tbody>
-            </table>
+        <h2 class="section-title">Business Hours</h2>
+
+        <div class="panel">
+            <label>Start Time (CST):</label>
+            <input type="time" id="start-time">
+
+            <label>End Time (CST):</label>
+            <input type="time" id="end-time">
+
+            <label>Days Open:</label>
+            <select id="days-open" multiple>
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+                <option value="0">Sunday</option>
+            </select>
+
+            <button onclick="SECURITY.saveBusinessHours()">Save Settings</button>
         </div>
 
-        <!-- Allowed IPs configuration -->
-        <div class="sec-card">
-            <h2>Allowed IP Rules</h2>
-            <p>One rule per line. Format:</p>
-            <ul>
-                <li><code>single:45.19.161.17</code></li>
-                <li><code>range:10.100.100.0/24</code></li>
-            </ul>
-            <textarea id="ipRules" rows="6"></textarea>
-            <button id="saveIpRulesBtn">Save IP Rules</button>
+        <h2 class="section-title">Security Audit Log</h2>
+
+        <div class="panel">
+            <ul id="audit-log"></ul>
         </div>
 
-        <!-- Business hours configuration -->
-        <div class="sec-card">
-            <h2>Business Hours (CST)</h2>
-            <div class="bh-row">
-                <div>
-                    <label>Start time:</label>
-                    <input type="time" id="bhStart" />
-                </div>
-                <div>
-                    <label>End time:</label>
-                    <input type="time" id="bhEnd" />
-                </div>
-            </div>
-            <div class="bh-row">
-                <label>Active days:</label>
-                <div class="bh-days">
-                    <label><input type="checkbox" value="1" /> Mon</label>
-                    <label><input type="checkbox" value="2" /> Tue</label>
-                    <label><input type="checkbox" value="3" /> Wed</label>
-                    <label><input type="checkbox" value="4" /> Thu</label>
-                    <label><input type="checkbox" value="5" /> Fri</label>
-                    <label><input type="checkbox" value="6" /> Sat</label>
-                    <label><input type="checkbox" value="0" /> Sun</label>
-                </div>
-            </div>
-            <button id="saveBhBtn">Save Business Hours</button>
-        </div>
+        <button class="logout" onclick="SECURITY.logout()">Logout</button>
 
     </div>
 </div>
 
 <script src="security.js"></script>
 <script src="security-dashboard.js"></script>
+
 </body>
 </html>

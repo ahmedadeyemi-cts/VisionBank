@@ -2,189 +2,116 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>VisionBank | Agent Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-    <!-- =============================== -->
-    <!-- HEADER -->
-    <!-- =============================== -->
-    <header class="header">
-        <div class="header-left">
-            <img src="assets/visionbank_logo.png" alt="VisionBank Logo" class="logo" />
-        </div>
 
-        <div class="header-center">
-            <h1>VisionBank Agent Dashboard</h1>
-            <div class="header-subtitle">Real-Time Performance & Queue Monitoring</div>
-        </div>
-    </header>
+<header class="header">
+    <div class="header-left">
+        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
+    </div>
 
-    <!-- =============================== -->
-    <!-- FLOATING BUTTONS -->
-    <!-- =============================== -->
-    <button id="alertSettingsToggle" class="alert-settings-btn">
-        🔔 Alert Settings
-    </button>
+    <div class="header-center">
+        <h1>CEG Contact Center Realtime Dashboard</h1>
+        <span class="header-subtitle">VisionBank</span>
+    </div>
+</header>
 
-    <button id="alertHistoryToggle" class="alert-history-btn">
-        📜 Alert History
-    </button>
+<!-- Floating Alert Settings button -->
+<button id="alertSettingsToggle" type="button" class="alert-settings-btn" aria-label="Alert Settings">
+    <span class="alert-icon">🔔</span>
+    <span class="alert-text">Alert Settings</span>
+</button>
 
-    <!-- =============================== -->
-    <!-- ALERT SETTINGS PANEL -->
-    <!-- =============================== -->
-    <div id="alertSettingsPanel" class="alert-settings-panel hidden">
-        <h3>Alert Settings</h3>
+<!-- Floating Alert History button -->
+<button id="alertHistoryToggle" type="button" class="alert-history-btn" aria-label="Alert History">
+    <span class="alert-icon">📜</span>
+    <span class="alert-text">Alert History</span>
+</button>
 
-        <div class="alert-row">
-            <label>
-                <input type="checkbox" id="enableQueueAlerts" />
-                Enable queue alerts
-            </label>
-        </div>
+<!-- ALERT SETTINGS PANEL -->
+<div id="alertSettingsPanel" class="alert-settings-panel hidden">
+    <h3>Alert Settings</h3>
 
-        <div class="alert-row">
-            <label>
-                <input type="checkbox" id="enableVoiceAlerts" />
-                Voice alert (“You have calls waiting”)
-            </label>
-        </div>
+    <div class="alert-row">
+        <label>
+            <input type="checkbox" id="enableQueueAlerts" checked />
+            Enable queue alerts
+        </label>
+    </div>
 
-        <div class="alert-row">
-            <label>
-                <input type="checkbox" id="enablePopupAlerts" />
-                Show popup notifications
-            </label>
-        </div>
+    <div class="alert-row">
+        <label>
+            <input type="checkbox" id="enableVoiceAlerts" checked />
+            Voice alert: “You have calls waiting”
+        </label>
+    </div>
 
-        <div class="alert-row">
-            <label for="alertToneSelect">Alert tone</label>
-            <select id="alertToneSelect">
-                <option value="soft">Soft chime</option>
-                <option value="bright">Bright bell</option>
-                <option value="pulse">Pulse beep</option>
-            </select>
-        </div>
+    <div class="alert-row">
+        <label>
+            <input type="checkbox" id="enablePopupAlerts" checked />
+            Show notification pop-up
+        </label>
+    </div>
 
-        <div class="alert-row">
-            <label for="alertVolume">Volume</label>
-        </div>
+    <div class="alert-row">
+        <label for="alertToneSelect">Alert tone</label>
+        <select id="alertToneSelect">
+            <option value="soft">Soft chime</option>
+            <option value="bright">Bright bell</option>
+            <option value="pulse">Pulse beep</option>
+        </select>
+    </div>
+
+    <div class="alert-row">
+        <label for="alertVolume">Volume</label>
         <input type="range" id="alertVolume" min="0" max="100" value="80" />
-
-        <div class="alert-row" style="margin-top:6px;">
-            <label for="alertCooldown">Repeat alert every (seconds)</label>
-            <input type="number" id="alertCooldown" min="10" max="300" step="5" value="30" />
-        </div>
-
-        <div class="alert-row">
-            <label>
-                <input type="checkbox" id="wallboardMode" />
-                Wallboard mode
-            </label>
-        </div>
-
-        <button id="alertTestButton" class="alert-test-btn">
-            ▶ Test Alert
-        </button>
-
-        <h3 style="margin-top:10px;">Queue Tone Overrides</h3>
-        <div id="queueToneOverrides" class="queue-tone-overrides">
-            <div class="queue-override-empty">No queues loaded yet.</div>
-        </div>
     </div>
 
-    <!-- =============================== -->
-    <!-- ALERT HISTORY PANEL -->
-    <!-- =============================== -->
-    <div id="alertHistoryPanel" class="alert-history-panel hidden">
-        <h3>Alert History</h3>
-        <div id="alertHistoryList" class="alert-history-list">
-            <div class="history-empty">No alerts yet.</div>
-        </div>
+    <div class="alert-row">
+        <label for="alertCooldown">Alert every (seconds)</label>
+        <input type="number" id="alertCooldown" min="10" max="300" step="5" value="30" />
     </div>
 
-    <!-- =============================== -->
-    <!-- GLOBAL STATS -->
-    <!-- =============================== -->
-    <section class="panel">
-        <h2>Global Statistics</h2>
+    <div class="alert-row">
+        <label>
+            <input type="checkbox" id="wallboardMode" />
+            Wallboard mode
+        </label>
+    </div>
 
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div id="gs-total-queued" class="stat-value">--</div>
-                <div class="stat-label">Total Calls Queued</div>
-            </div>
+    <div class="alert-row">
+        <button id="testAlertBtn" class="test-alert-btn">▶ Test Alert</button>
+    </div>
+</div>
 
-            <div class="stat-card">
-                <div id="gs-total-transferred" class="stat-value">--</div>
-                <div class="stat-label">Total Calls Transferred</div>
-            </div>
+<!-- ALERT HISTORY PANEL -->
+<div id="alertHistoryPanel" class="alert-history-panel hidden">
+    <h3>Alert History</h3>
+    <div id="alertHistoryList" class="alert-history-list">
+        <!-- Filled dynamically -->
+    </div>
+    <button id="clearAlertHistory" class="clear-history-btn">Clear History</button>
+</div>
 
-            <div class="stat-card">
-                <div id="gs-total-abandoned" class="stat-value">--</div>
-                <div class="stat-label">Total Calls Abandoned</div>
-            </div>
+<main class="main">
 
-            <div class="stat-card">
-                <div id="gs-max-wait" class="stat-value">--</div>
-                <div class="stat-label">Max Wait Time</div>
-            </div>
-
-            <div class="stat-card">
-                <div id="gs-service-level" class="stat-value">--</div>
-                <div class="stat-label">Service Level</div>
-            </div>
-        </div>
-
-        <div class="stat-grid" style="margin-top:15px;">
-            <div class="stat-card">
-                <div id="gs-total-received" class="stat-value">--</div>
-                <div class="stat-label">Total Calls Received</div>
-            </div>
-
-            <div class="stat-card">
-                <div id="gs-answer-rate" class="stat-value">--</div>
-                <div class="stat-label">Answer Rate</div>
-            </div>
-
-            <div class="stat-card">
-                <div id="gs-abandon-rate" class="stat-value">--</div>
-                <div class="stat-label">Abandon Rate</div>
-            </div>
-
-            <div class="stat-card">
-                <div id="gs-callbacks-registered" class="stat-value">--</div>
-                <div class="stat-label">Callbacks Registered</div>
-            </div>
-
-            <div class="stat-card">
-                <div id="gs-callbacks-waiting" class="stat-value">--</div>
-                <div class="stat-label">Callbacks Waiting</div>
-            </div>
-        </div>
-
-        <div id="global-error" class="error"></div>
-    </section>
-
-    <!-- =============================== -->
-    <!-- QUEUE STATUS -->
-    <!-- =============================== -->
-    <section id="queue-panel" class="panel">
+    <!-- CURRENT QUEUE STATUS -->
+    <section class="panel" id="queue-panel">
         <h2>Current Queue Status</h2>
-
         <table class="data-table">
             <thead>
                 <tr>
                     <th>Queue</th>
                     <th>Calls</th>
                     <th>Agents</th>
-                    <th>Oldest Wait</th>
+                    <th>Max Wait</th>
                     <th>Avg Wait</th>
                 </tr>
             </thead>
-
             <tbody id="queue-body">
                 <tr>
                     <td colspan="5" class="loading">Loading queue status...</td>
@@ -193,29 +120,25 @@
         </table>
     </section>
 
-    <!-- =============================== -->
-    <!-- AGENT STATUS -->
-    <!-- =============================== -->
+    <!-- AGENT PERFORMANCE -->
     <section class="panel">
-        <h2>Agent Status</h2>
-
+        <h2>Agent Performance</h2>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th>CEG Member</th>
                     <th>Team</th>
-                    <th>Ext</th>
-                    <th>Status</th>
+                    <th>Agent Number</th>
+                    <th>Availability</th>
                     <th>Duration</th>
                     <th>Inbound</th>
                     <th>Missed</th>
                     <th>Transferred</th>
                     <th>Outbound</th>
                     <th>Avg Handle</th>
-                    <th>Start</th>
+                    <th>Start Date</th>
                 </tr>
             </thead>
-
             <tbody id="agent-body">
                 <tr>
                     <td colspan="11" class="loading">Loading agent data...</td>
@@ -224,18 +147,39 @@
         </table>
     </section>
 
-    <!-- =============================== -->
-    <!-- FOOTER -->
-    <!-- =============================== -->
-    <footer class="footer">
-        <div>Created and maintained by Ahmed Adeyemi, US Signal</div>
-        <img src="assets/ussignal_logo.png" class="footer-logo" alt="US Signal Logo" />
-    </footer>
+    <!-- REALTIME GLOBAL STATS -->
+    <section class="panel">
+        <h2>Realtime Global Statistics</h2>
+        <div id="global-error" class="error"></div>
 
-    <!-- =============================== -->
-    <!-- JS -->
-    <!-- =============================== -->
-    <script src="dashboard.js"></script>
+        <div class="stat-grid">
+            <div class="stat-card"><div class="stat-value" id="gs-total-queued">--</div><div class="stat-label">Total Calls Queued</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-transferred">--</div><div class="stat-label">Total Calls Transferred</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-abandoned">--</div><div class="stat-label">Total Calls Abandoned</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-max-wait">--</div><div class="stat-label">Maximum Queue Wait Time</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-service-level">--%</div><div class="stat-label">Service Level</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-total-received">--</div><div class="stat-label">Total Calls Received</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-answer-rate">--%</div><div class="stat-label">Answer Rate</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-abandon-rate">--%</div><div class="stat-label">Abandon Rate</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-callbacks-registered">--</div><div class="stat-label">Callbacks Registered</div></div>
+            <div class="stat-card"><div class="stat-value" id="gs-callbacks-waiting">--</div><div class="stat-label">Callbacks Waiting</div></div>
+        </div>
+    </section>
 
+</main>
+
+<footer class="footer">
+    <div class="footer-left">
+        <button id="darkModeToggle" type="button" class="dark-toggle">
+            🌙 Dark Mode
+        </button>
+    </div>
+    <div class="footer-right">
+        <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" />
+        <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
+    </div>
+</footer>
+
+<script src="dashboard.js"></script>
 </body>
 </html>

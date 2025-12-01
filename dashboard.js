@@ -52,30 +52,61 @@ function getAvailabilityClass(desc) {
 }
 
 // ===============================
-// QUEUE ALERT STATE + CHIME
+// VOICE ALERT: "You have calls waiting"
 // ===============================
-let hadQueueAlert = false;
+let voiceAudio = null;
 
+function playVoiceAlert() {
+    try {
+        if (!voiceAudio) {
+            voiceAudio = new Audio("data:audio/mp3;base64,//PkxABXBDnsXs4eGAZSSkttESp//g644MMxBEMa2bIGYQltQ02rLtp1tLQfXOh...MLgSgI4JgWNnY0+aZOy5oec5ODQLYXA5EIePKbpKW8uavT5zk7ByAZAwCEFwQw5");
+        }
+        voiceAudio.play().catch(()=>{});
+    } catch (e) {
+        console.warn("Voice alert failed:", e);
+    }
+}
+
+// ===============================
+// DESKTOP NOTIFICATION POPUP
+// ===============================
+function notifyCallsWaiting() {
+    if (Notification.permission === "granted") {
+        new Notification("You have calls waiting!", {
+            body: "Callers are waiting in the queue.",
+            icon: "https://cdn-icons-png.flaticon.com/512/1827/1827272.png"
+        });
+    }
+}
+
+// ===============================
+// TONE CHIME (3-Beep Alert)
+// ===============================
 function playQueueChime() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
 
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        const frequencies = [740, 880, 660];
+        let start = ctx.currentTime;
 
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        frequencies.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
 
-        osc.start();
-        osc.stop(ctx.currentTime + 0.25);
+            osc.type = "sine";
+            osc.frequency.value = freq;
 
-        osc.onended = () => ctx.close();
-    } catch (e) {
-        console.warn("Unable to play chime:", e);
+            gain.gain.value = 0.25;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(start + i * 0.25);
+            osc.stop(start + i * 0.25 + 0.22);
+        });
+
+    } catch (err) {
+        console.warn("Chime failed:", err);
     }
 }
 
@@ -98,15 +129,28 @@ async function loadQueueStatus() {
 
         const calls = safe(q.TotalCalls, 0);
         const agents = safe(q.TotalLoggedAgents, 0);
-
         const waiting = safe(q.CallsWaiting ?? q.CallsInQueue ?? 0, 0);
+
         const hasQueueAlert = (calls > 0 || waiting > 0);
 
-        if (hasQueueAlert && !hadQueueAlert) {
+        // ==========================
+        // ALERT LOGIC
+        // ==========================
+        if (hasQueueAlert) {
             playQueueChime();
+            playVoiceAlert();
+            notifyCallsWaiting();
         }
-        hadQueueAlert = hasQueueAlert;
 
+        // Panel Blink
+        const panel = document.getElementById("queue-panel");
+        if (hasQueueAlert) {
+            panel.classList.add("queue-panel-alert");
+        } else {
+            panel.classList.remove("queue-panel-alert");
+        }
+
+        // Calls cell highlight
         const callsClass = hasQueueAlert ? "numeric queue-alert" : "numeric";
 
         const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
@@ -131,7 +175,7 @@ async function loadQueueStatus() {
 }
 
 // ===============================
-// LOAD REALTIME GLOBAL STATISTICS
+// LOAD GLOBAL STATS
 // ===============================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
@@ -266,6 +310,12 @@ function refreshAll() {
 
 document.addEventListener("DOMContentLoaded", () => {
     initDarkMode();
+
+    // Ask for notification permission
+    if (Notification.permission !== "granted") {
+        Notification.requestPermission();
+    }
+
     refreshAll();
     setInterval(refreshAll, 10000);
 });

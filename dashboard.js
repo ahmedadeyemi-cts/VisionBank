@@ -51,15 +51,64 @@ function getAvailabilityClass(desc) {
 }
 
 // ===============================
-// VOICE ALERT (LOCAL MP3)
+// ALERT SETTINGS & STATE
 // ===============================
-let alertVolume = 0.65;
+const ALERT_SETTINGS_KEY = "vb-alert-settings";
 
-// IMPORTANT: Correct MP3 path
-let voiceAudio = new Audio("assets/ttsAlert.mp3");
-voiceAudio.volume = alertVolume;
+let alertSettings = {
+    volume: 0.65,              // 0–1
+    enableChime: true,
+    enableVoice: true,
+    enableNotification: true,
+    cooldownSeconds: 10,       // seconds between alerts
+    highVolumeThreshold: 5     // calls/waiting for "high volume" alert
+};
 
+let lastAlertTimestamp = 0;
+let voiceAudio = null;
+
+function loadAlertSettings() {
+    try {
+        const raw = localStorage.getItem(ALERT_SETTINGS_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            alertSettings = { ...alertSettings, ...parsed };
+        }
+    } catch (e) {
+        console.warn("Failed to load alert settings:", e);
+    }
+}
+
+function saveAlertSettings() {
+    try {
+        localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify(alertSettings));
+    } catch (e) {
+        console.warn("Failed to save alert settings:", e);
+    }
+}
+
+function initAlertAudio() {
+    try {
+        voiceAudio = new Audio("assets/ttsAlert.mp3");
+        voiceAudio.volume = alertSettings.volume;
+    } catch (e) {
+        console.warn("Unable to init voice audio:", e);
+    }
+}
+
+function setAlertVolume(level) {
+    alertSettings.volume = Math.min(1, Math.max(0, level));
+    if (voiceAudio) {
+        voiceAudio.volume = alertSettings.volume;
+    }
+    saveAlertSettings();
+}
+
+// ===============================
+// ALERT AUDIO & NOTIFICATIONS
+// ===============================
 function playVoiceAlert() {
+    if (!alertSettings.enableVoice || !voiceAudio) return;
     try {
         voiceAudio.currentTime = 0;
         voiceAudio.play().catch(() => {});
@@ -68,104 +117,255 @@ function playVoiceAlert() {
     }
 }
 
-function setAlertVolume(level) {
-    alertVolume = Math.min(1, Math.max(0, level));
-    voiceAudio.volume = alertVolume;
-}
-
-// ===============================
-// DESKTOP NOTIFICATION
-// ===============================
-function notifyCallsWaiting() {
-    if (Notification.permission === "granted") {
-        new Notification("You have calls waiting!", {
-            body: "Callers are waiting in the queue.",
-            icon: "https://cdn-icons-png.flaticon.com/512/1827/1827272.png"
-        });
-    }
-}
-
-// ===============================
-// 3-BEEP ALERT CHIME
-// ===============================
-function playQueueChime() {
+function playQueueChimeNormal() {
+    if (!alertSettings.enableChime) return;
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         const ctx = new AudioCtx();
-
-        const frequencies = [740, 880, 660];
-        let start = ctx.currentTime;
+        const frequencies = [740, 880, 660]; // normal pattern
+        const start = ctx.currentTime;
 
         frequencies.forEach((freq, i) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-
             osc.type = "sine";
             osc.frequency.value = freq;
-
-            gain.gain.value = alertVolume;
+            gain.gain.value = alertSettings.volume;
             osc.connect(gain);
             gain.connect(ctx.destination);
-
             osc.start(start + i * 0.25);
             osc.stop(start + i * 0.25 + 0.22);
         });
-
     } catch (err) {
-        console.warn("Chime failed:", err);
+        console.warn("Normal chime failed:", err);
+    }
+}
+
+function playQueueChimeHigh() {
+    if (!alertSettings.enableChime) return;
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const frequencies = [660, 1040, 660, 1040]; // more urgent
+        const start = ctx.currentTime;
+
+        frequencies.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "square";
+            osc.frequency.value = freq;
+            gain.gain.value = alertSettings.volume;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start + i * 0.2);
+            osc.stop(start + i * 0.2 + 0.18);
+        });
+    } catch (err) {
+        console.warn("High-volume chime failed:", err);
+    }
+}
+
+function notifyCallsWaiting(isHigh, maxCalls) {
+    if (!alertSettings.enableNotification) return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    const title = isHigh ? "High call volume!" : "You have calls waiting!";
+    const body = isHigh
+        ? `There are ${maxCalls} active or waiting calls across your queues.`
+        : "Callers are waiting in the queue.";
+
+    try {
+        new Notification(title, {
+            body,
+            icon: "https://cdn-icons-png.flaticon.com/512/1827/1827272.png"
+        });
+    } catch (e) {
+        console.warn("Notification failed:", e);
+    }
+}
+
+function handleQueueAlerts(anyAlert, highAlert, maxCalls) {
+    if (!anyAlert) return;
+
+    const now = Date.now();
+    const cooldownMs = (alertSettings.cooldownSeconds || 0) * 1000;
+    if (cooldownMs > 0 && now - lastAlertTimestamp < cooldownMs) {
+        return;
+    }
+
+    lastAlertTimestamp = now;
+
+    if (highAlert) {
+        playQueueChimeHigh();
+    } else {
+        playQueueChimeNormal();
+    }
+
+    playVoiceAlert();
+    notifyCallsWaiting(highAlert, maxCalls);
+}
+
+// ===============================
+// ALERT SETTINGS UI
+// ===============================
+function initAlertSettingsUI() {
+    const panel = document.getElementById("alertSettingsPanel");
+    const openBtn = document.getElementById("alertSettingsButton");
+    const closeBtn = document.getElementById("alertSettingsClose");
+
+    if (!panel || !openBtn) return; // safe if HTML not wired yet
+
+    const volumeSlider = document.getElementById("alertVolumeSlider");
+    const chimeChk = document.getElementById("alertEnableChime");
+    const voiceChk = document.getElementById("alertEnableVoice");
+    const notifChk = document.getElementById("alertEnableNotification");
+    const cooldownSel = document.getElementById("alertCooldownSelect");
+    const highVolSel = document.getElementById("alertHighVolumeSelect");
+    const testBtn = document.getElementById("alertTestButton");
+
+    // Initialize control values from settings
+    if (volumeSlider) volumeSlider.value = Math.round(alertSettings.volume * 100);
+    if (chimeChk) chimeChk.checked = alertSettings.enableChime;
+    if (voiceChk) voiceChk.checked = alertSettings.enableVoice;
+    if (notifChk) notifChk.checked = alertSettings.enableNotification;
+    if (cooldownSel) cooldownSel.value = String(alertSettings.cooldownSeconds);
+    if (highVolSel) highVolSel.value = String(alertSettings.highVolumeThreshold);
+
+    openBtn.addEventListener("click", () => {
+        panel.classList.add("open");
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            panel.classList.remove("open");
+        });
+    }
+
+    panel.addEventListener("click", (e) => {
+        if (e.target === panel) {
+            panel.classList.remove("open");
+        }
+    });
+
+    if (volumeSlider) {
+        volumeSlider.addEventListener("input", () => {
+            const level = volumeSlider.valueAsNumber / 100;
+            setAlertVolume(level);
+        });
+    }
+
+    if (chimeChk) {
+        chimeChk.addEventListener("change", () => {
+            alertSettings.enableChime = chimeChk.checked;
+            saveAlertSettings();
+        });
+    }
+
+    if (voiceChk) {
+        voiceChk.addEventListener("change", () => {
+            alertSettings.enableVoice = voiceChk.checked;
+            saveAlertSettings();
+        });
+    }
+
+    if (notifChk) {
+        notifChk.addEventListener("change", () => {
+            alertSettings.enableNotification = notifChk.checked;
+            saveAlertSettings();
+        });
+    }
+
+    if (cooldownSel) {
+        cooldownSel.addEventListener("change", () => {
+            alertSettings.cooldownSeconds = parseInt(cooldownSel.value, 10) || 0;
+            saveAlertSettings();
+        });
+    }
+
+    if (highVolSel) {
+        highVolSel.addEventListener("change", () => {
+            alertSettings.highVolumeThreshold = parseInt(highVolSel.value, 10) || 1;
+            saveAlertSettings();
+        });
+    }
+
+    if (testBtn) {
+        testBtn.addEventListener("click", () => {
+            handleQueueAlerts(true, true, alertSettings.highVolumeThreshold + 1);
+        });
     }
 }
 
 // ===============================
-// LOAD QUEUE STATUS
+// LOAD CURRENT QUEUE STATUS (MULTI-QUEUE)
 // ===============================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
-    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
+    if (!body) return;
+    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status…</td></tr>`;
 
     try {
         const data = await fetchApi("/status/queues");
 
-        if (!data || !Array.isArray(data.QueueStatus) || data.QueueStatus.length === 0) {
+        const queues = data && Array.isArray(data.QueueStatus) ? data.QueueStatus : [];
+        if (queues.length === 0) {
             body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
             return;
         }
 
-        const q = data.QueueStatus[0];
+        let anyAlert = false;
+        let highAlert = false;
+        let maxCalls = 0;
+        let html = "";
 
-        const calls = Number(safe(q.TotalCalls, 0));
-        const agents = safe(q.TotalLoggedAgents, 0);
-        const waiting = Number(safe(q.CallsWaiting ?? q.CallsInQueue ?? 0, 0));
+        queues.forEach(q => {
+            const calls = Number(q.TotalCalls || 0);
+            const agents = safe(q.TotalLoggedAgents, 0);
+            const waiting = Number(q.CallsWaiting ?? q.CallsInQueue ?? 0);
 
-        const hasQueueAlert = (calls > 0 || waiting > 0);
+            const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+            const avgWaitSeconds = q.AvgWaitInterval ?? 0;
 
-        if (hasQueueAlert) {
-            playQueueChime();
-            playVoiceAlert();
-            notifyCallsWaiting();
+            const hasAlert = (calls > 0 || waiting > 0);
+            if (hasAlert) anyAlert = true;
+
+            maxCalls = Math.max(maxCalls, calls, waiting);
+
+            if (calls >= alertSettings.highVolumeThreshold ||
+                waiting >= alertSettings.highVolumeThreshold) {
+                highAlert = true;
+            }
+
+            const callsClass = hasAlert ? "numeric queue-alert" : "numeric";
+
+            html += `
+                <tr>
+                    <td>${safe(q.QueueName, "Unknown")}</td>
+                    <td class="${callsClass}">${calls}</td>
+                    <td class="numeric">${agents}</td>
+                    <td class="numeric">${formatTime(maxWaitSeconds)}</td>
+                    <td class="numeric">${formatTime(avgWaitSeconds)}</td>
+                </tr>
+            `;
+        });
+
+        body.innerHTML = html;
+
+        // Panel border + alerts are in their own safe wrapper so they never break the table
+        try {
+            const panel = document.getElementById("queue-panel");
+            if (panel) {
+                if (anyAlert) {
+                    panel.classList.add("queue-panel-alert");
+                } else {
+                    panel.classList.remove("queue-panel-alert");
+                }
+            }
+            handleQueueAlerts(anyAlert, highAlert, maxCalls);
+        } catch (e) {
+            console.warn("Alert handling error:", e);
         }
-
-        const panel = document.getElementById("queue-panel");
-        if (hasQueueAlert) {
-            panel.classList.add("queue-panel-alert");
-        } else {
-            panel.classList.remove("queue-panel-alert");
-        }
-
-        const callsClass = hasQueueAlert ? "numeric queue-alert" : "numeric";
-
-        const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-        const avgWaitSeconds = q.AvgWaitInterval ?? 0;
-
-        body.innerHTML = `
-            <tr>
-                <td>${safe(q.QueueName, "Unknown")}</td>
-                <td class="${callsClass}">${calls}</td>
-                <td class="numeric">${agents}</td>
-                <td class="numeric">${formatTime(maxWaitSeconds)}</td>
-                <td class="numeric">${formatTime(avgWaitSeconds)}</td>
-            </tr>
-        `;
 
     } catch (err) {
         console.error("Queue load error:", err);
@@ -178,13 +378,13 @@ async function loadQueueStatus() {
 // ===============================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
-    errorDiv.textContent = "";
+    if (errorDiv) errorDiv.textContent = "";
 
     try {
         const data = await fetchApi("/statistics/global");
 
         if (!data || !Array.isArray(data.GlobalStatistics) || data.GlobalStatistics.length === 0) {
-            errorDiv.textContent = "Unable to load global statistics.";
+            if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
             return;
         }
 
@@ -206,7 +406,7 @@ async function loadGlobalStats() {
 
     } catch (err) {
         console.error("Global stats error:", err);
-        errorDiv.textContent = "Unable to load global statistics.";
+        if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
     }
 }
 
@@ -217,11 +417,13 @@ function setText(id, value) {
 }
 
 // ===============================
-// LOAD AGENT DATA
+// LOAD AGENT PERFORMANCE
 // ===============================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
-    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
+    if (!body) return;
+
+    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data…</td></tr>`;
 
     try {
         const data = await fetchApi("/status/agents");
@@ -240,14 +442,13 @@ async function loadAgentStatus() {
             const outbound = a.DialoutCount ?? 0;
 
             const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
-
-            const avgHandleSeconds =
-                inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
+            const avgHandleSeconds = inbound > 0
+                ? Math.round((a.TotalSecondsOnCall || 0) / inbound)
+                : 0;
 
             const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
             const tr = document.createElement("tr");
-
             tr.innerHTML = `
                 <td>${safe(a.FullName)}</td>
                 <td>${safe(a.TeamName)}</td>
@@ -261,7 +462,6 @@ async function loadAgentStatus() {
                 <td class="numeric">${formatTime(avgHandleSeconds)}</td>
                 <td>${formatDate(a.StartDateUtc)}</td>
             `;
-
             body.appendChild(tr);
         });
 
@@ -272,10 +472,11 @@ async function loadAgentStatus() {
 }
 
 // ===============================
-// DARK MODE
+// DARK MODE TOGGLE
 // ===============================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
+    if (!btn) return;
 
     if (!localStorage.getItem("dashboard-dark-mode")) {
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -308,10 +509,13 @@ function refreshAll() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    loadAlertSettings();
+    initAlertAudio();
+    initAlertSettingsUI();
     initDarkMode();
 
-    if (Notification.permission !== "granted") {
-        Notification.requestPermission();
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
     }
 
     refreshAll();

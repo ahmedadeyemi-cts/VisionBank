@@ -8,7 +8,7 @@ body {
     color: #000;
 }
 
-header {
+.main-header {
     background: #004aad;
     color: white;
     padding: 18px;
@@ -17,8 +17,12 @@ header {
     align-items: center;
 }
 
-header h1 {
+.main-header h1 {
     margin: 0;
+}
+
+.header-right button {
+    margin-left: 8px;
 }
 
 main {
@@ -40,13 +44,24 @@ main {
 
 /* Blinking red border for alerts */
 .queue-panel-alert {
-    border: 3px solid red;
+    border: 3px solid #ff2b2b;
     animation: redBlink 1s infinite alternate;
 }
 
 @keyframes redBlink {
-    from { border-color: red; }
-    to { border-color: darkred; }
+    from { border-color: #ff2b2b; }
+    to { border-color: #b40000; }
+}
+
+/* Stronger blink in dark mode */
+body.dark-mode .queue-panel-alert {
+    border-color: #ff2b2b;
+    animation: redBlinkDark 1s infinite alternate;
+}
+
+@keyframes redBlinkDark {
+    from { border-color: #ff2b2b; }
+    to   { border-color: #b40000; }
 }
 
 /* ===========================
@@ -86,8 +101,15 @@ table th {
 /* ===========================
    QUEUE ALERT NUMBERS
 =========================== */
+/* Always-visible red for queue alerts (light + dark modes) */
 .queue-alert {
-    color: red;
+    color: #ff2b2b !important;
+    font-weight: bold;
+}
+
+/* Dark mode override to guarantee brightness */
+body.dark-mode .queue-alert {
+    color: #ff4c4c !important;
     font-weight: bold;
 }
 
@@ -110,14 +132,9 @@ table th {
     background: #fff4b5;
 }
 
-/* Highlight status cell borders */
 .availability-cell {
     border-left: 4px solid transparent;
 }
-.status-available .availability-cell { border-color: #28a745; }
-.status-oncall .availability-cell { border-color: #ff9800; }
-.status-busy .availability-cell { border-color: #dc3545; }
-.status-ringing .availability-cell { border-color: #ffc107; }
 
 /* ===========================
    DARK MODE
@@ -127,7 +144,7 @@ body.dark-mode {
     color: #eaeaea;
 }
 
-body.dark-mode header {
+body.dark-mode .main-header {
     background: #303f9f;
 }
 
@@ -142,10 +159,6 @@ body.dark-mode table th {
 
 body.dark-mode table td {
     border-color: #444;
-}
-
-body.dark-mode .queue-alert {
-    color: #ff6b6b;
 }
 
 /* ===========================
@@ -242,4 +255,53 @@ body.dark-mode .alert-settings-content {
 
 body.dark-mode .alert-test-button {
     background: #27ae60;
+}
+
+/* ===========================
+   WALLBOARD MODE
+=========================== */
+.wallboard-button {
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid #ccc;
+    background: #ffffff;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+body.dark-mode .wallboard-button {
+    background: #222;
+    border-color: #555;
+    color: #f5f5f5;
+}
+
+body.wallboard-mode .main-header {
+    display: none;
+}
+
+body.wallboard-mode .alert-settings-button {
+    display: none;
+}
+
+body.wallboard-mode main {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 10px;
+}
+
+body.wallboard-mode .panel {
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 10px;
+}
+
+body.wallboard-mode table th,
+body.wallboard-mode table td {
+    font-size: 1.4rem;
+    padding: 8px 10px;
+}
+
+body.wallboard-mode .queue-alert {
+    font-size: 1.8rem;
 }

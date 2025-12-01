@@ -32,7 +32,6 @@ function formatTime(sec) {
 
 function formatDate(utc) {
     if (!utc) return "--";
-    // Force UTC and convert to US Central
     return new Date(utc + "Z").toLocaleString("en-US", { timeZone: "America/Chicago" });
 }
 
@@ -40,31 +39,13 @@ function safe(value, fallback = "--") {
     return value === undefined || value === null ? fallback : value;
 }
 
-// Map status text to availability class
 function getAvailabilityClass(desc) {
     const s = (desc || "").toLowerCase();
 
-    // Available → Green
     if (s.includes("available")) return "status-available";
-
-    // On Call / Dialing → Red
-    if (s.includes("on call") || s.includes("dial") || s.includes("talk")) {
-        return "status-oncall";
-    }
-
-    // Busy / Not Set / On Break → Yellow
-    if (s.includes("busy") || s.includes("not set") || s.includes("break")) {
-        return "status-busy";
-    }
-
-    // Ringing / Accept Internal Calls / Wrap-up → Orange
-    if (
-        s.includes("ring") ||
-        s.includes("accept internal") ||
-        s.includes("wrap")
-    ) {
-        return "status-ringing";
-    }
+    if (s.includes("on call") || s.includes("dial") || s.includes("talk")) return "status-oncall";
+    if (s.includes("busy") || s.includes("not set") || s.includes("break")) return "status-busy";
+    if (s.includes("ring") || s.includes("accept internal") || s.includes("wrap")) return "status-ringing";
 
     return "";
 }
@@ -79,8 +60,8 @@ const defaultAlertSettings = {
     enableVoiceAlerts: true,
     enablePopupAlerts: true,
     tone: "soft",
-    volume: 0.8,           // 0–1
-    cooldownSeconds: 30,   // default 30 seconds
+    volume: 0.8,
+    cooldownSeconds: 30,
     wallboardMode: false
 };
 
@@ -96,49 +77,40 @@ function clamp(value, min, max) {
 }
 
 function ensureAudioContext() {
-    if (!window.AudioContext && !window.webkitAudioContext) {
-        return null;
-    }
+    if (!window.AudioContext && !window.webkitAudioContext) return null;
+
     if (!audioContext) {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         audioContext = new Ctx();
     } else if (audioContext.state === "suspended") {
         audioContext.resume();
     }
+
     return audioContext;
 }
 
-function playTone(toneType, volume, isHighVolume) {
+function playTone(type, volume, highVolume) {
     const ctx = ensureAudioContext();
     if (!ctx) return;
 
-    const baseVolume = clamp(volume, 0, 1);
-    const duration = 0.8;
+    const v = clamp(volume, 0, 1);
     const now = ctx.currentTime;
+    const duration = 0.8;
 
-    // Different "flavors" of chime
-    let freqs;
-    switch (toneType) {
-        case "bright":
-            freqs = [880, 1320];
-            break;
-        case "pulse":
-            freqs = [600, 900];
-            break;
-        case "soft":
-        default:
-            freqs = [520, 780];
-            break;
-    }
+    let freqs =
+        type === "bright"
+            ? [880, 1320]
+            : type === "pulse"
+            ? [600, 900]
+            : [520, 780];
 
-    if (isHighVolume) {
+    if (highVolume) {
         freqs = freqs.map(f => f * 1.25);
     }
 
-    freqs.forEach((freq, idx) => {
+    freqs.forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-
         osc.type = "sine";
         osc.frequency.value = freq;
 
@@ -146,38 +118,31 @@ function playTone(toneType, volume, isHighVolume) {
         gain.connect(ctx.destination);
 
         gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(baseVolume, now + 0.03 + idx * 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration + idx * 0.05);
+        gain.gain.linearRampToValueAtTime(v, now + 0.03 + i * 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration + i * 0.05);
 
         osc.start(now);
-        osc.stop(now + duration + 0.1 + idx * 0.05);
+        osc.stop(now + duration + 0.1 + i * 0.05);
     });
 }
 
 function triggerAlert(state) {
     const vol = clamp(alertSettings.volume, 0, 1);
 
-    // Voice alert
     if (alertSettings.enableVoiceAlerts) {
-        try {
-            voiceAudio.pause();
-            voiceAudio.currentTime = 0;
-            voiceAudio.volume = vol;
-            void voiceAudio.play();
-        } catch (e) {
-            console.warn("Voice alert play failed:", e);
-        }
+        voiceAudio.pause();
+        voiceAudio.currentTime = 0;
+        voiceAudio.volume = vol;
+        voiceAudio.play().catch(() => {});
     }
 
-    // Tone alert (uses selected tone, higher pitch when calls are high)
-    const isHighVolume = state.totalCalls >= 5;
-    playTone(alertSettings.tone, vol, isHighVolume);
+    const highVolume = state.totalCalls >= 5;
+    playTone(alertSettings.tone, vol, highVolume);
 
-    // Notification pop-up
     if (alertSettings.enablePopupAlerts && "Notification" in window) {
         if (Notification.permission === "granted") {
-            new Notification("Calls waiting", {
-                body: `You have ${state.totalCalls} call(s) waiting in queue.`,
+            new Notification("Calls Waiting", {
+                body: `You have ${state.totalCalls} call(s) waiting.`,
                 tag: "visionbank-queue-alert"
             });
         }
@@ -194,26 +159,19 @@ function updateAlertsFromQueues(queues) {
     }
 
     let totalCalls = 0;
-    let maxWaitSeconds = 0;
+    let maxWait = 0;
 
     queues.forEach(q => {
-        const calls = Number(q.TotalCalls ?? 0);
-        totalCalls += calls;
-
-        const waitSec = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-        if (waitSec > maxWaitSeconds) {
-            maxWaitSeconds = waitSec;
-        }
+        totalCalls += Number(q.TotalCalls ?? 0);
+        const wait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+        if (wait > maxWait) maxWait = wait;
     });
 
-    const hasCalls = totalCalls > 0;
-
-    if (!hasCalls) {
+    if (totalCalls === 0) {
         panel.classList.remove("queue-alert");
         return;
     }
 
-    // Visual highlight on panel when there are calls waiting
     panel.classList.add("queue-alert");
 
     if (!alertSettings.enableQueueAlerts) return;
@@ -221,69 +179,55 @@ function updateAlertsFromQueues(queues) {
     const now = Date.now();
     const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
 
-    if (now - lastAlertTime < cooldownMs) {
-        return;
-    }
+    if (now - lastAlertTime < cooldownMs) return;
 
     lastAlertTime = now;
-    triggerAlert({ totalCalls, maxWaitSeconds });
+    triggerAlert({ totalCalls });
 }
 
 // ===============================
-// ALERT SETTINGS UI
+// ALERT SETTINGS UI (FIXED)
 // ===============================
 function loadAlertSettings() {
     try {
-        const stored = localStorage.getItem(ALERT_STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            alertSettings = { ...defaultAlertSettings, ...parsed };
-        } else {
-            alertSettings = { ...defaultAlertSettings };
-        }
-    } catch (e) {
-        console.warn("Failed to load alert settings:", e);
+        const raw = localStorage.getItem(ALERT_STORAGE_KEY);
+        if (!raw) return;
+
+        alertSettings = { ...defaultAlertSettings, ...JSON.parse(raw) };
+    } catch {
         alertSettings = { ...defaultAlertSettings };
     }
 }
 
 function saveAlertSettings() {
-    try {
-        localStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(alertSettings));
-    } catch (e) {
-        console.warn("Failed to save alert settings:", e);
-    }
+    localStorage.setItem(ALERT_STORAGE_KEY, JSON.stringify(alertSettings));
 }
 
 function initAlertSettings() {
     loadAlertSettings();
 
-    const toggleBtn = document.getElementById("alertSettingsToggle");
+    const toggle = document.getElementById("alertSettingsToggle");
     const panel = document.getElementById("alertSettingsPanel");
     const enableQueue = document.getElementById("enableQueueAlerts");
     const enableVoice = document.getElementById("enableVoiceAlerts");
     const enablePopup = document.getElementById("enablePopupAlerts");
-    const toneSelect = document.getElementById("alertToneSelect");
-    const volumeSlider = document.getElementById("alertVolume");
-    const cooldownInput = document.getElementById("alertCooldown");
-    const wallboardCheckbox = document.getElementById("wallboardMode");
+    const tone = document.getElementById("alertToneSelect");
+    const vol = document.getElementById("alertVolume");
+    const cooldown = document.getElementById("alertCooldown");
+    const wallboard = document.getElementById("wallboardMode");
 
-    // Apply stored settings to UI
+    // APPLY SAVED VALUES
     if (enableQueue) enableQueue.checked = alertSettings.enableQueueAlerts;
     if (enableVoice) enableVoice.checked = alertSettings.enableVoiceAlerts;
     if (enablePopup) enablePopup.checked = alertSettings.enablePopupAlerts;
-    if (toneSelect) toneSelect.value = alertSettings.tone;
-    if (volumeSlider) volumeSlider.value = Math.round(alertSettings.volume * 100);
-    if (cooldownInput) cooldownInput.value = alertSettings.cooldownSeconds;
-    if (wallboardCheckbox) wallboardCheckbox.checked = alertSettings.wallboardMode;
+    if (tone) tone.value = alertSettings.tone;
+    if (vol) vol.value = Math.round(alertSettings.volume * 100);
+    if (cooldown) cooldown.value = alertSettings.cooldownSeconds;
+    if (wallboard) wallboard.checked = alertSettings.wallboardMode;
 
-    if (alertSettings.wallboardMode) {
-        document.body.classList.add("wallboard-mode");
-    }
-
-    // Open/close panel
-    if (toggleBtn && panel) {
-        toggleBtn.addEventListener("click", () => {
+    // TOGGLE FIX
+    if (toggle && panel) {
+        toggle.addEventListener("click", () => {
             panel.classList.toggle("hidden");
         });
     }
@@ -307,53 +251,45 @@ function initAlertSettings() {
             alertSettings.enablePopupAlerts = enablePopup.checked;
             saveAlertSettings();
 
-            if (enablePopup.checked && "Notification" in window && Notification.permission === "default") {
-                Notification.requestPermission().catch(() => {});
+            if (enablePopup.checked && Notification.permission === "default") {
+                Notification.requestPermission();
             }
         });
     }
 
-    if (toneSelect) {
-        toneSelect.addEventListener("change", () => {
-            alertSettings.tone = toneSelect.value || "soft";
+    if (tone) {
+        tone.addEventListener("change", () => {
+            alertSettings.tone = tone.value;
             saveAlertSettings();
         });
     }
 
-    if (volumeSlider) {
-        volumeSlider.addEventListener("input", () => {
-            const value = Number(volumeSlider.value || 80);
-            alertSettings.volume = clamp(value / 100, 0, 1);
+    if (vol) {
+        vol.addEventListener("input", () => {
+            alertSettings.volume = clamp(vol.value / 100, 0, 1);
             saveAlertSettings();
         });
     }
 
-    if (cooldownInput) {
-        cooldownInput.addEventListener("change", () => {
-            let value = Number(cooldownInput.value || 30);
-            if (isNaN(value) || value <= 0) value = 30;
-            alertSettings.cooldownSeconds = value;
+    if (cooldown) {
+        cooldown.addEventListener("change", () => {
+            let v = Number(cooldown.value);
+            if (isNaN(v) || v <= 5) v = 30;
+            alertSettings.cooldownSeconds = v;
             saveAlertSettings();
         });
     }
 
-    if (wallboardCheckbox) {
-        wallboardCheckbox.addEventListener("change", () => {
-            alertSettings.wallboardMode = wallboardCheckbox.checked;
+    if (wallboard) {
+        wallboard.addEventListener("change", () => {
+            alertSettings.wallboardMode = wallboard.checked;
             saveAlertSettings();
-            // Style intentionally minimal per your preference
-            document.body.classList.toggle("wallboard-mode", wallboardCheckbox.checked);
         });
-    }
-
-    // If popup alerts enabled and permission not yet decided, ask once on load
-    if (alertSettings.enablePopupAlerts && "Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {});
     }
 }
 
 // ===============================
-// LOAD CURRENT QUEUE STATUS
+// QUEUE STATUS
 // ===============================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
@@ -362,91 +298,85 @@ async function loadQueueStatus() {
     try {
         const data = await fetchApi("/status/queues");
 
-        if (!data || !Array.isArray(data.QueueStatus) || data.QueueStatus.length === 0) {
+        if (!data || !Array.isArray(data.QueueStatus)) {
             body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
             updateAlertsFromQueues([]);
             return;
         }
 
         const queues = data.QueueStatus;
-        let rowsHtml = "";
+        let html = "";
 
         queues.forEach(q => {
-            const calls = safe(q.TotalCalls, 0);
-            const agents = safe(q.TotalLoggedAgents, 0);
+            const calls = Number(q.TotalCalls || 0);
+            const wait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+            const avg = q.AvgWaitInterval ?? 0;
 
-            const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-            const avgWaitSeconds = q.AvgWaitInterval ?? 0;
+            const callsClass = calls > 0 ? "queue-alert-value" : "";
+            const waitClass = wait > 0 ? "queue-alert-value" : "";
 
-            const callsClass = (Number(calls) || 0) > 0 ? "queue-alert-value" : "";
-            const maxWaitClass = (Number(maxWaitSeconds) || 0) > 0 ? "queue-alert-value" : "";
-
-            rowsHtml += `
+            html += `
                 <tr>
-                    <td>${safe(q.QueueName, "Unknown")}</td>
-                    <td class="numeric ${callsClass}">${calls}</td>
-                    <td class="numeric">${agents}</td>
-                    <td class="numeric ${maxWaitClass}">${formatTime(maxWaitSeconds)}</td>
-                    <td class="numeric">${formatTime(avgWaitSeconds)}</td>
+                    <td>${safe(q.QueueName)}</td>
+                    <td class="${callsClass}">${calls}</td>
+                    <td>${safe(q.TotalLoggedAgents)}</td>
+                    <td class="${waitClass}">${formatTime(wait)}</td>
+                    <td>${formatTime(avg)}</td>
                 </tr>
             `;
         });
 
-        body.innerHTML = rowsHtml;
+        body.innerHTML = html;
         updateAlertsFromQueues(queues);
 
     } catch (err) {
-        console.error("Queue load error:", err);
+        console.error("Queue error:", err);
         body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
         updateAlertsFromQueues([]);
     }
 }
 
 // ===============================
-// LOAD REALTIME GLOBAL STATISTICS
+// GLOBAL STATS
 // ===============================
 async function loadGlobalStats() {
-    const errorDiv = document.getElementById("global-error");
-    errorDiv.textContent = "";
+    const err = document.getElementById("global-error");
+    err.textContent = "";
 
     try {
         const data = await fetchApi("/statistics/global");
-
-        if (!data || !Array.isArray(data.GlobalStatistics) || data.GlobalStatistics.length === 0) {
-            errorDiv.textContent = "Unable to load global statistics.";
+        if (!data || !Array.isArray(data.GlobalStatistics)) {
+            err.textContent = "Unable to load global statistics.";
             return;
         }
 
-        const g = data.GlobalStatistics[0];
+        const s = data.GlobalStatistics[0];
 
-        setText("gs-total-queued", g.TotalCallsQueued);
-        setText("gs-total-transferred", g.TotalCallsTransferred);
-        setText("gs-total-abandoned", g.TotalCallsAbandoned);
-        setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
+        setText("gs-total-queued", s.TotalCallsQueued);
+        setText("gs-total-transferred", s.TotalCallsTransferred);
+        setText("gs-total-abandoned", s.TotalCallsAbandoned);
+        setText("gs-max-wait", formatTime(s.MaxQueueWaitingTime));
+        setText("gs-service-level", s.ServiceLevel != null ? s.ServiceLevel.toFixed(2) + "%" : "--");
+        setText("gs-total-received", s.TotalCallsReceived);
+        setText("gs-answer-rate", s.AnswerRate != null ? s.AnswerRate.toFixed(2) + "%" : "--");
+        setText("gs-abandon-rate", s.AbandonRate != null ? s.AbandonRate.toFixed(2) + "%" : "--");
+        setText("gs-callbacks-registered", s.CallbacksRegistered);
+        setText("gs-callbacks-waiting", s.CallbacksWaiting);
 
-        setText("gs-service-level", g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--");
-        setText("gs-total-received", g.TotalCallsReceived);
-
-        setText("gs-answer-rate", g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--");
-        setText("gs-abandon-rate", g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--");
-
-        setText("gs-callbacks-registered", g.CallbacksRegistered);
-        setText("gs-callbacks-waiting", g.CallbacksWaiting);
-
-    } catch (err) {
-        console.error("Global stats error:", err);
-        errorDiv.textContent = "Unable to load global statistics.";
+    } catch (error) {
+        console.error("Global stats error:", error);
+        err.textContent = "Unable to load global statistics.";
     }
 }
 
 function setText(id, value) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.textContent = value === undefined || value === null ? "--" : value;
+    el.textContent = (value === undefined || value === null) ? "--" : value;
 }
 
 // ===============================
-// LOAD AGENT PERFORMANCE (UPDATED: DURATION ADDED)
+// AGENT STATUS
 // ===============================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
@@ -455,67 +385,52 @@ async function loadAgentStatus() {
     try {
         const data = await fetchApi("/status/agents");
 
-        if (!data || !Array.isArray(data.AgentStatus) || data.AgentStatus.length === 0) {
+        if (!data || !Array.isArray(data.AgentStatus)) {
             body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
             return;
         }
 
         body.innerHTML = "";
-
         data.AgentStatus.forEach(a => {
             const inbound = a.TotalCallsReceived ?? 0;
             const missed = a.TotalCallsMissed ?? 0;
             const transferred = a.ThirdPartyTransferCount ?? 0;
             const outbound = a.DialoutCount ?? 0;
-
-            // Calculate Duration → SecondsInCurrentStatus
             const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
+            const avgHandle = inbound > 0 ? formatTime(Math.round((a.TotalSecondsOnCall || 0) / inbound)) : "00:00:00";
+            const statusClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
-            // Avg Handle Time
-            const avgHandleSeconds =
-                inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
-
-            // Availability color map
-            const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
-
-            const tr = document.createElement("tr");
-
-            tr.innerHTML = `
-                <td>${safe(a.FullName)}</td>
-                <td>${safe(a.TeamName)}</td>
-                <td>${safe(a.PhoneExt)}</td>
-                <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
-                
-                <!-- DURATION (NEW COLUMN) -->
-                <td class="numeric">${duration}</td>
-
-                <!-- Existing columns -->
-                <td class="numeric">${inbound}</td>
-                <td class="numeric">${missed}</td>
-                <td class="numeric">${transferred}</td>
-                <td class="numeric">${outbound}</td>
-                <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-                <td>${formatDate(a.StartDateUtc)}</td>
+            const row = `
+                <tr>
+                    <td>${safe(a.FullName)}</td>
+                    <td>${safe(a.TeamName)}</td>
+                    <td>${safe(a.PhoneExt)}</td>
+                    <td class="availability-cell ${statusClass}">${safe(a.CallTransferStatusDesc)}</td>
+                    <td class="numeric">${duration}</td>
+                    <td class="numeric">${inbound}</td>
+                    <td class="numeric">${missed}</td>
+                    <td class="numeric">${transferred}</td>
+                    <td class="numeric">${outbound}</td>
+                    <td class="numeric">${avgHandle}</td>
+                    <td>${formatDate(a.StartDateUtc)}</td>
+                </tr>
             `;
-
-            body.appendChild(tr);
+            body.insertAdjacentHTML("beforeend", row);
         });
 
     } catch (err) {
-        console.error("Agent load error:", err);
+        console.error("Agent error:", err);
         body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
     }
 }
 
 // ===============================
-// DARK MODE TOGGLE
+// DARK MODE
 // ===============================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
-
     if (!btn) return;
 
-    // Detect system preference ON FIRST VISIT
     if (!localStorage.getItem("dashboard-dark-mode")) {
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         if (prefersDark) {
@@ -523,7 +438,6 @@ function initDarkMode() {
             btn.textContent = "☀️ Light Mode";
         }
     } else {
-        // Load stored preference
         const stored = localStorage.getItem("dashboard-dark-mode");
         if (stored === "on") {
             document.body.classList.add("dark-mode");
@@ -531,7 +445,6 @@ function initDarkMode() {
         }
     }
 
-    // Toggle on click
     btn.addEventListener("click", () => {
         const isDark = document.body.classList.toggle("dark-mode");
         btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
@@ -553,6 +466,5 @@ document.addEventListener("DOMContentLoaded", () => {
     initAlertSettings();
     refreshAll();
 
-    // Refresh every 10 seconds
     setInterval(refreshAll, 10000);
 });

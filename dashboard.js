@@ -51,25 +51,32 @@ function getAvailabilityClass(desc) {
     return "";
 }
 
-// ===============================
-// VOICE ALERT: "You have calls waiting"
-// ===============================
-let voiceAudio = null;
+// ========================================================
+// VOICE ALERT (LOCAL MP3) + VOLUME CONTROL
+// ========================================================
+let alertVolume = 0.65;
+
+let voiceAudio = new Audio("ttsAlert.mp3");
+voiceAudio.volume = alertVolume;
 
 function playVoiceAlert() {
     try {
-        if (!voiceAudio) {
-            voiceAudio = new Audio("data:audio/mp3;base64,//PkxABXBDnsXs4eGAZSSkttESp//g644MMxBEMa2bIGYQltQ02rLtp1tLQfXOh...MLgSgI4JgWNnY0+aZOy5oec5ODQLYXA5EIePKbpKW8uavT5zk7ByAZAwCEFwQw5");
-        }
-        voiceAudio.play().catch(()=>{});
+        voiceAudio.currentTime = 0;
+        voiceAudio.play().catch(() => {});
     } catch (e) {
         console.warn("Voice alert failed:", e);
     }
 }
 
-// ===============================
+// Allow UI control of alert volume if needed
+function setAlertVolume(level) {
+    alertVolume = Math.min(1, Math.max(0, level));
+    voiceAudio.volume = alertVolume;
+}
+
+// ========================================================
 // DESKTOP NOTIFICATION POPUP
-// ===============================
+// ========================================================
 function notifyCallsWaiting() {
     if (Notification.permission === "granted") {
         new Notification("You have calls waiting!", {
@@ -79,9 +86,9 @@ function notifyCallsWaiting() {
     }
 }
 
-// ===============================
-// TONE CHIME (3-Beep Alert)
-// ===============================
+// ========================================================
+// TONE CHIME (3-BEEP ALERT)
+// ========================================================
 function playQueueChime() {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -97,7 +104,7 @@ function playQueueChime() {
             osc.type = "sine";
             osc.frequency.value = freq;
 
-            gain.gain.value = 0.25;
+            gain.gain.value = alertVolume;
             osc.connect(gain);
             gain.connect(ctx.destination);
 
@@ -110,12 +117,12 @@ function playQueueChime() {
     }
 }
 
-// ===============================
-// LOAD CURRENT QUEUE STATUS (UPDATED)
-// ===============================
+// ========================================================
+// LOAD CURRENT QUEUE STATUS (UPDATED WITH ALERTS)
+// ========================================================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
-    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
 
     try {
         const data = await fetchApi("/status/queues");
@@ -127,22 +134,20 @@ async function loadQueueStatus() {
 
         const q = data.QueueStatus[0];
 
-        const calls = safe(q.TotalCalls, 0);
+        const calls = Number(safe(q.TotalCalls, 0));
         const agents = safe(q.TotalLoggedAgents, 0);
-        const waiting = safe(q.CallsWaiting ?? q.CallsInQueue ?? 0, 0);
+        const waiting = Number(safe(q.CallsWaiting ?? q.CallsInQueue ?? 0, 0));
 
         const hasQueueAlert = (calls > 0 || waiting > 0);
 
-        // ==========================
-        // ALERT LOGIC
-        // ==========================
+        // Alerts
         if (hasQueueAlert) {
             playQueueChime();
             playVoiceAlert();
             notifyCallsWaiting();
         }
 
-        // Panel Blink
+        // Blinking panel border
         const panel = document.getElementById("queue-panel");
         if (hasQueueAlert) {
             panel.classList.add("queue-panel-alert");
@@ -150,7 +155,7 @@ async function loadQueueStatus() {
             panel.classList.remove("queue-panel-alert");
         }
 
-        // Calls cell highlight
+        // Red pulsing calls cell
         const callsClass = hasQueueAlert ? "numeric queue-alert" : "numeric";
 
         const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
@@ -174,9 +179,9 @@ async function loadQueueStatus() {
     }
 }
 
-// ===============================
-// LOAD GLOBAL STATS
-// ===============================
+// ========================================================
+// LOAD GLOBAL STATISTICS
+// ========================================================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
     errorDiv.textContent = "";
@@ -217,12 +222,12 @@ function setText(id, value) {
     el.textContent = value === undefined || value === null ? "--" : value;
 }
 
-// ===============================
+// ========================================================
 // LOAD AGENT PERFORMANCE
-// ===============================
+// ========================================================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
-    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
 
     try {
         const data = await fetchApi("/status/agents");
@@ -272,9 +277,9 @@ async function loadAgentStatus() {
     }
 }
 
-// ===============================
+// ========================================================
 // DARK MODE TOGGLE
-// ===============================
+// ========================================================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
 
@@ -299,9 +304,9 @@ function initDarkMode() {
     });
 }
 
-// ===============================
+// ========================================================
 // INIT
-// ===============================
+// ========================================================
 function refreshAll() {
     loadQueueStatus();
     loadAgentStatus();
@@ -311,7 +316,6 @@ function refreshAll() {
 document.addEventListener("DOMContentLoaded", () => {
     initDarkMode();
 
-    // Ask for notification permission
     if (Notification.permission !== "granted") {
         Notification.requestPermission();
     }

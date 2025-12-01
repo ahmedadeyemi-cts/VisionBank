@@ -1,182 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
+    <meta charset="UTF-8">
     <title>VisionBank Security Administration</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="security.css" />
+    <link rel="stylesheet" href="security.css">
 </head>
-<body class="sec-body">
 
+<body class="security-body">
+    
     <!-- HEADER -->
-    <header class="sec-header">
-        <div class="sec-header-inner">
-            <div class="sec-header-left">
-                <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="sec-logo">
-            </div>
-            <div class="sec-header-center">
-                <h1>VisionBank Security Administration</h1>
-                <p>Access Control • Monitoring • Business Hours</p>
-            </div>
-        </div>
+    <header class="sec-header glass">
+        <img src="assets/VisionBank-Logo.png" class="vb-logo" alt="VisionBank Logo">
+        <h1>VisionBank Security Administration</h1>
+        <p class="subtitle">Access Control • Monitoring • Business Hours</p>
     </header>
 
-    <!-- MAIN CONTENT -->
-    <main class="sec-main">
+    <!-- LOGIN PANEL -->
+    <div id="login-panel" class="glass login-card">
+        <h2>Administrator Login</h2>
 
-        <!-- LOGIN VIEW -->
-        <section id="login-view" class="glass-card login-card">
-            <h2>Administrator Sign In</h2>
-            <form id="login-form" autocomplete="off">
-                <div class="field">
-                    <label for="admin-id">Admin ID</label>
-                    <input id="admin-id" name="admin-id" type="text"
-                           placeholder="e.g. superadmin" required>
-                </div>
+        <input id="admin-id" placeholder="Admin ID" autocomplete="off">
+        <input id="admin-pin" placeholder="PIN" type="password" autocomplete="off">
 
-                <div class="field">
-                    <label for="admin-pin">PIN</label>
-                    <input id="admin-pin" name="admin-pin" type="password"
-                           inputmode="numeric" minlength="4" maxlength="12"
-                           placeholder="Enter your PIN" required>
-                </div>
+        <button onclick="SECURITY.login()">Log In</button>
 
-                <div id="login-lock-msg" class="sec-error small hidden"></div>
+        <p id="login-error"></p>
+    </div>
 
-                <button type="submit" class="btn primary">Sign In</button>
+    <!-- DASHBOARD (hidden until authenticated) -->
+    <div id="admin-dashboard" class="dashboard-container" style="display:none;">
 
-                <p class="help-text">
-                    Default Super Admin ID: <strong>superadmin</strong> •
-                    Default PIN: <strong>ChangeMeNow!</strong> (please change after first login)
-                </p>
-            </form>
+        <h2 class="section-title">Security Controls</h2>
 
-            <!-- MFA STEP -->
-            <div id="mfa-section" class="mfa-card hidden">
-                <h3>Multi-Factor Verification</h3>
-                <p>
-                    A 6-digit code has been sent to the configured
-                    <strong>email</strong> and <strong>Teams channel</strong>.
-                    Enter it below to complete sign-in.
-                </p>
-                <form id="mfa-form" autocomplete="off">
-                    <div class="field">
-                        <label for="mfa-code">Verification code</label>
-                        <input id="mfa-code" name="mfa-code" type="text"
-                               inputmode="numeric" minlength="6" maxlength="6"
-                               placeholder="000000" required>
-                    </div>
-                    <div id="mfa-error" class="sec-error small hidden"></div>
-                    <button type="submit" class="btn primary">Verify &amp; Continue</button>
-                    <button type="button" id="mfa-cancel" class="btn ghost">Cancel</button>
-                </form>
+        <div class="grid-2">
+
+            <!-- ALLOWLIST PANEL -->
+            <div class="glass panel">
+                <h3>Allowed IP Addresses</h3>
+                <ul id="ip-list"></ul>
+
+                <input id="new-ip" placeholder="Add IP or CIDR">
+                <button onclick="SECURITY.addIP()">Add IP</button>
             </div>
 
-        </section>
+            <!-- BUSINESS HOURS -->
+            <div class="glass panel">
+                <h3>Business Hours (CST)</h3>
 
-        <!-- ADMIN DASHBOARD VIEW -->
-        <section id="admin-view" class="hidden">
+                <label>Start Time</label>
+                <input type="time" id="start-time">
 
-            <div class="admin-top-bar glass-card">
-                <div>
-                    <h2 id="admin-welcome">Welcome, Admin</h2>
-                    <p id="admin-role" class="muted"></p>
-                </div>
-                <div class="admin-top-actions">
-                    <button id="btn-export" class="btn ghost small">Export settings</button>
-                    <button id="btn-logout" class="btn danger small">Log out</button>
-                </div>
+                <label>End Time</label>
+                <input type="time" id="end-time">
+
+                <label>Active Days</label>
+                <select id="active-days" multiple>
+                    <option value="1">Mon</option>
+                    <option value="2">Tue</option>
+                    <option value="3">Wed</option>
+                    <option value="4">Thu</option>
+                    <option value="5">Fri</option>
+                    <option value="6">Sat</option>
+                </select>
+
+                <button onclick="SECURITY.saveHours()">Save Hours</button>
             </div>
 
-            <!-- 3-column grid -->
-            <div class="admin-grid">
+        </div>
 
-                <!-- ACCESS CONTROL -->
-                <section class="glass-card">
-                    <h3>Allowed IP Addresses</h3>
-                    <p class="muted small">
-                        These IPs / ranges are allowed to access the VisionBank dashboard.
-                    </p>
+        <!-- ADMIN MANAGEMENT -->
+        <div class="glass panel">
+            <h3>Administrators</h3>
 
-                    <form id="ip-form" class="inline-form">
-                        <input id="ip-input" type="text"
-                               placeholder="e.g. 10.100.100.0/24 or 45.19.161.17" required>
-                        <button type="submit" class="btn primary small">Add IP</button>
-                    </form>
+            <ul id="admin-list"></ul>
 
-                    <table class="sec-table">
-                        <thead>
-                        <tr>
-                            <th>IP / CIDR</th>
-                            <th>Added</th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody id="ip-tbody"></tbody>
-                    </table>
-                </section>
+            <input id="new-admin-id" placeholder="New Admin ID">
+            <input id="new-admin-pin" placeholder="New PIN">
 
-                <!-- BUSINESS HOURS -->
-                <section class="glass-card">
-                    <h3>Business Hours</h3>
-                    <p class="muted small">
-                        Access is only allowed during these hours (Central Time).
-                    </p>
+            <button onclick="SECURITY.addAdmin()">Add Admin</button>
+        </div>
 
-                    <form id="hours-form" class="hours-form">
-                        <div class="field-row">
-                            <div class="field">
-                                <label for="start-time">Open</label>
-                                <input id="start-time" type="time" required>
-                            </div>
-                            <div class="field">
-                                <label for="end-time">Close</label>
-                                <input id="end-time" type="time" required>
-                            </div>
-                        </div>
+        <!-- AUDIT LOG -->
+        <div class="glass panel">
+            <h3>Audit Log</h3>
 
-                        <fieldset class="days-fieldset">
-                            <legend>Operating days</legend>
-                            <label><input type="checkbox" value="1"> Mon</label>
-                            <label><input type="checkbox" value="2"> Tue</label>
-                            <label><input type="checkbox" value="3"> Wed</label>
-                            <label><input type="checkbox" value="4"> Thu</label>
-                            <label><input type="checkbox" value="5"> Fri</label>
-                            <label><input type="checkbox" value="6"> Sat</label>
-                            <label><input type="checkbox" value="0"> Sun</label>
-                        </fieldset>
+            <button onclick="SECURITY.downloadLog()">Download CSV</button>
+            <ul id="audit-log"></ul>
+        </div>
 
-                        <button type="submit" class="btn primary small">Save hours</button>
-                        <p id="hours-status" class="muted small"></p>
-                    </form>
-                </section>
-
-                <!-- AUDIT LOG -->
-                <section class="glass-card">
-                    <h3>Audit Log</h3>
-                    <p class="muted small">
-                        Last 50 security events (access attempts, overrides, configuration changes).
-                    </p>
-                    <div class="log-container">
-                        <ul id="log-list" class="log-list"></ul>
-                    </div>
-                    <button id="btn-clear-log" class="btn ghost small">Clear log</button>
-                </section>
-
-            </div>
-
-        </section>
-
-    </main>
+    </div>
 
     <!-- FOOTER -->
-    <footer class="sec-footer glass-footer">
-        <div class="footer-left">
-            <img src="assets/US-Signal-Logo.png" alt="US Signal" class="sec-footer-logo">
-            <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
+    <footer class="glass-footer">
+        <div class="footer-right">
+            <img src="assets/US-Signal-Logo.png" class="sec-footer-logo-small">
+            <span>Created and maintained by Ahmed Adeyemi, US Signal</span>
         </div>
     </footer>
 
-    <script src="security-dashboard.js" defer></script>
+    <script src="security.js"></script>
+    <script src="security-dashboard.js"></script>
+
 </body>
 </html>

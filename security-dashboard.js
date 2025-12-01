@@ -36,7 +36,7 @@
             name: "Super Admin",
             role: "super",
             pin: "ChangeMeNow!",
-            email: "you@example.com",
+            email: "ahmed.adeyemi@ussignal.com",
             teamsWebhook: "", // Optional Teams incoming webhook URL
             active: true
         }

@@ -1,459 +1,184 @@
-/* ============================================================
-   VisionBank / US Signal - Security Admin Portal Styles
-   ============================================================ */
-
-/* ---------- Base Layout ---------- */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+/* ===========================================================
+   BASE PAGE
+   =========================================================== */
 
 body {
+    margin: 0;
     font-family: Arial, sans-serif;
-    min-height: 100vh;
-    background: radial-gradient(circle at top, #1f2a3a 0%, #050912 55%, #020308 100%);
+    background: #eef0f4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    transition: background 0.4s ease;
+}
+
+/* DARK MODE */
+body.dark-mode {
+    background: #101010;
     color: #f5f5f5;
-    display: flex;
-    flex-direction: column;
 }
 
-/* A center container for the whole page content */
-.security-shell {
-    flex: 1 0 auto;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px 16px 10px 16px;
-}
+/* ===========================================================
+   DARK MODE TOGGLE
+   =========================================================== */
 
-/* ---------- Header ---------- */
-
-.security-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-}
-
-/* Left: VisionBank Logo */
-.security-header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.security-header-logo {
+.dark-toggle {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    background: rgba(0,0,0,0.35);
+    color: white;
+    font-size: 20px;
+    border-radius: 50%;
+    width: 42px;
     height: 42px;
-    width: auto;
+    border: none;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: 0.3s;
 }
 
-/* Center: Page Title */
-.security-header-center {
-    flex: 1;
+body.dark-mode .dark-toggle {
+    background: rgba(255,255,255,0.2);
+}
+
+/* ===========================================================
+   GLASSMORPHISM LOGIN BOX
+   =========================================================== */
+
+.login-container {
+    width: 380px;
+    padding: 40px;
+    border-radius: 18px;
     text-align: center;
+    animation: fadeIn 0.7s ease;
 }
-
-.security-header-center h1 {
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: #ffffff;
-}
-
-.security-header-center span {
-    font-size: 13px;
-    color: #c0c8d8;
-}
-
-/* Right side can be empty or used later if needed */
-.security-header-right {
-    min-width: 80px;
-}
-
-
-/* ---------- Glass Card Base ---------- */
 
 .glass {
-    background: rgba(15, 23, 42, 0.65);  /* slate-ish glass */
-    border-radius: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.4);
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+    background: rgba(255,255,255,0.32);
+    border: 1px solid rgba(255,255,255,0.35);
     backdrop-filter: blur(16px);
 }
 
-/* Smooth transitions */
-.glass,
-button,
-input,
-select,
-textarea {
-    transition:
-        background-color 0.22s ease,
-        border-color 0.22s ease,
-        color 0.22s ease,
-        box-shadow 0.22s ease,
-        transform 0.12s ease;
+body.dark-mode .glass {
+    background: rgba(0,0,0,0.35);
+    border-color: rgba(150,150,150,0.2);
 }
 
-/* ---------- Login Panel ---------- */
+/* ===========================================================
+   LOGOS
+   =========================================================== */
 
-#login-panel {
-    max-width: 420px;
-    margin: 70px auto 30px auto;
-    padding: 24px 22px 26px 22px;
-    text-align: center;
+.vb-logo-large {
+    width: 140px;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.35));
+    transition: filter 0.4s;
 }
 
-#login-panel h2 {
-    font-size: 19px;
-    margin-bottom: 6px;
+body.dark-mode .vb-logo-large {
+    filter: brightness(1.6);
 }
 
-#login-panel p {
-    font-size: 13px;
-    color: #d1d5db;
-    margin-bottom: 16px;
+.footer-logo-small {
+    height: 28px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
-.login-field {
-    margin-bottom: 10px;
-    text-align: left;
+body.dark-mode .footer-logo-small {
+    filter: brightness(1.9);
 }
 
-.login-field label {
-    display: block;
-    font-size: 12px;
-    margin-bottom: 4px;
-    color: #e5e7eb;
-}
+/* ===========================================================
+   INPUT FIELDS
+   =========================================================== */
 
-.login-field input {
+.input-field {
     width: 100%;
-    padding: 8px 9px;
+    padding: 12px;
+    margin-top: 12px;
     border-radius: 6px;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-    background: rgba(15, 23, 42, 0.85);
-    color: #f9fafb;
-    font-size: 13px;
+    border: 1px solid #ccc;
+    backdrop-filter: blur(10px);
 }
 
-.login-field input:focus {
-    outline: none;
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.7);
+body.dark-mode .input-field {
+    background: rgba(255,255,255,0.12);
+    border-color: #555;
+    color: white;
 }
 
-.login-actions {
-    margin-top: 14px;
-}
+/* ===========================================================
+   BUTTONS
+   =========================================================== */
 
-.primary-btn {
-    padding: 8px 16px;
-    border-radius: 999px;
-    border: 1px solid #38bdf8;
-    background: linear-gradient(135deg, #22c55e, #22d3ee);
-    color: #0f172a;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.primary-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(34, 211, 238, 0.35);
-}
-
-/* ---------- Admin Dashboard Layout ---------- */
-
-#admin-dashboard {
-    margin-top: 8px;
-}
-
-/* A grid layout for the different sections */
-.security-grid {
-    display: grid;
-    gap: 14px;
-}
-
-/* On larger screens, use 2 columns; on small screens, single column */
-@media (min-width: 960px) {
-    .security-grid {
-        grid-template-columns: 1.1fr 1.1fr;
-    }
-}
-
-/* Each panel in the admin dashboard */
-.security-panel {
-    padding: 14px 14px 16px 14px;
-}
-
-.security-panel h3 {
-    font-size: 16px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.security-panel h3 span.icon {
-    font-size: 16px;
-}
-
-.security-panel p {
-    font-size: 12px;
-    color: #e5e7eb;
-    margin-bottom: 7px;
-}
-
-/* generic small helper text */
-.security-hint {
-    font-size: 11px;
-    color: #9ca3af;
-    margin-top: 4px;
-}
-
-/* ---------- Top Bar inside Dashboard ---------- */
-
-.dashboard-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 6px 0 14px 0;
-}
-
-#welcome-admin {
-    font-size: 13px;
-    color: #e5e7eb;
-}
-
-.dashboard-topbar button.logout-btn {
-    padding: 5px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(239, 68, 68, 0.8);
-    background: transparent;
-    color: #fecaca;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.dashboard-topbar button.logout-btn:hover {
-    background: rgba(239, 68, 68, 0.15);
-}
-
-
-/* ---------- List Items (Admins, IPs, MFA Emails) ---------- */
-
-.section-list {
-    margin-top: 6px;
-}
-
-.item-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px;
-    margin-top: 6px;
-    font-size: 13px;
-}
-
-.item-row span {
-    overflow-wrap: anywhere;
-}
-
-.section-actions {
-    margin-top: 8px;
-    text-align: right;
-}
-
-/* small glass button */
-.small-btn {
-    padding: 5px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.8);
-    background: rgba(15, 23, 42, 0.7);
-    color: #e5e7eb;
-    font-size: 11px;
-    cursor: pointer;
-}
-
-.small-btn:hover {
-    background: rgba(56, 189, 248, 0.12);
-}
-
-/* danger variant */
-.danger-btn {
-    padding: 4px 9px;
-    border-radius: 999px;
-    border: 1px solid rgba(248, 113, 113, 0.9);
-    background: rgba(127, 29, 29, 0.6);
-    color: #fee2e2;
-    font-size: 11px;
-    cursor: pointer;
-}
-
-.danger-btn:hover {
-    background: rgba(248, 113, 113, 0.3);
-}
-
-/* ---------- Business Hours Form ---------- */
-
-.business-form {
-    display: grid;
-    gap: 8px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 6px;
-}
-
-.business-form label {
-    font-size: 11px;
-    color: #e5e7eb;
-}
-
-.business-form input {
+.login-btn {
     width: 100%;
-    margin-top: 2px;
-    padding: 5px 7px;
+    padding: 12px;
+    margin-top: 15px;
+    background: #2b7cff;
+    border: none;
+    color: white;
+    font-weight: bold;
     border-radius: 6px;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-    background: rgba(15, 23, 42, 0.85);
-    color: #f9fafb;
-    font-size: 12px;
-}
-
-.business-form input:focus {
-    outline: none;
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.7);
-}
-
-.business-actions {
-    margin-top: 10px;
-    text-align: right;
-}
-
-/* ---------- Audit Log ---------- */
-
-#audit-log {
-    max-height: 230px;
-    overflow-y: auto;
-    margin-top: 8px;
-    padding-right: 4px;
-}
-
-.audit-entry {
-    font-size: 11px;
-    color: #e5e7eb;
-    padding: 5px 7px;
-    margin-bottom: 4px;
-}
-
-/* ---------- Access Denied (override block injected from security.js) ---------- */
-
-.denied {
-    max-width: 520px;
-    margin: 100px auto 40px auto;
-    text-align: center;
-    background: rgba(15, 23, 42, 0.92);
-    border-radius: 12px;
-    padding: 28px 20px 24px 20px;
-    border: 1px solid rgba(248, 113, 113, 0.7);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
-}
-
-.denied h1 {
-    font-size: 22px;
-    margin-bottom: 8px;
-    color: #fecaca;
-}
-
-.denied p {
-    font-size: 13px;
-    color: #e5e7eb;
-    margin-bottom: 10px;
-}
-
-.denied input {
-    width: 70%;
-    padding: 7px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(248, 250, 252, 0.7);
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
-    margin-top: 6px;
-    font-size: 12px;
-}
-
-.denied button {
-    margin-top: 10px;
-    padding: 7px 14px;
-    border-radius: 999px;
-    border: 1px solid #22c55e;
-    background: linear-gradient(135deg, #4ade80, #22d3ee);
-    color: #0f172a;
-    font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
+    transition: 0.25s;
 }
 
-/* ---------- Footer Branding ---------- */
-
-.security-footer {
-    flex-shrink: 0;
-    padding: 8px 16px 10px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: #e5e7eb;
-    font-size: 12px;
-    border-top: 1px solid rgba(148, 163, 184, 0.5);
-    background: radial-gradient(circle at bottom, rgba(15, 23, 42, 0.9), rgba(3, 7, 18, 0.98));
+.login-btn:hover {
+    background: #1668e8;
 }
 
-/* left side can show "Security Admin Console" or similar text */
-.security-footer-left {
-    opacity: 0.85;
+/* ===========================================================
+   TEXT
+   =========================================================== */
+
+.error-msg {
+    color: #ff4d4d;
+    margin-top: 10px;
 }
 
-/* right side: small US Signal logo + text */
-.security-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+.override-link {
+    background: none;
+    border: none;
+    color: #2b7cff;
+    cursor: pointer;
+    margin-top: 15px;
 }
 
-.security-footer-logo {
-    height: 22px;  /* small logo */
-    width: auto;
+.override-link:hover {
+    text-decoration: underline;
 }
 
-.security-footer-right strong {
-    font-weight: 600;
+.hidden {
+    display: none;
 }
 
+/* ===========================================================
+   FOOTER
+   =========================================================== */
 
-/* ---------- Responsive Tweaks ---------- */
+.glass-footer {
+    position: fixed;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+    font-size: 13px;
+    color: #333;
+    backdrop-filter: blur(12px);
+    padding: 10px 0;
+}
 
-@media (max-width: 768px) {
-    .security-header {
-        flex-direction: column;
-        gap: 8px;
-        text-align: center;
-    }
+body.dark-mode .glass-footer {
+    color: #fafafa;
+}
 
-    .security-header-left {
-        position: static;
-        justify-content: center;
-    }
+/* ===========================================================
+   ANIMATIONS
+   =========================================================== */
 
-    .security-header-center {
-        order: 2;
-    }
-
-    .security-shell {
-        padding: 12px 10px 8px 10px;
-    }
-
-    #login-panel {
-        margin-top: 40px;
-    }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
 }

@@ -304,3 +304,12 @@ body,
                 box-shadow 0.45s ease,
                 backdrop-filter 0.45s ease;
 }
+/* ====== QUEUE ALERT (RED WHEN CALLS > 0) ====== */
+.queue-alert {
+    color: #e74c3c !important;
+    font-weight: bold;
+}
+
+body.dark-mode .queue-alert {
+    color: #ff6b6b !important;
+}

@@ -435,3 +435,64 @@ body.dark-mode .alert-settings-panel {
 .hidden {
     display: none;
 }
+/* MAKE ALERT PANEL ALWAYS FLOAT ABOVE EVERYTHING */
+.alert-settings-panel {
+    position: fixed;
+    top: 55px;
+    right: 18px;
+    width: 250px;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    z-index: 999999 !important;
+}
+
+/* Dark mode panel */
+body.dark-mode .alert-settings-panel {
+    background: #1b1b1b;
+    border-color: #555;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+}
+
+/* Floating Alert Settings button */
+.alert-settings-btn {
+    position: fixed;
+    top: 10px;
+    right: 14px;
+    z-index: 1000000 !important;
+    background: #fff;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Dark mode button */
+body.dark-mode .alert-settings-btn {
+    background: #222;
+    color: #fff;
+    border-color: #555;
+}
+
+/* Hide class */
+.hidden {
+    display: none !important;
+}
+
+/* Small form rows */
+.alert-row {
+    margin-bottom: 8px;
+}
+
+.alert-row input[type="range"],
+.alert-row select,
+.alert-row input[type="number"] {
+    width: 100%;
+}

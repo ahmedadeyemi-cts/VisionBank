@@ -7,13 +7,18 @@
 </head>
 
 <body>
-    <header>
-        <h1>VisionBank — Dashboard</h1>
-        <button id="darkModeToggle">🌙 Dark Mode</button>
+    <header class="main-header">
+        <div class="header-left">
+            <h1>VisionBank — Dashboard</h1>
+        </div>
+        <div class="header-right">
+            <button id="darkModeToggle" type="button">🌙 Dark Mode</button>
+            <button id="wallboardToggle" type="button" class="wallboard-button">📺 Wallboard</button>
+        </div>
     </header>
 
     <!-- 🔔 Alert Settings Button -->
-    <button id="alertSettingsButton" class="alert-settings-button">
+    <button id="alertSettingsButton" type="button" class="alert-settings-button">
         🔔 Alert Settings
     </button>
 
@@ -68,7 +73,19 @@
                     </select>
                 </label>
 
-                <button id="alertTestButton" class="alert-test-button">
+                <label>
+                    Alert tone
+                    <select id="alertToneSelect">
+                        <option value="soft">Soft chime</option>
+                        <option value="bell">Bell</option>
+                        <option value="urgent">Urgent beep</option>
+                        <option value="digital">Digital alarm</option>
+                        <option value="sweep">Low–high sweep</option>
+                        <option value="siren">Siren pulse</option>
+                    </select>
+                </label>
+
+                <button type="button" id="alertTestButton" class="alert-test-button">
                     ▶ Test Alert
                 </button>
             </div>

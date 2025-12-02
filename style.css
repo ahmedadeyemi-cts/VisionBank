@@ -137,6 +137,25 @@ body {
     text-align: center;
     border-radius: 4px;
 }
+/* EXISTING CSS IS UNCHANGED — ONLY AVAILABILITY PATCHES BELOW */
+
+/* NEW — Available (Green) */
+.status-available {
+    background: #27ae60 !important; /* Green */
+    color: #ffffff !important;
+}
+
+/* UPDATED — Break (Use white text for visibility) */
+.status-break {
+    background: #f1c40f !important;
+    color: #ffffff !important;
+}
+
+/* NEW — Unknown types */
+.status-unknown {
+    background: #7f8c8d !important;
+    color: #ffffff !important;
+}
 
 .status-orange,
 .status-wrap,

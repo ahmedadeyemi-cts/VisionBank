@@ -1,65 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>VisionBank Secure Access</title>
-    <link rel="stylesheet" href="security.css">
+    <meta charset="UTF-8" />
+    <title>VisionBank Security Administration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="security.css" />
 </head>
-
 <body>
+<div class="vb-page">
 
-<!-- DARK MODE TOGGLE -->
-<button id="darkToggle" class="dark-toggle">🌙</button>
+    <!-- HEADER WITH VISIONBANK LOGO -->
+    <header class="vb-header">
+        <div class="vb-header-inner">
+            <img
+                src="assets/VisionBank-Logo.png"
+                alt="VisionBank"
+                class="vb-logo-vb"
+            />
+            <div class="vb-header-text">
+                <h1>VisionBank Security Administration</h1>
+                <p class="vb-tagline">
+                    Access Control • Monitoring • Business Hours
+                </p>
+            </div>
+        </div>
+    </header>
 
-<!-- LOGIN CONTAINER -->
-<div class="login-container glass">
+    <!-- MAIN CONTENT (LOGIN OR DASHBOARD RENDERED BY JS) -->
+    <main id="vb-root" class="vb-main"></main>
 
-    <img src="assets/VisionBank-Logo.png" alt="VisionBank Logo" class="vb-logo-large">
-
-    <h1 class="login-title">Secure Administrator Login</h1>
-
-    <div id="login-section">
-
-        <input type="text" id="adminUser" placeholder="Admin Username" class="input-field">
-        <input type="password" id="adminPin" placeholder="PIN" class="input-field">
-
-        <button onclick="validateLogin()" class="login-btn">Login</button>
-
-        <p id="login-error" class="error-msg"></p>
-
-        <button onclick="showOverride()" class="override-link">Use Override Key</button>
-    </div>
-
-    <!-- MFA SECTION -->
-    <div id="mfa-section" class="hidden">
-        <p class="mfa-instructions">A 6-digit authentication code has been sent to your registered email(s).</p>
-
-        <input type="text" id="mfaInput" maxlength="6" placeholder="Enter MFA Code" class="input-field">
-
-        <button onclick="verifyMFA()" class="login-btn">Verify Code</button>
-
-        <p id="mfa-error" class="error-msg"></p>
-
-        <button onclick="resendMFA()" class="override-link">Resend Code</button>
-    </div>
-
-    <!-- OVERRIDE SECTION -->
-    <div id="override-section" class="hidden">
-        <input type="password" id="overrideKey" placeholder="Override Key" class="input-field">
-
-        <button onclick="validateOverride()" class="login-btn">Submit Override</button>
-        <p id="override-error" class="error-msg"></p>
-    </div>
+    <!-- FOOTER WITH US SIGNAL LOGO + CREDIT -->
+    <footer class="vb-footer">
+        <div class="vb-footer-inner">
+            <span class="vb-footer-spacer"></span>
+            <div class="vb-footer-right">
+                <img
+                    src="assets/US-Signal-Logo.png"
+                    alt="US Signal"
+                    class="vb-logo-us"
+                />
+                <span class="vb-footer-text">
+                    Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong>
+                </span>
+            </div>
+        </div>
+    </footer>
 
 </div>
 
-<!-- FOOTER -->
-<footer class="glass-footer">
-    <img src="assets/US-Signal-Logo.png" class="footer-logo-small">
-    <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
-</footer>
+<!-- EmailJS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
+<!-- Security core + dashboard -->
 <script src="security.js"></script>
-
+<script src="security-dashboard.js"></script>
 </body>
 </html>

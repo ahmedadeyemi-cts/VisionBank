@@ -63,46 +63,44 @@ body {
 .panel h2 {
     font-size: 22px;
     margin-bottom: 15px;
-    text-align: center !important;
+    text-align: left;
 }
 
 /* ===============================
-   TABLE STYLES — UPDATED
+   TABLE STYLES
 =================================*/
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #cccccc; /* Outer border */
 }
 
-.data-table th,
-.data-table td {
-    border: 1px solid #cccccc; /* Full grid lines */
-    padding: 12px;
-    font-size: 15px;
-    text-align: center !important;
-    vertical-align: middle;
-}
-
-/* Table header */
 .data-table th {
     background: #003366;
-    color: white;
-    font-weight: bold;
+    color: #fff;
+    padding: 10px;
+    font-size: 15px;
 }
 
-/* Alternating row background */
-.data-table tr:nth-child(even) {
-    background: #fafafa;
+.data-table td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
 }
 
+/* 🔥 CENTER ALL TABLE CONTENT */
+.data-table th,
+.data-table td {
+    text-align: center !important;
+}
+
+/* Loading message */
 .loading {
     padding: 15px;
     font-style: italic;
     text-align: center;
 }
 
+/* Error message */
 .error {
     margin-top: 10px;
     color: red;
@@ -120,7 +118,7 @@ body {
     border-radius: 5px;
 }
 
-/* Orange (Not Set, Wrap-up, Lunch, Accept Internal Calls) */
+/* Orange class for Not Set, Wrap, Lunch, Accept Internal Calls */
 .status-orange,
 .status-wrap,
 .status-lunch {
@@ -128,19 +126,19 @@ body {
     color: #fff !important;
 }
 
-/* On Call (Red) */
+/* On Call - RED */
 .status-oncall {
     background: #c0392b !important;
     color: #fff !important;
 }
 
-/* Break (Yellow) */
+/* Break - YELLOW */
 .status-break {
     background: #f1c40f !important;
     color: #000 !important;
 }
 
-/* Idle (Gray) */
+/* Idle - GRAY */
 .status-idle {
     background: #95a5a6 !important;
     color: #fff !important;
@@ -166,7 +164,7 @@ body {
 }
 
 .alert-history-btn {
-    right: 170px;
+    right: 160px;
 }
 
 .alert-settings-btn:hover,
@@ -182,13 +180,17 @@ body {
     position: fixed;
     top: 75px;
     right: 20px;
-    width: 330px;
+    width: 320px;
     background: #fff;
     border-radius: 10px;
     padding: 18px;
     box-shadow: 0px 4px 14px rgba(0,0,0,0.2);
     z-index: 2000;
     display: none;
+}
+
+/* 🔥 Center all content in alert settings */
+.alert-settings-panel {
     text-align: center;
 }
 
@@ -197,8 +199,8 @@ body {
 }
 
 .alert-settings-panel h3 {
-    font-size: 18px;
     margin-bottom: 12px;
+    font-size: 18px;
 }
 
 .alert-row {
@@ -221,6 +223,7 @@ body {
     background: #0055aa;
 }
 
+/* Queue tone override list */
 .queue-tone-overrides {
     margin-top: 12px;
 }
@@ -230,6 +233,7 @@ body {
     justify-content: center;
     gap: 10px;
     margin: 5px 0;
+    text-align: center;
 }
 
 /* ===============================
@@ -247,6 +251,10 @@ body {
     box-shadow: 0px 4px 14px rgba(0,0,0,0.2);
     z-index: 2000;
     display: none;
+}
+
+/* 🔥 Center all content */
+.alert-history-list {
     text-align: center;
 }
 
@@ -254,371 +262,17 @@ body {
     display: block;
 }
 
-.alert-history-entry {
-    padding: 10px;
-    background: #eef3ff;
-    border: 1px solid #ccd6ff;
-    margin-bottom: 8px;
-    border-radius: 6px;
-}
-
-.clear-history-btn {
-    margin-top: 12px;
-    padding: 8px;
-    width: 100%;
-    background: #c0392b;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-.clear-history-btn:hover {
-    background: #e74c3c;
-}
-
-/* ===============================
-   STAT GRID
-=================================*/
-
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 15px;
-    margin-top: 15px;
-}
-
-.stat-card {
-    background: #f8f8f8;
-    padding: 18px;
-    border-radius: 10px;
-    text-align: center;
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.08);
-}
-
-.stat-value {
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.stat-label {
-    margin-top: 6px;
-    font-size: 14px;
-}
-
-/* ===============================
-   FOOTER
-=================================*/
-
-.footer {
-    margin-top: 30px;
-    padding: 18px;
-    text-align: center;
-    background: #003366;
-    color: white;
-}
-
-.footer-logo {
-    width: 160px;
-    margin-left: 12px;
-}
-
-/* ===============================
-   BLINKING QUEUE ALERT
-=================================*/
-
-.blink-red {
-    animation: blinkRed 1s infinite;
-}
-
-@keyframes blinkRed {
-    0% { box-shadow: 0 0 0px red; }
-    50% { box-shadow: 0 0 14px red; }
-    100% { box-shadow: 0 0 0px red; }
-}
-
-/* ===============================
-   DARK MODE
-=================================*/
-
-body.dark-mode {
-    background: #1a1a1a;
-    color: #eee;
-}
-
-body.dark-mode .panel {
-    background: #2d2d2d;
-}
-
-body.dark-mode .data-table th {
-    background: #222;
-}
-
-body.dark-mode .footer {
-    background: #111;
-}
-/* ===============================
-   GLOBAL RESET & BASE STYLES
-=================================*/
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: #f5f5f5;
-    color: #222;
-    line-height: 1.4;
-}
-
-/* ===============================
-   HEADER STYLES
-=================================*/
-
-.header {
-    background: #003366;
-    color: #fff;
-    padding: 20px 25px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.header-left .logo {
-    width: 140px;
-}
-
-.header-center {
-    text-align: center;
-    flex-grow: 1;
-}
-
-.header-center h1 {
-    font-size: 26px;
-    font-weight: bold;
-}
-
-.header-subtitle {
-    font-size: 16px;
-    margin-top: 5px;
-    opacity: 0.9;
-}
-
-/* ===============================
-   PANEL STYLES
-=================================*/
-
-.panel {
-    background: #ffffff;
-    margin: 25px auto;
-    width: 92%;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0px 3px 10px rgba(0,0,0,0.08);
-}
-
-.panel h2 {
-    font-size: 22px;
-    margin-bottom: 15px;
-    text-align: center !important;
-}
-
-/* ===============================
-   TABLE STYLES — UPDATED
-=================================*/
-
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    border: 1px solid #cccccc; /* Outer border */
-}
-
-.data-table th,
-.data-table td {
-    border: 1px solid #cccccc; /* Full grid lines */
-    padding: 12px;
-    font-size: 15px;
-    text-align: center !important;
-    vertical-align: middle;
-}
-
-/* Table header */
-.data-table th {
-    background: #003366;
-    color: white;
-    font-weight: bold;
-}
-
-/* Alternating row background */
-.data-table tr:nth-child(even) {
-    background: #fafafa;
-}
-
-.loading {
-    padding: 15px;
-    font-style: italic;
-    text-align: center;
-}
-
-.error {
-    margin-top: 10px;
-    color: red;
-    font-weight: bold;
-}
-
-/* ===============================
-   STATUS COLORING (AVAILABILITY)
-=================================*/
-
-.availability-cell {
-    font-weight: bold;
-    color: #fff;
-    padding: 5px 8px;
-    border-radius: 5px;
-}
-
-/* Orange (Not Set, Wrap-up, Lunch, Accept Internal Calls) */
-.status-orange,
-.status-wrap,
-.status-lunch {
-    background: #e67e22 !important;
-    color: #fff !important;
-}
-
-/* On Call (Red) */
-.status-oncall {
-    background: #c0392b !important;
-    color: #fff !important;
-}
-
-/* Break (Yellow) */
-.status-break {
-    background: #f1c40f !important;
-    color: #000 !important;
-}
-
-/* Idle (Gray) */
-.status-idle {
-    background: #95a5a6 !important;
-    color: #fff !important;
-}
-
-/* ===============================
-   FLOATING BUTTONS
-=================================*/
-
-.alert-settings-btn,
-.alert-history-btn {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 12px 18px;
-    background: #003366;
-    color: #fff;
-    font-weight: bold;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    z-index: 1000;
-}
-
-.alert-history-btn {
-    right: 170px;
-}
-
-.alert-settings-btn:hover,
-.alert-history-btn:hover {
-    background: #0055aa;
-}
-
-/* ===============================
-   ALERT SETTINGS PANEL
-=================================*/
-
-.alert-settings-panel {
-    position: fixed;
-    top: 75px;
-    right: 20px;
-    width: 330px;
-    background: #fff;
-    border-radius: 10px;
-    padding: 18px;
-    box-shadow: 0px 4px 14px rgba(0,0,0,0.2);
-    z-index: 2000;
-    display: none;
-    text-align: center;
-}
-
-.alert-settings-panel.visible {
-    display: block;
-}
-
-.alert-settings-panel h3 {
-    font-size: 18px;
+.alert-history-panel h3 {
     margin-bottom: 12px;
 }
 
-.alert-row {
-    margin: 10px 0;
-    text-align: center;
-}
-
-.alert-test-btn {
-    margin-top: 12px;
-    padding: 10px;
-    width: 100%;
-    background: #003366;
-    color: white;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-}
-
-.alert-test-btn:hover {
-    background: #0055aa;
-}
-
-.queue-tone-overrides {
-    margin-top: 12px;
-}
-
-.queue-override-row {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin: 5px 0;
-}
-
-/* ===============================
-   ALERT HISTORY PANEL
-=================================*/
-
-.alert-history-panel {
-    position: fixed;
-    top: 75px;
-    right: 370px;
-    width: 360px;
-    background: white;
-    border-radius: 10px;
-    padding: 18px;
-    box-shadow: 0px 4px 14px rgba(0,0,0,0.2);
-    z-index: 2000;
-    display: none;
-    text-align: center;
-}
-
-.alert-history-panel.visible {
-    display: block;
-}
-
 .alert-history-entry {
     padding: 10px;
     background: #eef3ff;
     border: 1px solid #ccd6ff;
     margin-bottom: 8px;
     border-radius: 6px;
+    text-align: center;
 }
 
 .clear-history-btn {

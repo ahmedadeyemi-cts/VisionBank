@@ -151,9 +151,11 @@ body {
     background: #e67e22;
     color: #ffffff;
 }
+
+/* Dial Out always red */
 .status-dialout {
-    background-color: #c0392b !important; /* Strong red */
-    color: #ffffff !important;           /* White text */
+    background-color: #c0392b !important;
+    color: #ffffff !important;
 }
 
 /* On Call - Red */
@@ -162,7 +164,7 @@ body {
     color: #ffffff;
 }
 
-/* Break - Yellow, white text for good contrast in both modes */
+/* Break - Yellow, white text */
 .status-break {
     background: #f1c40f;
     color: #ffffff;
@@ -174,7 +176,6 @@ body {
     color: #ffffff;
 }
 
-/* NEW — Unknown types */
 .status-unknown {
     background: #7f8c8d !important;
     color: #ffffff !important;
@@ -252,7 +253,7 @@ body {
 
 .alert-settings-panel h3,
 .alert-history-panel h3 {
-    text-align: center; /* CENTER */
+    text-align: center;
 }
 
 .hidden {
@@ -281,16 +282,34 @@ body {
     cursor: pointer;
     font-size: 13px;
 }
+
 .alert-panels-wrapper {
     display: flex;
     gap: 20px;
     align-items: flex-start;
 }
 
+/* =============================================
+   FIX: REMOVE flex:1 FROM FIXED PANELS
+   AND POSITION ALERT PANELS SIDE-BY-SIDE
+   ============================================= */
 #alertSettingsPanel,
 #alertHistoryPanel {
-    flex: 1;
-    min-width: 350px;
+    position: fixed;
+    top: 100px;
+    width: 340px;
+    max-height: 520px;
+    overflow-y: auto;
+    z-index: 99999;
+}
+
+/* Side-by-side layout */
+#alertSettingsPanel {
+    right: 380px !important;
+}
+
+#alertHistoryPanel {
+    right: 20px !important;
 }
 
 /* Queue tone overrides */
@@ -329,7 +348,7 @@ body {
     padding: 6px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 12px;
-    text-align: center;  /* CENTER */
+    text-align: center;
 }
 
 .history-time {
@@ -430,6 +449,7 @@ body.dark-mode .alert-history-btn {
 body.dark-mode .queue-alert-popup {
     background: #e53935;
 }
+
 /* ===============================
    FORCE CENTERING FOR ALL CELLS
    =============================== */

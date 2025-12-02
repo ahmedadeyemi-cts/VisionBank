@@ -65,7 +65,6 @@ body {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 18px;
-    text-align: center;   /* CENTERED */
 }
 
 /* ===============================
@@ -75,27 +74,23 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
+    border: 1px solid #dddddd; /* FULL TABLE BORDER */
 }
 
-/* BORDER AROUND **EVERY** CELL AND HEADER */
 .data-table th,
 .data-table td {
     padding: 8px 6px;
-    border: 1px solid #cccccc !important;
-
-    /* CENTER ALL TEXT */
-    text-align: center !important;
+    border: 1px solid #dddddd; /* LINES BETWEEN ALL CELLS */
+    text-align: center !important; /* FORCE CENTERING */
 }
 
-/* Header row */
 .data-table th {
     background: #f0f0f0;
     font-weight: bold;
 }
 
-/* Numeric override */
 .data-table td.numeric {
-    text-align: right !important;
+    text-align: center !important; /* OVERRIDE old right-align */
 }
 
 .loading {
@@ -110,7 +105,16 @@ body {
 }
 
 /* ===============================
-   QUEUE ALERT STATES
+   RED CALL ALERT (Calls > 0)
+   =============================== */
+.queue-hot td:nth-child(2) {
+    background: #c0392b !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+}
+
+/* ===============================
+   QUEUE ALERT PANEL PULSE
    =============================== */
 #queue-panel.queue-alert-active {
     border-color: #e53935;
@@ -124,11 +128,6 @@ body {
     100% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
 }
 
-.queue-hot td:nth-child(2) {
-    color: #e53935;
-    font-weight: bold;
-}
-
 /* ===============================
    AVAILABILITY BADGES
    =============================== */
@@ -138,6 +137,7 @@ body {
     border-radius: 4px;
 }
 
+/* Orange */
 .status-orange,
 .status-wrap,
 .status-lunch {
@@ -145,16 +145,19 @@ body {
     color: #ffffff;
 }
 
+/* Red */
 .status-oncall {
     background: #c0392b;
     color: #ffffff;
 }
 
+/* Yellow */
 .status-break {
     background: #f1c40f;
     color: #000000;
 }
 
+/* Gray */
 .status-idle {
     background: #7f8c8d;
     color: #ffffff;
@@ -167,7 +170,6 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 18px;
-    justify-content: center;
 }
 
 .stat-card {
@@ -232,7 +234,8 @@ body {
 
 .alert-settings-panel h3,
 .alert-history-panel h3 {
-    text-align: center; /* CENTER */
+    margin-top: 0;
+    margin-bottom: 10px;
 }
 
 .hidden {
@@ -244,12 +247,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-}
-
-.alert-row label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    text-align: center;
 }
 
 .alert-test-btn {
@@ -269,7 +267,7 @@ body {
 
 .queue-override-row {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     margin-bottom: 6px;
 }
@@ -287,6 +285,7 @@ body {
    =============================== */
 .alert-history-list {
     margin-top: 4px;
+    text-align: center;
 }
 
 .history-empty {
@@ -298,7 +297,6 @@ body {
     padding: 6px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 12px;
-    text-align: center;  /* CENTER */
 }
 
 .history-time {
@@ -398,13 +396,4 @@ body.dark-mode .alert-history-btn {
 
 body.dark-mode .queue-alert-popup {
     background: #e53935;
-}
-/* ===============================
-   FORCE CENTERING FOR ALL CELLS
-   =============================== */
-#queue-panel .data-table td,
-#queue-panel .data-table th,
-#agent-panel .data-table td,
-#agent-panel .data-table th {
-    text-align: center !important;
 }

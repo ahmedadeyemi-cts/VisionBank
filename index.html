@@ -24,102 +24,84 @@
 <!-- =============================== -->
 <!-- FLOATING ALERT BUTTONS -->
 <!-- =============================== -->
+
 <div class="alert-panels-wrapper">
-
-    <!-- ALERT SETTINGS PANEL -->
+    <!-- FIXED ALERT SETTINGS PANEL -->
     <div id="alertSettingsPanel" class="alert-settings-panel hidden">
-        ... your full settings panel content ...
+        <h3>Alert Settings</h3>
+
+        <div class="alert-row">
+            <label><input type="checkbox" id="enableQueueAlerts" checked> Enable queue alerts</label>
+        </div>
+
+        <div class="alert-row">
+            <label><input type="checkbox" id="enableVoiceAlerts" checked> Voice alert</label>
+        </div>
+
+        <div class="alert-row">
+            <label><input type="checkbox" id="enablePopupAlerts" checked> Show popup notifications</label>
+        </div>
+
+        <div class="alert-row">
+            <label>Alert Tone</label>
+            <select id="alertToneSelect">
+                <option value="soft">Soft chime</option>
+                <option value="bright">Bright bell</option>
+                <option value="pulse">Pulse beep</option>
+                <option value="ping">Ping tone</option>
+                <option value="alarm">Alarm tone</option>
+            </select>
+        </div>
+
+        <div class="alert-row">
+            <label>Volume</label>
+            <input type="range" id="alertVolume" min="0" max="100">
+        </div>
+
+        <div class="alert-row">
+            <label>Cooldown (seconds)</label>
+            <input type="number" id="alertCooldown" min="10" max="300" step="5">
+        </div>
+
+        <div class="alert-row">
+            <label><input type="checkbox" id="wallboardMode"> Wallboard mode</label>
+        </div>
+
+        <h3 style="margin-top:12px;">Queue Tone Overrides</h3>
+        <div id="queueToneOverrides" class="queue-tone-overrides">
+            <div class="queue-override-empty">No queues loaded yet.</div>
+        </div>
+
+        <button id="alertTestButton" class="alert-test-btn">▶ Test Alert</button>
     </div>
 
-    <!-- ALERT HISTORY PANEL -->
+    <!-- FIXED ALERT HISTORY PANEL -->
     <div id="alertHistoryPanel" class="alert-history-panel hidden">
-        ... your full history panel content ...
-    </div>
+        <h3>Alert History</h3>
 
-</div>
-<button id="alertSettingsToggle" class="alert-settings-btn">
-    🔔 Alert Settings
-</button>
+        <div id="alertHistoryList" class="alert-history-list">
+            <div class="history-empty">No alerts yet.</div>
+        </div>
 
-<button id="alertHistoryToggle" class="alert-history-btn">
-    📜 Alert History
-</button>
-
-<!-- =============================== -->
-<!-- ALERT SETTINGS PANEL -->
-<!-- =============================== -->
-<div id="alertSettingsPanel" class="alert-settings-panel hidden">
-    <h3>Alert Settings</h3>
-
-    <div class="alert-row">
-        <label>
-            <input type="checkbox" id="enableQueueAlerts" checked />
-            Enable queue alerts
-        </label>
-    </div>
-
-    <div class="alert-row">
-        <label>
-            <input type="checkbox" id="enableVoiceAlerts" checked />
-            Voice alert: “You have calls waiting”
-        </label>
-    </div>
-
-    <div class="alert-row">
-        <label>
-            <input type="checkbox" id="enablePopupAlerts" checked />
-            Show notification pop-up
-        </label>
-    </div>
-
-    <div class="alert-row">
-        <label for="alertToneSelect">Alert tone</label>
-        <select id="alertToneSelect">
-            <option value="soft">Soft chime</option>
-            <option value="bright">Bright bell</option>
-            <option value="pulse">Pulse beep</option>
-            <option value="ping">Ping tone</option>
-            <option value="alarm">Alarm tone</option>
-        </select>
-    </div>
-
-    <div class="alert-row">
-        <label for="alertVolume">Volume</label>
-        <input type="range" id="alertVolume" min="0" max="100" value="80" />
-    </div>
-
-    <div class="alert-row">
-        <label for="alertCooldown">Alert every (seconds)</label>
-        <input type="number" id="alertCooldown" min="10" max="300" step="5" value="30" />
-    </div>
-
-    <div class="alert-row">
-        <label>
-            <input type="checkbox" id="wallboardMode" />
-            Wallboard mode
-        </label>
-    </div>
-
-    <button id="alertTestButton" class="alert-test-btn">
-        ▶ Test Alert
-    </button>
-
-    <h3 style="margin-top:12px;">Queue Tone Overrides</h3>
-    <div id="queueToneOverrides" class="queue-tone-overrides">
-        <div class="queue-override-empty">No queues loaded yet.</div>
+        <button id="clearAlertHistory" class="clear-history-btn">Clear History</button>
     </div>
 </div>
 
-<!-- =============================== -->
-<!-- ALERT HISTORY PANEL -->
-<!-- =============================== -->
-<div id="alertHistoryPanel" class="alert-history-panel hidden">
-    <h3>Alert History</h3>
-    <div id="alertHistoryList" class="alert-history-list">
-        <div class="history-empty">No alerts yet.</div>
-    </div>
-    <button id="clearAlertHistory" class="clear-history-btn">Clear History</button>
-</div>
+<button id="alertSettingsToggle" class="alert-settings-btn">🔔 Alert Settings</button>
+<button id="alertHistoryToggle" class="alert-history-btn">📜 Alert History</button>
+
+<!-- ===================================================== -->
+<!-- BEGIN ORIGINAL DUPLICATED PANELS FROM YOUR HTML      -->
+<!-- These were causing the system to break because       -->
+<!-- they duplicated IDs. They must remain removed.       -->
+<!-- ===================================================== -->
+
+<!-- (REMOVED intentionally — duplicates were breaking dashboard.js)
+<div id="alertSettingsPanel" class="alert-settings-panel hidden">...</div>
+<div id="alertHistoryPanel" class="alert-history-panel hidden">...</div>
+-->
+
+<!-- ===================================================== -->
 
 <!-- =============================== -->
 <!-- MAIN CONTENT -->
@@ -140,9 +122,7 @@
                 </tr>
             </thead>
             <tbody id="queue-body">
-                <tr>
-                    <td colspan="5" class="loading">Loading queue status...</td>
-                </tr>
+                <tr><td colspan="5" class="loading">Loading queue status...</td></tr>
             </tbody>
         </table>
     </section>
@@ -167,9 +147,7 @@
                 </tr>
             </thead>
             <tbody id="agent-body">
-                <tr>
-                    <td colspan="11" class="loading">Loading agent data...</td>
-                </tr>
+                <tr><td colspan="11" class="loading">Loading agent data...</td></tr>
             </tbody>
         </table>
     </section>

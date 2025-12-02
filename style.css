@@ -1,9 +1,7 @@
-/* ===============================
+\/* ===============================
    GLOBAL
-   =============================== */
-* {
-    box-sizing: border-box;
-}
+=============================== */
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -13,13 +11,11 @@ body {
     color: #222;
 }
 
-.main {
-    padding-bottom: 40px;
-}
+.main { padding-bottom: 40px; }
 
 /* ===============================
    HEADER
-   =============================== */
+=============================== */
 .header {
     display: flex;
     align-items: center;
@@ -28,9 +24,7 @@ body {
     border-bottom: 2px solid #dddddd;
 }
 
-.header-left .logo {
-    height: 55px;
-}
+.header-left .logo { height: 55px; }
 
 .header-center {
     flex: 1;
@@ -51,7 +45,7 @@ body {
 
 /* ===============================
    PANELS
-   =============================== */
+=============================== */
 .panel {
     background: #ffffff;
     margin: 20px auto;
@@ -65,38 +59,32 @@ body {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 18px;
+    text-align: left;
 }
 
 /* ===============================
    TABLES
-   =============================== */
+=============================== */
 .data-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    border: 1px solid #dddddd; /* FULL TABLE BORDER */
 }
 
 .data-table th,
 .data-table td {
     padding: 8px 6px;
-    border: 1px solid #dddddd; /* LINES BETWEEN ALL CELLS */
-    text-align: center !important; /* FORCE CENTERING */
+    border-bottom: 1px solid #dddddd;
+    text-align: center;
 }
 
 .data-table th {
-    background: #f0f0f0;
+    background: #eaeaea;
     font-weight: bold;
+    border-bottom: 2px solid #cccccc;
 }
 
-.data-table td.numeric {
-    text-align: center !important; /* OVERRIDE old right-align */
-}
-
-.loading {
-    text-align: center;
-    color: #777;
-}
+.loading { text-align: center; color: #777; }
 
 .error {
     margin-top: 8px;
@@ -105,42 +93,21 @@ body {
 }
 
 /* ===============================
-   RED CALL ALERT (Calls > 0)
-   =============================== */
-.queue-hot td:nth-child(2) {
-    background: #c0392b !important;
-    color: #ffffff !important;
-    font-weight: bold !important;
-}
-
-/* ===============================
-   QUEUE ALERT PANEL PULSE
-   =============================== */
-#queue-panel.queue-alert-active {
-    border-color: #e53935;
-    box-shadow: 0 0 8px rgba(229, 57, 53, 0.6);
-    animation: queueAlertPulse 1s ease-in-out infinite;
-}
-
-@keyframes queueAlertPulse {
-    0% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
-    50% { box-shadow: 0 0 15px rgba(229, 57, 53, 0.9); }
-    100% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
-}
-
-/* ===============================
    AVAILABILITY BADGES
-   =============================== */
+=============================== */
 .availability-cell {
     font-weight: bold;
     text-align: center;
+    padding: 4px 6px;
     border-radius: 4px;
 }
-/* Available – GREEN */
+
+/* AVAILABLE — GREEN */
 .status-available {
-    background: #27ae60 !important;
-    color: #ffffff !important;
+    background: #2ecc71;
+    color: #ffffff;
 }
+
 /* Orange */
 .status-orange,
 .status-wrap,
@@ -149,19 +116,19 @@ body {
     color: #ffffff;
 }
 
-/* Red */
+/* On Call — RED */
 .status-oncall {
     background: #c0392b;
     color: #ffffff;
 }
 
-/* Yellow */
+/* Break — Yellow */
 .status-break {
     background: #f1c40f;
     color: #000000;
 }
 
-/* Gray */
+/* Idle — Gray */
 .status-idle {
     background: #7f8c8d;
     color: #ffffff;
@@ -169,7 +136,7 @@ body {
 
 /* ===============================
    STAT CARDS
-   =============================== */
+=============================== */
 .stat-grid {
     display: flex;
     flex-wrap: wrap;
@@ -185,19 +152,12 @@ body {
     text-align: center;
 }
 
-.stat-value {
-    font-size: 20px;
-    font-weight: bold;
-}
-
-.stat-label {
-    font-size: 12px;
-    color: #555;
-}
+.stat-value { font-size: 20px; font-weight: bold; }
+.stat-label { font-size: 12px; color: #555; }
 
 /* ===============================
    FLOATING BUTTONS
-   =============================== */
+=============================== */
 .alert-settings-btn,
 .alert-history-btn {
     position: fixed;
@@ -213,13 +173,11 @@ body {
     z-index: 9999;
 }
 
-.alert-history-btn {
-    top: 56px;
-}
+.alert-history-btn { top: 56px; }
 
 /* ===============================
-   ALERT SETTINGS / HISTORY PANELS
-   =============================== */
+   ALERT PANELS
+=============================== */
 .alert-settings-panel,
 .alert-history-panel {
     position: fixed;
@@ -236,23 +194,9 @@ body {
     font-size: 13px;
 }
 
-.alert-settings-panel h3,
-.alert-history-panel h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-}
+.hidden { display: none; }
 
-.hidden {
-    display: none;
-}
-
-.alert-row {
-    margin-bottom: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    text-align: center;
-}
+.alert-row { margin-bottom: 8px; display: flex; flex-direction: column; }
 
 .alert-test-btn {
     margin-top: 8px;
@@ -261,41 +205,17 @@ body {
     border: 1px solid #444;
     background: #ffffff;
     cursor: pointer;
-    font-size: 13px;
 }
 
-/* Queue tone overrides */
-.queue-tone-overrides {
-    margin-top: 6px;
-}
+/* Queue tones */
+.queue-tone-overrides { margin-top: 6px; }
 
 .queue-override-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 6px;
+    display: flex; justify-content: space-between; margin-bottom: 6px;
 }
 
-.queue-override-label {
-    font-size: 12px;
-}
-
-.queue-override-select {
-    font-size: 12px;
-}
-
-/* ===============================
-   ALERT HISTORY LIST
-   =============================== */
-.alert-history-list {
-    margin-top: 4px;
-    text-align: center;
-}
-
-.history-empty {
-    padding: 8px;
-    color: #777;
-}
+/* ALERT HISTORY */
+.alert-history-list { margin-top: 4px; }
 
 .history-item {
     padding: 6px 0;
@@ -303,10 +223,7 @@ body {
     font-size: 12px;
 }
 
-.history-time {
-    font-weight: bold;
-    margin-bottom: 2px;
-}
+.history-time { font-weight: bold; }
 
 .clear-history-btn {
     margin-top: 10px;
@@ -315,9 +232,7 @@ body {
     border-radius: 4px;
 }
 
-/* ===============================
-   POPUP ALERT
-   =============================== */
+/* POPUP */
 .queue-alert-popup {
     position: fixed;
     top: 12px;
@@ -329,18 +244,13 @@ body {
     border-radius: 20px;
     font-size: 13px;
     opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.3s ease;
     z-index: 9000;
 }
 
-.queue-alert-popup.visible {
-    opacity: 1;
-}
+.queue-alert-popup.visible { opacity: 1; }
 
-/* ===============================
-   FOOTER
-   =============================== */
+/* FOOTER */
 .footer {
     display: flex;
     align-items: center;
@@ -350,54 +260,10 @@ body {
     border-top: 1px solid #cccccc;
 }
 
-.footer-logo {
-    height: 40px;
-    margin-left: 10px;
-}
+.footer-logo { height: 40px; margin-left: 10px; }
 
-.dark-toggle {
-    padding: 6px 10px;
-    font-size: 12px;
-}
-
-/* ===============================
-   DARK MODE
-   =============================== */
+/* DARK MODE */
 body.dark-mode {
     background: #1e1e1e;
     color: #f5f5f5;
-}
-
-body.dark-mode .header,
-body.dark-mode .panel,
-body.dark-mode .footer,
-body.dark-mode .alert-settings-panel,
-body.dark-mode .alert-history-panel {
-    background: #252525;
-    border-color: #444444;
-}
-
-body.dark-mode .data-table th {
-    background: #333333;
-    color: #f5f5f5;
-}
-
-body.dark-mode .data-table td {
-    border-bottom-color: #444444;
-}
-
-body.dark-mode .stat-card {
-    background: #252525;
-    border-color: #444444;
-}
-
-body.dark-mode .alert-settings-btn,
-body.dark-mode .alert-history-btn {
-    background: #252525;
-    border-color: #444444;
-    color: #f5f5f5;
-}
-
-body.dark-mode .queue-alert-popup {
-    background: #e53935;
 }

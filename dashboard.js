@@ -700,6 +700,8 @@ function getAvailabilityClass(status) {
     if (s.includes("on call")) return "status-oncall";
     if (s.includes("break")) return "status-break";
     if (s.includes("idle")) return "status-idle";
+    /* NEW — Dial Out should always be red */
+    if (s.includes("dial-out") || s.includes("dial out")) return "status-dialout";
 
     return "";
 }

@@ -137,26 +137,14 @@ body {
     text-align: center;
     border-radius: 4px;
 }
-/* EXISTING CSS IS UNCHANGED — ONLY AVAILABILITY PATCHES BELOW */
 
-/* NEW — Available (Green) */
+/* NEW: Available = green with white text */
 .status-available {
-    background: #27ae60 !important; /* Green */
-    color: #ffffff !important;
+    background: #27ae60;
+    color: #ffffff;
 }
 
-/* UPDATED — Break (Use white text for visibility) */
-.status-break {
-    background: #f1c40f !important;
-    color: #ffffff !important;
-}
-
-/* NEW — Unknown types */
-.status-unknown {
-    background: #7f8c8d !important;
-    color: #ffffff !important;
-}
-
+/* Orange: Not Set, Wrap, Lunch, Accept Internal, Busy */
 .status-orange,
 .status-wrap,
 .status-lunch {
@@ -164,19 +152,28 @@ body {
     color: #ffffff;
 }
 
+/* On Call - Red */
 .status-oncall {
     background: #c0392b;
     color: #ffffff;
 }
 
+/* Break - Yellow, white text for good contrast in both modes */
 .status-break {
     background: #f1c40f;
-    color: #000000;
+    color: #ffffff;
 }
 
+/* Idle - Gray */
 .status-idle {
     background: #7f8c8d;
     color: #ffffff;
+}
+
+/* NEW — Unknown types */
+.status-unknown {
+    background: #7f8c8d !important;
+    color: #ffffff !important;
 }
 
 /* ===============================

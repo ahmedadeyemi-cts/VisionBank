@@ -4,7 +4,7 @@
 const SECURITY = {
     superAdminId: "superadmin",
     superAdminPin: "ChangeMeNow!",
-    pin: "ChangeMeNow!",
+    pin: "725686",
     mfaEmails: [
         "ahmed.adeyemi@oneneck.com",
         "ahmed.adeyemi@ussignal.com"

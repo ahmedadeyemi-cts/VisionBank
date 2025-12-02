@@ -7,7 +7,8 @@ const SECURITY = {
     pin: "725686",
     mfaEmails: [
         "ahmed.adeyemi@oneneck.com",
-        "ahmed.adeyemi@ussignal.com"
+        "ahmed.adeyemi@ussignal.com",
+        "ahmedadeyemi@gmail.com"
     ]
 };
 

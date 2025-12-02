@@ -1,184 +1,404 @@
-/* ===========================================================
-   BASE PAGE
-   =========================================================== */
+/* ============================================================
+   GLOBAL PAGE LAYOUT
+   ============================================================ */
+* {
+    box-sizing: border-box;
+}
 
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
-    background: #eef0f4;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    background: #eef3fa;
+    color: #1f2933;
+}
+
+.vb-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.vb-header {
+    padding: 16px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #dde4f0;
+}
+
+.vb-header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.vb-logo-vb {
+    height: 56px;
+    width: auto;
+}
+
+.vb-header-text h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.vb-tagline {
+    margin: 2px 0 0 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* ============================================================
+   MAIN AREA
+   ============================================================ */
+
+.vb-main {
+    flex: 1 0 auto;
     display: flex;
     justify-content: center;
-    align-items: center;
-    height: 100vh;
-    transition: background 0.4s ease;
+    align-items: flex-start;
+    padding: 40px 16px 32px;
 }
 
-/* DARK MODE */
-body.dark-mode {
-    background: #101010;
-    color: #f5f5f5;
+.vb-shell {
+    width: 100%;
+    max-width: 960px;
 }
 
-/* ===========================================================
-   DARK MODE TOGGLE
-   =========================================================== */
+/* ============================================================
+   LOGIN CARD
+   ============================================================ */
 
-.dark-toggle {
-    position: fixed;
-    top: 15px;
-    left: 15px;
-    background: rgba(0,0,0,0.35);
-    color: white;
-    font-size: 20px;
-    border-radius: 50%;
-    width: 42px;
-    height: 42px;
-    border: none;
-    cursor: pointer;
-    backdrop-filter: blur(12px);
-    transition: 0.3s;
+.vb-login-card {
+    margin: 0 auto;
+    max-width: 480px;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 28px 28px 24px;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    backdrop-filter: blur(14px);
 }
 
-body.dark-mode .dark-toggle {
-    background: rgba(255,255,255,0.2);
-}
-
-/* ===========================================================
-   GLASSMORPHISM LOGIN BOX
-   =========================================================== */
-
-.login-container {
-    width: 380px;
-    padding: 40px;
-    border-radius: 18px;
+.vb-login-header {
     text-align: center;
-    animation: fadeIn 0.7s ease;
+    margin-bottom: 18px;
 }
 
-.glass {
-    background: rgba(255,255,255,0.32);
-    border: 1px solid rgba(255,255,255,0.35);
-    backdrop-filter: blur(16px);
+.vb-login-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
 }
 
-body.dark-mode .glass {
-    background: rgba(0,0,0,0.35);
-    border-color: rgba(150,150,150,0.2);
+.vb-login-header p {
+    margin: 4px 0 0 0;
+    font-size: 13px;
+    color: #6b7280;
 }
 
-/* ===========================================================
-   LOGOS
-   =========================================================== */
+/* Mode toggle: Standard vs PIN override */
 
-.vb-logo-large {
-    width: 140px;
-    margin-bottom: 20px;
-    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.35));
-    transition: filter 0.4s;
+.vb-login-mode {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
 }
 
-body.dark-mode .vb-logo-large {
-    filter: brightness(1.6);
-}
-
-.footer-logo-small {
-    height: 28px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-}
-
-body.dark-mode .footer-logo-small {
-    filter: brightness(1.9);
-}
-
-/* ===========================================================
-   INPUT FIELDS
-   =========================================================== */
-
-.input-field {
-    width: 100%;
-    padding: 12px;
-    margin-top: 12px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    backdrop-filter: blur(10px);
-}
-
-body.dark-mode .input-field {
-    background: rgba(255,255,255,0.12);
-    border-color: #555;
-    color: white;
-}
-
-/* ===========================================================
-   BUTTONS
-   =========================================================== */
-
-.login-btn {
-    width: 100%;
-    padding: 12px;
-    margin-top: 15px;
-    background: #2b7cff;
-    border: none;
-    color: white;
-    font-weight: bold;
-    border-radius: 6px;
+.vb-mode-btn {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    font-size: 12px;
     cursor: pointer;
-    transition: 0.25s;
+    transition: all 0.18s ease;
 }
 
-.login-btn:hover {
-    background: #1668e8;
+.vb-mode-btn.vb-active {
+    background: #0b5ed7;
+    color: #ffffff;
+    border-color: #0b5ed7;
 }
 
-/* ===========================================================
-   TEXT
-   =========================================================== */
+/* Form controls */
 
-.error-msg {
-    color: #ff4d4d;
+.vb-field {
+    margin-bottom: 12px;
+}
+
+.vb-field label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: #374151;
+}
+
+.vb-input,
+.vb-select {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+}
+
+.vb-input:focus,
+.vb-select:focus {
+    outline: none;
+    border-color: #0b5ed7;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+.vb-helper-text {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* Buttons */
+
+.vb-btn-primary {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, #2563eb, #0b5ed7);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.vb-btn-primary:hover {
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.45);
+    transform: translateY(-1px);
+}
+
+.vb-btn-secondary {
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.vb-btn-inline-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-top: 10px;
 }
 
-.override-link {
-    background: none;
-    border: none;
-    color: #2b7cff;
-    cursor: pointer;
-    margin-top: 15px;
+/* MFA step */
+
+.vb-mfa-box {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #d1d5db;
 }
 
-.override-link:hover {
-    text-decoration: underline;
+.vb-mfa-hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 6px;
 }
 
-.hidden {
-    display: none;
+/* Messages */
+
+.vb-alert {
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    margin-bottom: 10px;
 }
 
-/* ===========================================================
+.vb-alert-info {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: #1d4ed8;
+}
+
+.vb-alert-error {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #b91c1c;
+}
+
+.vb-alert-success {
+    background: rgba(22, 163, 74, 0.08);
+    border: 1px solid rgba(22, 163, 74, 0.25);
+    color: #15803d;
+}
+
+.vb-hidden {
+    display: none !important;
+}
+
+/* ============================================================
+   DASHBOARD LAYOUT
+   ============================================================ */
+
+.vb-dashboard {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 14px;
+    padding: 20px 22px 18px;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    backdrop-filter: blur(16px);
+}
+
+.vb-dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.vb-dashboard-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.vb-user-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+/* panels */
+
+.vb-grid {
+    display: grid;
+    grid-template-columns: 2fr 2fr 2fr;
+    gap: 14px;
+}
+
+.vb-panel {
+    background: rgba(248, 250, 252, 0.9);
+    border-radius: 12px;
+    padding: 12px 12px 10px;
+    border: 1px solid #e5e7eb;
+}
+
+.vb-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+.vb-small {
+    font-size: 12px;
+}
+
+/* Access control list */
+
+.vb-ip-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 6px 0;
+    max-height: 140px;
+    overflow-y: auto;
+    font-size: 12px;
+}
+
+.vb-ip-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+}
+
+.vb-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e5efff;
+    font-size: 11px;
+}
+
+/* Audit log */
+
+.vb-audit-log {
+    list-style: none;
+    padding: 0;
+    margin: 2px 0 0 0;
+    max-height: 160px;
+    overflow-y: auto;
+    font-size: 11px;
+}
+
+/* ============================================================
    FOOTER
-   =========================================================== */
+   ============================================================ */
 
-.glass-footer {
-    position: fixed;
-    bottom: 10px;
-    width: 100%;
-    text-align: center;
-    font-size: 13px;
-    color: #333;
-    backdrop-filter: blur(12px);
-    padding: 10px 0;
+.vb-footer {
+    flex-shrink: 0;
+    padding: 10px 20px 14px;
+    border-top: 1px solid #dde4f0;
+    background: #ffffff;
 }
 
-body.dark-mode .glass-footer {
-    color: #fafafa;
+.vb-footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-/* ===========================================================
-   ANIMATIONS
-   =========================================================== */
+.vb-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+.vb-logo-us {
+    height: 26px;
+    width: auto;
+}
+
+.vb-footer-text {
+    font-size: 12px;
+    color: #4b5563;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 900px) {
+    .vb-main {
+        padding-top: 24px;
+    }
+
+    .vb-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .vb-header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .vb-header-text h1 {
+        font-size: 20px;
+    }
+
+    .vb-login-card {
+        padding: 22px 18px 18px;
+    }
 }

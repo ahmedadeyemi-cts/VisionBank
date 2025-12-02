@@ -4,33 +4,25 @@
 const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
 const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
 
-// Key for persisting alert settings
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
+const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
 
 // ===============================
-// BASIC API HELPER
+// HELPERS
 // ===============================
 async function fetchApi(path) {
     const res = await fetch(`${API_BASE}${path}`, {
         headers: {
             "Content-Type": "application/json",
-            "token": TOKEN
+            token: TOKEN
         }
     });
-
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
-// ===============================
-// HELPERS
-// ===============================
 function safe(value, fallback = "--") {
-    if (value === undefined || value === null || value === "") {
-        return fallback;
-    }
+    if (value === undefined || value === null || value === "") return fallback;
     return value;
 }
 
@@ -65,13 +57,13 @@ function setText(id, value) {
 }
 
 // ===============================
-// DARK MODE TOGGLE
+// DARK MODE
 // ===============================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
     if (!btn) return;
 
-    function applyDarkMode(on) {
+    function applyDark(on) {
         document.body.classList.toggle("dark-mode", !!on);
         btn.textContent = on ? "☀️ Light Mode" : "🌙 Dark Mode";
     }
@@ -81,10 +73,10 @@ function initDarkMode() {
         const prefersDark =
             window.matchMedia &&
             window.matchMedia("(prefers-color-scheme: dark)").matches;
-        applyDarkMode(prefersDark);
+        applyDark(prefersDark);
         localStorage.setItem("dashboard-dark-mode", prefersDark ? "1" : "0");
     } else {
-        applyDarkMode(stored === "1");
+        applyDark(stored === "1");
     }
 
     btn.addEventListener("click", () => {
@@ -95,7 +87,7 @@ function initDarkMode() {
 }
 
 // ===============================
-// ALERT SETTINGS / AUDIO / HISTORY
+// ALERT SETTINGS / AUDIO
 // ===============================
 let alertSettings = {
     enableQueueAlerts: true,
@@ -109,8 +101,8 @@ let alertSettings = {
 };
 
 let lastAlertTimestamp = 0;
+let lastQueueSnapshot = { totalCalls: 0, totalAgents: 0 };
 
-// Audio
 let audioCtx = null;
 let voiceAudio = null;
 
@@ -145,7 +137,6 @@ function ensureAudio() {
         }
     }
     if (!voiceAudio) {
-        // TTS MP3 in assets folder
         voiceAudio = new Audio("assets/ttsAlert.mp3");
     }
 }
@@ -197,33 +188,23 @@ function playVoice() {
     try {
         voiceAudio.pause();
         voiceAudio.currentTime = 0;
-    } catch (e) {
-        // ignore
-    }
+    } catch (e) {}
     voiceAudio.volume = Math.max(0, Math.min(1, alertSettings.volume));
-    voiceAudio.play().catch(() => {
-        // autoplay may be blocked; ignore
-    });
+    voiceAudio.play().catch(() => {});
 }
 
-// Popup overlay
+// Popup
 let popupTimeoutId = null;
 function showAlertPopup(message) {
     if (!alertSettings.enablePopupAlerts) return;
 
-    let popup = document.getElementById("queueAlertPopup");
-    if (!popup) {
-        popup = document.createElement("div");
-        popup.id = "queueAlertPopup";
-        popup.className = "queue-alert-popup";
-        document.body.appendChild(popup);
-    }
+    const popup = document.getElementById("queueAlertPopup");
+    if (!popup) return;
+
     popup.textContent = message || "You have calls waiting";
     popup.classList.add("visible");
 
-    if (popupTimeoutId) {
-        clearTimeout(popupTimeoutId);
-    }
+    if (popupTimeoutId) clearTimeout(popupTimeoutId);
     popupTimeoutId = setTimeout(() => {
         popup.classList.remove("visible");
     }, 5000);
@@ -235,21 +216,59 @@ function showAlertPopup(message) {
 const alertHistory = [];
 const MAX_ALERT_HISTORY = 100;
 
+function loadAlertHistory() {
+    try {
+        const raw = localStorage.getItem(ALERT_HISTORY_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+
+        alertHistory.length = 0;
+        parsed.forEach(e => {
+            if (!e.timestamp) return;
+            alertHistory.push({
+                timestamp: new Date(e.timestamp),
+                calls: e.calls ?? 0,
+                agents: e.agents ?? 0,
+                tone: e.tone || "soft",
+                voiceEnabled: !!e.voiceEnabled
+            });
+        });
+    } catch (e) {
+        console.warn("Alert history parse error:", e);
+    }
+}
+
+function saveAlertHistory() {
+    try {
+        const payload = alertHistory.map(e => ({
+            timestamp: e.timestamp.toISOString(),
+            calls: e.calls,
+            agents: e.agents,
+            tone: e.tone,
+            voiceEnabled: e.voiceEnabled
+        }));
+        localStorage.setItem(ALERT_HISTORY_KEY, JSON.stringify(payload));
+    } catch (e) {
+        console.warn("Alert history save error:", e);
+    }
+}
+
 function recordAlertEvent({ calls, agents, tone, voiceEnabled }) {
-    const now = new Date();
     const entry = {
-        timestamp: now,
+        timestamp: new Date(),
         calls: calls ?? 0,
         agents: agents ?? 0,
         tone: tone || alertSettings.tone || "soft",
         voiceEnabled: !!voiceEnabled
     };
 
-    // newest at top
     alertHistory.unshift(entry);
     if (alertHistory.length > MAX_ALERT_HISTORY) {
         alertHistory.pop();
     }
+
+    saveAlertHistory();
     renderAlertHistory();
 }
 
@@ -262,7 +281,7 @@ function renderAlertHistory() {
         return;
     }
 
-    const itemsHtml = alertHistory
+    const html = alertHistory
         .map(entry => {
             const timeStr = entry.timestamp.toLocaleString("en-US", {
                 month: "numeric",
@@ -285,22 +304,26 @@ function renderAlertHistory() {
         })
         .join("");
 
-    listEl.innerHTML = itemsHtml;
+    listEl.innerHTML = html;
 }
 
 function initAlertHistoryUI() {
+    loadAlertHistory();
+    renderAlertHistory();
+
     const clearBtn = document.getElementById("clearAlertHistory");
     if (clearBtn) {
-        clearBtn.addEventListener("click", () => {
+        clearBtn.addEventListener("click", e => {
+            e.preventDefault();
             alertHistory.length = 0;
+            saveAlertHistory();
             renderAlertHistory();
         });
     }
-    renderAlertHistory();
 }
 
 // ===============================
-// ALERT SETTINGS UI INIT
+// ALERT SETTINGS UI
 // ===============================
 function initAlertSettingsUI() {
     loadAlertSettings();
@@ -380,9 +403,14 @@ function initAlertSettingsUI() {
 
     if (testButtonEl) {
         testButtonEl.addEventListener("click", () => {
+            const tone = alertSettings.tone || "soft";
+            const voice = alertSettings.enableVoiceAlerts;
+            const calls = lastQueueSnapshot.totalCalls || 0;
+            const agents = lastQueueSnapshot.totalAgents || 0;
+
             triggerQueueAlert({
-                totalCalls: 3,
-                totalAgents: 3,
+                totalCalls: calls,
+                totalAgents: agents,
                 queueNames: ["Test Queue"],
                 isTest: true
             });
@@ -404,7 +432,7 @@ function initAlertSettingsUI() {
     }
 }
 
-// Build tone override controls once queues are known
+// Build queue tone overrides
 function updateQueueToneOverrides(queues) {
     const container = document.getElementById("queueToneOverrides");
     if (!container) return;
@@ -456,7 +484,7 @@ function updateQueueToneOverrides(queues) {
 // QUEUE ALERT LOGIC
 // ===============================
 function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
-    if (!alertSettings.enableQueueAlerts && !isTest) {
+    if (!isTest && !alertSettings.enableQueueAlerts) {
         return;
     }
 
@@ -468,7 +496,6 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
     }
     lastAlertTimestamp = now;
 
-    // Determine tone (use queue override if exactly one active queue)
     let tone = alertSettings.tone || "soft";
     if (queueNames && queueNames.length === 1) {
         const qName = queueNames[0];
@@ -477,18 +504,15 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
         }
     }
 
-    // Playback
     playTone(tone);
     if (alertSettings.enableVoiceAlerts) {
         playVoice();
     }
 
-    // Popup
     if (!isTest) {
         showAlertPopup("You have calls waiting");
     }
 
-    // History entry
     recordAlertEvent({
         calls: totalCalls,
         agents: totalAgents,
@@ -498,14 +522,14 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
 }
 
 // ===============================
-// LOAD CURRENT QUEUE STATUS
+// QUEUE STATUS
 // ===============================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
     const panel = document.getElementById("queue-panel");
     if (!body) return;
 
-    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
 
     try {
         const data = await fetchApi("/status/queues");
@@ -554,12 +578,12 @@ async function loadQueueStatus() {
 
         body.innerHTML = rowsHtml;
 
-        // Panel border state
+        lastQueueSnapshot = { totalCalls, totalAgents };
+
         if (panel) {
             panel.classList.toggle("queue-alert-active", anyHot);
         }
 
-        // Alert logic
         if (anyHot) {
             triggerQueueAlert({
                 totalCalls,
@@ -568,9 +592,7 @@ async function loadQueueStatus() {
             });
         }
 
-        // Build tone overrides once queues are known
         updateQueueToneOverrides(queues);
-
     } catch (err) {
         console.error("Queue load error:", err);
         body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
@@ -579,7 +601,7 @@ async function loadQueueStatus() {
 }
 
 // ===============================
-// LOAD REALTIME GLOBAL STATISTICS
+// GLOBAL STATISTICS
 // ===============================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
@@ -600,11 +622,20 @@ async function loadGlobalStats() {
         setText("gs-total-abandoned", g.TotalCallsAbandoned);
         setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
 
-        setText("gs-service-level", g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--");
+        setText(
+            "gs-service-level",
+            g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--"
+        );
         setText("gs-total-received", g.TotalCallsReceived);
 
-        setText("gs-answer-rate", g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--");
-        setText("gs-abandon-rate", g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--");
+        setText(
+            "gs-answer-rate",
+            g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--"
+        );
+        setText(
+            "gs-abandon-rate",
+            g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--"
+        );
 
         setText("gs-callbacks-registered", g.CallbacksRegistered);
         setText("gs-callbacks-waiting", g.CallbacksWaiting);
@@ -615,13 +646,30 @@ async function loadGlobalStats() {
 }
 
 // ===============================
-// LOAD AGENT PERFORMANCE
+// AGENT STATUS
 // ===============================
+function getAvailabilityClass(status) {
+    if (!status) return "";
+    const s = status.toLowerCase();
+
+    if (s.includes("not set")) return "status-orange";
+    if (s.includes("wrap")) return "status-wrap";
+    if (s.includes("lunch")) return "status-lunch";
+    if (s.includes("accept")) return "status-orange";
+    if (s.includes("busy")) return "status-orange";
+
+    if (s.includes("on call")) return "status-oncall";
+    if (s.includes("break")) return "status-break";
+    if (s.includes("idle")) return "status-idle";
+
+    return "";
+}
+
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
     if (!body) return;
 
-    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
 
     try {
         const data = await fetchApi("/status/agents");
@@ -667,20 +715,6 @@ async function loadAgentStatus() {
     }
 }
 
-// Simple mapping from status text to color class
-function getAvailabilityClass(status) {
-    if (!status) return "";
-    const lower = status.toLowerCase();
-
-    if (lower.includes("on call")) return "status-oncall";
-    if (lower.includes("wrap")) return "status-wrap";
-    if (lower.includes("break")) return "status-break";
-    if (lower.includes("lunch")) return "status-lunch";
-    if (lower.includes("not set") || lower.includes("idle")) return "status-idle";
-
-    return "";
-}
-
 // ===============================
 // MAIN REFRESH LOOP
 // ===============================
@@ -690,12 +724,13 @@ function refreshAll() {
     loadGlobalStats();
 }
 
+// ===============================
+// INIT
+// ===============================
 document.addEventListener("DOMContentLoaded", () => {
     initDarkMode();
     initAlertSettingsUI();
     initAlertHistoryUI();
     refreshAll();
-
-    // Refresh every 10 seconds
     setInterval(refreshAll, 10000);
 });

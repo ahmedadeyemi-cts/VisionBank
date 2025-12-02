@@ -1,4 +1,6 @@
-      /* =========================================
+/* Email was setup on https://dashboard.emailjs.com/admin/templates/4uvjpq2 */
+
+/* =========================================
    VisionBank — Secure Admin Login + MFA
    ========================================= */
 

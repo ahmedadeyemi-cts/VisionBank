@@ -1,51 +1,321 @@
+/* ============== BASE LAYOUT ============== */
+* {
+  box-sizing: border-box;
+}
+
 body {
-    background: #eef2f7;
-    font-family: Arial, sans-serif;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f5f7;
+  color: #222;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.security-container {
-    width: 420px;
-    margin: 80px auto;
-    text-align: center;
+.sec-main {
+  flex: 1 0 auto;
+  padding: 20px 15px 40px 15px;
 }
 
-.logo {
-    width: 260px;
-    margin-bottom: 20px;
+/* ============== HEADER ============== */
+.sec-header {
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  position: relative;
 }
 
-.box {
-    background: white;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0px 3px 10px rgba(0,0,0,0.1);
+.sec-header-left {
+  position: absolute;
+  left: 20px;
 }
 
-input {
-    width: 90%;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 6px;
-    border: 1px solid #ccc;
+.sec-logo {
+  height: 40px;
+  width: auto;
 }
 
-button {
-    width: 95%;
-    padding: 12px;
-    background: #0c6cf2;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 16px;
+.sec-header-center {
+  width: 100%;
+  text-align: center;
 }
 
-button:hover {
-    background: #0549a7;
-    cursor: pointer;
+.sec-header-center h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: bold;
 }
 
-.link {
-    margin-top: 10px;
-    color: #0c6cf2;
-    cursor: pointer;
+.sec-subtitle {
+  font-size: 14px;
+  color: #666;
+}
+
+/* ============== CARDS ============== */
+.sec-card {
+  max-width: 1100px;
+  margin: 15px auto;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 20px 18px 22px 18px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.sec-card-hidden {
+  display: none;
+}
+
+.sec-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sec-card-header h2 {
+  margin: 0;
+}
+
+/* ============== TYPOGRAPHY ============== */
+h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+h3 {
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
+.sec-desc {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 13px;
+  color: #555;
+}
+
+.sec-small-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #777;
+}
+
+.sec-error {
+  color: #c0392b;
+  font-size: 13px;
+  margin: 6px 0 0 0;
+}
+
+.sec-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #2c3e50;
+}
+
+/* ============== FORMS ============== */
+.form-row {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="time"],
+textarea {
+  padding: 8px 9px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #3498db;
+}
+
+textarea {
+  resize: vertical;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.form-actions {
+  margin-top: 10px;
+}
+
+.form-actions button {
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 4px;
+  border: none;
+  background: #2c82c9;
+  color: #fff;
+  cursor: pointer;
+}
+
+.form-actions button:hover {
+  background: #256aa5;
+}
+
+.hint {
+  font-size: 11px;
+  color: #777;
+}
+
+.sec-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 6px;
+  color: #2c82c9;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sec-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* ============== MFA SETUP ============== */
+.mfa-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+}
+
+.mfa-qr-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mfa-qr {
+  width: 220px;
+  height: 220px;
+  border-radius: 12px;
+  border: 1px dashed #bbb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #555;
+}
+
+.readonly-pill {
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #f2f4f8;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  display: inline-block;
+  word-break: break-all;
+}
+
+/* ============== HOURS + DAYS ============== */
+.hours-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 15px;
+  margin-bottom: 8px;
+}
+
+.days-row {
+  margin-top: 8px;
+}
+
+.days-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.days-checkboxes label {
+  cursor: pointer;
+}
+
+/* ============== SECTIONS ============== */
+.sec-section {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dashed #ddd;
+}
+
+/* ============== AUDIT BOX ============== */
+.audit-box {
+  margin-top: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 11px;
+  background: #f7f9fb;
+  border-radius: 6px;
+  border: 1px solid #dde3ea;
+  padding: 8px 10px;
+}
+
+/* ============== ADMIN INFO ============== */
+.admin-info {
+  font-size: 13px;
+  color: #555;
+}
+
+/* ============== FOOTER ============== */
+.sec-footer {
+  flex-shrink: 0;
+  padding: 8px 15px;
+  border-top: 1px solid #ddd;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sec-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.sec-footer-logo {
+  height: 26px;
+  width: auto;
+}
+
+/* ============== RESPONSIVE ============== */
+@media (max-width: 900px) {
+  .mfa-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sec-header-left {
+    position: static;
+    margin-right: 8px;
+  }
+
+  .sec-header {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .sec-header-center {
+    text-align: left;
+  }
+
+  .hours-grid {
+    grid-template-columns: 1fr;
+  }
 }

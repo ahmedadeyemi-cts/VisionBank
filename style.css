@@ -136,7 +136,11 @@ body {
     text-align: center;
     border-radius: 4px;
 }
-
+/* Available – GREEN */
+.status-available {
+    background: #27ae60 !important;
+    color: #ffffff !important;
+}
 /* Orange */
 .status-orange,
 .status-wrap,

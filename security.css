@@ -1,304 +1,51 @@
-/* =========================================
-   VisionBank Security — Full UI Styling
-   ========================================= */
-
-/* ----- Page Structure ----- */
 body {
-    margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #f3f6fb;
-    color: #111827;
+    background: #eef2f7;
+    font-family: Arial, sans-serif;
 }
 
-.vb-page {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-/* ----- Header ----- */
-.vb-header {
-    padding: 16px 24px;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.vb-logo {
-    height: 52px;
-}
-
-/* ----- Main Content ----- */
-.vb-main {
-    flex: 1 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 32px 16px 24px;
-}
-
-/* ----- Card Container ----- */
-.vb-card {
-    width: 100%;
-    max-width: 620px;
-    background: #ffffff;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
-    border-radius: 18px;
-    padding: 32px 32px 28px;
-    margin-bottom: 24px;
-}
-
-.vb-title {
-    margin: 0 0 16px;
-    font-size: 24px;
+.security-container {
+    width: 420px;
+    margin: 80px auto;
     text-align: center;
 }
 
-.vb-text {
-    margin: 0 0 16px;
-    text-align: center;
+.logo {
+    width: 260px;
+    margin-bottom: 20px;
 }
 
-.vb-text.small {
-    font-size: 13px;
-    color: #4b5563;
+.box {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0px 3px 10px rgba(0,0,0,0.1);
 }
 
-/* ----- Form Fields ----- */
-.vb-form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 8px;
+input {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 6px;
+    border: 1px solid #ccc;
 }
 
-.vb-form.compact {
-    gap: 6px;
-}
-
-.vb-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #4b5563;
-}
-
-.vb-input,
-.vb-textarea {
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.vb-input:focus,
-.vb-textarea:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
-}
-
-/* ----- Buttons ----- */
-.vb-btn {
+button {
+    width: 95%;
+    padding: 12px;
+    background: #0c6cf2;
+    color: white;
     border: none;
-    border-radius: 999px;
-    padding: 9px 18px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.15s ease,
-                transform 0.05s ease,
-                box-shadow 0.15s ease;
-}
-
-.vb-btn.primary {
-    background: #2563eb;
-    color: #ffffff;
-    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
-}
-
-.vb-btn.primary:hover {
-    background: #1d4ed8;
-    transform: translateY(-1px);
-}
-
-.vb-btn.secondary {
-    background: #e5e7eb;
-    color: #111827;
-}
-
-.vb-btn.secondary:hover {
-    background: #d1d5db;
-}
-
-.vb-btn.danger {
-    background: #dc2626;
-    color: #ffffff;
-}
-
-.vb-btn.danger:hover {
-    background: #b91c1c;
-}
-
-.vb-btn.small {
-    padding: 6px 14px;
-    font-size: 13px;
-}
-
-/* ----- Link Buttons ----- */
-.link-button {
-    border: none;
-    background: transparent;
-    color: #2563eb;
-    font-size: 13px;
-    cursor: pointer;
-    padding: 0;
-}
-
-.link-button:hover {
-    text-decoration: underline;
-}
-
-/* ----- Login / Override ----- */
-.vb-login-links {
-    margin-top: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.override-area {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed #e5e7eb;
-}
-
-/* ----- Admin Panel Layout ----- */
-.admin-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-}
-
-.admin-grid {
-    margin-top: 10px;
-    display: grid;
-    gap: 16px;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-.admin-panel {
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 14px 14px 12px;
-    background: #f9fafb;
-}
-
-.admin-panel h2 {
-    margin: 0 0 8px;
+    border-radius: 6px;
     font-size: 16px;
 }
 
-.admin-panel.full-width {
-    grid-column: 1 / -1;
+button:hover {
+    background: #0549a7;
+    cursor: pointer;
 }
 
-/* ----- Business Hours ----- */
-.bh-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.bh-row label {
-    width: 60px;
-    font-size: 13px;
-    color: #4b5563;
-}
-
-.bh-days {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    margin-bottom: 10px;
-    font-size: 13px;
-}
-
-/* ----- Audit Log ----- */
-.audit-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.audit-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 220px;
-    overflow-y: auto;
-    font-size: 12px;
-}
-
-.audit-list li {
-    padding: 4px 0;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-/* ----- Messages ----- */
-.vb-message {
-    margin-top: 6px;
-    font-size: 13px;
-    text-align: center;
-}
-
-.vb-message.small {
-    font-size: 12px;
-}
-
-.vb-message.error {
-    color: #b91c1c;
-}
-
-.vb-message.success {
-    color: #15803d;
-}
-
-/* ----- Footer ----- */
-.vb-footer {
-    border-top: 1px solid #e5e7eb;
-    padding: 8px 18px 12px;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    font-size: 13px;
-    color: #4b5563;
-}
-
-.footer-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.footer-logo {
-    height: 22px;
-    width: auto;
-}
-
-/* ----- Utility ----- */
-.hidden {
-    display: none !important;
-}
-
-/* ----- Responsive Tweaks ----- */
-@media (max-width: 640px) {
-    .vb-card {
-        padding: 24px 18px 20px;
-    }
+.link {
+    margin-top: 10px;
+    color: #0c6cf2;
+    cursor: pointer;
 }

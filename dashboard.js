@@ -97,7 +97,7 @@ let alertSettings = {
     volume: 0.8,
     cooldownSeconds: 30,
     wallboardMode: false,
-    queueTones: {} // { queueName: "soft"|"bright"|"pulse" }
+    queueTones: {} // { queueName: "soft"|"bright"|"pulse"|... }
 };
 
 let lastAlertTimestamp = 0;
@@ -154,6 +154,7 @@ function playTone(tone) {
     let freq = 880;
     let type = "sine";
 
+    // 🔔 Support 5 tones: soft, bright, pulse, ping, alarm
     switch (tone) {
         case "bright":
             freq = 1200;
@@ -162,6 +163,14 @@ function playTone(tone) {
         case "pulse":
             freq = 600;
             type = "sawtooth";
+            break;
+        case "ping":
+            freq = 1500;
+            type = "triangle";
+            break;
+        case "alarm":
+            freq = 400;
+            type = "square";
             break;
         case "soft":
         default:
@@ -210,6 +219,14 @@ function showAlertPopup(message) {
     }, 5000);
 }
 
+// Small helper for escalation level
+function getEscalationLevel(totalCalls) {
+    if (totalCalls <= 1) return 0;      // no escalation
+    if (totalCalls <= 3) return 1;      // low
+    if (totalCalls <= 6) return 2;      // medium
+    return 3;                           // high
+}
+
 // ===============================
 // ALERT HISTORY
 // ===============================
@@ -231,7 +248,8 @@ function loadAlertHistory() {
                 calls: e.calls ?? 0,
                 agents: e.agents ?? 0,
                 tone: e.tone || "soft",
-                voiceEnabled: !!e.voiceEnabled
+                voiceEnabled: !!e.voiceEnabled,
+                escalationLevel: e.escalationLevel ?? 0
             });
         });
     } catch (e) {
@@ -246,7 +264,8 @@ function saveAlertHistory() {
             calls: e.calls,
             agents: e.agents,
             tone: e.tone,
-            voiceEnabled: e.voiceEnabled
+            voiceEnabled: e.voiceEnabled,
+            escalationLevel: e.escalationLevel
         }));
         localStorage.setItem(ALERT_HISTORY_KEY, JSON.stringify(payload));
     } catch (e) {
@@ -254,13 +273,14 @@ function saveAlertHistory() {
     }
 }
 
-function recordAlertEvent({ calls, agents, tone, voiceEnabled }) {
+function recordAlertEvent({ calls, agents, tone, voiceEnabled, escalationLevel }) {
     const entry = {
         timestamp: new Date(),
         calls: calls ?? 0,
         agents: agents ?? 0,
         tone: tone || alertSettings.tone || "soft",
-        voiceEnabled: !!voiceEnabled
+        voiceEnabled: !!voiceEnabled,
+        escalationLevel: escalationLevel ?? getEscalationLevel(calls ?? 0)
     };
 
     alertHistory.unshift(entry);
@@ -366,6 +386,7 @@ function initAlertSettingsUI() {
     }
 
     if (alertToneSelectEl) {
+        // Ensure we always have a valid tone, even if new ones were added
         alertToneSelectEl.value = alertSettings.tone;
         alertToneSelectEl.addEventListener("change", () => {
             alertSettings.tone = alertToneSelectEl.value;
@@ -404,7 +425,6 @@ function initAlertSettingsUI() {
     if (testButtonEl) {
         testButtonEl.addEventListener("click", () => {
             const tone = alertSettings.tone || "soft";
-            const voice = alertSettings.enableVoiceAlerts;
             const calls = lastQueueSnapshot.totalCalls || 0;
             const agents = lastQueueSnapshot.totalAgents || 0;
 
@@ -442,10 +462,13 @@ function updateQueueToneOverrides(queues) {
         return;
     }
 
+    // 🔔 5 tone options for overrides
     const toneOptions = `
         <option value="soft">Soft chime</option>
         <option value="bright">Bright bell</option>
         <option value="pulse">Pulse beep</option>
+        <option value="ping">Ping tone</option>
+        <option value="alarm">Alarm tone</option>
     `;
 
     container.innerHTML = "";
@@ -484,7 +507,13 @@ function updateQueueToneOverrides(queues) {
 // QUEUE ALERT LOGIC
 // ===============================
 function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
+    // Respect master toggle for real alerts
     if (!isTest && !alertSettings.enableQueueAlerts) {
+        return;
+    }
+
+    // 🔺 Only trigger full alert (chime + voice) when totalCalls > 1
+    if (!isTest && totalCalls <= 1) {
         return;
     }
 
@@ -504,7 +533,12 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
         }
     }
 
+    const escalationLevel = getEscalationLevel(totalCalls);
+
+    // Chime
     playTone(tone);
+
+    // Voice alert (ttsAlert.mp3) right after the chime
     if (alertSettings.enableVoiceAlerts) {
         playVoice();
     }
@@ -517,7 +551,8 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
         calls: totalCalls,
         agents: totalAgents,
         tone,
-        voiceEnabled: alertSettings.enableVoiceAlerts
+        voiceEnabled: alertSettings.enableVoiceAlerts,
+        escalationLevel
     });
 }
 
@@ -584,7 +619,8 @@ async function loadQueueStatus() {
             panel.classList.toggle("queue-alert-active", anyHot);
         }
 
-        if (anyHot) {
+        // 🔺 Only trigger alerts when totalCalls > 1 (per your requirement)
+        if (anyHot && totalCalls > 1) {
             triggerQueueAlert({
                 totalCalls,
                 totalAgents,
@@ -651,6 +687,9 @@ async function loadGlobalStats() {
 function getAvailabilityClass(status) {
     if (!status) return "";
     const s = status.toLowerCase();
+
+    // ✅ Map Available to its own green badge
+    if (s.includes("available")) return "status-available";
 
     if (s.includes("not set")) return "status-orange";
     if (s.includes("wrap")) return "status-wrap";

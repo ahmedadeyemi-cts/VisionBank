@@ -65,9 +65,7 @@ body {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 18px;
-
-    /* 🔥 Center all panel headings */
-    text-align: center;
+    text-align: center;   /* CENTERED */
 }
 
 /* ===============================
@@ -79,28 +77,23 @@ body {
     font-size: 13px;
 }
 
-/* 🔥 FULL GRID BORDER AROUND ALL CELLS + HEADERS */
+/* BORDER AROUND **EVERY** CELL AND HEADER */
 .data-table th,
 .data-table td {
     padding: 8px 6px;
     border: 1px solid #cccccc !important;
+
+    /* CENTER ALL TEXT */
+    text-align: center !important;
 }
 
-/* Header Row */
+/* Header row */
 .data-table th {
     background: #f0f0f0;
-
-    /* 🔥 Center header text */
-    text-align: center !important;
+    font-weight: bold;
 }
 
-/* Cells */
-.data-table td {
-    /* 🔥 Center body text */
-    text-align: center !important;
-}
-
-/* Numeric override still right aligned */
+/* Numeric override */
 .data-table td.numeric {
     text-align: right !important;
 }
@@ -126,15 +119,9 @@ body {
 }
 
 @keyframes queueAlertPulse {
-    0% {
-        box-shadow: 0 0 0 rgba(229, 57, 53, 0.0);
-    }
-    50% {
-        box-shadow: 0 0 15px rgba(229, 57, 53, 0.9);
-    }
-    100% {
-        box-shadow: 0 0 0 rgba(229, 57, 53, 0.0);
-    }
+    0% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
+    50% { box-shadow: 0 0 15px rgba(229, 57, 53, 0.9); }
+    100% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
 }
 
 .queue-hot td:nth-child(2) {
@@ -180,6 +167,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 18px;
+    justify-content: center;
 }
 
 .stat-card {
@@ -244,11 +232,7 @@ body {
 
 .alert-settings-panel h3,
 .alert-history-panel h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-
-    /* 🔥 Center section titles */
-    text-align: center;
+    text-align: center; /* CENTER */
 }
 
 .hidden {
@@ -314,9 +298,7 @@ body {
     padding: 6px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 12px;
-
-    /* 🔥 Center text */
-    text-align: center;
+    text-align: center;  /* CENTER */
 }
 
 .history-time {

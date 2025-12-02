@@ -1,7 +1,9 @@
-\/* ===============================
+/* ===============================
    GLOBAL
-=============================== */
-* { box-sizing: border-box; }
+   =============================== */
+* {
+    box-sizing: border-box;
+}
 
 body {
     margin: 0;
@@ -11,11 +13,13 @@ body {
     color: #222;
 }
 
-.main { padding-bottom: 40px; }
+.main {
+    padding-bottom: 40px;
+}
 
 /* ===============================
    HEADER
-=============================== */
+   =============================== */
 .header {
     display: flex;
     align-items: center;
@@ -24,7 +28,9 @@ body {
     border-bottom: 2px solid #dddddd;
 }
 
-.header-left .logo { height: 55px; }
+.header-left .logo {
+    height: 55px;
+}
 
 .header-center {
     flex: 1;
@@ -45,7 +51,7 @@ body {
 
 /* ===============================
    PANELS
-=============================== */
+   =============================== */
 .panel {
     background: #ffffff;
     margin: 20px auto;
@@ -59,32 +65,43 @@ body {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 18px;
-    text-align: left;
+    text-align: center;   /* CENTERED */
 }
 
 /* ===============================
    TABLES
-=============================== */
+   =============================== */
 .data-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
 }
 
+/* BORDER AROUND **EVERY** CELL AND HEADER */
 .data-table th,
 .data-table td {
     padding: 8px 6px;
-    border-bottom: 1px solid #dddddd;
-    text-align: center;
+    border: 1px solid #cccccc !important;
+
+    /* CENTER ALL TEXT */
+    text-align: center !important;
 }
 
+/* Header row */
 .data-table th {
-    background: #eaeaea;
+    background: #f0f0f0;
     font-weight: bold;
-    border-bottom: 2px solid #cccccc;
 }
 
-.loading { text-align: center; color: #777; }
+/* Numeric override */
+.data-table td.numeric {
+    text-align: right !important;
+}
+
+.loading {
+    text-align: center;
+    color: #777;
+}
 
 .error {
     margin-top: 8px;
@@ -93,22 +110,34 @@ body {
 }
 
 /* ===============================
+   QUEUE ALERT STATES
+   =============================== */
+#queue-panel.queue-alert-active {
+    border-color: #e53935;
+    box-shadow: 0 0 8px rgba(229, 57, 53, 0.6);
+    animation: queueAlertPulse 1s ease-in-out infinite;
+}
+
+@keyframes queueAlertPulse {
+    0% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
+    50% { box-shadow: 0 0 15px rgba(229, 57, 53, 0.9); }
+    100% { box-shadow: 0 0 0 rgba(229, 57, 53, 0.0); }
+}
+
+.queue-hot td:nth-child(2) {
+    color: #e53935;
+    font-weight: bold;
+}
+
+/* ===============================
    AVAILABILITY BADGES
-=============================== */
+   =============================== */
 .availability-cell {
     font-weight: bold;
     text-align: center;
-    padding: 4px 6px;
     border-radius: 4px;
 }
 
-/* AVAILABLE — GREEN */
-.status-available {
-    background: #2ecc71;
-    color: #ffffff;
-}
-
-/* Orange */
 .status-orange,
 .status-wrap,
 .status-lunch {
@@ -116,19 +145,16 @@ body {
     color: #ffffff;
 }
 
-/* On Call — RED */
 .status-oncall {
     background: #c0392b;
     color: #ffffff;
 }
 
-/* Break — Yellow */
 .status-break {
     background: #f1c40f;
     color: #000000;
 }
 
-/* Idle — Gray */
 .status-idle {
     background: #7f8c8d;
     color: #ffffff;
@@ -136,11 +162,12 @@ body {
 
 /* ===============================
    STAT CARDS
-=============================== */
+   =============================== */
 .stat-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 18px;
+    justify-content: center;
 }
 
 .stat-card {
@@ -152,12 +179,19 @@ body {
     text-align: center;
 }
 
-.stat-value { font-size: 20px; font-weight: bold; }
-.stat-label { font-size: 12px; color: #555; }
+.stat-value {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #555;
+}
 
 /* ===============================
    FLOATING BUTTONS
-=============================== */
+   =============================== */
 .alert-settings-btn,
 .alert-history-btn {
     position: fixed;
@@ -173,11 +207,13 @@ body {
     z-index: 9999;
 }
 
-.alert-history-btn { top: 56px; }
+.alert-history-btn {
+    top: 56px;
+}
 
 /* ===============================
-   ALERT PANELS
-=============================== */
+   ALERT SETTINGS / HISTORY PANELS
+   =============================== */
 .alert-settings-panel,
 .alert-history-panel {
     position: fixed;
@@ -194,9 +230,27 @@ body {
     font-size: 13px;
 }
 
-.hidden { display: none; }
+.alert-settings-panel h3,
+.alert-history-panel h3 {
+    text-align: center; /* CENTER */
+}
 
-.alert-row { margin-bottom: 8px; display: flex; flex-direction: column; }
+.hidden {
+    display: none;
+}
+
+.alert-row {
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.alert-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 
 .alert-test-btn {
     margin-top: 8px;
@@ -205,25 +259,52 @@ body {
     border: 1px solid #444;
     background: #ffffff;
     cursor: pointer;
+    font-size: 13px;
 }
 
-/* Queue tones */
-.queue-tone-overrides { margin-top: 6px; }
+/* Queue tone overrides */
+.queue-tone-overrides {
+    margin-top: 6px;
+}
 
 .queue-override-row {
-    display: flex; justify-content: space-between; margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
 }
 
-/* ALERT HISTORY */
-.alert-history-list { margin-top: 4px; }
+.queue-override-label {
+    font-size: 12px;
+}
+
+.queue-override-select {
+    font-size: 12px;
+}
+
+/* ===============================
+   ALERT HISTORY LIST
+   =============================== */
+.alert-history-list {
+    margin-top: 4px;
+}
+
+.history-empty {
+    padding: 8px;
+    color: #777;
+}
 
 .history-item {
     padding: 6px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 12px;
+    text-align: center;  /* CENTER */
 }
 
-.history-time { font-weight: bold; }
+.history-time {
+    font-weight: bold;
+    margin-bottom: 2px;
+}
 
 .clear-history-btn {
     margin-top: 10px;
@@ -232,7 +313,9 @@ body {
     border-radius: 4px;
 }
 
-/* POPUP */
+/* ===============================
+   POPUP ALERT
+   =============================== */
 .queue-alert-popup {
     position: fixed;
     top: 12px;
@@ -244,13 +327,18 @@ body {
     border-radius: 20px;
     font-size: 13px;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
     z-index: 9000;
 }
 
-.queue-alert-popup.visible { opacity: 1; }
+.queue-alert-popup.visible {
+    opacity: 1;
+}
 
-/* FOOTER */
+/* ===============================
+   FOOTER
+   =============================== */
 .footer {
     display: flex;
     align-items: center;
@@ -260,10 +348,63 @@ body {
     border-top: 1px solid #cccccc;
 }
 
-.footer-logo { height: 40px; margin-left: 10px; }
+.footer-logo {
+    height: 40px;
+    margin-left: 10px;
+}
 
-/* DARK MODE */
+.dark-toggle {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+/* ===============================
+   DARK MODE
+   =============================== */
 body.dark-mode {
     background: #1e1e1e;
     color: #f5f5f5;
+}
+
+body.dark-mode .header,
+body.dark-mode .panel,
+body.dark-mode .footer,
+body.dark-mode .alert-settings-panel,
+body.dark-mode .alert-history-panel {
+    background: #252525;
+    border-color: #444444;
+}
+
+body.dark-mode .data-table th {
+    background: #333333;
+    color: #f5f5f5;
+}
+
+body.dark-mode .data-table td {
+    border-bottom-color: #444444;
+}
+
+body.dark-mode .stat-card {
+    background: #252525;
+    border-color: #444444;
+}
+
+body.dark-mode .alert-settings-btn,
+body.dark-mode .alert-history-btn {
+    background: #252525;
+    border-color: #444444;
+    color: #f5f5f5;
+}
+
+body.dark-mode .queue-alert-popup {
+    background: #e53935;
+}
+/* ===============================
+   FORCE CENTERING FOR ALL CELLS
+   =============================== */
+#queue-panel .data-table td,
+#queue-panel .data-table th,
+#agent-panel .data-table td,
+#agent-panel .data-table th {
+    text-align: center !important;
 }

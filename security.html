@@ -1,200 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <title>VisionBank | Security Administration</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="security.css" />
+    <title>VisionBank Security Login</title>
+    <link rel="stylesheet" href="security.css">
+    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2/dist/email.min.js"></script>
 </head>
+
 <body>
-<div class="vb-page">
 
-    <!-- Top brand header -->
-    <header class="vb-header">
-        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo" />
-    </header>
+<div class="security-container">
 
-    <main class="vb-main">
+    <img src="assets/VisionBank-Logo.png" class="logo">
 
-        <!-- LOGIN CARD -->
-        <section id="login-card" class="vb-card">
-            <h1 class="vb-title">Secure Administrator Login</h1>
+    <!-- LOGIN -->
+    <div id="loginSection" class="box">
+        <h2>Secure Administrator Login</h2>
 
-            <form id="login-form" class="vb-form" autocomplete="off">
-                <label class="vb-label" for="adminUser">Admin Username</label>
-                <input id="adminUser" class="vb-input" type="text" />
+        <input id="adminUser" placeholder="Admin Username">
+        <input id="adminPin" placeholder="PIN" type="password">
 
-                <label class="vb-label" for="adminPin">PIN</label>
-                <input id="adminPin" class="vb-input" type="password" />
+        <button onclick="loginAdmin()">Login</button>
 
-                <button id="loginBtn" type="submit" class="vb-btn primary">
-                    Login
-                </button>
+        <p class="link" onclick="document.getElementById('overrideBox').style.display='block'">
+            Use Override Key
+        </p>
 
-                <div class="vb-login-links">
-                    <button id="overrideToggle" type="button" class="link-button">
-                        Use Override Key
-                    </button>
-                    <button id="forgotPin" type="button" class="link-button">
-                        Forgot PIN?
-                    </button>
-                </div>
-
-                <!-- Hidden override area -->
-                <div id="override-area" class="override-area hidden">
-                    <label class="vb-label" for="overrideKey">Override Key</label>
-                    <input id="overrideKey" class="vb-input" type="password" />
-                    <button id="overrideBtn" type="button" class="vb-btn secondary">
-                        Enter Override
-                    </button>
-                </div>
-
-                <p id="loginMessage" class="vb-message"></p>
-            </form>
-        </section>
-
-        <!-- MFA CARD -->
-        <section id="mfa-card" class="vb-card hidden">
-            <h1 class="vb-title">Multi-Factor Authentication</h1>
-            <p class="vb-text">
-                A 6-digit security code was sent to your registered admin email(s).
-                Enter the code below to continue.
-            </p>
-            <p class="vb-text small" id="mfaEmails"></p>
-
-            <form id="mfa-form" class="vb-form" autocomplete="off">
-                <label class="vb-label" for="mfaCode">Security Code</label>
-                <input id="mfaCode" class="vb-input" type="text" maxlength="6" />
-
-                <button id="mfaVerifyBtn" type="submit" class="vb-btn primary">
-                    Verify Code
-                </button>
-
-                <button id="mfaCancelBtn" type="button" class="vb-btn secondary">
-                    Cancel
-                </button>
-
-                <p id="mfaMessage" class="vb-message"></p>
-            </form>
-        </section>
-
-        <!-- ADMIN PORTAL SHELL (populated by security-dashboard.js) -->
-        <section id="admin-shell" class="vb-card hidden">
-            <div class="admin-header-row">
-                <h1 class="vb-title">VisionBank Security Administration</h1>
-                <button id="logoutBtn" class="vb-btn danger small">
-                    Logout
-                </button>
-            </div>
-            <p class="vb-text small">
-                Access Control • Monitoring • Business Hours
-            </p>
-
-            <div class="admin-grid">
-
-                <!-- ACCESS CONTROL -->
-                <section class="admin-panel">
-                    <h2>IP Allowlist</h2>
-                    <p class="vb-text small">
-                        One entry per line. Supports single IPs (e.g. 45.19.161.17)
-                        and CIDR ranges (e.g. 10.100.100.0/24).
-                    </p>
-                    <textarea id="ipList" class="vb-textarea" rows="7"></textarea>
-                    <button id="saveIPs" class="vb-btn primary small">Save IP Rules</button>
-                </section>
-
-                <!-- BUSINESS HOURS -->
-                <section class="admin-panel">
-                    <h2>Business Hours</h2>
-                    <p class="vb-text small">
-                        Times are interpreted in Central Time (CST/CDT).
-                    </p>
-
-                    <div class="bh-row">
-                        <label>Start</label>
-                        <input id="bhStart" type="time" class="vb-input" />
-                    </div>
-                    <div class="bh-row">
-                        <label>End</label>
-                        <input id="bhEnd" type="time" class="vb-input" />
-                    </div>
-
-                    <div class="bh-days">
-                        <label><input type="checkbox" value="1" class="bhDay" />Mon</label>
-                        <label><input type="checkbox" value="2" class="bhDay" />Tue</label>
-                        <label><input type="checkbox" value="3" class="bhDay" />Wed</label>
-                        <label><input type="checkbox" value="4" class="bhDay" />Thu</label>
-                        <label><input type="checkbox" value="5" class="bhDay" />Fri</label>
-                        <label><input type="checkbox" value="6" class="bhDay" />Sat</label>
-                        <label><input type="checkbox" value="0" class="bhDay" />Sun</label>
-                    </div>
-
-                    <button id="saveBH" class="vb-btn primary small">
-                        Save Business Hours
-                    </button>
-                    <p class="vb-text small" id="bhSummary"></p>
-                </section>
-
-                <!-- PIN MANAGEMENT -->
-                <section class="admin-panel">
-                    <h2>Admin PIN</h2>
-                    <form id="pinForm" class="vb-form compact">
-                        <label class="vb-label" for="currentPin">Current PIN</label>
-                        <input id="currentPin" type="password" class="vb-input" />
-
-                        <label class="vb-label" for="newPin">New PIN</label>
-                        <input id="newPin" type="password" class="vb-input" />
-
-                        <label class="vb-label" for="confirmPin">Confirm New PIN</label>
-                        <input id="confirmPin" type="password" class="vb-input" />
-
-                        <button class="vb-btn primary small" type="submit">
-                            Change PIN
-                        </button>
-                        <p id="pinMessage" class="vb-message small"></p>
-                    </form>
-                </section>
-
-                <!-- AUDIT LOG -->
-                <section class="admin-panel full-width">
-                    <h2>Audit Log</h2>
-                    <p class="vb-text small">
-                        Recent security events (logins, overrides, config changes).
-                    </p>
-                    <div class="audit-actions">
-                        <button id="refreshAudit" class="vb-btn secondary small">
-                            Refresh
-                        </button>
-                        <button id="clearAudit" class="vb-btn danger small">
-                            Clear Log
-                        </button>
-                    </div>
-                    <ul id="auditList" class="audit-list"></ul>
-                </section>
-            </div>
-
-            <p id="adminMessage" class="vb-message"></p>
-        </section>
-
-    </main>
-
-    <!-- FOOTER -->
-    <footer class="vb-footer">
-        <div class="footer-right">
-            <img src="assets/US-Signal-Logo.png"
-                 alt="US Signal"
-                 class="footer-logo" />
-            <span>
-                Created and maintained by
-                <strong>Ahmed Adeyemi, US Signal</strong>
-            </span>
+        <div id="overrideBox" style="display:none;">
+            <input id="overrideKey" placeholder="Override Key">
+            <button onclick="overrideLogin()">Enter Override</button>
         </div>
-    </footer>
+    </div>
+
+    <!-- MFA -->
+    <div id="mfaSection" class="box" style="display:none;">
+        <h2>Multi-Factor Authentication</h2>
+
+        <p>A security code was sent to your registered email(s).</p>
+
+        <input id="mfaInput" placeholder="Enter 6-Digit Code">
+
+        <button onclick="verifyCode()">Verify Code</button>
+    </div>
+
 </div>
 
-<!-- EmailJS SDK -->
-<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
 <script src="security.js"></script>
-<script src="security-dashboard.js"></script>
 </body>
 </html>

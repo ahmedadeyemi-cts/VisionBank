@@ -65,6 +65,9 @@ body {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 18px;
+
+    /* 🔥 Center all panel headings */
+    text-align: center;
 }
 
 /* ===============================
@@ -76,19 +79,30 @@ body {
     font-size: 13px;
 }
 
+/* 🔥 FULL GRID BORDER AROUND ALL CELLS + HEADERS */
 .data-table th,
 .data-table td {
     padding: 8px 6px;
-    border-bottom: 1px solid #eeeeee;
+    border: 1px solid #cccccc !important;
 }
 
+/* Header Row */
 .data-table th {
     background: #f0f0f0;
-    text-align: left;
+
+    /* 🔥 Center header text */
+    text-align: center !important;
 }
 
+/* Cells */
+.data-table td {
+    /* 🔥 Center body text */
+    text-align: center !important;
+}
+
+/* Numeric override still right aligned */
 .data-table td.numeric {
-    text-align: right;
+    text-align: right !important;
 }
 
 .loading {
@@ -137,7 +151,6 @@ body {
     border-radius: 4px;
 }
 
-/* Orange: Not Set, Wrap, Lunch, Accept Internal, Busy */
 .status-orange,
 .status-wrap,
 .status-lunch {
@@ -145,19 +158,16 @@ body {
     color: #ffffff;
 }
 
-/* On Call - Red */
 .status-oncall {
     background: #c0392b;
     color: #ffffff;
 }
 
-/* Break - Yellow */
 .status-break {
     background: #f1c40f;
     color: #000000;
 }
 
-/* Idle - Gray */
 .status-idle {
     background: #7f8c8d;
     color: #ffffff;
@@ -236,6 +246,9 @@ body {
 .alert-history-panel h3 {
     margin-top: 0;
     margin-bottom: 10px;
+
+    /* 🔥 Center section titles */
+    text-align: center;
 }
 
 .hidden {
@@ -301,6 +314,9 @@ body {
     padding: 6px 0;
     border-bottom: 1px solid #dddddd;
     font-size: 12px;
+
+    /* 🔥 Center text */
+    text-align: center;
 }
 
 .history-time {

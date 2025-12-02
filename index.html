@@ -10,31 +10,33 @@
 
 <header class="header">
     <div class="header-left">
-        <img src="assets/VisionBank-Logo.png" alt="VisionBank Logo" class="logo" />
+        <img src="assets/visionbank_logo.png" alt="VisionBank Logo" class="logo" />
     </div>
+
     <div class="header-center">
         <h1>VisionBank Agent Dashboard</h1>
-        <span class="header-subtitle">Real-Time Performance & Queue Monitoring</span>
+        <div class="header-subtitle">Real-Time Performance & Queue Monitoring</div>
     </div>
 </header>
 
+<!-- Floating Buttons -->
 <button id="alertSettingsToggle" class="alert-settings-btn">🔔 Alert Settings</button>
 <button id="alertHistoryToggle" class="alert-history-btn">📜 Alert History</button>
 
-<!-- ALERT SETTINGS -->
+<!-- Alert Settings Panel -->
 <div id="alertSettingsPanel" class="alert-settings-panel hidden">
     <h3>Alert Settings</h3>
 
     <div class="alert-row">
-        <label><input type="checkbox" id="enableQueueAlerts" checked> Enable queue alerts</label>
+        <label><input type="checkbox" id="enableQueueAlerts" checked /> Enable queue alerts</label>
     </div>
 
     <div class="alert-row">
-        <label><input type="checkbox" id="enableVoiceAlerts" checked> Voice alert (“You have calls waiting”)</label>
+        <label><input type="checkbox" id="enableVoiceAlerts" checked /> Voice alert (“You have calls waiting”)</label>
     </div>
 
     <div class="alert-row">
-        <label><input type="checkbox" id="enablePopupAlerts" checked> Show popup notifications</label>
+        <label><input type="checkbox" id="enablePopupAlerts" checked /> Show popup notifications</label>
     </div>
 
     <div class="alert-row">
@@ -57,18 +59,18 @@
     </div>
 
     <div class="alert-row">
-        <label><input type="checkbox" id="wallboardMode"> Wallboard mode</label>
+        <label><input type="checkbox" id="wallboardMode" /> Wallboard mode</label>
     </div>
 
     <button id="alertTestButton" class="alert-test-btn">▶ Test Alert</button>
 
-    <h3 style="margin-top:10px;">Queue Tone Overrides</h3>
+    <h3 style="margin-top:12px;">Queue Tone Overrides</h3>
     <div id="queueToneOverrides" class="queue-tone-overrides">
         <div class="queue-override-empty">No queues loaded yet.</div>
     </div>
 </div>
 
-<!-- ALERT HISTORY -->
+<!-- Alert History Panel -->
 <div id="alertHistoryPanel" class="alert-history-panel hidden">
     <h3>Alert History</h3>
     <div id="alertHistoryList" class="alert-history-list">
@@ -77,12 +79,34 @@
     <button id="clearAlertHistory" class="clear-history-btn">Clear History</button>
 </div>
 
-<main class="main">
+<!-- GLOBAL STATS -->
+<section class="panel">
+    <h2>Global Statistics</h2>
 
-    <section class="panel" id="queue-panel">
-        <h2>Current Queue Status</h2>
-        <table class="data-table">
-            <thead>
+    <div class="stat-grid">
+        <div class="stat-card"><div id="gs-total-queued" class="stat-value">--</div><div class="stat-label">Total Calls Queued</div></div>
+        <div class="stat-card"><div id="gs-total-transferred" class="stat-value">--</div><div class="stat-label">Total Calls Transferred</div></div>
+        <div class="stat-card"><div id="gs-total-abandoned" class="stat-value">--</div><div class="stat-label">Total Calls Abandoned</div></div>
+        <div class="stat-card"><div id="gs-max-wait" class="stat-value">--</div><div class="stat-label">Max Wait Time</div></div>
+        <div class="stat-card"><div id="gs-service-level" class="stat-value">--</div><div class="stat-label">Service Level</div></div>
+    </div>
+
+    <div class="stat-grid" style="margin-top:15px;">
+        <div class="stat-card"><div id="gs-total-received" class="stat-value">--</div><div class="stat-label">Total Calls Received</div></div>
+        <div class="stat-card"><div id="gs-answer-rate" class="stat-value">--</div><div class="stat-label">Answer Rate</div></div>
+        <div class="stat-card"><div id="gs-abandon-rate" class="stat-value">--</div><div class="stat-label">Abandon Rate</div></div>
+        <div class="stat-card"><div id="gs-callbacks-registered" class="stat-value">--</div><div class="stat-label">Callbacks Registered</div></div>
+        <div class="stat-card"><div id="gs-callbacks-waiting" class="stat-value">--</div><div class="stat-label">Callbacks Waiting</div></div>
+    </div>
+
+    <div id="global-error" class="error"></div>
+</section>
+
+<!-- QUEUE STATUS -->
+<section id="queue-panel" class="panel">
+    <h2>Current Queue Status</h2>
+    <table class="data-table">
+        <thead>
             <tr>
                 <th>Queue</th>
                 <th>Calls</th>
@@ -90,19 +114,18 @@
                 <th>Oldest Wait</th>
                 <th>Avg Wait</th>
             </tr>
-            </thead>
-            <tbody id="queue-body">
-            <tr>
-                <td colspan="5" class="loading">Loading queue status...</td>
-            </tr>
-            </tbody>
-        </table>
-    </section>
+        </thead>
+        <tbody id="queue-body">
+            <tr><td colspan="5" class="loading">Loading queue status...</td></tr>
+        </tbody>
+    </table>
+</section>
 
-    <section class="panel" id="agent-panel">
-        <h2>Agent Performance</h2>
-        <table class="data-table">
-            <thead>
+<!-- AGENT STATUS -->
+<section class="panel">
+    <h2>Agent Status</h2>
+    <table class="data-table">
+        <thead>
             <tr>
                 <th>Name</th>
                 <th>Team</th>
@@ -116,41 +139,19 @@
                 <th>Avg Handle</th>
                 <th>Start</th>
             </tr>
-            </thead>
-            <tbody id="agent-body">
-            <tr>
-                <td colspan="11" class="loading">Loading agent data...</td>
-            </tr>
-            </tbody>
-        </table>
-    </section>
-
-    <section class="panel">
-        <h2>Realtime Global Statistics</h2>
-        <div id="global-error" class="error"></div>
-
-        <div class="stat-grid">
-            <div class="stat-card"><div id="gs-total-queued" class="stat-value">--</div><div class="stat-label">Total Calls Queued</div></div>
-            <div class="stat-card"><div id="gs-total-transferred" class="stat-value">--</div><div class="stat-label">Total Calls Transferred</div></div>
-            <div class="stat-card"><div id="gs-total-abandoned" class="stat-value">--</div><div class="stat-label">Total Calls Abandoned</div></div>
-            <div class="stat-card"><div id="gs-max-wait" class="stat-value">--</div><div class="stat-label">Maximum Wait</div></div>
-            <div class="stat-card"><div id="gs-service-level" class="stat-value">--%</div><div class="stat-label">Service Level</div></div>
-            <div class="stat-card"><div id="gs-total-received" class="stat-value">--</div><div class="stat-label">Total Calls Received</div></div>
-            <div class="stat-card"><div id="gs-answer-rate" class="stat-value">--%</div><div class="stat-label">Answer Rate</div></div>
-            <div class="stat-card"><div id="gs-abandon-rate" class="stat-value">--%</div><div class="stat-label">Abandon Rate</div></div>
-            <div class="stat-card"><div id="gs-callbacks-registered" class="stat-value">--</div><div class="stat-label">Callbacks Registered</div></div>
-            <div class="stat-card"><div id="gs-callbacks-waiting" class="stat-value">--</div><div class="stat-label">Callbacks Waiting</div></div>
-        </div>
-    </section>
-
-</main>
+        </thead>
+        <tbody id="agent-body">
+            <tr><td colspan="11" class="loading">Loading agent data...</td></tr>
+        </tbody>
+    </table>
+</section>
 
 <footer class="footer">
-    <div>Created and maintained by <strong>Ahmed Adeyemi</strong>, US Signal</div>
-    <img src="assets/US-Signal-Logo.png" alt="US Signal Logo" class="footer-logo" />
+    <div>Created and maintained by Ahmed Adeyemi, US Signal</div>
+    <img src="assets/ussignal_logo.png" class="footer-logo" alt="US Signal Logo" />
 </footer>
 
-<audio id="alertAudio" src="assets/ttsAlert.mp3"></audio>
+<audio id="alertAudio"></audio>
 
 <script src="dashboard.js"></script>
 </body>

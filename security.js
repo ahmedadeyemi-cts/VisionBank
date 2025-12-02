@@ -1,226 +1,356 @@
-/* ============================================================
-   VisionBank Security Core Authentication
-   ============================================================ */
+/* =========================================
+   VisionBank Security – Login & MFA
+   ========================================= */
 
-console.log("security.js loaded");
-
-emailjs.init("Z_4fEOdBy8J__XmyP");
-
-/* ============================================================
-   CONFIGURATION
-   ============================================================ */
-
-const VB_ADMIN = {
-    username: "superadmin",
-    pin: "ChangeMeNow!",
-    overrideKey: "VB-OVERRIDE-911",
-    mfaEmails: [
+const SECURITY = {
+    superAdminUser: "superadmin",
+    superAdminPin: "ChangeMeNow!",
+    overrideKey: "VisionBankOverride2024",
+    mfaExpiryMinutes: 10,
+    sessionMinutes: 30,
+    email: {
+        serviceId: "service_ftbnopr",
+        templateId: "template_v8t8bzj",
+        publicKey: "Z_4fEOdBy8J__XmyP"
+    },
+    adminEmails: [
         "ahmed.adeyemi@ussignal.com",
         "ahmed.adeyemi@oneneck.com",
         "ahmedadeyemi@gmail.com"
     ],
-    emailService: "service_ftbnopr",
-    emailTemplate: "template_v8t8bzj"  // <-- replace with your EmailJS template ID
+    lsKeys: {
+        admin: "vb-admin",
+        pinHash: "vb-admin-pin-hash",
+        audit: "vb-auditLog",
+        session: "vb-auth",
+        mfa: "vb-mfa",
+        reset: "vb-reset-token"
+    }
 };
 
-/* ============================================================
-   STATE
-   ============================================================ */
-
-let currentMFA = null;
-let authenticatedUser = null;
-
-/* ============================================================
-   RENDER LOGIN
-   ============================================================ */
-
-function renderLogin() {
-    const root = document.getElementById("vb-root");
-
-    root.innerHTML = `
-    <div class="vb-shell">
-        <div class="vb-login-card">
-            <div class="vb-login-header">
-                <h2>Secure Administrator Login</h2>
-                <p>Authorized VisionBank personnel only</p>
-            </div>
-
-            <div class="vb-field">
-                <label>Admin Username</label>
-                <input id="vb-username" class="vb-input" placeholder="Username">
-            </div>
-
-            <div class="vb-field">
-                <label>PIN</label>
-                <input id="vb-pin" type="password" class="vb-input" placeholder="PIN">
-            </div>
-
-            <button id="vb-login-btn" class="vb-btn-primary">Login</button>
-
-            <div class="vb-btn-inline-row">
-                <button id="vb-override-btn" class="vb-btn-secondary">Use Override Key</button>
-            </div>
-
-            <div id="vb-login-msg"></div>
-        </div>
-    </div>
-    `;
-
-    document.getElementById("vb-login-btn").onclick = handleLogin;
-    document.getElementById("vb-override-btn").onclick = renderOverridePrompt;
+/* ===== Local helpers ===== */
+function getAudit() {
+    try {
+        return JSON.parse(localStorage.getItem(SECURITY.lsKeys.audit) || "[]");
+    } catch {
+        return [];
+    }
 }
 
-/* ============================================================
-   LOGIN HANDLER
-   ============================================================ */
+function pushAudit(message) {
+    const audit = getAudit();
+    const ts = new Date().toLocaleString();
+    audit.unshift(`${ts} — ${message}`);
+    localStorage.setItem(SECURITY.lsKeys.audit, JSON.stringify(audit));
+}
 
-function handleLogin() {
-    const user = document.getElementById("vb-username").value.trim();
-    const pin = document.getElementById("vb-pin").value.trim();
-    const msgBox = document.getElementById("vb-login-msg");
+/* Hash PIN using WebCrypto */
+async function hashPin(pin) {
+    const data = new TextEncoder().encode(pin);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+}
 
-    if (user !== VB_ADMIN.username || pin !== VB_ADMIN.pin) {
-        msgBox.innerHTML = `<div class="vb-alert vb-alert-error">Invalid username or PIN.</div>`;
-        return;
+/* Load / init admin config */
+async function ensureAdminConfig() {
+    let admin;
+    try {
+        admin = JSON.parse(localStorage.getItem(SECURITY.lsKeys.admin) || "null");
+    } catch {
+        admin = null;
     }
 
-    // Generate MFA code
-    currentMFA = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!admin) {
+        admin = {
+            username: SECURITY.superAdminUser,
+            emails: SECURITY.adminEmails
+        };
+        localStorage.setItem(SECURITY.lsKeys.admin, JSON.stringify(admin));
 
-    msgBox.innerHTML = `<div class="vb-alert vb-alert-info">Sending MFA code…</div>`;
+        // store hash for default PIN
+        const h = await hashPin(SECURITY.superAdminPin);
+        localStorage.setItem(SECURITY.lsKeys.pinHash, h);
+        pushAudit("Initialized default superadmin credentials");
+    }
 
-    // Send MFA email(s)
-    VB_ADMIN.mfaEmails.forEach(email => {
-        emailjs.send(VB_ADMIN.emailService, VB_ADMIN.emailTemplate, {
-            to_email: email,
-            code: currentMFA,
-            admin: VB_ADMIN.username
-        }).catch(err => {
-            console.error("EmailJS error:", err);
-        });
+    // make sure emails are present
+    if (!admin.emails || !Array.isArray(admin.emails) || admin.emails.length === 0) {
+        admin.emails = SECURITY.adminEmails;
+        localStorage.setItem(SECURITY.lsKeys.admin, JSON.stringify(admin));
+    }
+
+    return admin;
+}
+
+/* Validate username + PIN */
+async function validateCredentials(username, pin) {
+    const admin = await ensureAdminConfig();
+    const storedHash = localStorage.getItem(SECURITY.lsKeys.pinHash);
+    const inputHash = await hashPin(pin);
+
+    const userOK = username.trim().toLowerCase() === admin.username.toLowerCase();
+    const pinOK = storedHash ? (storedHash === inputHash)
+                             : (pin === SECURITY.superAdminPin);
+
+    return userOK && pinOK;
+}
+
+/* Start an authenticated session */
+function startSession(username) {
+    const now = Date.now();
+    const expires = now + SECURITY.sessionMinutes * 60 * 1000;
+    const payload = { username, started: now, expires };
+    localStorage.setItem(SECURITY.lsKeys.session, JSON.stringify(payload));
+}
+
+/* EmailJS send helper */
+async function sendMfaEmail(code, emails) {
+    try {
+        emailjs.init(SECURITY.email.publicKey);
+
+        const params = {
+            to_email: emails.join(", "),
+            code: code,
+            timestamp: new Date().toLocaleString()
+        };
+
+        await emailjs.send(
+            SECURITY.email.serviceId,
+            SECURITY.email.templateId,
+            params
+        );
+    } catch (err) {
+        console.error("EmailJS error:", err);
+        throw new Error("Unable to send MFA email");
+    }
+}
+
+/* Save MFA payload */
+function storeMfaState(code, username) {
+    const expires = Date.now() + SECURITY.mfaExpiryMinutes * 60 * 1000;
+    const payload = { code, username, expires };
+    localStorage.setItem(SECURITY.lsKeys.mfa, JSON.stringify(payload));
+}
+
+/* Read MFA payload */
+function getMfaState() {
+    try {
+        return JSON.parse(localStorage.getItem(SECURITY.lsKeys.mfa) || "null");
+    } catch {
+        return null;
+    }
+}
+
+/* Forgot PIN: send reset token */
+async function sendResetToken() {
+    const admin = await ensureAdminConfig();
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const payload = {
+        token,
+        expires: Date.now() + 15 * 60 * 1000
+    };
+    localStorage.setItem(SECURITY.lsKeys.reset, JSON.stringify(payload));
+
+    try {
+        emailjs.init(SECURITY.email.publicKey);
+        const params = {
+            to_email: admin.emails.join(", "),
+            code: token,
+            timestamp: new Date().toLocaleString()
+        };
+        await emailjs.send(
+            SECURITY.email.serviceId,
+            SECURITY.email.templateId,
+            params
+        );
+        pushAudit("Sent PIN reset token via EmailJS");
+        return true;
+    } catch (err) {
+        console.error("Reset email error:", err);
+        return false;
+    }
+}
+
+/* ===== DOM wiring ===== */
+
+document.addEventListener("DOMContentLoaded", async () => {
+    // Ensure admin config exists
+    await ensureAdminConfig();
+
+    const loginCard = document.getElementById("login-card");
+    const mfaCard = document.getElementById("mfa-card");
+    const adminShell = document.getElementById("admin-shell");
+
+    const loginForm = document.getElementById("login-form");
+    const userInput = document.getElementById("adminUser");
+    const pinInput = document.getElementById("adminPin");
+    const loginMsg = document.getElementById("loginMessage");
+
+    const overrideToggle = document.getElementById("overrideToggle");
+    const overrideArea = document.getElementById("override-area");
+    const overrideInput = document.getElementById("overrideKey");
+    const overrideBtn = document.getElementById("overrideBtn");
+
+    const forgotPinBtn = document.getElementById("forgotPin");
+
+    const mfaEmailsLabel = document.getElementById("mfaEmails");
+    const mfaForm = document.getElementById("mfa-form");
+    const mfaCodeInput = document.getElementById("mfaCode");
+    const mfaMsg = document.getElementById("mfaMessage");
+    const mfaCancelBtn = document.getElementById("mfaCancelBtn");
+
+    const admin = await ensureAdminConfig();
+    mfaEmailsLabel.textContent = `Codes are sent to: ${admin.emails.join(", ")}`;
+
+    /* Restore session if still valid */
+    try {
+        const sess = JSON.parse(localStorage.getItem(SECURITY.lsKeys.session) || "null");
+        if (sess && sess.expires > Date.now()) {
+            // already authenticated
+            loginCard.classList.add("hidden");
+            mfaCard.classList.add("hidden");
+            adminShell.classList.remove("hidden");
+        }
+    } catch {
+        // ignore
+    }
+
+    /* Login submit */
+    loginForm.addEventListener("submit", async (evt) => {
+        evt.preventDefault();
+        loginMsg.textContent = "";
+        loginMsg.className = "vb-message";
+
+        const username = userInput.value.trim();
+        const pin = pinInput.value.trim();
+
+        if (!username || !pin) {
+            loginMsg.textContent = "Enter both username and PIN.";
+            loginMsg.classList.add("error");
+            return;
+        }
+
+        const ok = await validateCredentials(username, pin);
+        if (!ok) {
+            loginMsg.textContent = "Invalid username or PIN.";
+            loginMsg.classList.add("error");
+            pushAudit(`FAILED login attempt for user '${username}'`);
+            return;
+        }
+
+        // Generate MFA code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        storeMfaState(code, username);
+
+        try {
+            await sendMfaEmail(code, admin.emails);
+            pushAudit(`MFA code sent for user '${username}'`);
+        } catch (err) {
+            loginMsg.textContent = "Unable to send MFA email. Try again later.";
+            loginMsg.classList.add("error");
+            return;
+        }
+
+        // Switch to MFA screen
+        loginCard.classList.add("hidden");
+        mfaCard.classList.remove("hidden");
+        mfaMsg.textContent = "";
+        mfaCodeInput.value = "";
+        mfaCodeInput.focus();
     });
 
-    setTimeout(() => {
-        renderMFAPrompt();
-    }, 600);
-}
+    /* Override key toggle */
+    overrideToggle.addEventListener("click", () => {
+        overrideArea.classList.toggle("hidden");
+        overrideInput.focus();
+    });
 
-/* ============================================================
-   RENDER MFA PROMPT
-   ============================================================ */
+    /* Override key submit */
+    overrideBtn.addEventListener("click", () => {
+        loginMsg.textContent = "";
+        loginMsg.className = "vb-message";
 
-function renderMFAPrompt() {
-    const root = document.getElementById("vb-root");
+        const key = overrideInput.value.trim();
+        if (!key) {
+            loginMsg.textContent = "Enter an override key.";
+            loginMsg.classList.add("error");
+            return;
+        }
 
-    root.innerHTML = `
-    <div class="vb-shell">
-        <div class="vb-login-card">
-            <div class="vb-login-header">
-                <h2>MFA Verification</h2>
-                <p>A 6-digit verification code was emailed to all admin addresses.</p>
-            </div>
+        if (key !== SECURITY.overrideKey) {
+            loginMsg.textContent = "Invalid override key.";
+            loginMsg.classList.add("error");
+            pushAudit("FAILED override attempt");
+            return;
+        }
 
-            <div class="vb-field">
-                <label>Enter Code</label>
-                <input id="vb-mfa-code" class="vb-input" placeholder="123456">
-            </div>
+        pushAudit("SUCCESSFUL admin override login");
+        startSession("override");
+        loginCard.classList.add("hidden");
+        mfaCard.classList.add("hidden");
+        adminShell.classList.remove("hidden");
+        loginMsg.textContent = "";
+        overrideInput.value = "";
+    });
 
-            <button id="vb-mfa-btn" class="vb-btn-primary">Verify</button>
+    /* Forgot PIN */
+    forgotPinBtn.addEventListener("click", async () => {
+        loginMsg.textContent = "Sending reset token...";
+        loginMsg.className = "vb-message";
 
-            <div id="vb-mfa-msg"></div>
-        </div>
-    </div>
-    `;
+        const ok = await sendResetToken();
+        if (ok) {
+            loginMsg.textContent =
+                "Reset token sent to admin email(s). Use it when changing the PIN.";
+            loginMsg.classList.add("success");
+        } else {
+            loginMsg.textContent = "Unable to send reset token. Try again later.";
+            loginMsg.classList.add("error");
+        }
+    });
 
-    document.getElementById("vb-mfa-btn").onclick = handleMFACheck;
-}
+    /* MFA verify */
+    mfaForm.addEventListener("submit", (evt) => {
+        evt.preventDefault();
+        mfaMsg.textContent = "";
+        mfaMsg.className = "vb-message";
 
-/* ============================================================
-   MFA CHECK
-   ============================================================ */
+        const entered = mfaCodeInput.value.trim();
+        if (!entered) {
+            mfaMsg.textContent = "Enter the 6-digit code.";
+            mfaMsg.classList.add("error");
+            return;
+        }
 
-function handleMFACheck() {
-    const code = document.getElementById("vb-mfa-code").value.trim();
-    const msgBox = document.getElementById("vb-mfa-msg");
+        const mfa = getMfaState();
+        if (!mfa || mfa.expires < Date.now()) {
+            mfaMsg.textContent = "Code expired. Please log in again.";
+            mfaMsg.classList.add("error");
+            pushAudit("EXPIRED MFA code entered");
+            return;
+        }
 
-    if (code !== currentMFA) {
-        msgBox.innerHTML = `<div class="vb-alert vb-alert-error">Incorrect code.</div>`;
-        return;
-    }
+        if (entered !== mfa.code) {
+            mfaMsg.textContent = "Incorrect code.";
+            mfaMsg.classList.add("error");
+            pushAudit("Incorrect MFA code entered");
+            return;
+        }
 
-    authenticatedUser = VB_ADMIN.username;
-    localStorage.setItem("vb-auth", "true");
+        localStorage.removeItem(SECURITY.lsKeys.mfa);
+        startSession(mfa.username);
+        pushAudit(`SUCCESSFUL login for user '${mfa.username}'`);
 
-    renderDashboard();
-}
+        mfaCard.classList.add("hidden");
+        document.getElementById("admin-shell").classList.remove("hidden");
+    });
 
-/* ============================================================
-   OVERRIDE KEY
-   ============================================================ */
-
-function renderOverridePrompt() {
-    const root = document.getElementById("vb-root");
-
-    root.innerHTML = `
-    <div class="vb-shell">
-        <div class="vb-login-card">
-
-            <div class="vb-login-header">
-                <h2>Override Access</h2>
-                <p>Enter emergency override key</p>
-            </div>
-
-            <div class="vb-field">
-                <label>Override Key</label>
-                <input id="vb-override-input" class="vb-input" placeholder="Override key">
-            </div>
-
-            <button id="vb-override-go" class="vb-btn-primary">Unlock</button>
-
-            <div id="vb-override-msg"></div>
-        </div>
-    </div>
-    `;
-
-    document.getElementById("vb-override-go").onclick = handleOverrideCheck;
-}
-
-function handleOverrideCheck() {
-    const key = document.getElementById("vb-override-input").value.trim();
-    const msg = document.getElementById("vb-override-msg");
-
-    if (key !== VB_ADMIN.overrideKey) {
-        msg.innerHTML = `<div class="vb-alert vb-alert-error">Invalid override key.</div>`;
-        return;
-    }
-
-    authenticatedUser = "Override";
-    localStorage.setItem("vb-auth", "true");
-
-    renderDashboard();
-}
-
-/* ============================================================
-   DASHBOARD LOADER
-   ============================================================ */
-
-function renderDashboard() {
-    console.log("Loading dashboard…");
-    if (typeof window.renderSecurityDashboard === "function") {
-        window.renderSecurityDashboard(authenticatedUser);
-    } else {
-        console.error("security-dashboard.js missing.");
-    }
-}
-
-/* ============================================================
-   INITIALIZE PAGE
-   ============================================================ */
-
-window.addEventListener("DOMContentLoaded", () => {
-    if (localStorage.getItem("vb-auth") === "true") {
-        renderDashboard();
-    } else {
-        renderLogin();
-    }
+    /* MFA cancel */
+    mfaCancelBtn.addEventListener("click", () => {
+        localStorage.removeItem(SECURITY.lsKeys.mfa);
+        mfaCard.classList.add("hidden");
+        loginCard.classList.remove("hidden");
+    });
 });

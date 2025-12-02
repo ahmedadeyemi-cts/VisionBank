@@ -140,8 +140,8 @@ body {
 
 /* NEW: Available = green with white text */
 .status-available {
-    background: #27ae60;
-    color: #ffffff;
+    background-color: #2ecc71 !important;
+    color: #ffffff !important;
 }
 
 /* Orange: Not Set, Wrap, Lunch, Accept Internal, Busy */
@@ -276,6 +276,17 @@ body {
     background: #ffffff;
     cursor: pointer;
     font-size: 13px;
+}
+.alert-panels-wrapper {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+#alertSettingsPanel,
+#alertHistoryPanel {
+    flex: 1;
+    min-width: 350px;
 }
 
 /* Queue tone overrides */

@@ -151,6 +151,10 @@ body {
     background: #e67e22;
     color: #ffffff;
 }
+.status-dialout {
+    background-color: #c0392b !important; /* Strong red */
+    color: #ffffff !important;           /* White text */
+}
 
 /* On Call - Red */
 .status-oncall {

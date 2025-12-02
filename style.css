@@ -399,3 +399,12 @@ body.dark-mode .alert-history-btn {
 body.dark-mode .queue-alert-popup {
     background: #e53935;
 }
+/* ===============================
+   FORCE CENTERING FOR ALL CELLS
+   =============================== */
+#queue-panel .data-table td,
+#queue-panel .data-table th,
+#agent-panel .data-table td,
+#agent-panel .data-table th {
+    text-align: center !important;
+}

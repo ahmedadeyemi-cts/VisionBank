@@ -1,0 +1,11 @@
+name = "visionbank-security"
+main = "worker.js"
+compatibility_date = "2023-12-01"
+
+kv_namespaces = [
+  { binding = "ADMIN", id = "admin_kv", preview_id = "admin_kv_preview" },
+  { binding = "MFA", id = "mfa_kv", preview_id = "mfa_kv_preview" },
+  { binding = "IP_ALLOWLIST", id = "ip_kv", preview_id = "ip_kv_preview" },
+  { binding = "LOGS", id = "logs_kv", preview_id = "logs_kv_preview" },
+  { binding = "BUSINESS", id = "business_kv", preview_id = "business_kv_preview" }
+]

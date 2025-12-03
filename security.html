@@ -4,13 +4,17 @@
   <meta charset="UTF-8" />
   <title>VisionBank | Security Console</title>
   <link rel="stylesheet" href="security.css" />
+
+  <!-- Google Authenticator / TOTP library -->
+  <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/bundle/otplib.umd.min.js"></script>
 </head>
 <body>
 
   <!-- HEADER -->
   <header class="sec-header">
     <div class="sec-header-left">
-      <img src="assets/visionbank-logo.png" alt="VisionBank" class="sec-logo" />
+      <!-- Use actual filenames from /assets -->
+      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="sec-logo" />
     </div>
     <div class="sec-header-center">
       <h1>CEG Security Admin Console</h1>
@@ -52,24 +56,24 @@
       </div>
 
       <div class="sec-small-note">
-        Default Super Admin ID: <strong>superadmin</strong>  
-        Default PIN: <strong>ChangeMeNow!</strong>  
+        Default Super Admin ID: <strong>superadmin</strong><br />
+        Default PIN: <strong>ChangeMeNow!</strong><br />
         (You will be asked to set up MFA and change these.)
       </div>
     </section>
 
-    <!-- MFA SETUP CARD (shown after first superadmin login if no secret) -->
+    <!-- MFA SETUP CARD -->
     <section id="mfa-setup-card" class="sec-card sec-card-hidden">
       <h2>Google Authenticator Setup</h2>
       <p class="sec-desc">
-        Scan this code or use the text key below in Google Authenticator.  
-        After enrolling, enter a 6-digit code to confirm.
+        Scan this QR code or use the text key below in Google Authenticator. After enrolling,
+        enter a 6-digit code from the app to confirm.
       </p>
 
       <div class="mfa-grid">
         <div class="mfa-qr-wrapper">
           <div id="mfa-qr-placeholder" class="mfa-qr">
-            <!-- QR or link will be injected here -->
+            Scan in Google Authenticator
           </div>
         </div>
         <div class="mfa-details">
@@ -93,7 +97,7 @@
       </div>
     </section>
 
-    <!-- MAIN ADMIN CONSOLE (only visible after successful login + MFA) -->
+    <!-- MAIN ADMIN CONSOLE -->
     <section id="admin-console" class="sec-card sec-card-hidden">
       <div class="sec-card-header">
         <h2>Security Settings</h2>
@@ -145,9 +149,12 @@
       <div class="sec-section">
         <h3>Allowed IP Ranges</h3>
         <p class="sec-desc">
-          Only IPs/Subnets listed here will be allowed to access the dashboard when rules are active.  
-          One entry per line. Supported formats:
-          <code>10.100.100.0/24</code>, <code>45.19.161.17</code>, <code>45.19.162.18/32</code>, <code>120.112.1.119/28</code>.
+          Only IPs/Subnets listed here will be allowed to access the dashboard when rules are active.
+          One entry per line. Example formats:
+          <code>10.100.100.0/24</code>,
+          <code>45.19.161.17</code>,
+          <code>45.19.162.18/32</code>,
+          <code>120.112.1.119/28</code>.
         </p>
 
         <textarea id="ip-ranges" rows="8" spellcheck="false"></textarea>
@@ -169,11 +176,10 @@
 
   <!-- FOOTER -->
   <footer class="sec-footer">
-    <div class="sec-footer-left">
-      <!-- reserved, e.g. version info -->
-    </div>
+    <div class="sec-footer-left"></div>
     <div class="sec-footer-right">
-      <img src="assets/us-signal-logo.png" alt="US Signal" class="sec-footer-logo" />
+      <!-- Use actual filenames from /assets -->
+      <img src="assets/US-Signal-Logo.png" alt="US Signal" class="sec-footer-logo" />
       <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
     </div>
   </footer>

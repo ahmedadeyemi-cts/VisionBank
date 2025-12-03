@@ -63,6 +63,5 @@ function initSecurityDashboard() {
     });
   }
 
-  // Ensure audit log is up-to-date
   populateAuditBox();
 }

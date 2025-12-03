@@ -1,198 +1,233 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
-    <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <title>CEG Security Admin Console | VisionBank</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="security.css" />
+
+  <!-- QR code + TOTP libraries (for Google Authenticator) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+          integrity="sha512-4CjB0V0JxX7b5u5XvYpR0oGNP6calKZYErFQx0f8iKJ3Ejj6inUeJ8V+RaH//4W2KIiMzH6I0Xq1hKf7g8W8Kg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/12.0.1/otplib.umd.min.js"
+          integrity="sha512-vx17+ujCPqtykA1EuhaTt1S1S1pt6VqMy7RBCHp5oSe4nn1zOH1T/5K3Eo7FhWYeotkuX1KSb+I1N5kN1oJQBw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script defer src="security.js"></script>
+  <script defer src="security-dashboard.js"></script>
 </head>
 
 <body>
-
-<!-- =============================== -->
-<!-- HEADER -->
-<!-- =============================== -->
-<header class="header">
-    <div class="header-left">
-        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
+  <!-- HEADER -->
+  <header class="vb-header">
+    <div class="vb-header-inner">
+      <img src="assets/VisionBank-Logo.png"
+           alt="VisionBank"
+           class="vb-logo" />
+      <div class="vb-header-text">
+        <div class="vb-app">CEG Security Admin Console</div>
+        <div class="vb-subapp">VisionBank</div>
+      </div>
+      <div class="vb-session" id="sessionIndicator">
+        <!-- filled by JS -->
+      </div>
     </div>
-    <div class="header-center">
-        <h1>CEG Contact Center Realtime Dashboard</h1>
-        <span class="header-subtitle">VisionBank</span>
-    </div>
-</header>
+  </header>
 
-<!-- =============================== -->
-<!-- FLOATING ALERT BUTTONS -->
-<!-- =============================== -->
+  <main class="vb-main">
+    <!-- ================= LOGIN STEP ================= -->
+    <section id="loginView" class="card card-auth">
+      <h1 class="card-title">Secure Administrator Login</h1>
 
-<div class="alert-panels-wrapper">
-    <!-- FIXED ALERT SETTINGS PANEL -->
-    <div id="alertSettingsPanel" class="alert-settings-panel hidden">
-        <h3>Alert Settings</h3>
+      <form id="loginForm" class="form-vertical">
+        <label class="field">
+          <span>Admin Username</span>
+          <input id="loginUsername" autocomplete="username" />
+        </label>
 
-        <div class="alert-row">
-            <label><input type="checkbox" id="enableQueueAlerts" checked> Enable queue alerts</label>
-        </div>
+        <label class="field">
+          <span>PIN</span>
+          <input id="loginPin" type="password" autocomplete="current-password" />
+        </label>
 
-        <div class="alert-row">
-            <label><input type="checkbox" id="enableVoiceAlerts" checked> Voice alert</label>
-        </div>
+        <button type="submit" class="btn btn-primary">Login</button>
 
-        <div class="alert-row">
-            <label><input type="checkbox" id="enablePopupAlerts" checked> Show popup notifications</label>
-        </div>
+        <p id="loginError" class="error-text"></p>
+      </form>
 
-        <div class="alert-row">
-            <label>Alert Tone</label>
-            <select id="alertToneSelect">
-                <option value="soft">Soft chime</option>
-                <option value="bright">Bright bell</option>
-                <option value="pulse">Pulse beep</option>
-                <option value="ping">Ping tone</option>
-                <option value="alarm">Alarm tone</option>
-            </select>
-        </div>
-
-        <div class="alert-row">
-            <label>Volume</label>
-            <input type="range" id="alertVolume" min="0" max="100">
-        </div>
-
-        <div class="alert-row">
-            <label>Cooldown (seconds)</label>
-            <input type="number" id="alertCooldown" min="10" max="300" step="5">
-        </div>
-
-        <div class="alert-row">
-            <label><input type="checkbox" id="wallboardMode"> Wallboard mode</label>
-        </div>
-
-        <h3 style="margin-top:12px;">Queue Tone Overrides</h3>
-        <div id="queueToneOverrides" class="queue-tone-overrides">
-            <div class="queue-override-empty">No queues loaded yet.</div>
-        </div>
-
-        <button id="alertTestButton" class="alert-test-btn">▶ Test Alert</button>
-    </div>
-
-    <!-- FIXED ALERT HISTORY PANEL -->
-    <div id="alertHistoryPanel" class="alert-history-panel hidden">
-        <h3>Alert History</h3>
-
-        <div id="alertHistoryList" class="alert-history-list">
-            <div class="history-empty">No alerts yet.</div>
-        </div>
-
-        <button id="clearAlertHistory" class="clear-history-btn">Clear History</button>
-    </div>
-</div>
-
-<button id="alertSettingsToggle" class="alert-settings-btn">🔔 Alert Settings</button>
-<button id="alertHistoryToggle" class="alert-history-btn">📜 Alert History</button>
-
-<!-- ===================================================== -->
-<!-- BEGIN ORIGINAL DUPLICATED PANELS FROM YOUR HTML      -->
-<!-- These were causing the system to break because       -->
-<!-- they duplicated IDs. They must remain removed.       -->
-<!-- ===================================================== -->
-
-<!-- (REMOVED intentionally — duplicates were breaking dashboard.js)
-<div id="alertSettingsPanel" class="alert-settings-panel hidden">...</div>
-<div id="alertHistoryPanel" class="alert-history-panel hidden">...</div>
--->
-
-<!-- ===================================================== -->
-
-<!-- =============================== -->
-<!-- MAIN CONTENT -->
-<!-- =============================== -->
-<main class="main">
-
-    <!-- CURRENT QUEUE STATUS -->
-    <section class="panel" id="queue-panel">
-        <h2>Current Queue Status</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Queue</th>
-                    <th>Calls</th>
-                    <th>Agents</th>
-                    <th>Max Wait</th>
-                    <th>Avg Wait</th>
-                </tr>
-            </thead>
-            <tbody id="queue-body">
-                <tr><td colspan="5" class="loading">Loading queue status...</td></tr>
-            </tbody>
-        </table>
+      <button id="useOverrideBtn" class="link-button">Use Override Key</button>
     </section>
 
-    <!-- AGENT PERFORMANCE -->
-    <section class="panel" id="agent-panel">
-        <h2>Agent Performance</h2>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>CEG Member</th>
-                    <th>Team</th>
-                    <th>Agent Number</th>
-                    <th>Availability</th>
-                    <th>Duration</th>
-                    <th>Inbound</th>
-                    <th>Missed</th>
-                    <th>Transferred</th>
-                    <th>Outbound</th>
-                    <th>Avg Handle</th>
-                    <th>Start Date</th>
-                </tr>
-            </thead>
-            <tbody id="agent-body">
-                <tr><td colspan="11" class="loading">Loading agent data...</td></tr>
-            </tbody>
-        </table>
-    </section>
+    <!-- ============= MFA SETUP STEP (first login) ============= -->
+    <section id="mfaSetupView" class="card card-auth hidden">
+      <h1 class="card-title">Google Authenticator Setup</h1>
+      <p class="card-intro">
+        Scan this QR code or use the text key below in your Google Authenticator app.
+        After enrolling, enter a 6-digit code from the app to confirm.
+      </p>
 
-    <!-- REALTIME GLOBAL STATISTICS -->
-    <section class="panel">
-        <h2>Realtime Global Statistics</h2>
-
-        <div id="global-error" class="error"></div>
-
-        <div class="stat-grid">
-            <div class="stat-card"><div class="stat-value" id="gs-total-queued">--</div><div class="stat-label">Total Calls Queued</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-total-transferred">--</div><div class="stat-label">Total Calls Transferred</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-total-abandoned">--</div><div class="stat-label">Total Calls Abandoned</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-max-wait">--</div><div class="stat-label">Maximum Queue Wait Time</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-service-level">--%</div><div class="stat-label">Service Level</div></div>
+      <div class="mfa-layout">
+        <div class="mfa-qr-wrapper">
+          <div id="mfaQr" class="mfa-qr-placeholder">
+            <!-- QR injected by JS -->
+          </div>
+          <div class="mfa-qr-caption">Scan in Google Authenticator</div>
         </div>
 
-        <div class="stat-grid" style="margin-top:15px;">
-            <div class="stat-card"><div class="stat-value" id="gs-total-received">--</div><div class="stat-label">Total Calls Received</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-answer-rate">--%</div><div class="stat-label">Answer Rate</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-abandon-rate">--%</div><div class="stat-label">Abandon Rate</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-callbacks-registered">--</div><div class="stat-label">Callbacks Registered</div></div>
-            <div class="stat-card"><div class="stat-value" id="gs-callbacks-waiting">--</div><div class="stat-label">Callbacks Waiting</div></div>
-        </div>
+        <form id="mfaSetupForm" class="mfa-form">
+          <label class="field">
+            <span>Account</span>
+            <input id="mfaAccount" readonly />
+          </label>
+
+          <label class="field">
+            <span>Secret Key</span>
+            <input id="mfaSecret" readonly />
+          </label>
+
+          <label class="field">
+            <span>Enter 6-digit code from app</span>
+            <input id="mfaSetupCode" inputmode="numeric" maxlength="6" />
+          </label>
+
+          <button type="submit" class="btn btn-primary">
+            Confirm &amp; Enable MFA
+          </button>
+
+          <p id="mfaSetupError" class="error-text"></p>
+        </form>
+      </div>
     </section>
 
-</main>
+    <!-- ============= MFA VERIFY STEP (subsequent logins) ============= -->
+    <section id="mfaVerifyView" class="card card-auth hidden">
+      <h1 class="card-title">Multi-Factor Authentication</h1>
+      <p class="card-intro">
+        Enter the 6-digit code from your Google Authenticator app to continue.
+      </p>
 
-<!-- =============================== -->
-<!-- FOOTER -->
-<!-- =============================== -->
-<footer class="footer">
-    <div class="footer-left">
-        <button id="darkModeToggle" type="button" class="dark-toggle">🌙 Dark Mode</button>
-    </div>
-    <div class="footer-right">
+      <form id="mfaVerifyForm" class="form-vertical">
+        <label class="field">
+          <span>Security Code</span>
+          <input id="mfaVerifyCode" inputmode="numeric" maxlength="6" />
+        </label>
+
+        <button type="submit" class="btn btn-primary">Verify Code</button>
+
+        <p id="mfaVerifyError" class="error-text"></p>
+      </form>
+
+      <button id="mfaBackToLogin" class="link-button">Back to Login</button>
+    </section>
+
+    <!-- ================= ADMIN CONSOLE ================= -->
+    <section id="adminConsole" class="card card-console hidden">
+      <div class="console-header">
+        <h1>VisionBank Security Administration</h1>
+        <p>Access Control • Monitoring • Business Hours</p>
+      </div>
+
+      <div class="console-grid">
+        <!-- IP ALLOWLIST -->
+        <section class="console-section">
+          <h2>IP Allowlist</h2>
+          <p class="section-help">
+            One entry per line. Supports single IPs (e.g. <code>45.19.161.17</code>)
+            and CIDR ranges (e.g. <code>10.100.100.0/24</code>).
+          </p>
+          <textarea id="ipAllowlist" rows="10"
+                    spellcheck="false"
+                    class="mono"></textarea>
+          <button id="saveIpRules" class="btn btn-secondary">
+            Save IP Rules
+          </button>
+          <p id="ipSaveStatus" class="status-text"></p>
+        </section>
+
+        <!-- BUSINESS HOURS -->
+        <section class="console-section">
+          <h2>Business Hours</h2>
+          <p class="section-help">
+            Times are interpreted in Central Time (CST/CDT).
+          </p>
+
+          <div class="grid-2">
+            <label class="field">
+              <span>Start</span>
+              <input id="bizStart" type="time" />
+            </label>
+            <label class="field">
+              <span>End</span>
+              <input id="bizEnd" type="time" />
+            </label>
+          </div>
+
+          <div class="days-row">
+            <label><input type="checkbox" class="biz-day" value="1" /> Mon</label>
+            <label><input type="checkbox" class="biz-day" value="2" /> Tue</label>
+            <label><input type="checkbox" class="biz-day" value="3" /> Wed</label>
+            <label><input type="checkbox" class="biz-day" value="4" /> Thu</label>
+            <label><input type="checkbox" class="biz-day" value="5" /> Fri</label>
+            <label><input type="checkbox" class="biz-day" value="6" /> Sat</label>
+            <label><input type="checkbox" class="biz-day" value="0" /> Sun</label>
+          </div>
+
+          <button id="saveBizHours" class="btn btn-secondary">
+            Save Business Hours
+          </button>
+          <p id="bizSaveStatus" class="status-text"></p>
+
+          <div class="hint">
+            Default (if not set): 07:00–19:00 Monday–Saturday.
+          </div>
+        </section>
+
+        <!-- ADMIN PIN + AUDIT -->
+        <section class="console-section">
+          <h2>Admin Security</h2>
+
+          <div class="field-group">
+            <label class="field">
+              <span>Change PIN</span>
+              <input id="newPin" type="password" autocomplete="new-password"
+                     placeholder="New PIN (min 6 chars)" />
+            </label>
+            <label class="field">
+              <span>Confirm PIN</span>
+              <input id="confirmPin" type="password"
+                     autocomplete="new-password" />
+            </label>
+            <button id="savePin" class="btn btn-secondary">
+              Update PIN
+            </button>
+            <p id="pinSaveStatus" class="status-text"></p>
+          </div>
+
+          <h3>Audit Log (browser-local)</h3>
+          <textarea id="auditLog" rows="10" readonly class="mono"></textarea>
+          <button id="clearAudit" class="btn btn-ghost">
+            Clear Local Audit Log
+          </button>
+        </section>
+      </div>
+
+      <div class="console-footer">
+        <button id="logoutBtn" class="btn btn-outline">Logout</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="vb-footer">
+    <div class="vb-footer-inner">
+      <div class="vb-footer-right">
         <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" />
         <span>Created and maintained by <strong>Ahmed Adeyemi, US Signal</strong></span>
+      </div>
     </div>
-</footer>
-
-<!-- Popup notification container -->
-<div id="queueAlertPopup" class="queue-alert-popup"></div>
-
-<script src="dashboard.js"></script>
+  </footer>
 </body>
 </html>

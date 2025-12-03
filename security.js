@@ -1,430 +1,456 @@
-// =====================================
-// VisionBank Security Core (security.js)
-// =====================================
+// security.js
+// Handles authentication, Google Authenticator MFA and view switching.
 
-// Storage keys
-const SEC_KEYS = {
-  ADMINS: "vb-admins",
-  CURRENT_ADMIN: "vb-current-admin",
-  BUSINESS_HOURS: "vb-businessHours",
-  ALLOWED_IPS: "vb-allowedIPs",
-  AUDIT_LOG: "vb-auditLog"
-};
+(function () {
+  "use strict";
 
-// ---------- Audit logging ----------
-function secLog(message) {
-  const key = SEC_KEYS.AUDIT_LOG;
-  const log = JSON.parse(localStorage.getItem(key) || "[]");
-  const line = new Date().toLocaleString() + " — " + message;
-  log.unshift(line);
-  localStorage.setItem(key, JSON.stringify(log.slice(0, 500)));
-}
+  const STORAGE = {
+    ADMINS: "vb_ceg_admins",
+    SESSION: "vb_ceg_session",
+    AUDIT: "vb_ceg_audit",
+    MFA_PENDING: "vb_ceg_mfa_pending" // temp during setup
+  };
 
-// ---------- Admin storage helpers ----------
-function loadAdmins() {
-  const raw = localStorage.getItem(SEC_KEYS.ADMINS);
-  if (!raw) {
-    // Seed default superadmin
-    const seed = [
-      {
-        username: "superadmin",
-        pin: "ChangeMeNow!",
-        totpSecret: null,
-        label: "VisionBank Security (superadmin)",
-        isSuper: true
-      }
-    ];
-    localStorage.setItem(SEC_KEYS.ADMINS, JSON.stringify(seed));
-    secLog("Seeded default superadmin account.");
-    return seed;
-  }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
+  // Default super admin (only created if nothing exists)
+  const DEFAULT_ADMIN = {
+    username: "superadmin",
+    pin: "ChangeMeNow!",
+    mfaSecret: null,
+    mfaEnabled: false
+  };
 
-function saveAdmins(admins) {
-  localStorage.setItem(SEC_KEYS.ADMINS, JSON.stringify(admins));
-}
+  const OVERRIDE_KEY = "VB-CEG-ADMIN-OVERRIDE-2025";
 
-function getCurrentAdmin() {
-  const id = localStorage.getItem(SEC_KEYS.CURRENT_ADMIN);
-  if (!id) return null;
-  const admins = loadAdmins();
-  return admins.find(a => a.username.toLowerCase() === id.toLowerCase()) || null;
-}
-
-function setCurrentAdmin(username) {
-  if (username) {
-    localStorage.setItem(SEC_KEYS.CURRENT_ADMIN, username);
-  } else {
-    localStorage.removeItem(SEC_KEYS.CURRENT_ADMIN);
-  }
-}
-
-// ---------- Business hours & IP helpers ----------
-function loadBusinessHours() {
-  const raw = localStorage.getItem(SEC_KEYS.BUSINESS_HOURS);
-  if (!raw) {
-    const def = {
-      start: "07:00",
-      end: "19:00",
-      days: ["1", "2", "3", "4", "5", "6"] // Mon–Sat
-    };
-    localStorage.setItem(SEC_KEYS.BUSINESS_HOURS, JSON.stringify(def));
-    return def;
-  }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { start: "07:00", end: "19:00", days: ["1", "2", "3", "4", "5", "6"] };
-  }
-}
-
-function saveBusinessHours(hours) {
-  localStorage.setItem(SEC_KEYS.BUSINESS_HOURS, JSON.stringify(hours));
-  secLog("Business hours updated.");
-}
-
-function loadAllowedIPs() {
-  const raw = localStorage.getItem(SEC_KEYS.ALLOWED_IPS);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-function saveAllowedIPs(list) {
-  localStorage.setItem(SEC_KEYS.ALLOWED_IPS, JSON.stringify(list));
-  secLog("Allowed IP list updated.");
-}
-
-function ipToInt(ip) {
-  return ip.split(".").reduce((acc, part) => (acc << 8) + (parseInt(part, 10) || 0), 0);
-}
-
-function ipMatches(ip, cidr) {
-  if (!cidr) return false;
-  if (!cidr.includes("/")) return ip === cidr;
-  const [range, bitsStr] = cidr.split("/");
-  const bits = parseInt(bitsStr, 10);
-  if (isNaN(bits)) return false;
-  const mask = ~(2 ** (32 - bits) - 1) >>> 0;
-  return (ipToInt(ip) & mask) === (ipToInt(range) & mask);
-}
-
-function isBusinessOpenNow() {
-  const hours = loadBusinessHours();
-  if (!hours.start || !hours.end || !Array.isArray(hours.days)) return true;
-
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
-  const [hh, mm] = formatter.format(now).split(":");
-  const current = hh + ":" + mm;
-  const day = String(now.getDay());
-
-  return hours.days.includes(day) &&
-    current >= hours.start &&
-    current <= hours.end;
-}
-
-async function getPublicIP() {
-  try {
-    const res = await fetch("https://api.ipify.org?format=json");
-    const data = await res.json();
-    return data.ip;
-  } catch {
-    return "0.0.0.0";
-  }
-}
-
-// Enforce on non-security pages
-async function enforceDashboardFrontDoor() {
-  const loc = window.location.pathname.toLowerCase();
-  if (loc.includes("security.html")) return;
-
-  const allowed = loadAllowedIPs();
-  const hoursOk = isBusinessOpenNow();
-
-  let ipOk = true;
-  const ip = await getPublicIP();
-  if (allowed.length > 0) {
-    ipOk = allowed.some(r => ipMatches(ip, r));
-  }
-
-  if (ipOk && hoursOk) {
-    secLog("Dashboard access granted to IP " + ip);
-    return;
-  }
-
-  secLog("Dashboard access BLOCKED: IP " + ip);
-
-  document.body.innerHTML = `
-    <div class="denied">
-      <h1>Access Denied</h1>
-      <p>Your IP address <strong>${ip}</strong> is not authorized or outside business hours.</p>
-      <p>If you believe this is an error, please contact a security administrator.</p>
-      <p><a href="security.html">Go to Security Admin Console</a></p>
-    </div>
-  `;
-
-  const style = document.createElement("style");
-  style.textContent = `
-    .denied {
-      margin: 80px auto;
-      max-width: 520px;
-      text-align: center;
-      background: #ffffffee;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      padding: 30px 20px;
-      font-family: Arial, sans-serif;
+  // Ensure audit structure
+  function readAudit() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE.AUDIT) || "[]");
+    } catch {
+      return [];
     }
-    .denied h1 { margin-top: 0; }
-    .denied a { color: #2c82c9; }
-  `;
-  document.head.appendChild(style);
-}
-
-// =====================================
-// GOOGLE AUTHENTICATOR (using otplib)
-// =====================================
-
-// Configure otplib window so slight clock drift is OK
-if (window.otplib && window.otplib.authenticator) {
-  window.otplib.authenticator.options = { window: 1 };
-}
-
-function generateTotpSecret() {
-  return window.otplib.authenticator.generateSecret();
-}
-
-function verifyTOTP(secret, token) {
-  const clean = (token || "").replace(/\D/g, "");
-  if (clean.length !== 6) return false;
-  return window.otplib.authenticator.check(clean, secret);
-}
-
-// =====================================
-// LOGIN HANDLING
-// =====================================
-
-async function handleAdminLogin() {
-  const unameEl = document.getElementById("login-username");
-  const pinEl = document.getElementById("login-pin");
-  const totpEl = document.getElementById("login-totp");
-  const errEl = document.getElementById("login-error");
-  if (!unameEl || !pinEl || !totpEl || !errEl) return;
-
-  errEl.textContent = "";
-
-  const username = (unameEl.value || "").trim();
-  const pin = (pinEl.value || "").trim();
-  const totp = (totpEl.value || "").trim();
-
-  const admins = loadAdmins();
-  const admin = admins.find(a => a.username.toLowerCase() === username.toLowerCase());
-
-  if (!admin || admin.pin !== pin) {
-    errEl.textContent = "Invalid admin ID or PIN.";
-    secLog("Failed admin login for ID: " + username);
-    return;
   }
 
-  if (admin.totpSecret) {
-    if (!verifyTOTP(admin.totpSecret, totp)) {
-      errEl.textContent = "Invalid Google Authenticator code.";
-      secLog("Failed TOTP for admin " + admin.username);
+  function writeAudit(entries) {
+    localStorage.setItem(STORAGE.AUDIT, JSON.stringify(entries));
+  }
+
+  function addAudit(message) {
+    const entries = readAudit();
+    const stamp = new Date().toISOString();
+    const agent = navigator.userAgent || "unknown-agent";
+    entries.unshift(`${stamp} — ${message} — UA: ${agent}`);
+    writeAudit(entries);
+  }
+
+  // Admins helpers
+  function readAdmins() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE.ADMINS) || "[]");
+      if (!Array.isArray(data) || !data.length) throw new Error();
+      return data;
+    } catch {
+      // bootstrap default
+      localStorage.setItem(STORAGE.ADMINS, JSON.stringify([DEFAULT_ADMIN]));
+      return [DEFAULT_ADMIN];
+    }
+  }
+
+  function writeAdmins(admins) {
+    localStorage.setItem(STORAGE.ADMINS, JSON.stringify(admins));
+  }
+
+  function findAdmin(username) {
+    const admins = readAdmins();
+    return admins.find((a) => a.username.toLowerCase() === username.toLowerCase());
+  }
+
+  function updateAdmin(username, updater) {
+    const admins = readAdmins();
+    const idx = admins.findIndex(
+      (a) => a.username.toLowerCase() === username.toLowerCase()
+    );
+    if (idx === -1) return;
+    admins[idx] = updater(admins[idx]);
+    writeAdmins(admins);
+  }
+
+  // Session helpers
+  function setSession(session) {
+    localStorage.setItem(STORAGE.SESSION, JSON.stringify(session));
+    renderSessionIndicator(session);
+  }
+
+  function getSession() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE.SESSION) || "null");
+    } catch {
+      return null;
+    }
+  }
+
+  function clearSession() {
+    localStorage.removeItem(STORAGE.SESSION);
+    renderSessionIndicator(null);
+  }
+
+  function renderSessionIndicator(session) {
+    const el = document.getElementById("sessionIndicator");
+    if (!el) return;
+    if (session && session.authenticated) {
+      el.textContent = `Signed in as ${session.username}`;
+    } else {
+      el.textContent = "";
+    }
+  }
+
+  // Random Base32 secret for Google Authenticator
+  function generateBase32Secret(length = 32) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let out = "";
+    for (let i = 0; i < length; i++) {
+      out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return out;
+  }
+
+  function getOtpLib() {
+    if (!window.otplib || !window.otplib.authenticator) {
+      console.error("otplib not loaded");
+      return null;
+    }
+    const { authenticator } = window.otplib;
+    authenticator.options = {
+      step: 30,
+      digits: 6
+    };
+    return authenticator;
+  }
+
+  // ===== View helpers =====
+
+  function showView(id) {
+    const views = ["loginView", "mfaSetupView", "mfaVerifyView", "adminConsole"];
+    views.forEach((vid) => {
+      const el = document.getElementById(vid);
+      if (!el) return;
+      if (vid === id) {
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
+    });
+  }
+
+  // store current user during login flow
+  let pendingUser = null;
+
+  // ====== LOGIN FLOW ======
+
+  function initLogin() {
+    const loginForm = document.getElementById("loginForm");
+    const loginError = document.getElementById("loginError");
+    const usernameInput = document.getElementById("loginUsername");
+    const pinInput = document.getElementById("loginPin");
+    const overrideBtn = document.getElementById("useOverrideBtn");
+    const mfaBackToLogin = document.getElementById("mfaBackToLogin");
+
+    if (!loginForm) return;
+
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      loginError.textContent = "";
+
+      const username = usernameInput.value.trim();
+      const pin = pinInput.value.trim();
+
+      if (!username || !pin) {
+        loginError.textContent = "Enter both username and PIN.";
+        return;
+      }
+
+      const admin = findAdmin(username);
+      if (!admin || admin.pin !== pin) {
+        loginError.textContent = "Invalid username or PIN.";
+        addAudit(`Failed login attempt for user "${username}"`);
+        return;
+      }
+
+      pendingUser = admin.username;
+
+      if (admin.mfaEnabled && admin.mfaSecret) {
+        // Existing MFA – go straight to verify
+        const verifyUser = document.getElementById("mfaVerifyError");
+        if (verifyUser) verifyUser.textContent = "";
+        document.getElementById("mfaVerifyCode").value = "";
+        showView("mfaVerifyView");
+      } else {
+        // First time – MFA setup
+        startMfaSetup(admin);
+      }
+    });
+
+    overrideBtn.addEventListener("click", () => {
+      const key = window.prompt("Enter override key:");
+      if (!key) return;
+      if (key === OVERRIDE_KEY) {
+        pendingUser = "override-admin";
+        completeLogin(true);
+        addAudit("Access granted via override key");
+      } else {
+        window.alert("Invalid override key.");
+        addAudit("Failed override key attempt");
+      }
+    });
+
+    if (mfaBackToLogin) {
+      mfaBackToLogin.addEventListener("click", () => {
+        showView("loginView");
+        pendingUser = null;
+      });
+    }
+  }
+
+  // ===== MFA SETUP =====
+
+  function startMfaSetup(admin) {
+    const otp = getOtpLib();
+    if (!otp) {
+      window.alert("TOTP library failed to load.");
       return;
     }
-    setCurrentAdmin(admin.username);
-    secLog("Admin " + admin.username + " logged in with MFA.");
-    errEl.textContent = "";
-    showAdminConsole();
-  } else {
-    // No secret yet → MFA enrolment
-    setCurrentAdmin(admin.username);
-    secLog("Admin " + admin.username + " logged in (no MFA yet).");
-    errEl.textContent = "";
-    showMfaSetupForAdmin(admin);
-  }
-}
 
-// MFA enrolment screen
-function showMfaSetupForAdmin(admin) {
-  const loginCard = document.getElementById("login-card");
-  const mfaCard = document.getElementById("mfa-setup-card");
-  const consoleCard = document.getElementById("admin-console");
+    const accountField = document.getElementById("mfaAccount");
+    const secretField = document.getElementById("mfaSecret");
+    const codeField = document.getElementById("mfaSetupCode");
+    const errorEl = document.getElementById("mfaSetupError");
+    const qrContainer = document.getElementById("mfaQr");
 
-  if (loginCard) loginCard.classList.add("sec-card-hidden");
-  if (consoleCard) consoleCard.classList.add("sec-card-hidden");
-  if (mfaCard) mfaCard.classList.remove("sec-card-hidden");
+    const secret = generateBase32Secret();
+    const issuer = "VisionBank Security";
+    const accountLabel = `${admin.username}@VisionBank`;
 
-  const secret = generateTotpSecret();
-  const label = admin.label || ("VisionBank-" + admin.username);
-  const issuer = "VisionBank";
+    const otpauthUrl = otp.keyuri(accountLabel, issuer, secret);
 
-  const otpauth =
-    "otpauth://totp/" +
-    encodeURIComponent(issuer + ":" + label) +
-    "?secret=" +
-    secret +
-    "&issuer=" +
-    encodeURIComponent(issuer);
+    // store pending secret in localStorage so refresh doesn't break
+    localStorage.setItem(
+      STORAGE.MFA_PENDING,
+      JSON.stringify({ username: admin.username, secret })
+    );
 
-  const secretEl = document.getElementById("mfa-secret");
-  const labelEl = document.getElementById("mfa-account-label");
-  const qrEl = document.getElementById("mfa-qr-placeholder");
+    if (accountField) accountField.value = `${issuer} (${admin.username})`;
+    if (secretField) secretField.value = secret;
+    if (codeField) codeField.value = "";
+    if (errorEl) errorEl.textContent = "";
 
-  if (secretEl) secretEl.textContent = secret;
-  if (labelEl) labelEl.textContent = label;
+    if (qrContainer) {
+      qrContainer.innerHTML = "";
+      if (window.QRCode) {
+        new QRCode(qrContainer, {
+          text: otpauthUrl,
+          width: 220,
+          height: 220
+        });
+      } else {
+        qrContainer.textContent = "QR library failed to load.";
+      }
+    }
 
-  if (qrEl) {
-    const qrUrl =
-      "https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=" +
-      encodeURIComponent(otpauth);
-    qrEl.innerHTML =
-      '<img src="' +
-      qrUrl +
-      '" alt="Scan in Google Authenticator" style="max-width:100%;border-radius:10px;" />';
+    showView("mfaSetupView");
   }
 
-  sessionStorage.setItem(
-    "vb-pending-mfa",
-    JSON.stringify({ username: admin.username, secret: secret })
-  );
-}
+  function initMfaSetupForm() {
+    const form = document.getElementById("mfaSetupForm");
+    const codeField = document.getElementById("mfaSetupCode");
+    const errorEl = document.getElementById("mfaSetupError");
 
-function confirmMfaSetup() {
-  const codeEl = document.getElementById("mfa-code");
-  const errEl = document.getElementById("mfa-error");
-  if (!codeEl || !errEl) return;
+    if (!form) return;
 
-  errEl.textContent = "";
-
-  const payloadRaw = sessionStorage.getItem("vb-pending-mfa");
-  if (!payloadRaw) {
-    errEl.textContent = "No MFA setup is pending.";
-    return;
-  }
-
-  const payload = JSON.parse(payloadRaw);
-  const secret = payload.secret;
-  const username = payload.username;
-  const token = (codeEl.value || "").trim();
-
-  if (!verifyTOTP(secret, token)) {
-    errEl.textContent = "Invalid code. Make sure you scanned the correct QR or secret.";
-    return;
-  }
-
-  const admins = loadAdmins();
-  const admin = admins.find(a => a.username.toLowerCase() === username.toLowerCase());
-  if (!admin) {
-    errEl.textContent = "Admin record not found.";
-    return;
-  }
-
-  admin.totpSecret = secret;
-  saveAdmins(admins);
-  sessionStorage.removeItem("vb-pending-mfa");
-
-  secLog("MFA successfully enabled for admin " + admin.username);
-  errEl.textContent = "";
-  showAdminConsole();
-}
-
-// Show admin console
-function showAdminConsole() {
-  const loginCard = document.getElementById("login-card");
-  const mfaCard = document.getElementById("mfa-setup-card");
-  const consoleCard = document.getElementById("admin-console");
-  const nameEl = document.getElementById("current-admin");
-
-  if (loginCard) loginCard.classList.add("sec-card-hidden");
-  if (mfaCard) mfaCard.classList.add("sec-card-hidden");
-  if (consoleCard) consoleCard.classList.remove("sec-card-hidden");
-
-  const admin = getCurrentAdmin();
-  if (nameEl && admin) nameEl.textContent = admin.username;
-
-  if (typeof initSecurityDashboard === "function") {
-    initSecurityDashboard();
-  }
-}
-
-// Logout
-function handleLogout() {
-  setCurrentAdmin(null);
-  secLog("Admin logged out.");
-  window.location.reload();
-}
-
-// Populate audit box
-function populateAuditBox() {
-  const box = document.getElementById("audit-log");
-  if (!box) return;
-  const log = JSON.parse(localStorage.getItem(SEC_KEYS.AUDIT_LOG) || "[]");
-  box.textContent = log.join("\n");
-}
-
-// =====================================
-// INIT
-// =====================================
-
-document.addEventListener("DOMContentLoaded", () => {
-  // Apply IP + business-hours check on non-security pages
-  enforceDashboardFrontDoor();
-
-  const loc = window.location.pathname.toLowerCase();
-  if (!loc.includes("security.html")) return;
-
-  const btnLogin = document.getElementById("btn-login");
-  const btnMfaConfirm = document.getElementById("btn-mfa-confirm");
-  const btnLogout = document.getElementById("btn-logout");
-
-  if (btnLogin) {
-    btnLogin.addEventListener("click", (e) => {
+    form.addEventListener("submit", (e) => {
       e.preventDefault();
-      handleAdminLogin();
+      if (!pendingUser) {
+        errorEl.textContent = "Session expired. Return to login.";
+        return;
+      }
+
+      const otp = getOtpLib();
+      if (!otp) {
+        errorEl.textContent = "TOTP library failed to load.";
+        return;
+      }
+
+      const stored = localStorage.getItem(STORAGE.MFA_PENDING);
+      if (!stored) {
+        errorEl.textContent = "No pending MFA setup. Start again from login.";
+        return;
+      }
+
+      let info;
+      try {
+        info = JSON.parse(stored);
+      } catch {
+        errorEl.textContent = "Setup data invalid. Start again.";
+        return;
+      }
+
+      if (!info || info.username.toLowerCase() !== pendingUser.toLowerCase()) {
+        errorEl.textContent = "Setup data invalid. Start again.";
+        return;
+      }
+
+      const code = (codeField.value || "").trim();
+      if (!/^\d{6}$/.test(code)) {
+        errorEl.textContent = "Enter a valid 6-digit code.";
+        return;
+      }
+
+      const isValid = otp.check(code, info.secret);
+      if (!isValid) {
+        errorEl.textContent =
+          "Invalid code. Make sure you scanned the correct QR or secret.";
+        addAudit(`MFA setup failed for user "${pendingUser}"`);
+        return;
+      }
+
+      // save secret to admin profile
+      updateAdmin(pendingUser, (admin) => ({
+        ...admin,
+        mfaSecret: info.secret,
+        mfaEnabled: true
+      }));
+
+      localStorage.removeItem(STORAGE.MFA_PENDING);
+
+      addAudit(`MFA enabled for user "${pendingUser}"`);
+      completeLogin(false);
     });
   }
 
-  if (btnMfaConfirm) {
-    btnMfaConfirm.addEventListener("click", (e) => {
+  // ===== MFA VERIFY (existing users) =====
+
+  function initMfaVerifyForm() {
+    const form = document.getElementById("mfaVerifyForm");
+    const codeField = document.getElementById("mfaVerifyCode");
+    const errorEl = document.getElementById("mfaVerifyError");
+
+    if (!form) return;
+
+    form.addEventListener("submit", (e) => {
       e.preventDefault();
-      confirmMfaSetup();
+      if (!pendingUser) {
+        errorEl.textContent = "Session expired. Return to login.";
+        return;
+      }
+
+      const admin = findAdmin(pendingUser);
+      if (!admin || !admin.mfaEnabled || !admin.mfaSecret) {
+        errorEl.textContent =
+          "This account is not configured for MFA. Please login again.";
+        return;
+      }
+
+      const otp = getOtpLib();
+      if (!otp) {
+        errorEl.textContent = "TOTP library failed to load.";
+        return;
+      }
+
+      const code = (codeField.value || "").trim();
+      if (!/^\d{6}$/.test(code)) {
+        errorEl.textContent = "Enter a valid 6-digit code.";
+        return;
+      }
+
+      const isValid = otp.check(code, admin.mfaSecret);
+      if (!isValid) {
+        errorEl.textContent = "Invalid code. Please try again.";
+        addAudit(`MFA verify failed for user "${pendingUser}"`);
+        return;
+      }
+
+      addAudit(`MFA verified for user "${pendingUser}"`);
+      completeLogin(false);
     });
   }
 
-  if (btnLogout) {
-    btnLogout.addEventListener("click", (e) => {
-      e.preventDefault();
-      handleLogout();
+  // ===== COMPLETE LOGIN =====
+
+  function completeLogin(fromOverride) {
+    const username = pendingUser || "unknown";
+
+    const session = {
+      authenticated: true,
+      username,
+      override: !!fromOverride,
+      ts: Date.now()
+    };
+
+    setSession(session);
+    pendingUser = null;
+
+    addAudit(
+      `Admin login successful for "${username}"${
+        fromOverride ? " (override)" : ""
+      }`
+    );
+
+    showView("adminConsole");
+
+    if (window.initSecurityDashboard) {
+      window.initSecurityDashboard(session);
+    }
+  }
+
+  // ===== LOGOUT BUTTON =====
+
+  function initLogout() {
+    const btn = document.getElementById("logoutBtn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const session = getSession();
+      if (session?.username) {
+        addAudit(`Admin "${session.username}" logged out`);
+      }
+      clearSession();
+      pendingUser = null;
+      showView("loginView");
     });
   }
 
-  // Already logged in?
-  const admin = getCurrentAdmin();
-  if (admin) {
-    showAdminConsole();
-  } else {
-    const loginCard = document.getElementById("login-card");
-    const mfaCard = document.getElementById("mfa-setup-card");
-    const consoleCard = document.getElementById("admin-console");
-    if (loginCard) loginCard.classList.remove("sec-card-hidden");
-    if (mfaCard) mfaCard.classList.add("sec-card-hidden");
-    if (consoleCard) consoleCard.classList.add("sec-card-hidden");
+  // ===== RESTORE EXISTING SESSION ON LOAD =====
+
+  function restoreSessionIfAny() {
+    const session = getSession();
+    if (session && session.authenticated) {
+      pendingUser = session.username;
+      renderSessionIndicator(session);
+      showView("adminConsole");
+      if (window.initSecurityDashboard) {
+        window.initSecurityDashboard(session);
+      }
+    } else {
+      clearSession();
+      showView("loginView");
+    }
   }
 
-  populateAuditBox();
-});
+  // ===== INIT =====
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // bootstrap default admin store if missing
+    readAdmins();
+
+    initLogin();
+    initMfaSetupForm();
+    initMfaVerifyForm();
+    initLogout();
+    restoreSessionIfAny();
+  });
+
+  // Expose small API for dashboard
+  window.VB_SECURITY = {
+    getSession,
+    addAudit,
+    readAudit,
+    updateAdmin
+  };
+})();

@@ -1,321 +1,391 @@
-/* ============== BASE LAYOUT ============== */
-* {
+/* ============ RESET / BASE ============ */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  color: #121826;
+  background: #f3f6fb;
+}
+
 body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f4f5f7;
-  color: #222;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
-.sec-main {
+/* ============ HEADER ============ */
+
+.vb-header {
+  background: #ffffff;
+  border-bottom: 1px solid #d9e2f2;
+}
+
+.vb-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.vb-logo {
+  height: 48px;
+}
+
+.vb-header-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vb-app {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.vb-subapp {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.vb-session {
+  margin-left: auto;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ============ MAIN LAYOUT ============ */
+
+.vb-main {
   flex: 1 0 auto;
-  padding: 20px 15px 40px 15px;
-}
-
-/* ============== HEADER ============== */
-.sec-header {
-  background: #ffffff;
-  border-bottom: 1px solid #ddd;
-  padding: 10px 20px;
   display: flex;
-  align-items: center;
-  position: relative;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px 40px;
 }
 
-.sec-header-left {
-  position: absolute;
-  left: 20px;
-}
-
-.sec-logo {
-  height: 40px;
-  width: auto;
-}
-
-.sec-header-center {
-  width: 100%;
-  text-align: center;
-}
-
-.sec-header-center h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: bold;
-}
-
-.sec-subtitle {
-  font-size: 14px;
-  color: #666;
-}
-
-/* ============== CARDS ============== */
-.sec-card {
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
+  padding: 24px 24px 28px;
   max-width: 1100px;
-  margin: 15px auto;
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  padding: 20px 18px 22px 18px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  width: 100%;
 }
 
-.sec-card-hidden {
-  display: none;
+/* smaller cards (login / MFA) */
+.card-auth {
+  max-width: 460px;
 }
 
-.sec-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.card-title {
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 600;
 }
 
-.sec-card-header h2 {
-  margin: 0;
+.card-intro {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #4b5563;
 }
 
-/* ============== TYPOGRAPHY ============== */
-h2 {
-  margin-top: 0;
-  margin-bottom: 10px;
-}
+/* ============ FORMS ============ */
 
-h3 {
-  margin-top: 18px;
-  margin-bottom: 8px;
-}
-
-.sec-desc {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 13px;
-  color: #555;
-}
-
-.sec-small-note {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #777;
-}
-
-.sec-error {
-  color: #c0392b;
-  font-size: 13px;
-  margin: 6px 0 0 0;
-}
-
-.sec-status {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #2c3e50;
-}
-
-/* ============== FORMS ============== */
-.form-row {
-  margin-bottom: 12px;
+.form-vertical {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
-label {
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 13px;
-  margin-bottom: 4px;
-  color: #333;
 }
 
-input[type="text"],
-input[type="password"],
-input[type="time"],
+.field span {
+  color: #4b5563;
+}
+
+.field input,
 textarea {
-  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 8px 10px;
   font-size: 14px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
   outline: none;
 }
 
-input:focus,
+.field input:focus,
 textarea:focus {
-  border-color: #3498db;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb33;
 }
 
-textarea {
-  resize: vertical;
-  font-family: Consolas, "Courier New", monospace;
-}
+/* buttons */
 
-.form-actions {
-  margin-top: 10px;
-}
-
-.form-actions button {
-  padding: 8px 14px;
+.btn {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 8px 18px;
   font-size: 14px;
-  border-radius: 4px;
-  border: none;
-  background: #2c82c9;
-  color: #fff;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+    transform 0.06s ease;
 }
 
-.form-actions button:hover {
-  background: #256aa5;
+.btn:active {
+  transform: translateY(1px);
 }
 
-.hint {
-  font-size: 11px;
-  color: #777;
+.btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+  width: 100%;
+  margin-top: 8px;
 }
 
-.sec-link-btn {
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #111827;
+  color: #f9fafb;
+  margin-top: 8px;
+}
+
+.btn-secondary:hover {
+  background: #020617;
+}
+
+.btn-outline {
+  background: transparent;
+  color: #111827;
+  border-color: #9ca3af;
+}
+
+.btn-outline:hover {
+  border-color: #111827;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #4b5563;
+  border-color: transparent;
+}
+
+.btn-ghost:hover {
+  background: #e5e7eb;
+}
+
+.link-button {
   background: none;
   border: none;
-  padding: 0;
-  margin-left: 6px;
-  color: #2c82c9;
+  padding: 6px 0 0;
   font-size: 13px;
+  color: #2563eb;
   cursor: pointer;
-}
-
-.sec-link-btn:hover {
   text-decoration: underline;
 }
 
-/* ============== MFA SETUP ============== */
-.mfa-grid {
+/* status / error text */
+
+.error-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.status-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #059669;
+}
+
+/* hidden helper */
+
+.hidden {
+  display: none !important;
+}
+
+/* ============ MFA LAYOUT ============ */
+
+.mfa-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 10px;
 }
 
 .mfa-qr-wrapper {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
 }
 
-.mfa-qr {
+.mfa-qr-placeholder {
   width: 220px;
   height: 220px;
-  border-radius: 12px;
-  border: 1px dashed #bbb;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
   display: flex;
-  justify-content: center;
   align-items: center;
-  padding: 8px;
-  text-align: center;
-  font-size: 12px;
-  color: #555;
+  justify-content: center;
+  background: #f9fafb;
 }
 
-.readonly-pill {
-  padding: 6px 10px;
-  border-radius: 20px;
-  background: #f2f4f8;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 12px;
-  display: inline-block;
-  word-break: break-all;
+.mfa-qr-caption {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #4b5563;
 }
 
-/* ============== HOURS + DAYS ============== */
-.hours-grid {
+/* ============ CONSOLE LAYOUT ============ */
+
+.card-console {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.console-header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.console-header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.console-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 220px));
-  gap: 15px;
-  margin-bottom: 8px;
+  grid-template-columns: 2fr 2fr 2fr;
+  gap: 20px;
 }
+
+.console-section h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.console-section h3 {
+  margin: 16px 0 4px;
+  font-size: 14px;
+}
+
+.section-help {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* days row */
 
 .days-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.days-row label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* textarea + mono font */
+
+textarea {
+  resize: vertical;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* console footer */
+
+.console-footer {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 8px;
 }
 
-.days-checkboxes {
+/* footer */
+
+.vb-footer {
+  border-top: 1px solid #d9e2f2;
+  background: #f9fafb;
+}
+
+.vb-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 8px 16px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
-  font-size: 13px;
-}
-
-.days-checkboxes label {
-  cursor: pointer;
-}
-
-/* ============== SECTIONS ============== */
-.sec-section {
-  margin-top: 18px;
-  padding-top: 12px;
-  border-top: 1px dashed #ddd;
-}
-
-/* ============== AUDIT BOX ============== */
-.audit-box {
-  margin-top: 6px;
-  max-height: 200px;
-  overflow-y: auto;
-  font-size: 11px;
-  background: #f7f9fb;
-  border-radius: 6px;
-  border: 1px solid #dde3ea;
-  padding: 8px 10px;
-}
-
-/* ============== ADMIN INFO ============== */
-.admin-info {
-  font-size: 13px;
-  color: #555;
-}
-
-/* ============== FOOTER ============== */
-.sec-footer {
-  flex-shrink: 0;
-  padding: 8px 15px;
-  border-top: 1px solid #ddd;
-  background: #ffffff;
-  display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
 }
 
-.sec-footer-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+.footer-logo {
+  height: 24px;
+  margin-right: 6px;
 }
 
-.sec-footer-logo {
-  height: 26px;
-  width: auto;
-}
+/* responsive */
 
-/* ============== RESPONSIVE ============== */
-@media (max-width: 900px) {
-  .mfa-grid {
+@media (max-width: 980px) {
+  .console-grid {
     grid-template-columns: 1fr;
   }
 
-  .sec-header-left {
-    position: static;
-    margin-right: 8px;
-  }
-
-  .sec-header {
-    justify-content: flex-start;
-    gap: 10px;
-  }
-
-  .sec-header-center {
-    text-align: left;
-  }
-
-  .hours-grid {
+  .mfa-layout {
     grid-template-columns: 1fr;
+  }
+
+  .vb-main {
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .vb-header-inner,
+  .vb-footer-inner {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }

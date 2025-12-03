@@ -24,12 +24,12 @@ function secLog(message) {
 function loadAdmins() {
   const raw = localStorage.getItem(SEC_KEYS.ADMINS);
   if (!raw) {
-    // Seed default superadmin (no MFA yet)
+    // Seed default superadmin
     const seed = [
       {
         username: "superadmin",
         pin: "ChangeMeNow!",
-        totpSecret: null, // base32 string when set
+        totpSecret: null,
         label: "VisionBank Security (superadmin)",
         isSuper: true
       }
@@ -49,7 +49,6 @@ function saveAdmins(admins) {
   localStorage.setItem(SEC_KEYS.ADMINS, JSON.stringify(admins));
 }
 
-// Get currently logged in admin object
 function getCurrentAdmin() {
   const id = localStorage.getItem(SEC_KEYS.CURRENT_ADMIN);
   if (!id) return null;
@@ -65,11 +64,10 @@ function setCurrentAdmin(username) {
   }
 }
 
-// ---------- IP & Business Hours helpers ----------
+// ---------- Business hours & IP helpers ----------
 function loadBusinessHours() {
   const raw = localStorage.getItem(SEC_KEYS.BUSINESS_HOURS);
   if (!raw) {
-    // Default: 7AM–7PM CST, Mon–Sat
     const def = {
       start: "07:00",
       end: "19:00",
@@ -105,7 +103,6 @@ function saveAllowedIPs(list) {
   secLog("Allowed IP list updated.");
 }
 
-// CIDR matching
 function ipToInt(ip) {
   return ip.split(".").reduce((acc, part) => (acc << 8) + (parseInt(part, 10) || 0), 0);
 }
@@ -113,9 +110,8 @@ function ipToInt(ip) {
 function ipMatches(ip, cidr) {
   if (!cidr) return false;
   if (!cidr.includes("/")) return ip === cidr;
-  const parts = cidr.split("/");
-  const range = parts[0];
-  const bits = parseInt(parts[1], 10);
+  const [range, bitsStr] = cidr.split("/");
+  const bits = parseInt(bitsStr, 10);
   if (isNaN(bits)) return false;
   const mask = ~(2 ** (32 - bits) - 1) >>> 0;
   return (ipToInt(ip) & mask) === (ipToInt(range) & mask);
@@ -126,7 +122,6 @@ function isBusinessOpenNow() {
   if (!hours.start || !hours.end || !Array.isArray(hours.days)) return true;
 
   const now = new Date();
-  // convert to CST
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Chicago",
     hour: "2-digit",
@@ -152,7 +147,7 @@ async function getPublicIP() {
   }
 }
 
-// Run on dashboard pages only (NOT on security console)
+// Enforce on non-security pages
 async function enforceDashboardFrontDoor() {
   const loc = window.location.pathname.toLowerCase();
   if (loc.includes("security.html")) return;
@@ -160,7 +155,6 @@ async function enforceDashboardFrontDoor() {
   const allowed = loadAllowedIPs();
   const hoursOk = isBusinessOpenNow();
 
-  // If no IP rules defined, only enforce business hours
   let ipOk = true;
   const ip = await getPublicIP();
   if (allowed.length > 0) {
@@ -195,98 +189,33 @@ async function enforceDashboardFrontDoor() {
       padding: 30px 20px;
       font-family: Arial, sans-serif;
     }
-    .denied h1 {
-      margin-top: 0;
-    }
-    .denied a {
-      color: #2c82c9;
-    }
+    .denied h1 { margin-top: 0; }
+    .denied a { color: #2c82c9; }
   `;
   document.head.appendChild(style);
 }
 
 // =====================================
-// GOOGLE AUTHENTICATOR (TOTP) SUPPORT
+// GOOGLE AUTHENTICATOR (using otplib)
 // =====================================
 
-// Basic Base32 decoding (RFC4648, no padding needed)
-function base32ToBytes(base32) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const clean = base32.toUpperCase().replace(/=+$/g, "").replace(/[^A-Z2-7]/g, "");
-  let bits = "";
-  for (let i = 0; i < clean.length; i++) {
-    const val = alphabet.indexOf(clean[i]);
-    if (val === -1) continue;
-    bits += val.toString(2).padStart(5, "0");
-  }
-  const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(parseInt(bits.substring(i, i + 8), 2));
-  }
-  return new Uint8Array(bytes);
+// Configure otplib window so slight clock drift is OK
+if (window.otplib && window.otplib.authenticator) {
+  window.otplib.authenticator.options = { window: 1 };
 }
 
-// Generate random base32 secret (20 bytes ≈ 32 chars)
-function generateBase32Secret(length = 32) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const arr = new Uint8Array(length);
-  if (window.crypto && crypto.getRandomValues) {
-    crypto.getRandomValues(arr);
-  } else {
-    for (let i = 0; i < length; i++) arr[i] = Math.floor(Math.random() * 256);
-  }
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += alphabet[arr[i] % alphabet.length];
-  }
-  return out;
+function generateTotpSecret() {
+  return window.otplib.authenticator.generateSecret();
 }
 
-// HMAC-SHA1 using Web Crypto
-async function hotp(secretBase32, counter) {
-  const keyBytes = base32ToBytes(secretBase32);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyBytes,
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"]
-  );
-
-  const msg = new ArrayBuffer(8);
-  const view = new DataView(msg);
-  // high 4 bytes = 0, low 4 bytes = counter
-  view.setUint32(4, counter, false);
-
-  const sig = await crypto.subtle.sign("HMAC", key, msg);
-  const bytes = new Uint8Array(sig);
-  const offset = bytes[bytes.length - 1] & 0x0f;
-  const binCode =
-    ((bytes[offset] & 0x7f) << 24) |
-    ((bytes[offset + 1] & 0xff) << 16) |
-    ((bytes[offset + 2] & 0xff) << 8) |
-    (bytes[offset + 3] & 0xff);
-
-  return binCode % 1000000;
-}
-
-async function verifyTOTP(secretBase32, token) {
-  const code = (token || "").replace(/\D/g, "");
-  if (code.length !== 6) return false;
-
-  const timeStep = Math.floor(Date.now() / 1000 / 30);
-  for (let offset = -1; offset <= 1; offset++) {
-    const counter = timeStep + offset;
-    if (counter < 0) continue;
-    const val = await hotp(secretBase32, counter);
-    const six = String(val).padStart(6, "0");
-    if (six === code) return true;
-  }
-  return false;
+function verifyTOTP(secret, token) {
+  const clean = (token || "").replace(/\D/g, "");
+  if (clean.length !== 6) return false;
+  return window.otplib.authenticator.check(clean, secret);
 }
 
 // =====================================
-// LOGIN HANDLING (used on security.html)
+// LOGIN HANDLING
 // =====================================
 
 async function handleAdminLogin() {
@@ -294,7 +223,6 @@ async function handleAdminLogin() {
   const pinEl = document.getElementById("login-pin");
   const totpEl = document.getElementById("login-totp");
   const errEl = document.getElementById("login-error");
-
   if (!unameEl || !pinEl || !totpEl || !errEl) return;
 
   errEl.textContent = "";
@@ -312,30 +240,18 @@ async function handleAdminLogin() {
     return;
   }
 
-  // If admin has a TOTP secret, require code verification
   if (admin.totpSecret) {
-    errEl.textContent = "Verifying Google Authenticator code…";
-
-    try {
-      const ok = await verifyTOTP(admin.totpSecret, totp);
-      if (!ok) {
-        errEl.textContent = "Invalid Google Authenticator code.";
-        secLog("Failed TOTP for admin " + admin.username);
-        return;
-      }
-    } catch (e) {
-      console.error("TOTP error:", e);
-      errEl.textContent = "Unable to verify TOTP.";
+    if (!verifyTOTP(admin.totpSecret, totp)) {
+      errEl.textContent = "Invalid Google Authenticator code.";
+      secLog("Failed TOTP for admin " + admin.username);
       return;
     }
-
-    // success
     setCurrentAdmin(admin.username);
     secLog("Admin " + admin.username + " logged in with MFA.");
     errEl.textContent = "";
     showAdminConsole();
   } else {
-    // No TOTP yet: log in and show MFA setup first
+    // No secret yet → MFA enrolment
     setCurrentAdmin(admin.username);
     secLog("Admin " + admin.username + " logged in (no MFA yet).");
     errEl.textContent = "";
@@ -343,7 +259,7 @@ async function handleAdminLogin() {
   }
 }
 
-// Show MFA setup card for an admin who has no secret yet
+// MFA enrolment screen
 function showMfaSetupForAdmin(admin) {
   const loginCard = document.getElementById("login-card");
   const mfaCard = document.getElementById("mfa-setup-card");
@@ -353,7 +269,7 @@ function showMfaSetupForAdmin(admin) {
   if (consoleCard) consoleCard.classList.add("sec-card-hidden");
   if (mfaCard) mfaCard.classList.remove("sec-card-hidden");
 
-  const secret = generateBase32Secret();
+  const secret = generateTotpSecret();
   const label = admin.label || ("VisionBank-" + admin.username);
   const issuer = "VisionBank";
 
@@ -363,8 +279,7 @@ function showMfaSetupForAdmin(admin) {
     "?secret=" +
     secret +
     "&issuer=" +
-    encodeURIComponent(issuer) +
-    "&algorithm=SHA1&digits=6&period=30";
+    encodeURIComponent(issuer);
 
   const secretEl = document.getElementById("mfa-secret");
   const labelEl = document.getElementById("mfa-account-label");
@@ -383,15 +298,13 @@ function showMfaSetupForAdmin(admin) {
       '" alt="Scan in Google Authenticator" style="max-width:100%;border-radius:10px;" />';
   }
 
-  // Temporarily store pending secret in sessionStorage until confirmed
   sessionStorage.setItem(
     "vb-pending-mfa",
     JSON.stringify({ username: admin.username, secret: secret })
   );
 }
 
-// Called when admin enters TOTP during enrollment
-async function confirmMfaSetup() {
+function confirmMfaSetup() {
   const codeEl = document.getElementById("mfa-code");
   const errEl = document.getElementById("mfa-error");
   if (!codeEl || !errEl) return;
@@ -409,19 +322,11 @@ async function confirmMfaSetup() {
   const username = payload.username;
   const token = (codeEl.value || "").trim();
 
-  try {
-    const ok = await verifyTOTP(secret, token);
-    if (!ok) {
-      errEl.textContent = "Invalid code. Make sure you scanned the correct QR or secret.";
-      return;
-    }
-  } catch (e) {
-    console.error("TOTP verify error:", e);
-    errEl.textContent = "Error verifying code.";
+  if (!verifyTOTP(secret, token)) {
+    errEl.textContent = "Invalid code. Make sure you scanned the correct QR or secret.";
     return;
   }
 
-  // Persist secret to admin record
   const admins = loadAdmins();
   const admin = admins.find(a => a.username.toLowerCase() === username.toLowerCase());
   if (!admin) {
@@ -434,13 +339,11 @@ async function confirmMfaSetup() {
   sessionStorage.removeItem("vb-pending-mfa");
 
   secLog("MFA successfully enabled for admin " + admin.username);
-
   errEl.textContent = "";
-  // Show main console now
   showAdminConsole();
 }
 
-// Display admin console after login
+// Show admin console
 function showAdminConsole() {
   const loginCard = document.getElementById("login-card");
   const mfaCard = document.getElementById("mfa-setup-card");
@@ -452,11 +355,8 @@ function showAdminConsole() {
   if (consoleCard) consoleCard.classList.remove("sec-card-hidden");
 
   const admin = getCurrentAdmin();
-  if (nameEl && admin) {
-    nameEl.textContent = admin.username;
-  }
+  if (nameEl && admin) nameEl.textContent = admin.username;
 
-  // fire dashboard init
   if (typeof initSecurityDashboard === "function") {
     initSecurityDashboard();
   }
@@ -466,11 +366,10 @@ function showAdminConsole() {
 function handleLogout() {
   setCurrentAdmin(null);
   secLog("Admin logged out.");
-  // Simple reload resets everything
   window.location.reload();
 }
 
-// Populate audit box in console
+// Populate audit box
 function populateAuditBox() {
   const box = document.getElementById("audit-log");
   if (!box) return;
@@ -479,17 +378,16 @@ function populateAuditBox() {
 }
 
 // =====================================
-// INIT ON LOAD
+// INIT
 // =====================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1) Enforce IP + hours on non-security pages
+  // Apply IP + business-hours check on non-security pages
   enforceDashboardFrontDoor();
 
   const loc = window.location.pathname.toLowerCase();
   if (!loc.includes("security.html")) return;
 
-  // 2) Security console page behaviour
   const btnLogin = document.getElementById("btn-login");
   const btnMfaConfirm = document.getElementById("btn-mfa-confirm");
   const btnLogout = document.getElementById("btn-logout");
@@ -515,12 +413,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // If already logged in, skip straight to console
+  // Already logged in?
   const admin = getCurrentAdmin();
   if (admin) {
     showAdminConsole();
   } else {
-    // default: show login card
     const loginCard = document.getElementById("login-card");
     const mfaCard = document.getElementById("mfa-setup-card");
     const consoleCard = document.getElementById("admin-console");

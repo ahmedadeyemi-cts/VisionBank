@@ -33,11 +33,9 @@ function formatTime(sec) {
   sec = Number(sec) || 0;
   const sign = sec < 0 ? "-" : "";
   sec = Math.abs(sec);
-
   const hours = Math.floor(sec / 3600);
   const minutes = Math.floor((sec % 3600) / 60);
   const seconds = Math.floor(sec % 60);
-
   return (
     sign +
     String(hours).padStart(2, "0") + ":" +
@@ -61,7 +59,6 @@ function setText(id, value) {
 
 // ===============================
 // SECURITY GATE
-// (Only executed AFTER index.html’s pre-check approves)
 // ===============================
 async function checkSecurityAccess() {
   // If index.html already evaluated security, reuse it
@@ -87,6 +84,19 @@ async function checkSecurityAccess() {
     return false;
   }
 }
+
+// Footer banner (runs once VB_SECURITY exists)
+(function showSecurityBanner() {
+  window.addEventListener("load", () => {
+    const el = document.getElementById("securityStatus");
+    if (!el || !window.VB_SECURITY || !window.VB_SECURITY.info) return;
+
+    const ip = window.VB_SECURITY.info.ip || window.VB_SECURITY.info.clientIp || "Unknown";
+    const timestamp = window.VB_SECURITY.info.now || "Unknown time";
+    el.textContent =
+      "Access approved from IP " + ip + " at " + timestamp + " (CST)";
+  });
+})();
 
 // ===============================
 // DARK MODE
@@ -127,7 +137,7 @@ let alertSettings = {
   enablePopupAlerts: true,
   tone: "soft",
   volume: 0.8,
-  cooldownSeconds: 30,
+  cooldownSeconds: 30, // 30s: gives you chime every 30s when >1 call
   wallboardMode: false,
   queueTones: {}
 };
@@ -453,10 +463,8 @@ function initAlertSettingsUI() {
 
   if (testButtonEl) {
     testButtonEl.addEventListener("click", () => {
-      const tone = alertSettings.tone || "soft";
       const calls = lastQueueSnapshot.totalCalls || 0;
       const agents = lastQueueSnapshot.totalAgents || 0;
-
       triggerQueueAlert({
         totalCalls: calls,
         totalAgents: agents,
@@ -466,10 +474,8 @@ function initAlertSettingsUI() {
     });
   }
 
-  // ===============================
-  // FIXED TOGGLES
-  // ===============================
-  if (alertSettingsToggle && alertSettingsPanel && alertHistoryPanel) {
+  // Fixed toggles with click-outside close
+  if (alertSettingsToggle && alertSettingsPanel) {
     alertSettingsToggle.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -477,25 +483,45 @@ function initAlertSettingsUI() {
       const isOpen = !alertSettingsPanel.classList.contains("hidden");
 
       alertSettingsPanel.classList.add("hidden");
-      alertHistoryPanel.classList.add("hidden");
+      alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertSettingsPanel.classList.remove("hidden");
     };
   }
 
-  if (alertHistoryToggle && alertSettingsPanel && alertHistoryPanel) {
+  if (alertHistoryToggle && alertHistoryPanel) {
     alertHistoryToggle.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
 
       const isOpen = !alertHistoryPanel.classList.contains("hidden");
 
-      alertSettingsPanel.classList.add("hidden");
+      alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
       alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertHistoryPanel.classList.remove("hidden");
     };
   }
+
+  // Click outside to close both panels
+  document.addEventListener("click", (e) => {
+    if (!alertSettingsPanel && !alertHistoryPanel) return;
+
+    const target = e.target;
+    const inSettings =
+      alertSettingsPanel && alertSettingsPanel.contains(target);
+    const inHistory =
+      alertHistoryPanel && alertHistoryPanel.contains(target);
+    const onSettingsToggle =
+      alertSettingsToggle && alertSettingsToggle.contains(target);
+    const onHistoryToggle =
+      alertHistoryToggle && alertHistoryToggle.contains(target);
+
+    if (inSettings || inHistory || onSettingsToggle || onHistoryToggle) return;
+
+    alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
+    alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
+  });
 }
 
 // ===============================
@@ -551,10 +577,14 @@ function updateQueueToneOverrides(queues) {
 // ===============================
 // QUEUE ALERT LOGIC
 // ===============================
+//
+// Requirement:
+// - When totalCalls == 1 -> flashing panel only (no chime)
+// - When totalCalls >= 2 -> flashing + audio alerts every cooldownSeconds
+//
 function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
-  // Only trigger when queue alerts are enabled and calls > 1 (2+ calls)
   if (!isTest && !alertSettings.enableQueueAlerts) return;
-  if (!isTest && totalCalls <= 1) return;
+  if (!isTest && totalCalls <= 1) return; // 1 call => no chime
 
   const now = Date.now();
   const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
@@ -587,7 +617,7 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
 }
 
 // ===============================
-// QUEUE STATUS
+// QUEUE STATUS (MULTI-QUEUE)
 // ===============================
 async function loadQueueStatus() {
   const body = document.getElementById("queue-body");
@@ -645,10 +675,12 @@ async function loadQueueStatus() {
 
     lastQueueSnapshot = { totalCalls, totalAgents };
 
-    // Flashing panel if any queue has calls > 0
-    if (panel) panel.classList.toggle("queue-alert-active", anyHot);
+    // Flash panel whenever any queue has calls (>=1)
+    if (panel) {
+      panel.classList.toggle("queue-alert-active", anyHot);
+    }
 
-    // Chime only when totalCalls > 1 (2+), matching your requirement
+    // Audio + popup only when > 1 call in total
     if (anyHot && totalCalls > 1) {
       triggerQueueAlert({
         totalCalls,
@@ -687,11 +719,20 @@ async function loadGlobalStats() {
     setText("gs-total-abandoned", g.TotalCallsAbandoned);
     setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
 
-    setText("gs-service-level", g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--");
+    setText(
+      "gs-service-level",
+      g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--"
+    );
     setText("gs-total-received", g.TotalCallsReceived);
 
-    setText("gs-answer-rate", g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--");
-    setText("gs-abandon-rate", g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--");
+    setText(
+      "gs-answer-rate",
+      g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--"
+    );
+    setText(
+      "gs-abandon-rate",
+      g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--"
+    );
 
     setText("gs-callbacks-registered", g.CallbacksRegistered);
     setText("gs-callbacks-waiting", g.CallbacksWaiting);
@@ -702,41 +743,68 @@ async function loadGlobalStats() {
 }
 
 // ===============================
-// AGENT STATUS
+// AVAILABILITY COLOR MAPPING
 // ===============================
-// Availability mapping:
-// GREEN: Available
-// RED: On Call, Dial Out, On Break
-// ORANGE: Wrap, Lunch, Accept Internal, Busy, Not Set
-// YELLOW: any other status
-// GRAY: Idle, Unknown
+//
+// GREEN
+//   Available
+//
+// RED
+//   On Call
+//   Dial Out
+//   On Break
+//
+// ORANGE
+//   Wrap
+//   Lunch
+//   Accept Internal
+//   Busy
+//   Not Set
+//
+// YELLOW
+//   Any unrecognized status
+//
+// GRAY
+//   Idle
+//   Unknown
+//
 function getAvailabilityClass(status) {
-  if (!status) return "status-unknown";
-  const s = status.toLowerCase();
+  const s = (status || "").toLowerCase();
 
   if (s.includes("available")) return "status-available";
 
-  // RED group
-  if (s.includes("on call") || s.includes("dial-out") || s.includes("dial out"))
-    return "status-oncall";
-  if (s.includes("break")) return "status-break";
+  if (
+    s.includes("on call") ||
+    s.includes("dial-out") ||
+    s.includes("dial out") ||
+    s.includes("on break") ||
+    s.includes("break")
+  ) {
+    return "status-red";
+  }
 
-  // ORANGE group
-  if (s.includes("wrap")) return "status-wrap";
-  if (s.includes("lunch")) return "status-lunch";
-  if (s.includes("accept internal") || s.includes("accept"))
+  if (
+    s.includes("wrap") ||
+    s.includes("lunch") ||
+    s.includes("accept internal") ||
+    s.includes("accept") ||
+    s.includes("busy") ||
+    s.includes("not set")
+  ) {
     return "status-orange";
-  if (s.includes("busy") || s.includes("not set"))
-    return "status-orange";
+  }
 
-  // GRAY group
-  if (s.includes("idle") || s.includes("unknown"))
-    return "status-idle";
+  if (s.includes("idle") || s.includes("unknown")) {
+    return "status-gray";
+  }
 
-  // Default: YELLOW
-  return "status-unknown";
+  // Anything else -> light yellow
+  return "status-yellow";
 }
 
+// ===============================
+// AGENT STATUS
+// ===============================
 async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
@@ -758,7 +826,6 @@ async function loadAgentStatus() {
       const missed = a.TotalCallsMissed ?? 0;
       const transferred = a.TotalCallsTransferred ?? 0;
       const outbound = a.DialoutCount ?? 0;
-
       const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
       const avgHandleSeconds =
         inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
@@ -770,13 +837,15 @@ async function loadAgentStatus() {
         <td>${safe(a.FullName)}</td>
         <td>${safe(a.TeamName)}</td>
         <td>${safe(a.PhoneExt)}</td>
-        <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
-        <td class="numeric">${duration}</td>
+        <td class="availability-cell ${availabilityClass}">
+          ${safe(a.CallTransferStatusDesc)}
+        </td>
         <td class="numeric">${inbound}</td>
         <td class="numeric">${missed}</td>
         <td class="numeric">${transferred}</td>
         <td class="numeric">${outbound}</td>
         <td class="numeric">${formatTime(avgHandleSeconds)}</td>
+        <td class="numeric">${duration}</td>
         <td>${formatDate(a.StartDateUtc)}</td>
       `;
       body.appendChild(tr);
@@ -797,9 +866,10 @@ function refreshAll() {
 
   const lastUpdatedEl = document.getElementById("lastUpdated");
   if (lastUpdatedEl) {
-    lastUpdatedEl.textContent = new Date().toLocaleString("en-US", {
+    const now = new Date().toLocaleString("en-US", {
       timeZone: "America/Chicago"
     });
+    lastUpdatedEl.textContent = now;
   }
 }
 
@@ -807,7 +877,6 @@ function refreshAll() {
 // INIT
 // ===============================
 document.addEventListener("DOMContentLoaded", async () => {
-  // Only continue if index.html security pre-check passed
   const ok = await checkSecurityAccess();
   if (!ok) return;
 

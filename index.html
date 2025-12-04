@@ -5,12 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
     <link rel="stylesheet" href="style.css" />
+
+    <!-- ======================================= -->
+    <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION -->
+    <!-- ======================================= -->
+    <script>
+    (async function () {
+        const overlay = document.getElementById("access-denied-overlay");
+        const msg = document.getElementById("access-denied-message");
+
+        try {
+            const res = await fetch(
+                "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
+                {
+                    method: "GET",
+                    mode: "cors",
+                    credentials: "omit"
+                }
+            );
+
+            if (!res.ok) {
+                msg.textContent = "Security service error. Please contact IT.";
+                overlay.classList.remove("hidden");
+                return;
+            }
+
+            const data = await res.json();
+            window.VB_SECURITY = data; // optional debug object
+
+            if (!data.allowed) {
+                if (data.reason === "ip-denied") {
+                    msg.textContent =
+                        "Your IP address does not have permission to access this dashboard.";
+                } else if (data.reason === "hours-closed") {
+                    msg.textContent =
+                        "Dashboard access is restricted outside approved business hours.";
+                }
+                overlay.classList.remove("hidden");
+                return;
+            }
+
+            /* ✔ ACCESS APPROVED → HIDE OVERLAY */
+            overlay.classList.add("hidden");
+            document.body.classList.add("security-approved");
+
+        } catch (err) {
+            console.error("Security check failed:", err);
+            msg.textContent = "Unable to contact security service.";
+            overlay.classList.remove("hidden");
+        }
+    })();
+    </script>
 </head>
 
 <body>
 
-<!-- ACCESS DENIED OVERLAY (shown if Cloudflare check fails) -->
-<div id="access-denied-overlay" class="access-denied-overlay hidden">
+<!-- ACCESS DENIED OVERLAY (starts visible until Cloudflare approves) -->
+<div id="access-denied-overlay" class="access-denied-overlay">
     <div class="access-denied-card">
         <h1>Access Restricted</h1>
         <p id="access-denied-message">

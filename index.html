@@ -18,6 +18,63 @@
 
   <script defer src="security.js"></script>
   <script defer src="security-dashboard.js"></script>
+
+  <!-- ================================================================= -->
+  <!-- 🚨 INSERTED: VisionBank Security Enforcement Pre-Check Script     -->
+  <!-- ================================================================= -->
+  <script>
+    (async function () {
+      const workerBase = "https://visionbank-security.ahmedadeyemi.workers.dev";
+
+      try {
+        const res = await fetch(workerBase + "/security/check", {
+          method: "GET",
+          mode: "cors",
+          credentials: "omit"
+        });
+
+        if (!res.ok) throw new Error("Worker error " + res.status);
+        const data = await res.json();
+
+        if (!data.allowed) {
+          let message =
+            "Your access is currently unavailable. Please contact the IT team.";
+
+          if (data.reason === "ip-denied") {
+            message =
+              "Your access is being denied due to lack of permission. " +
+              "Please contact the IT Team to enable your access.";
+          } else if (data.reason === "hours-closed") {
+            message =
+              "Your access is currently unavailable due to being outside of " +
+              "our normal business hours.";
+          }
+
+          document.body.innerHTML = `
+            <div class="vb-denied-shell">
+              <div class="vb-denied-card">
+                <h1>Access Restricted</h1>
+                <p>${message}</p>
+                <p class="vb-denied-meta">
+                  If you believe this is in error, please open a ticket with IT.
+                </p>
+              </div>
+            </div>
+          `;
+          document.documentElement.classList.add("vb-locked");
+        } else {
+          window.VB_SECURITY = {
+            allowed: true,
+            info: data
+          };
+        }
+      } catch (e) {
+        console.error("Security check failed, falling back to local allow:", e);
+        window.VB_SECURITY = { allowed: true, fallback: true };
+      }
+    })();
+  </script>
+  <!-- ================================================================= -->
 </head>
 
 <body>
@@ -72,7 +129,6 @@
       <div class="mfa-layout">
         <div class="mfa-qr-wrapper">
           <div id="mfaQr" class="mfa-qr-placeholder">
-            <!-- QR injected by JS -->
           </div>
           <div class="mfa-qr-caption">Scan in Google Authenticator</div>
         </div>
@@ -94,7 +150,7 @@
           </label>
 
           <button type="submit" class="btn btn-primary">
-            Confirm &amp; Enable MFA
+            Confirm & Enable MFA
           </button>
 
           <p id="mfaSetupError" class="error-text"></p>

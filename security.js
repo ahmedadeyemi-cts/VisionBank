@@ -1,20 +1,24 @@
 /* ============================================================
-   VisionBank Security Admin Console (frontend-only)
+   VisionBank Security Admin Console (Cloudflare-integrated)
    ============================================================ */
 
+/* ------------------------------------------------------------
+   Cloudflare Worker endpoint
+------------------------------------------------------------ */
+const WORKER = "https://visionbank-security.ahmedadeyemi.workers.dev";
+
+/* ------------------------------------------------------------
+   Local storage keys (still used ONLY for admin account + session)
+------------------------------------------------------------ */
 const STORAGE_KEYS = {
-  ADMIN: "vb-security-admin",          // { username, pinHash, mfaEnabled, mfaSecret }
-  SESSION: "vb-security-session",      // { username, createdAt }
-  HOURS: "vb-security-hours",          // { start:"07:00", end:"19:00", days:["1","2",...]}
-  IPS: "vb-security-ips",              // ["10.100.100.0/24", ...]
-  AUDIT: "vb-security-audit"           // [ string lines ]
+  ADMIN: "vb-security-admin",     // { username, pinHash, mfaEnabled, mfaSecret }
+  SESSION: "vb-security-session"  // { username, createdAt }
 };
 
 /* ------------ Tiny helpers ------------ */
 const $ = (id) => document.getElementById(id);
 
 function hashPIN(pin) {
-  // simple hash for demo only; not cryptographically strong
   return btoa(pin.split("").reverse().join(""));
 }
 
@@ -31,22 +35,7 @@ function saveJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function addAudit(message) {
-  const now = new Date().toISOString();
-  const ip = window.__vbClientIp || "unknown-ip";
-  const line = `[${now}] [${ip}] ${message}`;
-  const log = loadJSON(STORAGE_KEYS.AUDIT, []);
-  log.unshift(line);
-  saveJSON(STORAGE_KEYS.AUDIT, log.slice(0, 200)); // keep last 200 lines
-  renderAuditLog();
-}
-
-function renderAuditLog() {
-  const log = loadJSON(STORAGE_KEYS.AUDIT, []);
-  $("audit-log").textContent = log.join("\n");
-}
-
-/* ------------ IP (best-effort) ------------ */
+/* ------------ Get client IP for audit tagging ------------ */
 async function fetchClientIp() {
   try {
     const res = await fetch("https://api.ipify.org?format=json");
@@ -57,7 +46,9 @@ async function fetchClientIp() {
   }
 }
 
-/* ------------ Admin bootstrap ------------ */
+/* ------------------------------------------------------------
+   ADMIN ACCOUNT INITIALIZER
+------------------------------------------------------------ */
 function ensureDefaultAdmin() {
   let admin = loadJSON(STORAGE_KEYS.ADMIN, null);
   if (!admin) {
@@ -68,7 +59,6 @@ function ensureDefaultAdmin() {
       mfaSecret: null
     };
     saveJSON(STORAGE_KEYS.ADMIN, admin);
-    addAudit("Initialized default superadmin account.");
   }
 }
 
@@ -85,12 +75,11 @@ function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.SESSION);
 }
 
-/* ------------ Google Authenticator (TOTP) helpers ------------ */
-/* NOTE: This is a minimal implementation using Web Crypto.       */
-/* It is intended for demo use; for production, use a battle-     */
-/* tested TOTP library on a trusted backend instead.             */
+/* ------------------------------------------------------------
+   Google Authenticator (TOTP) functions
+------------------------------------------------------------ */
 
-const TOTP_STEP = 30; // seconds
+const TOTP_STEP = 30;
 const TOTP_DIGITS = 6;
 
 function randomBase32(length = 32) {
@@ -122,7 +111,7 @@ async function generateTOTP(secretBase32, time = Date.now()) {
   const counter = Math.floor(time / 1000 / TOTP_STEP);
   const counterBytes = new ArrayBuffer(8);
   const view = new DataView(counterBytes);
-  view.setUint32(4, counter, false); // big-endian low 4 bytes
+  view.setUint32(4, counter, false);
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
@@ -131,31 +120,36 @@ async function generateTOTP(secretBase32, time = Date.now()) {
     false,
     ["sign"]
   );
+
   const hmac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, counterBytes));
   const offset = hmac[hmac.length - 1] & 0x0f;
+
   const code =
     ((hmac[offset] & 0x7f) << 24) |
     ((hmac[offset + 1] & 0xff) << 16) |
     ((hmac[offset + 2] & 0xff) << 8) |
     (hmac[offset + 3] & 0xff);
-  const otp = (code % 10 ** TOTP_DIGITS).toString().padStart(TOTP_DIGITS, "0");
-  return otp;
+
+  return (code % 10 ** TOTP_DIGITS).toString().padStart(TOTP_DIGITS, "0");
 }
 
 async function verifyTOTP(secretBase32, token) {
   token = token.replace(/\s+/g, "");
   if (!/^\d{6}$/.test(token)) return false;
+
   const now = Date.now();
-  const windows = [-1, 0, 1]; // allow small clock skew
+  const windows = [-1, 0, 1];
+
   for (const w of windows) {
     const t = now + w * TOTP_STEP * 1000;
     const expected = await generateTOTP(secretBase32, t);
     if (expected === token) return true;
   }
+
   return false;
 }
 
-/* ------------ MFA QR URL ------------ */
+/* ------------ QR helper ------------ */
 function buildOtpAuthUrl(account, secret) {
   const issuer = encodeURIComponent("VisionBank Security");
   const label = encodeURIComponent(account);
@@ -165,71 +159,90 @@ function buildOtpAuthUrl(account, secret) {
 function renderMfaQr(account, secret) {
   const url = buildOtpAuthUrl(account, secret);
   const api = `https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=${encodeURIComponent(url)}`;
-  const container = $("mfa-qr");
-  container.innerHTML = "";
+  $("mfa-qr").innerHTML = "";
   const img = document.createElement("img");
   img.src = api;
   img.alt = "Google Authenticator QR";
   img.className = "mfa-qr-img";
-  container.appendChild(img);
+  $("mfa-qr").appendChild(img);
 }
 
-/* ------------ View helpers ------------ */
+/* ------------ UI view switcher ------------ */
 function showView(id) {
   ["login-view", "mfa-setup-view", "admin-view"].forEach(v => {
     $(v).classList.toggle("hidden", v !== id);
   });
 }
 
-/* ------------ Load / save config into UI ------------ */
-function loadHoursIntoForm() {
-  const hours = loadJSON(STORAGE_KEYS.HOURS, {
-    start: "07:00",
-    end: "19:00",
-    days: ["1", "2", "3", "4", "5", "6"] // Mon–Sat
-  });
+/* ============================================================
+   CLOUDLFARE-INTEGRATED: BUSINESS HOURS
+============================================================ */
+async function loadHoursIntoForm() {
+  const res = await fetch(`${WORKER}/security/hours`);
+  const data = await res.json();
+  const hours = data.hours;
+
   $("hours-start").value = hours.start;
   $("hours-end").value = hours.end;
+
   document.querySelectorAll(".hours-day").forEach(cb => {
-    cb.checked = hours.days.includes(cb.value);
+    cb.checked = hours.days.includes(parseInt(cb.value));
   });
 }
 
-function saveHoursFromForm(e) {
+async function saveHoursFromForm(e) {
   e.preventDefault();
+
   const start = $("hours-start").value || "07:00";
   const end = $("hours-end").value || "19:00";
-  const days = Array.from(document.querySelectorAll(".hours-day"))
-    .filter(cb => cb.checked)
-    .map(cb => cb.value);
-  const data = { start, end, days };
-  saveJSON(STORAGE_KEYS.HOURS, data);
-  addAudit(`Updated business hours to ${start}-${end}, days=${days.join(",")}`);
-  alert("Business hours saved.");
+  const days = Array.from(document.querySelectorAll(".hours-day:checked"))
+                    .map(cb => parseInt(cb.value));
+
+  await fetch(`${WORKER}/security/hours`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ start, end, days }),
+  });
+
+  alert("Business hours updated successfully.");
 }
 
-function loadIpsIntoForm() {
-  const ips = loadJSON(STORAGE_KEYS.IPS, [
-    "10.100.100.0/24",
-    "45.19.161.17",
-    "45.19.162.18/32",
-    "120.112.1.119/28"
-  ]);
-  $("ip-textarea").value = ips.join("\n");
+/* ============================================================
+   CLOUDLFARE-INTEGRATED: IP ALLOWLIST
+============================================================ */
+async function loadIpsIntoForm() {
+  const res = await fetch(`${WORKER}/security/ip`);
+  const data = await res.json();
+  $("ip-textarea").value = data.rulesText || "";
 }
 
-function saveIpsFromForm(e) {
+async function saveIpsFromForm(e) {
   e.preventDefault();
-  const lines = $("ip-textarea").value
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean);
-  saveJSON(STORAGE_KEYS.IPS, lines);
-  addAudit(`Updated IP allowlist (${lines.length} entries).`);
-  alert("IP rules saved.");
+
+  const rules = $("ip-textarea").value;
+
+  await fetch(`${WORKER}/security/ip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rules }),
+  });
+
+  alert("IP allowlist updated.");
 }
 
-/* ------------ Login & MFA flow ------------ */
+/* ============================================================
+   CLOUDLFARE-INTEGRATED: AUDIT LOG VIEWER
+============================================================ */
+async function loadAuditLog() {
+  const res = await fetch(`${WORKER}/security/logs?limit=100`);
+  const data = await res.json();
+
+  $("audit-log").textContent = JSON.stringify(data.events, null, 2);
+}
+
+/* ============================================================
+   LOGIN + MFA FLOW (unchanged)
+============================================================ */
 async function handleLogin(e) {
   e.preventDefault();
   const username = $("login-username").value.trim();
@@ -241,37 +254,33 @@ async function handleLogin(e) {
   const admin = loadJSON(STORAGE_KEYS.ADMIN, null);
   if (!admin || username !== admin.username || hashPIN(pin) !== admin.pinHash) {
     msg.textContent = "Invalid ID or PIN.";
-    addAudit(`Failed login for '${username}'.`);
     return;
   }
 
-  // if MFA enabled, require TOTP
   if (admin.mfaEnabled) {
     $("login-totp-wrapper").classList.remove("hidden");
+
     if (!totp) {
       msg.textContent = "Enter your Google Authenticator code.";
       return;
     }
+
     const ok = await verifyTOTP(admin.mfaSecret, totp);
     if (!ok) {
       msg.textContent = "Invalid Google Authenticator code.";
-      addAudit(`Failed TOTP verification for '${username}'.`);
       return;
     }
+
     setSession(username);
-    addAudit(`Admin '${username}' logged in with MFA.`);
     postLogin();
     return;
   }
 
-  // MFA not yet configured -> start setup
   setSession(username);
-  addAudit(`Admin '${username}' logged in; MFA setup required.`);
   startMfaSetup(admin);
 }
 
 function startMfaSetup(admin) {
-  // generate secret & show MFA setup view
   const secret = randomBase32(32);
   admin.mfaSecret = secret;
   admin.mfaEnabled = false;
@@ -282,40 +291,41 @@ function startMfaSetup(admin) {
   $("mfa-code").value = "";
 
   renderMfaQr($("mfa-account").value, secret);
-  $("mfa-message").textContent = "";
   showView("mfa-setup-view");
 }
 
 async function confirmMfaSetup() {
   const admin = loadJSON(STORAGE_KEYS.ADMIN, null);
   if (!admin || !admin.mfaSecret) {
-    $("mfa-message").textContent = "Setup error. Please refresh and log in again.";
+    $("mfa-message").textContent = "Setup error.";
     return;
   }
+
   const token = $("mfa-code").value.trim();
   if (!token) {
-    $("mfa-message").textContent = "Enter a 6-digit code from Google Authenticator.";
+    $("mfa-message").textContent = "Enter a 6-digit code.";
     return;
   }
+
   const ok = await verifyTOTP(admin.mfaSecret, token);
   if (!ok) {
-    $("mfa-message").textContent =
-      "Invalid code. Make sure your phone time is correct and you scanned the latest QR code.";
-    addAudit("Failed MFA confirmation.");
+    $("mfa-message").textContent = "Invalid Google Authenticator code.";
     return;
   }
+
   admin.mfaEnabled = true;
   saveJSON(STORAGE_KEYS.ADMIN, admin);
-  addAudit("Google Authenticator MFA enabled for admin account.");
-  $("mfa-message").textContent = "";
-  alert("MFA confirmed and enabled.");
+  alert("MFA enabled successfully.");
   postLogin();
 }
 
 function postLogin() {
   loadHoursIntoForm();
   loadIpsIntoForm();
-  renderAuditLog();
+  loadAuditLog();
+
+  setInterval(loadAuditLog, 30000); // auto-refresh logs
+
   $("login-form").reset();
   $("login-totp-wrapper").classList.add("hidden");
   $("login-message").textContent = "";
@@ -327,7 +337,7 @@ function logout() {
   showView("login-view");
 }
 
-/* Override key (simple demo) */
+/* Override key */
 const OVERRIDE_KEY = "VisionBankOverride2025!";
 
 function handleOverrideToggle() {
@@ -336,23 +346,21 @@ function handleOverrideToggle() {
 
 function handleOverrideSubmit(e) {
   e.preventDefault();
-  const value = $("override-input").value.trim();
-  if (value === OVERRIDE_KEY) {
+  if ($("override-input").value.trim() === OVERRIDE_KEY) {
     setSession("override-admin");
-    addAudit("Admin logged in via override key.");
     postLogin();
   } else {
     alert("Invalid override key.");
   }
 }
 
-/* ------------ Initialize on page load ------------ */
+/* ============================================================
+   PAGE INITIALIZATION
+============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
   await fetchClientIp();
   ensureDefaultAdmin();
-  renderAuditLog();
 
-  // Bind events
   $("login-form").addEventListener("submit", handleLogin);
   $("hours-form").addEventListener("submit", saveHoursFromForm);
   $("ip-form").addEventListener("submit", saveIpsFromForm);
@@ -365,12 +373,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     showView("login-view");
   });
 
-  // Decide which view to show
   const session = getSession();
   if (session) {
-    // already logged in
     loadHoursIntoForm();
     loadIpsIntoForm();
+    loadAuditLog();
     showView("admin-view");
   } else {
     showView("login-view");

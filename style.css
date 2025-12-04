@@ -665,3 +665,19 @@ body.dark-mode .dark-toggle {
   padding-top: 1.2rem;
   padding-bottom: 1.5rem;
 }
+#footerBranding {
+    width: 100%;
+    margin-top: 20px;
+}
+
+.footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center; /* center both */
+    gap: 12px;
+}
+
+.footer-logo {
+    height: 32px;
+    width: auto;
+}

@@ -1,164 +1,275 @@
-import { totp } from "otplib";
-import { encode } from "url-safe-base64";
+// worker.js
 
 export default {
-  async fetch(req, env) {
-    const url = new URL(req.url);
-    const path = url.pathname;
-    const method = req.method;
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
 
-    // Helper: JSON responses
-    const json = (data, status = 200) =>
-      new Response(JSON.stringify(data), {
-        status,
-        headers: { "Content-Type": "application/json" },
+    // Simple CORS for your GitHub Pages origin
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "https://ahmedadeyemi-cts.github.io",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    if (url.pathname === "/security/check") {
+      const result = await checkAccess(request, env);
+      await logEvent(env, request, result); // always log
+      return json(result, corsHeaders);
+    }
+
+    if (url.pathname === "/security/state" && request.method === "GET") {
+      const state = await getState(env, request);
+      return json(state, corsHeaders);
+    }
+
+    if (url.pathname === "/security/ip" && request.method === "POST") {
+      const body = await request.json();
+      const rulesText = String(body.rules || "");
+      await env.IP_ALLOWLIST.put("rules", rulesText);
+      const state = await getState(env, request);
+      await logEvent(env, request, {
+        allowed: true,
+        reason: "ip-rules-updated",
       });
-
-    // Helper: append log entry
-    async function logEvent(text) {
-      const ts = new Date().toISOString();
-      const entry = `${ts}  |  ${text}\n`;
-
-      await env.LOGS.put(`log-${ts}`, entry);
-      return true;
+      return json({ ok: true, state }, corsHeaders);
     }
 
-    // ------------------------------------------
-    // 1. ADMIN LOGIN (Username + PIN)
-    // ------------------------------------------
-    if (path === "/api/login" && method === "POST") {
-      const body = await req.json();
-      const { username, pin } = body;
-
-      const adminCred = await env.ADMIN.get("credentials", "json");
-
-      if (!adminCred) {
-        return json({ error: "Admin not initialized" }, 500);
-      }
-
-      if (adminCred.username !== username || adminCred.pin !== pin) {
-        await logEvent(`FAILED LOGIN attempt from ${req.headers.get("CF-Connecting-IP")}`);
-        return json({ error: "Invalid credentials" }, 401);
-      }
-
-      await logEvent(`LOGIN OK for ${username}`);
-
-      return json({ success: true });
-    }
-
-    // ------------------------------------------
-    // 2. MFA: FETCH SECRET / QR
-    // ------------------------------------------
-    if (path === "/api/mfa/setup" && method === "GET") {
-      let secret = await env.MFA.get("secret");
-
-      if (!secret) {
-        secret = totp.generateSecret();
-        await env.MFA.put("secret", secret);
-      }
-
-      const account = "VisionBank Security (superadmin)";
-      const issuer = "VisionBank";
-
-      const otpAuthURL = `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}`;
-
-      return json({
-        secret,
-        otpAuthURL,
-        qrURL: `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encode(
-          otpAuthURL
-        )}`,
-      });
-    }
-
-    // ------------------------------------------
-    // 3. MFA VERIFY (TOTP)
-    // ------------------------------------------
-    if (path === "/api/mfa/verify" && method === "POST") {
-      const { code } = await req.json();
-      const secret = await env.MFA.get("secret");
-
-      if (!secret) return json({ error: "MFA not set up" }, 400);
-
-      const isValid = totp.check(code, secret);
-
-      if (!isValid) {
-        await logEvent("FAILED MFA ATTEMPT");
-        return json({ error: "Invalid MFA code" }, 401);
-      }
-
-      await logEvent("MFA SUCCESS");
-
-      return json({ success: true });
-    }
-
-    // ------------------------------------------
-    // 4. IP ALLOWLIST (GET)
-    // ------------------------------------------
-    if (path === "/api/ip" && method === "GET") {
-      const stored = await env.IP_ALLOWLIST.get("allowlist", "json");
-      return json(stored || []);
-    }
-
-    // ------------------------------------------
-    // 5. ADD IP
-    // ------------------------------------------
-    if (path === "/api/ip" && method === "POST") {
-      const { ip } = await req.json();
-      let list = (await env.IP_ALLOWLIST.get("allowlist", "json")) || [];
-
-      list.push(ip);
-
-      await env.IP_ALLOWLIST.put("allowlist", JSON.stringify(list));
-      await logEvent(`IP Added: ${ip}`);
-
-      return json({ success: true, list });
-    }
-
-    // ------------------------------------------
-    // 6. DELETE IP
-    // ------------------------------------------
-    if (path === "/api/ip" && method === "DELETE") {
-      const { ip } = await req.json();
-
-      let list = (await env.IP_ALLOWLIST.get("allowlist", "json")) || [];
-
-      list = list.filter((x) => x !== ip);
-
-      await env.IP_ALLOWLIST.put("allowlist", JSON.stringify(list));
-      await logEvent(`IP Removed: ${ip}`);
-
-      return json({ success: true, list });
-    }
-
-    // ------------------------------------------
-    // 7. GET BUSINESS HOURS
-    // ------------------------------------------
-    if (path === "/api/business-hours" && method === "GET") {
-      const hours = await env.BUSINESS.get("hours", "json");
-      return json(hours || {});
-    }
-
-    // ------------------------------------------
-    // 8. SET BUSINESS HOURS
-    // ------------------------------------------
-    if (path === "/api/business-hours" && method === "POST") {
-      const hours = await req.json();
+    if (url.pathname === "/security/hours" && request.method === "POST") {
+      const body = await request.json();
+      const hours = sanitizeHours(body);
       await env.BUSINESS.put("hours", JSON.stringify(hours));
-
-      await logEvent(`Business hours updated`);
-
-      return json({ success: true });
+      const state = await getState(env, request);
+      await logEvent(env, request, {
+        allowed: true,
+        reason: "business-hours-updated",
+      });
+      return json({ ok: true, state }, corsHeaders);
     }
 
-    // ------------------------------------------
-    // 9. FETCH LOGS
-    // ------------------------------------------
-    if (path === "/api/logs" && method === "GET") {
-      const logs = await env.LOGS.list();
-      return json(logs.keys);
-    }
-
-    return json({ error: "Not found" }, 404);
+    // Fallback – nothing else is served by this Worker
+    return new Response("VisionBank Security Worker", {
+      status: 404,
+      headers: corsHeaders,
+    });
   },
 };
+
+/* ---------- Helpers ---------- */
+
+function json(obj, extraHeaders = {}) {
+  return new Response(JSON.stringify(obj, null, 2), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+  });
+}
+
+function getClientIp(request) {
+  // Cloudflare standard header
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for") ||
+    "0.0.0.0"
+  );
+}
+
+async function loadIpRules(env) {
+  let text = await env.IP_ALLOWLIST.get("rules");
+  // Strict option A: if nothing configured, only allow your IP
+  if (!text || !text.trim()) {
+    text = "45.51.4.217\n";
+    await env.IP_ALLOWLIST.put("rules", text);
+  }
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+async function loadBusinessHours(env) {
+  const stored = await env.BUSINESS.get("hours");
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return sanitizeHours(parsed);
+    } catch (_) {
+      // fall through to default
+    }
+  }
+  // Default: Mon–Sat, 07:00–19:00 CST
+  return {
+    start: "07:00",
+    end: "19:00",
+    days: [1, 2, 3, 4, 5, 6], // 0 = Sun
+  };
+}
+
+function sanitizeHours(raw) {
+  const start = typeof raw.start === "string" ? raw.start : "07:00";
+  const end = typeof raw.end === "string" ? raw.end : "19:00";
+  let days = raw.days;
+  if (!Array.isArray(days)) days = [1, 2, 3, 4, 5, 6];
+  days = days
+    .map((d) => parseInt(d, 10))
+    .filter((d) => d >= 0 && d <= 6);
+  if (!days.length) days = [1, 2, 3, 4, 5, 6];
+  return { start, end, days };
+}
+
+function ipToInt(ip) {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let res = 0;
+  for (const part of parts) {
+    const n = parseInt(part, 10);
+    if (Number.isNaN(n) || n < 0 || n > 255) return null;
+    res = (res << 8) + n;
+  }
+  return res >>> 0;
+}
+
+function ipMatches(ip, rule) {
+  // single IP
+  if (!rule.includes("/")) {
+    return ip === rule;
+  }
+
+  const [range, bitsStr] = rule.split("/");
+  const bits = parseInt(bitsStr, 10);
+  if (Number.isNaN(bits) || bits < 0 || bits > 32) return false;
+
+  const ipInt = ipToInt(ip);
+  const rangeInt = ipToInt(range);
+  if (ipInt == null || rangeInt == null) return false;
+
+  const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+  return (ipInt & mask) === (rangeInt & mask);
+}
+
+function getNowCst() {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(now).map((p) => [p.type, p.value])
+  );
+  const weekday = parts.weekday; // 'Sun', 'Mon', etc.
+  const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    hhmm: `${parts.hour}:${parts.minute}`,
+    day: dayMap[weekday] ?? 0,
+    label: `${weekday} ${parts.hour}:${parts.minute} CST`,
+  };
+}
+
+function isBusinessOpen(hours, nowCst) {
+  return (
+    hours.days.includes(nowCst.day) &&
+    nowCst.hhmm >= hours.start &&
+    nowCst.hhmm <= hours.end
+  );
+}
+
+async function checkAccess(request, env) {
+  const clientIp = getClientIp(request);
+  const ipRules = await loadIpRules(env);
+  const hours = await loadBusinessHours(env);
+  const nowCst = getNowCst();
+
+  let allowed = false;
+  let reason = "unknown";
+
+  // IP check
+  const ipAllowed = ipRules.some((rule) => ipMatches(clientIp, rule));
+  if (!ipAllowed) {
+    return {
+      allowed: false,
+      reason: "ip-denied",
+      clientIp,
+      ipRules,
+      hours,
+      nowCst,
+    };
+  }
+
+  const open = isBusinessOpen(hours, nowCst);
+  if (!open) {
+    return {
+      allowed: false,
+      reason: "hours-closed",
+      clientIp,
+      ipRules,
+      hours,
+      nowCst,
+    };
+  }
+
+  allowed = true;
+  reason = "ok";
+
+  return {
+    allowed,
+    reason,
+    clientIp,
+    ipRules,
+    hours,
+    nowCst,
+  };
+}
+
+async function getState(env, request) {
+  const clientIp = getClientIp(request);
+  const ipRules = await loadIpRules(env);
+  const hours = await loadBusinessHours(env);
+  const nowCst = getNowCst();
+
+  return {
+    clientIp,
+    ipRules,
+    hours,
+    nowCst,
+  };
+}
+
+async function logEvent(env, request, result) {
+  try {
+    const now = new Date().toISOString();
+    const clientIp = getClientIp(request);
+    const ua = request.headers.get("user-agent") || "unknown";
+    const entry = {
+      time: now,
+      ip: clientIp,
+      ua,
+      path: new URL(request.url).pathname,
+      allowed: !!result.allowed,
+      reason: result.reason || "unknown",
+    };
+
+    const existingRaw = (await env.LOGS.get("events")) || "[]";
+    let list;
+    try {
+      list = JSON.parse(existingRaw);
+      if (!Array.isArray(list)) list = [];
+    } catch {
+      list = [];
+    }
+
+    list.unshift(entry);
+    if (list.length > 500) list = list.slice(0, 500);
+
+    await env.LOGS.put("events", JSON.stringify(list));
+  } catch (e) {
+    // logging failures must not break the request
+  }
+}

@@ -1,38 +1,54 @@
-// ===============================
+// ===========================================================
 // CONFIG
-// ===============================
+// ===========================================================
 const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
 const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
 
-// Cloudflare Worker base (for IP + business hours)
+// Cloudflare Worker (Security Gate)
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
-// Small helper to call main CC API with token
-async function fetchApi(path) {
-    const res = await fetch(`${API_BASE}${path}`, {
-        headers: {
-            "Content-Type": "application/json",
-            "token": TOKEN
-        }
-    });
+// Global object to store security info for optional UI banner/footer
+window.VB_SECURITY = null;
 
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+// ===========================================================
+// API WRAPPER (with retry)
+// ===========================================================
+async function fetchApi(path, retries = 2) {
+    try {
+        const res = await fetch(`${API_BASE}${path}`, {
+            headers: {
+                "Content-Type": "application/json",
+                "token": TOKEN
+            }
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    } catch (err) {
+        if (retries > 0) {
+            console.warn(`Retrying ${path} (${retries} left)…`);
+            await new Promise(r => setTimeout(r, 400));
+            return fetchApi(path, retries - 1);
+        }
+        throw err;
     }
-    return res.json();
 }
 
-// ===============================
-// SECURITY GATE (IP + Business Hours via Worker)
-// ===============================
-
+// ===========================================================
+// SECURITY GATE: Cloudflare Worker
+// ===========================================================
 async function checkSecurityAccess() {
+    const url = `${SECURITY_BASE}/security/check`;
+
     try {
-        const res = await fetch(`${SECURITY_BASE}/security/check`, {
+        const res = await fetch(url, {
             method: "GET",
             headers: {
+                "Accept": "application/json",
                 "Content-Type": "application/json"
-            }
+            },
+            mode: "cors",
+            credentials: "omit"
         });
 
         if (!res.ok) {
@@ -40,49 +56,56 @@ async function checkSecurityAccess() {
         }
 
         const data = await res.json();
+        window.VB_SECURITY = data;
 
         if (data.allowed) {
             return true;
         }
 
-        // Denied – show proper reason
         showAccessDenied(data);
         return false;
+
     } catch (err) {
         console.error("Security check failed:", err);
-        // Local fallback: deny with generic message
-        showAccessDenied({
-            reason: "unreachable"
-        });
+
+        // Worker unreachable = DANGEROUS → hide data
+        showAccessDenied({ reason: "unreachable" });
         return false;
     }
 }
 
+// ===========================================================
+// ACCESS DENIED OVERLAY
+// ===========================================================
 function showAccessDenied(info) {
     const overlay = document.getElementById("access-denied-overlay");
     const msgEl = document.getElementById("access-denied-message");
 
     let text;
 
-    if (info && info.reason === "ip-denied") {
-        text =
-            "Your access is being denied due to lack of permission. Please contact The IT Team to enable your access.";
-    } else if (info && info.reason === "hours-closed") {
-        text =
-            "Your access is currently unavailable due to being outside of our normal business hours.";
-    } else {
-        text =
-            "Your access is currently unavailable. Please contact The IT Team for assistance.";
+    switch (info.reason) {
+        case "ip-denied":
+            text = "Your access is being denied due to lack of permission. Please contact the IT Team.";
+            break;
+
+        case "hours-closed":
+            text = "Access is unavailable because it is outside of business hours.";
+            break;
+
+        case "unreachable":
+            text = "Security verification service is unavailable. Please contact IT.";
+            break;
+
+        default:
+            text = "Your access is currently unavailable. Please contact the IT Team.";
+            break;
     }
 
-    if (msgEl) {
-        msgEl.textContent = text;
-    }
-
+    if (msgEl) msgEl.textContent = text;
     if (overlay) {
         overlay.classList.remove("hidden");
     } else {
-        // Hard fallback: replace entire body if overlay not found
+        // Hard fallback
         document.body.innerHTML = `
             <div style="
                 max-width:600px;
@@ -92,8 +115,7 @@ function showAccessDenied(info) {
                 border-radius:10px;
                 padding:30px;
                 border:1px solid #ccc;
-                background:#ffffffdd;
-            ">
+                background:#ffffffdd;">
                 <h1>Access Restricted</h1>
                 <p>${text}</p>
                 <p>If you believe this is an error, contact the VisionBank IT Team.</p>
@@ -102,9 +124,9 @@ function showAccessDenied(info) {
     }
 }
 
-// ===============================
+// ===========================================================
 // HELPERS
-// ===============================
+// ===========================================================
 function formatTime(sec) {
     if (sec === undefined || sec === null || isNaN(sec)) return "00:00:00";
     const h = Math.floor(sec / 3600);
@@ -115,7 +137,6 @@ function formatTime(sec) {
 
 function formatDate(utc) {
     if (!utc) return "--";
-    // Force UTC and convert to US Central
     return new Date(utc + "Z").toLocaleString("en-US", { timeZone: "America/Chicago" });
 }
 
@@ -123,33 +144,26 @@ function safe(value, fallback = "--") {
     return value === undefined || value === null ? fallback : value;
 }
 
-// Map status text to availability class
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value ?? "--";
+}
+
 function getAvailabilityClass(desc) {
     const s = (desc || "").toLowerCase();
 
-    // Available → Green
     if (s.includes("available")) return "status-available";
-
-    // On Call / Dialing → Red
-    if (s.includes("on call") || s.includes("dialing") || s.includes("dial out") || s.includes("dialing out")) {
-        return "status-oncall";
-    }
-
-    // Busy → Yellow
+    if (s.includes("on call") || s.includes("dial") || s.includes("dialing")) return "status-oncall";
     if (s.includes("busy")) return "status-busy";
-
-    // Ringing → Orange
-    if (s.includes("ringing") || s.includes("ring")) return "status-ringing";
-
-    // Wrap-Up → Orange (same family)
+    if (s.includes("ring")) return "status-ringing";
     if (s.includes("wrap")) return "status-wrapup";
 
     return "";
 }
 
-// ===============================
-// LOAD CURRENT QUEUE STATUS
-// ===============================
+// ===========================================================
+// QUEUE STATUS
+// ===========================================================
 async function loadQueueStatus() {
     const body = document.getElementById("queue-body");
     body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status…</td></tr>`;
@@ -157,40 +171,30 @@ async function loadQueueStatus() {
     try {
         const data = await fetchApi("/status/queues");
 
-        if (!data || !Array.isArray(data.QueueStatus) || data.QueueStatus.length === 0) {
+        if (!data?.QueueStatus?.length) {
             body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
             return;
         }
 
         const q = data.QueueStatus[0];
-
-        const calls = safe(q.TotalCalls, 0);
-        const agents = safe(q.TotalLoggedAgents, 0);
-
-        const maxWaitSeconds = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-        const avgWaitSeconds = q.AvgWaitInterval ?? 0;
-
-        const rowHtml = `
+        body.innerHTML = `
             <tr>
                 <td>${safe(q.QueueName, "Unknown")}</td>
-                <td class="numeric">${calls}</td>
-                <td class="numeric">${agents}</td>
-                <td class="numeric">${formatTime(maxWaitSeconds)}</td>
-                <td class="numeric">${formatTime(avgWaitSeconds)}</td>
+                <td class="numeric">${safe(q.TotalCalls, 0)}</td>
+                <td class="numeric">${safe(q.TotalLoggedAgents, 0)}</td>
+                <td class="numeric">${formatTime(q.MaxWaitingTime ?? q.OldestWaitTime ?? 0)}</td>
+                <td class="numeric">${formatTime(q.AvgWaitInterval ?? 0)}</td>
             </tr>
         `;
-
-        body.innerHTML = rowHtml;
-
     } catch (err) {
         console.error("Queue load error:", err);
         body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
     }
 }
 
-// ===============================
-// LOAD REALTIME GLOBAL STATISTICS
-// ===============================
+// ===========================================================
+// GLOBAL STATS
+// ===========================================================
 async function loadGlobalStats() {
     const errorDiv = document.getElementById("global-error");
     errorDiv.textContent = "";
@@ -198,7 +202,7 @@ async function loadGlobalStats() {
     try {
         const data = await fetchApi("/statistics/global");
 
-        if (!data || !Array.isArray(data.GlobalStatistics) || data.GlobalStatistics.length === 0) {
+        if (!data?.GlobalStatistics?.length) {
             errorDiv.textContent = "Unable to load global statistics.";
             return;
         }
@@ -209,13 +213,10 @@ async function loadGlobalStats() {
         setText("gs-total-transferred", g.TotalCallsTransferred);
         setText("gs-total-abandoned", g.TotalCallsAbandoned);
         setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
-
-        setText("gs-service-level", g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--");
+        setText("gs-service-level", g.ServiceLevel?.toFixed(2) + "%" ?? "--");
         setText("gs-total-received", g.TotalCallsReceived);
-
-        setText("gs-answer-rate", g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--");
-        setText("gs-abandon-rate", g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--");
-
+        setText("gs-answer-rate", g.AnswerRate?.toFixed(2) + "%" ?? "--");
+        setText("gs-abandon-rate", g.AbandonRate?.toFixed(2) + "%" ?? "--");
         setText("gs-callbacks-registered", g.CallbacksRegistered);
         setText("gs-callbacks-waiting", g.CallbacksWaiting);
 
@@ -225,15 +226,9 @@ async function loadGlobalStats() {
     }
 }
 
-function setText(id, value) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = value === undefined || value === null ? "--" : value;
-}
-
-// ===============================
-// LOAD AGENT PERFORMANCE
-// ===============================
+// ===========================================================
+// AGENT STATUS
+// ===========================================================
 async function loadAgentStatus() {
     const body = document.getElementById("agent-body");
     body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data…</td></tr>`;
@@ -241,7 +236,7 @@ async function loadAgentStatus() {
     try {
         const data = await fetchApi("/status/agents");
 
-        if (!data || !Array.isArray(data.AgentStatus) || data.AgentStatus.length === 0) {
+        if (!data?.AgentStatus?.length) {
             body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
             return;
         }
@@ -253,12 +248,7 @@ async function loadAgentStatus() {
             const missed = a.TotalCallsMissed ?? 0;
             const transferred = a.ThirdPartyTransferCount ?? 0;
             const outbound = a.DialoutCount ?? 0;
-
             const avgHandleSeconds = inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
-
-            const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
-
-            // Duration = SecondsInCurrentStatus
             const durationSeconds = a.SecondsInCurrentStatus ?? 0;
 
             const tr = document.createElement("tr");
@@ -266,7 +256,7 @@ async function loadAgentStatus() {
                 <td>${safe(a.FullName)}</td>
                 <td>${safe(a.TeamName)}</td>
                 <td>${safe(a.PhoneExt)}</td>
-                <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
+                <td class="availability-cell ${getAvailabilityClass(a.CallTransferStatusDesc)}">${safe(a.CallTransferStatusDesc)}</td>
                 <td class="numeric">${inbound}</td>
                 <td class="numeric">${missed}</td>
                 <td class="numeric">${transferred}</td>
@@ -284,9 +274,9 @@ async function loadAgentStatus() {
     }
 }
 
-// ===============================
-// DARK MODE TOGGLE
-// ===============================
+// ===========================================================
+// DARK MODE
+// ===========================================================
 function initDarkMode() {
     const btn = document.getElementById("darkModeToggle");
     if (!btn) return;
@@ -304,9 +294,9 @@ function initDarkMode() {
     });
 }
 
-// ===============================
+// ===========================================================
 // INIT
-// ===============================
+// ===========================================================
 function refreshAll() {
     loadQueueStatus();
     loadAgentStatus();
@@ -314,15 +304,17 @@ function refreshAll() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // 1) Check Cloudflare Worker (IP + Business Hours + KV rules)
+    // 1) Cloudflare Security Check
     const ok = await checkSecurityAccess();
-    if (!ok) {
-        // Access denied or worker unreachable; UI is replaced/overlayed already
-        return;
-    }
+    if (!ok) return;
 
-    // 2) Only if allowed, bring up the normal dashboard
+    // 2) Proceed with dashboard
     initDarkMode();
     refreshAll();
     setInterval(refreshAll, 10000);
+
+    // 3) (Optional) update footer with security state
+    if (window.VB_SECURITY?.allowed) {
+        console.log("Security Approved:", window.VB_SECURITY);
+    }
 });

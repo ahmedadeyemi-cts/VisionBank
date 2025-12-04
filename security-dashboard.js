@@ -1,9 +1,6 @@
 /* ======================================================================
    security-dashboard.js
    VisionBank Dashboard • Security Pre-Check Integration
-   - Performs IP + Business Hours evaluation
-   - Exposes VB_SECURITY object globally
-   - Updates optional footer/status UI if present
    ====================================================================== */
 
 const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
@@ -21,18 +18,14 @@ const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
         });
 
         if (!res.ok) {
-            console.warn("Security check error:", res.status);
             window.VB_SECURITY = { allowed: false, reason: "worker-error" };
             showDeniedMessage("Unable to validate access. Please contact the IT team.");
             return;
         }
 
         const data = await res.json();
-
-        // Store globally
         window.VB_SECURITY = data;
 
-        // If not allowed, stop dashboard load
         if (!data.allowed) {
             if (data.reason === "ip-denied") {
                 showDeniedMessage(
@@ -50,11 +43,8 @@ const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
             return;
         }
 
-        // If allowed, update footer display if element exists
         updateSecurityFooterBanner();
-
     } catch (err) {
-        console.error("Security check failed:", err);
         window.VB_SECURITY = { allowed: false, reason: "network-error" };
         showDeniedMessage("Unable to validate security access (network error).");
     }
@@ -98,33 +88,15 @@ function updateSecurityFooterBanner() {
     const info = window.VB_SECURITY.info;
     if (!info) return;
 
-    // If your footer has: <span id="securityStatus"></span>
     const el = document.getElementById("securityStatus");
     if (el) {
         el.textContent =
             "Access approved from IP " +
-            info.clientIp +
+            info.ip +
             " at " +
-            info.nowCst.label +
+            info.now.label +
             " (CST)";
     }
 
     console.log("Security check info:", info);
 }
-
-
-/* ============================================================
-   4. PLACEHOLDER HOOK FOR OTHER DASHBOARD JS
-   - The rest of your dashboard logic remains untouched.
-   - You can safely load queues, agents, alerts, etc.
-   ============================================================ */
-
-// Example: If you want your dashboard.js to wait for security:
-// (Uncomment if needed)
-/*
-document.addEventListener("DOMContentLoaded", () => {
-    if (window.VB_SECURITY && window.VB_SECURITY.allowed) {
-        // loadDashboard();
-    }
-});
-*/

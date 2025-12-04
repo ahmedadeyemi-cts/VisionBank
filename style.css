@@ -167,9 +167,10 @@ body {
     border-radius: 16px;
 }
 
-/* ============================================================
-   FOOTER
-============================================================ */
+/* =============================== */
+/* FOOTER LAYOUT + SECURITY STATUS */
+/* =============================== */
+
 .footer {
     background: white;
     border-top: 1px solid #ddd;
@@ -177,13 +178,34 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: background-color 0.35s ease, border-color 0.35s ease;
+    gap: 12px;
 }
 
-.footer-logo {
-    height: 30px;
-    width: auto;
-    transition: filter 0.35s ease;
+.footer-left,
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-center {
+    flex: 1;
+    text-align: center;
+}
+
+.security-status {
+    font-size: 12px;
+    color: #555;
+}
+
+/* Dark mode adjustments */
+body.dark-mode .footer {
+    background: #111827;
+    border-top-color: #1f2937;
+}
+
+body.dark-mode .security-status {
+    color: #e5e7eb;
 }
 
 /* ============================================================

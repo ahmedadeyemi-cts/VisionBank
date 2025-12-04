@@ -2,20 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>CEG Security Admin Console | VisionBank</title>
+    <title>Security Admin Console | VisionBank</title>
     <link rel="stylesheet" href="security.css" />
 </head>
 
 <body>
 
-<!-- ====================================== -->
-<!-- HEADER                                 -->
-<!-- ====================================== -->
+<!-- ===================================================== -->
+<!-- GLOBAL NOTIFICATION BAR (NEW)                         -->
+<!-- ===================================================== -->
+<div id="notify-bar" class="notify hidden"></div>
+
+<!-- ===================================================== -->
+<!-- HEADER                                                -->
+<!-- ===================================================== -->
 <header class="vb-header">
     <div class="vb-header-inner">
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
         <div class="vb-title-block">
-            <div class="vb-app-name">CEG Security Admin Console</div>
+            <div class="vb-app-name">Security Admin Console</div>
             <div class="vb-app-subtitle">VisionBank</div>
         </div>
     </div>
@@ -23,188 +28,203 @@
 
 <main class="vb-main">
 
-    <!-- ====================================== -->
-    <!-- LOGIN VIEW (Old UI preserved)          -->
-    <!-- ====================================== -->
-    <section id="login-view" class="card">
-        <h2>Secure Administrator Login</h2>
-        <p class="card-subtitle">
-            Sign in with your admin ID, PIN, and (when required) a Google Authenticator code.
-        </p>
+<!-- ===================================================== -->
+<!-- LOGIN VIEW                                            -->
+<!-- ===================================================== -->
+<section id="login-view" class="card">
+    <h2>Secure Administrator Login</h2>
+    <p class="card-subtitle">
+        Sign in with your Username, Password, and (when required) an Authenticator code (Prefer MS Authenticator).
+    </p>
 
-        <form id="login-form" class="form-grid">
+    <form id="login-form" class="form-grid">
+        <label>
+            Username
+            <input type="text" id="login-username" autocomplete="username">
+        </label>
+
+        <label>
+            Passowrd
+            <input type="password" id="login-pin" autocomplete="current-password">
+        </label>
+
+        <label id="login-totp-wrapper" class="hidden">
+            Authenticator Code
+            <input type="text" id="login-totp" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+        </label>
+
+        <button type="submit" class="btn-primary">Login</button>
+    </form>
+
+    <div id="login-message" class="message"></div>
+
+    <button id="override-toggle" class="link-button">Use Override Key</button>
+
+    <form id="override-form" class="form-inline hidden">
+        <input type="password" id="override-input" placeholder="Override key">
+        <button type="submit" class="btn-secondary">Enter Override</button>
+    </form>
+</section>
+
+<!-- ===================================================== -->
+<!-- MFA SETUP VIEW                                        -->
+<!-- ===================================================== -->
+<section id="mfa-setup-view" class="card hidden">
+    <h2>Authenticator Setup</h2>
+
+    <div class="mfa-layout">
+        <div class="mfa-qr-wrapper">
+            <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
+            <p class="mfa-qr-caption">Scan in Authenticator</p>
+        </div>
+
+        <div class="mfa-details">
             <label>
-                Admin ID
-                <input type="text" id="login-username" autocomplete="username">
+                Account
+                <input type="text" id="mfa-account" readonly>
             </label>
 
             <label>
-                PIN
-                <input type="password" id="login-pin" autocomplete="current-password">
+                Secret Key
+                <input type="text" id="mfa-secret" readonly>
             </label>
 
-            <label id="login-totp-wrapper" class="hidden">
-                Google Authenticator Code
-                <input type="text" id="login-totp" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+            <label>
+                Enter 6-digit code
+                <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
             </label>
 
-            <button type="submit" class="btn-primary">Login</button>
+            <button id="mfa-confirm-btn" class="btn-primary">Confirm & Enable MFA</button>
+            <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
+
+            <div id="mfa-message" class="message"></div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================================================== -->
+<!-- ADMIN VIEW                                            -->
+<!-- ===================================================== -->
+<section id="admin-view" class="card hidden">
+
+    <div class="admin-header">
+        <h2>VisionBank Security Administration</h2>
+        <button id="logout-btn" class="btn-secondary small">Logout</button>
+    </div>
+
+    <p class="card-subtitle">
+        Access Control • User Management • Logs • Business Rules
+    </p>
+
+    <!-- BUSINESS HOURS -->
+    <section class="admin-section">
+        <h3>Business Hours</h3>
+        <form id="hours-form" class="form-grid hours-grid">
+            <label>
+                Start (HH:MM, CST)
+                <input type="time" id="hours-start">
+            </label>
+
+            <label>
+                End (HH:MM, CST)
+                <input type="time" id="hours-end">
+            </label>
+
+            <fieldset class="days-fieldset">
+                <legend>Active Days</legend>
+                <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
+                <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
+                <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
+                <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
+                <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
+                <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
+                <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
+            </fieldset>
+
+            <button type="submit" class="btn-primary">Save Business Hours</button>
+        </form>
+    </section>
+
+    <!-- IP ALLOWLIST -->
+    <section class="admin-section">
+        <h3>Allowed IPs / Subnets</h3>
+        <form id="ip-form">
+            <textarea id="ip-textarea" rows="6" spellcheck="false"></textarea>
+            <button type="submit" class="btn-primary">Save IP Rules</button>
+        </form>
+    </section>
+
+    <!-- USER MANAGEMENT (SUPERADMIN ONLY) -->
+    <section id="user-mgmt-section" class="admin-section hidden">
+        <h3>User Management</h3>
+
+        <div class="section-help">
+            Add, edit, or delete users. Reset MFA for any user if needed.
+        </div>
+
+        <!-- ADD USER FORM -->
+        <form id="user-add-form" class="form-grid user-grid">
+            <label>
+                Username
+                <input type="text" id="new-username">
+            </label>
+
+            <label>
+                Password
+                <input type="password" id="new-password">
+            </label>
+
+            <label>
+                Role
+                <select id="new-role">
+                    <option value="superadmin">Superadmin</option>
+                    <option value="admin">Admin</option>
+                    <option value="analyst">Analyst</option>
+                    <option value="auditor">Auditor</option>
+                    <option value="viewer">Viewer</option>
+                </select>
+            </label>
+
+            <label class="inline">
+                <input type="checkbox" id="new-mfa-enabled"> MFA Enabled
+            </label>
+
+            <button type="submit" class="btn-primary">Add User</button>
         </form>
 
-        <div class="login-helper">
-            <strong>Default Super Admin</strong><br>
-            ID: <code>superadmin</code> • PIN: <code>ChangeMeNow!</code><br>
-            <small>You will be asked to set up Google Authenticator on first login.</small>
-        </div>
-
-        <button id="override-toggle" class="link-button">Use Override Key</button>
-
-        <form id="override-form" class="form-inline hidden">
-            <input type="password" id="override-input" placeholder="Override key">
-            <button type="submit" class="btn-secondary">Enter Override</button>
-        </form>
-
-        <div id="login-message" class="message"></div>
+        <h4>Existing Users</h4>
+        <table id="user-table" class="user-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>MFA</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body"></tbody>
+        </table>
     </section>
 
-    <!-- ====================================== -->
-    <!-- MFA SETUP VIEW (Old UI + NEW QR FIX)   -->
-    <!-- ====================================== -->
-    <section id="mfa-setup-view" class="card hidden">
-        <h2>Google Authenticator Setup</h2>
-        <p class="card-subtitle">
-            Scan this QR code or use the text key below in Google Authenticator. 
-            Then enter a 6-digit code from the app to confirm.
-        </p>
-
-        <div class="mfa-layout">
-
-            <!-- QR: Updated per Option A -->
-            <div class="mfa-qr-wrapper">
-                <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
-                <p class="mfa-qr-caption">Scan in Google Authenticator</p>
-            </div>
-
-            <div class="mfa-details">
-                <label>
-                    Account
-                    <input type="text" id="mfa-account" readonly>
-                </label>
-
-                <label>
-                    Secret Key
-                    <input type="text" id="mfa-secret" readonly>
-                </label>
-
-                <label>
-                    Enter 6-digit code from app
-                    <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
-                </label>
-
-                <button id="mfa-confirm-btn" class="btn-primary">
-                    Confirm &amp; Enable MFA
-                </button>
-
-                <button id="mfa-cancel-btn" class="btn-link">
-                    Cancel
-                </button>
-
-                <div id="mfa-message" class="message"></div>
-            </div>
-
-        </div>
+    <!-- AUDIT LOG -->
+    <section class="admin-section">
+        <h3>Security Audit Log</h3>
+        <pre id="audit-log" class="audit-log"></pre>
     </section>
 
-    <!-- ====================================== -->
-    <!-- ADMIN VIEW (Old UI preserved)          -->
-    <!-- ====================================== -->
-    <section id="admin-view" class="card hidden">
-
-        <div class="admin-header">
-            <h2>VisionBank Security Administration</h2>
-            <button id="logout-btn" class="btn-secondary small">Logout</button>
-        </div>
-
-        <p class="card-subtitle">
-            Access Control • Monitoring • Business Hours
-        </p>
-
-        <!-- BUSINESS HOURS -->
-        <section class="admin-section">
-            <h3>Business Hours</h3>
-            <p class="section-help">
-                These hours are enforced on the main dashboard. Outside these times, access is denied
-                unless an override is used. All times are CST/CDT automatically adjusted.
-            </p>
-
-            <form id="hours-form" class="form-grid hours-grid">
-                <label>
-                    Start (HH:MM, CST)
-                    <input type="time" id="hours-start">
-                </label>
-
-                <label>
-                    End (HH:MM, CST)
-                    <input type="time" id="hours-end">
-                </label>
-
-                <fieldset class="days-fieldset">
-                    <legend>Active Days (CST)</legend>
-                    <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                    <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                    <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                    <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                    <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                    <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                    <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                </fieldset>
-
-                <button type="submit" class="btn-primary">Save Business Hours</button>
-            </form>
-        </section>
-
-        <!-- IP ALLOWLIST -->
-        <section class="admin-section">
-            <h3>Allowed IP Ranges</h3>
-            <p class="section-help">
-                Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
-                One entry per line.
-            </p>
-
-            <form id="ip-form">
-                <textarea id="ip-textarea" rows="6" spellcheck="false"></textarea>
-                <button type="submit" class="btn-primary">Save IP Rules</button>
-            </form>
-        </section>
-
-        <!-- AUDIT LOG -->
-        <section class="admin-section">
-            <h3>Security Audit Log</h3>
-            <p class="section-help">
-                Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
-            </p>
-            <pre id="audit-log" class="audit-log"></pre>
-        </section>
-
-    </section>
+</section>
 
 </main>
 
-<!-- ====================================== -->
-<!-- FOOTER                                 -->
-<!-- ====================================== -->
 <footer class="vb-footer">
     <div class="vb-footer-inner">
-        <span class="vb-footer-left">
-            <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo">
-        </span>
+        <img src="assets/US-Signal-Logo.png" class="footer-logo">
         <span class="vb-footer-text">
-            Created and maintained by <strong>Ahmed Adeyemi</strong>, US Signal
+            Created and maintained by <strong>Ahmed Adeyemi</strong>, US Signal, 2025
         </span>
     </div>
 </footer>
 
-<!-- MAIN JS -->
 <script src="security.js"></script>
 
 </body>

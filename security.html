@@ -2,189 +2,130 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>CEG Security Admin Console | VisionBank</title>
+    <title>VisionBank Security Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <link rel="stylesheet" href="security.css" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 </head>
+
 <body>
-<header class="vb-header">
-    <div class="vb-header-inner">
-        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
-        <div class="vb-title-block">
-            <div class="vb-app-name">CEG Security Admin Console</div>
-            <div class="vb-app-subtitle">VisionBank</div>
-        </div>
-    </div>
-</header>
+    <!-- =========================== -->
+    <!-- HEADER                      -->
+    <!-- =========================== -->
+    <header class="sec-header">
+        <img src="assets/VisionBank-Logo.png" class="sec-logo" />
+        <h1>VisionBank Security Console</h1>
+        <div class="sec-subtitle">Access Control • IP Rules • Business Hours • Audit Logs</div>
+    </header>
 
-<main class="vb-main">
+    <!-- =========================== -->
+    <!-- MAIN LAYOUT WRAPPER         -->
+    <!-- =========================== -->
+    <main class="sec-container">
 
-    <!-- ============ LOGIN VIEW ============ -->
-    <section id="login-view" class="card">
-        <h2>Secure Administrator Login</h2>
-        <p class="card-subtitle">
-            Sign in with your admin ID, PIN, and (when required) a Google Authenticator code.
-        </p>
+        <!-- ======================= -->
+        <!-- LEFT SIDEBAR NAV       -->
+        <!-- ======================= -->
+        <nav class="sec-sidebar">
+            <button class="nav-btn active" data-target="panel-ips">IP Allowlist</button>
+            <button class="nav-btn" data-target="panel-hours">Business Hours</button>
+            <button class="nav-btn" data-target="panel-logs">Security Logs</button>
+        </nav>
 
-        <form id="login-form" class="form-grid">
-            <label>
-                Admin ID
-                <input type="text" id="login-username" autocomplete="username">
-            </label>
+        <!-- ======================= -->
+        <!-- RIGHT CONTENT PANELS   -->
+        <!-- ======================= -->
+        <section class="sec-content">
 
-            <label>
-                PIN
-                <input type="password" id="login-pin" autocomplete="current-password">
-            </label>
+            <!-- ----------------------------------- -->
+            <!-- PANEL: IP RULES                     -->
+            <!-- ----------------------------------- -->
+            <div id="panel-ips" class="sec-panel active">
+                <h2>Allowed IP Addresses / CIDR Blocks</h2>
+                <p class="sec-desc">
+                    These IPs are allowed to access the VisionBank dashboard during approved business hours.
+                </p>
 
-            <label id="login-totp-wrapper" class="hidden">
-                Google Authenticator Code
-                <input type="text" id="login-totp" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-            </label>
+                <textarea id="ipRulesBox" class="sec-textarea" placeholder="One rule per line..."></textarea>
 
-            <button type="submit" class="btn-primary">Login</button>
-        </form>
-
-        <div class="login-helper">
-            <strong>Default Super Admin</strong><br>
-            ID: <code>superadmin</code> • PIN: <code>ChangeMeNow!</code><br>
-            <small>You will be asked to set up Google Authenticator on first login.</small>
-        </div>
-
-        <button id="override-toggle" class="link-button">Use Override Key</button>
-
-        <form id="override-form" class="form-inline hidden">
-            <input type="password" id="override-input" placeholder="Override key">
-            <button type="submit" class="btn-secondary">Enter Override</button>
-        </form>
-
-        <div id="login-message" class="message"></div>
-    </section>
-
-    <!-- ============ MFA SETUP VIEW ============ -->
-    <section id="mfa-setup-view" class="card hidden">
-        <h2>Google Authenticator Setup</h2>
-        <p class="card-subtitle">
-            Scan this QR code or use the text key below in Google Authenticator. Then enter a 6-digit code from the app to confirm.
-        </p>
-
-        <div class="mfa-layout">
-            <div class="mfa-qr-wrapper">
-                <div id="mfa-qr" class="mfa-qr-placeholder">QR loading…</div>
-                <p class="mfa-qr-caption">Scan in Google Authenticator</p>
+                <button id="saveIpRules" class="sec-btn save-btn">Save IP Rules</button>
+                <div id="ipStatus" class="sec-status"></div>
             </div>
 
-            <div class="mfa-details">
-                <label>
-                    Account
-                    <input type="text" id="mfa-account" readonly>
-                </label>
+            <!-- ----------------------------------- -->
+            <!-- PANEL: BUSINESS HOURS               -->
+            <!-- ----------------------------------- -->
+            <div id="panel-hours" class="sec-panel">
+                <h2>Business Hours (CST)</h2>
+                <p class="sec-desc">
+                    The dashboard is only accessible during these hours.
+                </p>
 
-                <label>
-                    Secret Key
-                    <input type="text" id="mfa-secret" readonly>
-                </label>
+                <div class="hours-row">
+                    <label>Start Time:</label>
+                    <input type="time" id="hoursStart" />
+                </div>
 
-                <label>
-                    Enter 6-digit code from app
-                    <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
-                </label>
+                <div class="hours-row">
+                    <label>End Time:</label>
+                    <input type="time" id="hoursEnd" />
+                </div>
 
-                <button id="mfa-confirm-btn" class="btn-primary">
-                    Confirm &amp; Enable MFA
-                </button>
+                <div class="hours-row">
+                    <label>Active Days:</label>
+                    <div class="day-box">
+                        <label><input type="checkbox" class="hoursDay" value="0" /> Sun</label>
+                        <label><input type="checkbox" class="hoursDay" value="1" /> Mon</label>
+                        <label><input type="checkbox" class="hoursDay" value="2" /> Tue</label>
+                        <label><input type="checkbox" class="hoursDay" value="3" /> Wed</label>
+                        <label><input type="checkbox" class="hoursDay" value="4" /> Thu</label>
+                        <label><input type="checkbox" class="hoursDay" value="5" /> Fri</label>
+                        <label><input type="checkbox" class="hoursDay" value="6" /> Sat</label>
+                    </div>
+                </div>
 
-                <button id="mfa-cancel-btn" class="btn-link">
-                    Cancel
-                </button>
-
-                <div id="mfa-message" class="message"></div>
+                <button id="saveHours" class="sec-btn save-btn">Save Business Hours</button>
+                <div id="hoursStatus" class="sec-status"></div>
             </div>
-        </div>
-    </section>
 
-    <!-- ============ ADMIN VIEW ============ -->
-    <section id="admin-view" class="card hidden">
-        <div class="admin-header">
-            <h2>VisionBank Security Administration</h2>
-            <button id="logout-btn" class="btn-secondary small">Logout</button>
-        </div>
-        <p class="card-subtitle">
-            Access Control • Monitoring • Business Hours
-        </p>
+            <!-- ----------------------------------- -->
+            <!-- PANEL: SECURITY LOGS                -->
+            <!-- ----------------------------------- -->
+            <div id="panel-logs" class="sec-panel">
+                <h2>Security Audit Logs</h2>
+                <p class="sec-desc">Most recent access evaluations and changes.</p>
 
-        <!-- Business hours -->
-        <section class="admin-section">
-            <h3>Business Hours</h3>
-            <p class="section-help">
-                These hours are enforced on the main dashboard. Outside of these times, access is denied
-                unless an admin override is used. All times are interpreted in Central Time (CST/CDT).
-            </p>
+                <button id="refreshLogs" class="sec-btn refresh-btn">Refresh Logs</button>
 
-            <form id="hours-form" class="form-grid hours-grid">
-                <label>
-                    Start (HH:MM, CST)
-                    <input type="time" id="hours-start">
-                </label>
+                <div id="logOutput" class="sec-logbox">
+                    Loading logs…
+                </div>
+            </div>
 
-                <label>
-                    End (HH:MM, CST)
-                    <input type="time" id="hours-end">
-                </label>
-
-                <fieldset class="days-fieldset">
-                    <legend>Active Days (CST)</legend>
-                    <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                    <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                    <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                    <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                    <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                    <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                    <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                </fieldset>
-
-                <button type="submit" class="btn-primary">Save Business Hours</button>
-            </form>
         </section>
+    </main>
 
-        <!-- IP allowlist -->
-        <section class="admin-section">
-            <h3>Allowed IP Ranges</h3>
-            <p class="section-help">
-                Only IPs/Subnets listed here will be allowed to access the dashboard while rules are active.
-                One entry per line. Example formats:
-                <code>10.100.100.0/24</code>, <code>45.19.161.17</code>,
-                <code>45.19.162.18/32</code>, <code>120.112.1.119/28</code>.
-            </p>
+    <!-- =========================== -->
+    <!-- SCRIPT: Security Console   -->
+    <!-- =========================== -->
+    <script src="security.js"></script>
 
-            <form id="ip-form">
-                <textarea id="ip-textarea" rows="6" spellcheck="false"></textarea>
-                <button type="submit" class="btn-primary">Save IP Rules</button>
-            </form>
-        </section>
+    <!-- Script to switch sidebar panels -->
+    <script>
+        document.querySelectorAll(".nav-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
 
-        <!-- Audit log -->
-        <section class="admin-section">
-            <h3>Security Audit Log</h3>
-            <p class="section-help">
-                Recent security events. For long-term storage and server-side logging, move this to
-                a Cloudflare Worker or other backend.
-            </p>
-            <pre id="audit-log" class="audit-log"></pre>
-        </section>
-    </section>
-</main>
+                const target = btn.getAttribute("data-target");
+                document.querySelectorAll(".sec-panel").forEach(p => p.classList.remove("active"));
+                document.getElementById(target).classList.add("active");
+            });
+        });
+    </script>
 
-<footer class="vb-footer">
-    <div class="vb-footer-inner">
-        <span class="vb-footer-left">
-            <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo">
-        </span>
-        <span class="vb-footer-text">
-            Created and maintained by <strong>Ahmed Adeyemi</strong>, US Signal
-        </span>
-    </div>
-</footer>
-
-<script src="security.js"></script>
 </body>
 </html>

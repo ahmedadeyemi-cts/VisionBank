@@ -42,6 +42,46 @@ const auditLogBox = document.getElementById("audit-log");
 /* ---------- State ---------- */
 let ACTIVE_SESSION = null;
 let ACTIVE_USERNAME = null;
+let ACTIVE_ROLE = null;
+
+let statusTimer = null;
+let userPanelInitialized = false;
+
+/* =============================================================
+   STATUS BANNER
+   ============================================================= */
+function showStatus(msg, type = "info") {
+    let bar = document.getElementById("admin-status");
+    if (!bar) {
+        bar = document.createElement("div");
+        bar.id = "admin-status";
+        bar.style.marginBottom = "10px";
+        bar.style.padding = "8px 12px";
+        bar.style.borderRadius = "4px";
+        bar.style.fontSize = "14px";
+        bar.style.display = "none";
+        adminView.prepend(bar);
+    }
+
+    bar.textContent = msg;
+    bar.style.display = "block";
+
+    if (type === "success") {
+        bar.style.backgroundColor = "#e6ffed";
+        bar.style.border = "1px solid #2ecc71";
+    } else if (type === "error") {
+        bar.style.backgroundColor = "#ffecec";
+        bar.style.border = "1px solid #e74c3c";
+    } else {
+        bar.style.backgroundColor = "#eef5ff";
+        bar.style.border = "1px solid #3498db";
+    }
+
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+        bar.style.display = "none";
+    }, 4000);
+}
 
 /* =============================================================
    1.  LOGIN HANDLING
@@ -89,6 +129,8 @@ loginForm.addEventListener("submit", async (e) => {
         // SUCCESS
         if (data.success && data.session) {
             ACTIVE_SESSION = data.session;
+            ACTIVE_ROLE = data.user?.role || "view";
+
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
             showAdminView();
@@ -210,6 +252,41 @@ async function showAdminView() {
     await loadBusinessHours();
     await loadIpRules();
     await loadAuditLog();
+
+    applyRolePermissions();
+}
+
+/* =============================================================
+   ROLE-BASED PERMISSIONS
+   ============================================================= */
+
+function applyRolePermissions() {
+    const role = ACTIVE_ROLE || "view";
+
+    // Business Hours: superadmin, admin, analyst can edit
+    const canEditHours = role === "superadmin" || role === "admin" || role === "analyst";
+    hoursStart.disabled = !canEditHours;
+    hoursEnd.disabled = !canEditHours;
+    hoursDayChecks.forEach(cb => cb.disabled = !canEditHours);
+    const hoursButtons = hoursForm ? hoursForm.querySelectorAll("button, input[type='submit']") : [];
+    hoursButtons.forEach(el => el.disabled = !canEditHours);
+
+    // IP Allowlist: superadmin, admin can edit
+    const canEditIp = role === "superadmin" || role === "admin";
+    ipTextarea.disabled = !canEditIp;
+    const ipButtons = ipForm ? ipForm.querySelectorAll("button, input[type='submit']") : [];
+    ipButtons.forEach(el => el.disabled = !canEditIp);
+
+    // Logs: superadmin, admin, auditor can view
+    const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
+    if (!canViewLogs) {
+        auditLogBox.textContent = "You do not have permission to view logs.";
+    }
+
+    // User Management: only superadmin
+    if (role === "superadmin") {
+        initUserManagement();
+    }
 }
 
 /* =============================================================
@@ -244,13 +321,21 @@ hoursForm.addEventListener("submit", async (e) => {
         .map(cb => Number(cb.value));
 
     try {
-        await fetch(`${WORKER_BASE}/api/set-hours`, {
+        const res = await fetch(`${WORKER_BASE}/api/set-hours`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ start, end, days }),
         });
+
+        if (!res.ok) {
+            showStatus("Failed to save business hours.", "error");
+            return;
+        }
+
+        showStatus("Business hours saved successfully.", "success");
     } catch (err) {
         console.error("Save hours failed:", err);
+        showStatus("Failed to save business hours.", "error");
     }
 });
 
@@ -279,13 +364,21 @@ ipForm.addEventListener("submit", async (e) => {
         .filter(r => r);
 
     try {
-        await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ rules }),
         });
+
+        if (!res.ok) {
+            showStatus("Failed to save IP Allowlist.", "error");
+            return;
+        }
+
+        showStatus("IP Allowlist saved successfully.", "success");
     } catch (err) {
         console.error("Save IP rules failed:", err);
+        showStatus("Failed to save IP Allowlist.", "error");
     }
 });
 
@@ -310,7 +403,7 @@ async function loadAuditLog() {
                     const allowed = ev.allowed ? "ALLOWED" : "DENIED";
                     return `${t} | ${ip} | ${path} | ${allowed} | ${reason}`;
                 })
-                .join("\n") || "No logs.";
+                .join("\n") || "No logs yet.";
     } catch (err) {
         console.error("Log load failed:", err);
         auditLogBox.textContent = "Unable to load logs.";
@@ -318,12 +411,197 @@ async function loadAuditLog() {
 }
 
 /* =============================================================
-   8.  LOGOUT
+   8.  USER MANAGEMENT (SUPERADMIN ONLY)
+   ============================================================= */
+
+function initUserManagement() {
+    if (userPanelInitialized) return;
+    userPanelInitialized = true;
+
+    const section = document.createElement("section");
+    section.id = "user-management";
+    section.innerHTML = `
+        <hr />
+        <h2>User Management</h2>
+        <div class="user-mgmt">
+            <div class="user-form">
+                <label>Username<br><input type="text" id="user-username" /></label><br>
+                <label>Password<br><input type="password" id="user-password" /></label><br>
+                <label>Role<br>
+                    <select id="user-role">
+                        <option value="superadmin">Super Admin</option>
+                        <option value="admin">Admin</option>
+                        <option value="analyst">Analyst</option>
+                        <option value="auditor">Auditor</option>
+                        <option value="view">View</option>
+                    </select>
+                </label><br>
+                <label><input type="checkbox" id="user-mfa" /> MFA Enabled</label>
+                <div class="user-buttons" style="margin-top:8px;">
+                    <button type="button" id="user-save-btn">Add / Update User</button>
+                    <button type="button" id="user-delete-btn">Delete User</button>
+                    <button type="button" id="user-reset-mfa-btn">Reset MFA</button>
+                </div>
+            </div>
+            <div class="user-list" style="margin-top:12px;">
+                <h3>Existing Users</h3>
+                <table id="user-table" border="1" cellpadding="4" cellspacing="0">
+                    <thead>
+                        <tr><th>Username</th><th>Role</th><th>MFA</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    adminView.appendChild(section);
+
+    const usernameInput = section.querySelector("#user-username");
+    const passwordInput = section.querySelector("#user-password");
+    const roleSelect = section.querySelector("#user-role");
+    const mfaCheckbox = section.querySelector("#user-mfa");
+
+    const saveBtn = section.querySelector("#user-save-btn");
+    const deleteBtn = section.querySelector("#user-delete-btn");
+    const resetMfaBtn = section.querySelector("#user-reset-mfa-btn");
+
+    const tbody = section.querySelector("#user-table tbody");
+
+    saveBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        const role = roleSelect.value;
+        const mfaEnabled = mfaCheckbox.checked;
+
+        if (!username || !password) {
+            showStatus("Username and password are required.", "error");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password, role, mfaEnabled }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showStatus(data.error || "Failed to save user.", "error");
+                return;
+            }
+
+            showStatus("User saved successfully.", "success");
+            passwordInput.value = "";
+            await refreshUserList();
+        } catch (err) {
+            console.error("Save user failed:", err);
+            showStatus("Failed to save user.", "error");
+        }
+    });
+
+    deleteBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        if (!username) {
+            showStatus("Select a user to delete.", "error");
+            return;
+        }
+
+        if (!confirm(`Delete user "${username}"?`)) return;
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/delete`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showStatus(data.error || "Failed to delete user.", "error");
+                return;
+            }
+
+            showStatus("User deleted.", "success");
+            usernameInput.value = "";
+            passwordInput.value = "";
+            mfaCheckbox.checked = false;
+            await refreshUserList();
+        } catch (err) {
+            console.error("Delete user failed:", err);
+            showStatus("Failed to delete user.", "error");
+        }
+    });
+
+    resetMfaBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        if (!username) {
+            showStatus("Select a user to reset MFA.", "error");
+            return;
+        }
+
+        if (!confirm(`Reset MFA for "${username}"?`)) return;
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/reset-mfa`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showStatus(data.error || "Failed to reset MFA.", "error");
+                return;
+            }
+
+            showStatus("MFA reset. User will be prompted to re-enroll on next login.", "success");
+        } catch (err) {
+            console.error("Reset MFA failed:", err);
+            showStatus("Failed to reset MFA.", "error");
+        }
+    });
+
+    async function refreshUserList() {
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/list`);
+            const data = await res.json();
+            const users = Array.isArray(data.users) ? data.users : [];
+
+            tbody.innerHTML = "";
+            users.forEach(u => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${u.username}</td>
+                    <td>${u.role}</td>
+                    <td>${u.mfaEnabled ? "Yes" : "No"}</td>
+                `;
+                tr.addEventListener("click", () => {
+                    usernameInput.value = u.username;
+                    roleSelect.value = u.role || "view";
+                    mfaCheckbox.checked = !!u.mfaEnabled;
+                    passwordInput.value = "";
+                });
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            console.error("Load users failed:", err);
+            tbody.innerHTML = `<tr><td colspan="3">Unable to load users.</td></tr>`;
+        }
+    }
+
+    refreshUserList();
+}
+
+/* =============================================================
+   9.  LOGOUT
    ============================================================= */
 
 logoutBtn.addEventListener("click", () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
+    ACTIVE_ROLE = null;
+
     loginTotp.value = "";
     loginTotpWrapper.classList.add("hidden");
 

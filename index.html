@@ -9,53 +9,84 @@
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION -->
     <!-- ======================================= -->
-    <script>
+  <script>
+  window.addEventListener("DOMContentLoaded", () => {
     (async function () {
-        const overlay = document.getElementById("access-denied-overlay");
-        const msg = document.getElementById("access-denied-message");
+      const overlay = document.getElementById("access-denied-overlay");
+      const msgEl = document.getElementById("access-denied-message");
+      const statusEl = document.getElementById("securityStatus");
 
-        try {
-            const res = await fetch(
-                "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
-                {
-                    method: "GET",
-                    mode: "cors",
-                    credentials: "omit"
-                }
-            );
-
-            if (!res.ok) {
-                msg.textContent = "Security service error. Please contact IT.";
-                overlay.classList.remove("hidden");
-                return;
-            }
-
-            const data = await res.json();
-            window.VB_SECURITY = data; // optional debug object
-
-            if (!data.allowed) {
-                if (data.reason === "ip-denied") {
-                    msg.textContent =
-                        "Your IP address does not have permission to access this dashboard.";
-                } else if (data.reason === "hours-closed") {
-                    msg.textContent =
-                        "Dashboard access is restricted outside approved business hours.";
-                }
-                overlay.classList.remove("hidden");
-                return;
-            }
-
-            /* ✔ ACCESS APPROVED → HIDE OVERLAY */
-            overlay.classList.add("hidden");
-            document.body.classList.add("security-approved");
-
-        } catch (err) {
-            console.error("Security check failed:", err);
-            msg.textContent = "Unable to contact security service.";
-            overlay.classList.remove("hidden");
+      function showOverlay(text) {
+        if (msgEl && text) {
+          msgEl.textContent = text;
         }
+        if (overlay) {
+          overlay.classList.remove("hidden");
+        }
+        document.body.classList.remove("security-approved");
+      }
+
+      try {
+        const res = await fetch(
+          "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
+          {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit"
+          }
+        );
+
+        if (!res.ok) {
+          showOverlay(
+            "Unable to contact security service (HTTP " + res.status + ")."
+          );
+          return;
+        }
+
+        const data = await res.json();
+        // Make result visible to dashboard.js if needed
+        window.VB_SECURITY = data;
+
+        // Access denied cases
+        if (!data.allowed) {
+          let text =
+            "Your access is currently unavailable. Please contact the VisionBank IT Team.";
+
+          if (data.reason === "ip-denied") {
+            text =
+              "Your access is being denied due to lack of permission. " +
+              "Please contact the VisionBank IT Team to enable your access.";
+          } else if (data.reason === "hours-closed") {
+            text =
+              "Your access is currently unavailable because this dashboard " +
+              "is restricted to normal business hours.";
+          }
+
+          showOverlay(text);
+          return;
+        }
+
+        // ✔ Access approved
+        if (overlay) {
+          overlay.classList.add("hidden");
+        }
+        document.body.classList.add("security-approved");
+
+        if (statusEl && data.info) {
+          statusEl.textContent =
+            "Access approved from IP " +
+            data.info.clientIp +
+            " at " +
+            data.info.nowCst.label +
+            " (CST)";
+        }
+      } catch (err) {
+        console.error("Security check failed:", err);
+        showOverlay("Unable to contact security service.");
+      }
     })();
-    </script>
+  });
+</script>
 </head>
 
 <body>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>Dashboard Security Admin Console | VisionBank</title>
+    <title>Security Admin Console | VisionBank</title>
     <link rel="stylesheet" href="security.css" />
 </head>
 
@@ -14,10 +14,18 @@
 <header class="vb-header">
     <div class="vb-header-inner">
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
+
         <div class="vb-title-block">
-            <div class="vb-app-name">Dashboard Security Admin Console</div>
+            <div class="vb-app-name">Security Admin Console</div>
             <div class="vb-app-subtitle">VisionBank</div>
         </div>
+    </div>
+
+    <div class="vb-header-actions">
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+            <span id="themeToggleIcon">🌙</span>
+            <span id="themeToggleText">Dark mode</span>
+        </button>
     </div>
 </header>
 
@@ -29,7 +37,7 @@
     <section id="login-view" class="card">
         <h2>Secure Administrator Login</h2>
         <p class="card-subtitle">
-            Sign in with your username, Password, and (when required) a Microsoft Authenticator code.
+            Sign in with your admin ID, PIN, and (when required) a Microsoft Authenticator code.
         </p>
 
         <form id="login-form" class="form-grid">
@@ -52,10 +60,9 @@
         </form>
 
         <div class="login-helper">
-            <strong>If you do not have a Login, check with IT</strong><br>
-            <!--ID: <code>superadmin</code> • 
-          //Password: <code>ChangeMeNow!</code><br> -->
-            <small>You will be asked to set up Microsoft Authenticator on your first login.</small>
+            <strong>If you do not have a login credential, contact IT</strong><be>
+            <!--ID: <code>superadmin</code> • PIN: <code>ChangeMeNow!</code><br>
+            <small>You will be asked to set up Microsoft Authenticator on first login.</small> -->
         </div>
 
         <button id="override-toggle" class="link-button">Use Override Key</button>
@@ -74,7 +81,7 @@
     <section id="mfa-setup-view" class="card hidden">
         <h2>Microsoft Authenticator Setup</h2>
         <p class="card-subtitle">
-            Scan this QR code or use the text key below in Microsoft Authenticator.
+            Scan this QR code or use the text key below in Microsoft Authenticator. 
             Then enter a 6-digit code from the app to confirm.
         </p>
 
@@ -121,16 +128,19 @@
     <section id="admin-view" class="card hidden">
 
         <div class="admin-header">
-            <h2>Security Admin Console</h2>
+            <div>
+                <h2>VisionBank Security Administration</h2>
+                <p class="card-subtitle">
+                    Access Control • User Management • Logs • Business Rules
+                </p>
+            </div>
             <button id="logout-btn" class="btn-secondary small">Logout</button>
         </div>
 
-        <p class="card-subtitle">
-            Access Control • User Management • Logs • Business Rules
-        </p>
+        <!-- Status banner injected by JS (showStatus) -->
 
         <!-- BUSINESS HOURS -->
-        <section class="admin-section">
+        <section id="admin-hours-section" class="admin-section">
             <h3>Business Hours</h3>
             <p class="section-help">
                 These hours are enforced on the main dashboard. Outside these times, access is denied
@@ -164,7 +174,7 @@
         </section>
 
         <!-- IP ALLOWLIST -->
-        <section class="admin-section">
+        <section id="admin-ip-section" class="admin-section">
             <h3>Allowed IPs / Subnets</h3>
             <p class="section-help">
                 Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
@@ -177,11 +187,10 @@
             </form>
         </section>
 
-        <!-- USER MANAGEMENT PLACEHOLDER (for JS injection) -->
-        <section id="user-management-container" class="admin-section"></section>
+        <!-- USER MANAGEMENT WILL BE INSERTED HERE BY JS (before audit section) -->
 
-        <!-- AUDIT LOG AT BOTTOM -->
-        <section class="admin-section" id="audit-log-section">
+        <!-- AUDIT LOG -->
+        <section id="admin-audit-section" class="admin-section">
             <h3>Security Audit Log</h3>
             <p class="section-help">
                 Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
@@ -206,14 +215,6 @@
         </span>
     </div>
 </footer>
-
-<!-- THEME TOGGLE (bottom-left) -->
-<div id="theme-toggle" class="theme-toggle" title="Toggle Theme">
-    <div class="theme-toggle-track">
-        <div class="theme-toggle-thumb"></div>
-    </div>
-    <span class="theme-toggle-icon">☾</span>
-</div>
 
 <!-- MAIN JS -->
 <script src="security.js"></script>

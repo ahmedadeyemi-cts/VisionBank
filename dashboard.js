@@ -1,4 +1,23 @@
 // ===============================
+// Optional: show security banner in the UI
+(function () {
+  if (!window.VB_SECURITY || !window.VB_SECURITY.allowed) return;
+
+  const info = window.VB_SECURITY.info;
+  if (!info) return;
+
+  console.log("Security check info:", info);
+
+  const el = document.getElementById("securityStatus");
+  if (el) {
+    el.textContent =
+      "Access approved from IP " +
+      info.clientIp +
+      " at " +
+      info.nowCst.label +
+      " (CST)";
+  }
+})();
 // CONFIG
 // ===============================
 const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";

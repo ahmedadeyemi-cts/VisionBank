@@ -53,7 +53,9 @@ loginForm.addEventListener("submit", async (e) => {
 
     const username = document.getElementById("login-username").value.trim();
     const password = document.getElementById("login-pin").value.trim(); // Worker expects "password"
-    const totp = loginTotpWrapper.classList.contains("hidden") ? "" : loginTotp.value.trim();
+    const totp = loginTotpWrapper.classList.contains("hidden")
+        ? ""
+        : loginTotp.value.trim();
 
     ACTIVE_USERNAME = username;
 
@@ -71,30 +73,37 @@ loginForm.addEventListener("submit", async (e) => {
             return;
         }
 
-        /* MFA NOT SET UP YET */
+        // MFA not yet configured for a user that requires MFA
         if (data.requireMfaSetup) {
-            ACTIVE_SESSION = data.session;
-            showMfaSetup(data);
+            await beginMfaEnrollment(username);
             return;
         }
 
-        /* MFA REQUIRED THIS LOGIN */
+        // MFA is required for this login (but code not sent yet)
         if (data.requireTotp) {
             loginTotpWrapper.classList.remove("hidden");
             loginMsg.textContent = "Enter your 6-digit Google Authenticator code.";
             return;
         }
 
-        /* SUCCESS */
-        ACTIVE_SESSION = data.session;
-        showAdminView();
+        // SUCCESS
+        if (data.success && data.session) {
+            ACTIVE_SESSION = data.session;
+            loginTotp.value = "";
+            loginTotpWrapper.classList.add("hidden");
+            showAdminView();
+            return;
+        }
+
+        loginMsg.textContent = "Unexpected response from authentication service.";
     } catch (err) {
+        console.error(err);
         loginMsg.textContent = "Network error connecting to authentication service.";
     }
 });
 
 /* =============================================================
-   2.  OVERRIDE KEY HANDLING (DISABLED UNTIL WORKER ROUTE EXISTS)
+   2.  OVERRIDE KEY HANDLING (UI ONLY — NO BACKEND ENDPOINT)
    ============================================================= */
 
 overrideToggle.addEventListener("click", () => {
@@ -103,12 +112,39 @@ overrideToggle.addEventListener("click", () => {
 
 overrideForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    loginMsg.textContent = "Override login unavailable (endpoint not implemented).";
+    loginMsg.textContent = "Override login is not enabled on this system.";
 });
 
 /* =============================================================
    3.  MFA SETUP FLOW
    ============================================================= */
+
+async function beginMfaEnrollment(username) {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/setup-mfa`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            loginMsg.textContent = data.error || "Unable to start MFA setup.";
+            return;
+        }
+
+        ACTIVE_USERNAME = username;
+        showMfaSetup({
+            username,
+            qr: data.qr,
+            secret: data.secret,
+        });
+    } catch (err) {
+        console.error(err);
+        loginMsg.textContent = "Network error starting MFA setup.";
+    }
+}
 
 function showMfaSetup(data) {
     loginView.classList.add("hidden");
@@ -116,8 +152,10 @@ function showMfaSetup(data) {
     mfaSetupView.classList.remove("hidden");
 
     mfaQrImg.src = data.qr;
-    mfaAccount.value = ACTIVE_USERNAME;
-    mfaSecret.value = data.secret;
+    mfaAccount.value = data.username || ACTIVE_USERNAME || "";
+    mfaSecret.value = data.secret || "";
+    mfaCodeInput.value = "";
+    mfaMsg.textContent = "";
 }
 
 mfaConfirmBtn.addEventListener("click", async () => {
@@ -141,8 +179,16 @@ mfaConfirmBtn.addEventListener("click", async () => {
             return;
         }
 
-        showAdminView();
+        // MFA confirmed: send user back to login to authenticate with password + TOTP
+        mfaMsg.textContent = "MFA confirmed. Please log in with your password and 6-digit code.";
+        setTimeout(() => {
+            mfaSetupView.classList.add("hidden");
+            loginView.classList.remove("hidden");
+            loginMsg.textContent = "MFA configured. Please log in.";
+        }, 1200);
+
     } catch (err) {
+        console.error(err);
         mfaMsg.textContent = "Unable to verify MFA code.";
     }
 });
@@ -179,7 +225,9 @@ async function loadBusinessHours() {
         hoursEnd.value = hours.end || "";
 
         hoursDayChecks.forEach((cb) => {
-            cb.checked = hours.days?.includes(Number(cb.value)) || false;
+            cb.checked = Array.isArray(hours.days)
+                ? hours.days.includes(Number(cb.value))
+                : false;
         });
     } catch (err) {
         console.error("Hours load failed:", err);
@@ -199,7 +247,7 @@ hoursForm.addEventListener("submit", async (e) => {
         await fetch(`${WORKER_BASE}/api/set-hours`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hours: { start, end, days } }),
+            body: JSON.stringify({ start, end, days }),
         });
     } catch (err) {
         console.error("Save hours failed:", err);
@@ -214,7 +262,9 @@ async function loadIpRules() {
     try {
         const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
         const data = await res.json();
-        ipTextarea.value = data.rules?.join("\n") || "";
+        ipTextarea.value = Array.isArray(data.rules)
+            ? data.rules.join("\n")
+            : "";
     } catch (err) {
         console.error("IP load failed:", err);
     }
@@ -248,12 +298,21 @@ async function loadAuditLog() {
         const res = await fetch(`${WORKER_BASE}/api/logs`);
         const data = await res.json();
 
-        const events = data.events || [];
+        const events = Array.isArray(data.events) ? data.events : [];
 
-        auditLogBox.textContent = events
-            .map(ev => `${ev.time} | ${ev.ip} | ${ev.path} | ${ev.reason}`)
-            .join("\n") || "No logs.";
+        auditLogBox.textContent =
+            events
+                .map(ev => {
+                    const t = ev.time || "";
+                    const ip = ev.ip || "";
+                    const path = ev.path || "";
+                    const reason = ev.reason || "";
+                    const allowed = ev.allowed ? "ALLOWED" : "DENIED";
+                    return `${t} | ${ip} | ${path} | ${allowed} | ${reason}`;
+                })
+                .join("\n") || "No logs.";
     } catch (err) {
+        console.error("Log load failed:", err);
         auditLogBox.textContent = "Unable to load logs.";
     }
 }
@@ -271,4 +330,5 @@ logoutBtn.addEventListener("click", () => {
     adminView.classList.add("hidden");
     mfaSetupView.classList.add("hidden");
     loginView.classList.remove("hidden");
+    loginMsg.textContent = "";
 });

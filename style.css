@@ -1,4 +1,6 @@
-/* ====== BASE ====== */
+/* ============================================================
+   BASE
+============================================================ */
 body {
     font-family: Arial, sans-serif;
     background: #f4f5f7;
@@ -6,6 +8,7 @@ body {
     display: flex;
     flex-direction: column;
     color: #222;
+    transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 .main {
@@ -13,12 +16,13 @@ body {
     padding: 10px 15px 0 15px;
 }
 
-/* Utility */
 .hidden {
     display: none !important;
 }
 
-/* ====== HEADER ====== */
+/* ============================================================
+   HEADER
+============================================================ */
 .header {
     background: white;
     border-bottom: 1px solid #ddd;
@@ -27,6 +31,7 @@ body {
     align-items: center;
     justify-content: center;
     position: relative;
+    transition: background-color 0.35s ease, border-color 0.35s ease;
 }
 
 .header-left {
@@ -37,6 +42,7 @@ body {
 
 .logo {
     height: 48px;
+    transition: filter 0.35s ease;
 }
 
 .header-center {
@@ -56,7 +62,9 @@ body {
     color: #555;
 }
 
-/* ====== GLOBAL STAT CARDS ====== */
+/* ============================================================
+   STATS GRID
+============================================================ */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -70,6 +78,7 @@ body {
     border-radius: 8px;
     padding: 18px;
     text-align: center;
+    transition: background-color 0.35s ease, border-color 0.35s ease;
 }
 
 .stat-value {
@@ -82,7 +91,9 @@ body {
     color: #555;
 }
 
-/* ====== PANELS ====== */
+/* ============================================================
+   PANELS
+============================================================ */
 .panel {
     background: white;
     border: 1px solid #ddd;
@@ -90,6 +101,7 @@ body {
     margin: 10px auto;
     padding: 15px;
     max-width: 1200px;
+    transition: background-color 0.35s ease, border-color 0.35s ease;
 }
 
 .panel h2 {
@@ -97,10 +109,13 @@ body {
     margin: 0 0 10px 0;
 }
 
-/* ====== TABLE ====== */
+/* ============================================================
+   TABLE
+============================================================ */
 .data-table {
     width: 100%;
     border-collapse: collapse;
+    transition: background-color 0.35s ease;
 }
 
 .data-table th {
@@ -115,7 +130,7 @@ body {
     border: 1px solid #ddd;
 }
 
-/* Zebra rows */
+/* Zebra stripes */
 .data-table tbody tr:nth-child(odd) {
     background: #f9fafb;
 }
@@ -123,7 +138,9 @@ body {
     background: #fff;
 }
 
-/* ====== AVAILABILITY COLORS ====== */
+/* ============================================================
+   AGENT AVAILABILITY COLORS
+============================================================ */
 .status-available {
     background: #2ecc71;
     color: white;
@@ -140,7 +157,6 @@ body {
     background: #e67e22;
     color: white;
 }
-/* Wrap-Up → orange family */
 .status-wrapup {
     background: #ff8c42;
     color: white;
@@ -151,7 +167,9 @@ body {
     border-radius: 16px;
 }
 
-/* ====== FOOTER ====== */
+/* ============================================================
+   FOOTER
+============================================================ */
 .footer {
     background: white;
     border-top: 1px solid #ddd;
@@ -159,23 +177,23 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background-color 0.35s ease, border-color 0.35s ease;
 }
 
 .footer-logo {
     height: 30px;
     width: auto;
+    transition: filter 0.35s ease;
 }
 
 /* ============================================================
-   DARK MODE — Global Behavior
-   ============================================================ */
-
+   DARK MODE - GLOBAL
+============================================================ */
 body.dark-mode {
     background: #121212 !important;
     color: #f5f5f5 !important;
 }
 
-/* Apply dark text theme everywhere EXCEPT availability cells */
 body.dark-mode *:not(.availability-cell):not(.availability-cell *),
 body.dark-mode td:not(.availability-cell),
 body.dark-mode th,
@@ -184,44 +202,14 @@ body.dark-mode div:not(.availability-cell) {
     color: #f5f5f5 !important;
 }
 
-/* ============================================================
-   PRESERVE AVAILABILITY COLORS IN DARK MODE
-   ============================================================ */
+/* Availability colors stay the same */
+body.dark-mode .status-available { background: #2ecc71 !important; }
+body.dark-mode .status-oncall { background: #e74c3c !important; }
+body.dark-mode .status-busy { background: #f1c40f !important; color: #000 !important; }
+body.dark-mode .status-ringing { background: #e67e22 !important; }
+body.dark-mode .status-wrapup { background: #ff8c42 !important; }
 
-/* Available (green) */
-body.dark-mode .status-available {
-    background: #2ecc71 !important;
-    color: #ffffff !important;
-}
-
-/* On Call / Dialing (red) */
-body.dark-mode .status-oncall {
-    background: #e74c3c !important;
-    color: #ffffff !important;
-}
-
-/* Busy (yellow) */
-body.dark-mode .status-busy {
-    background: #f1c40f !important;
-    color: #000 !important;
-}
-
-/* Ringing (orange) */
-body.dark-mode .status-ringing {
-    background: #e67e22 !important;
-    color: #ffffff !important;
-}
-
-/* Wrap-Up (orange) */
-body.dark-mode .status-wrapup {
-    background: #ff8c42 !important;
-    color: #ffffff !important;
-}
-
-/* ============================================================
-   DARK MODE — Header & Footer
-   ============================================================ */
-
+/* Header + Footer */
 body.dark-mode .header {
     background: #1b1b1b !important;
     border-bottom-color: #333 !important;
@@ -241,15 +229,13 @@ body.dark-mode .footer-right span {
     color: #ffffff !important;
 }
 
+/* Make logos visible on GitHub dark pages */
 body.dark-mode .logo,
 body.dark-mode .footer-logo {
     filter: brightness(1.8) contrast(1.1);
 }
 
-/* ============================================================
-   DARK MODE — Panels and Section Titles
-   ============================================================ */
-
+/* Panels */
 body.dark-mode .panel {
     background: #1a1a1a !important;
     border-color: #333 !important;
@@ -262,10 +248,7 @@ body.dark-mode .panel h2 {
     color: #ffffff !important;
 }
 
-/* ============================================================
-   DARK MODE — Table
-   ============================================================ */
-
+/* Tables */
 body.dark-mode .data-table th {
     background: #222 !important;
     color: #ffffff !important;
@@ -276,19 +259,14 @@ body.dark-mode .data-table td {
     border-color: #333 !important;
 }
 
-/* Zebra striping */
 body.dark-mode .data-table tbody tr:nth-child(odd) {
     background: #161616 !important;
 }
-
 body.dark-mode .data-table tbody tr:nth-child(even) {
     background: #1e1e1e !important;
 }
 
-/* ============================================================
-   DARK MODE — Global Statistics Cards
-   ============================================================ */
-
+/* Stat Cards */
 body.dark-mode .stat-card {
     background: #1d1d1d !important;
     border-color: #333 !important;
@@ -300,24 +278,8 @@ body.dark-mode .stat-label {
 }
 
 /* ============================================================
-   Smooth transitions
-   ============================================================ */
-
-body,
-.header,
-.footer,
-.panel,
-.data-table,
-.stat-card {
-    transition: background-color 0.35s ease,
-                color 0.35s ease,
-                border-color 0.35s ease;
-}
-
-/* ============================================================
    ACCESS DENIED OVERLAY
-   ============================================================ */
-
+============================================================ */
 .access-denied-overlay {
     position: fixed;
     inset: 0;
@@ -327,6 +289,14 @@ body,
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(6px);
+    opacity: 1;
+    pointer-events: all;
+    transition: opacity 0.45s ease;
+}
+
+.access-denied-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .access-denied-card {
@@ -338,6 +308,12 @@ body,
     text-align: center;
     box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.8);
+    animation: fadeIn 0.45s ease;
+}
+
+@keyframes fadeIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .access-denied-card h1 {
@@ -371,4 +347,33 @@ body.dark-mode .access-denied-card h1 {
 body.dark-mode .access-denied-card p,
 body.dark-mode .access-denied-note {
     color: #f2f2f2;
+}
+
+/* ============================================================
+   RESPONSIVENESS (Mobile-first Enhancements)
+============================================================ */
+@media (max-width: 1024px) {
+    .stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .header-center h1 {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 500px) {
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel {
+        padding: 10px;
+    }
 }

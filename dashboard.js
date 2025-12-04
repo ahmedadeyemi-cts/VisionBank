@@ -4,14 +4,14 @@
 const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
 const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
 
-// Cloudflare Worker base
+// Cloudflare Worker base for security
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
 
 // ===============================
-// CC API WRAPPER
+// HELPERS
 // ===============================
 async function fetchApi(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -24,6 +24,48 @@ async function fetchApi(path) {
   return res.json();
 }
 
+// ===============================
+// SECURITY GATE
+// (Only executed AFTER index.html’s pre-check approves)
+// ===============================
+async function checkSecurityAccess() {
+  // If index.html already evaluated security, reuse it
+  if (window.VB_SECURITY) {
+    return !!window.VB_SECURITY.allowed;
+  }
+
+  // Fallback – call worker directly
+  try {
+    const res = await fetch(`${SECURITY_BASE}/security/check`, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit"
+    });
+    if (!res.ok) return false;
+
+    const data = await res.json();
+    window.VB_SECURITY = data;
+    return !!data.allowed;
+  } catch (err) {
+    console.error("Security check failed:", err);
+    return false;
+  }
+}
+
+// Optional: show security banner in the UI footer
+function showSecurityBanner() {
+  if (!window.VB_SECURITY || !window.VB_SECURITY.info) return;
+  const el = document.getElementById("securityStatus");
+  if (!el) return;
+
+  const info = window.VB_SECURITY.info;
+  const ip = info.ip || info.clientIp || "Unknown IP";
+  const ts = info.now || (info.nowCst && info.nowCst.label) || "";
+  el.textContent = ts
+    ? `Access approved from IP ${ip} at ${ts} (CST)`
+    : `Access approved from IP ${ip}`;
+}
+
 function safe(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return value;
@@ -33,13 +75,17 @@ function formatTime(sec) {
   sec = Number(sec) || 0;
   const sign = sec < 0 ? "-" : "";
   sec = Math.abs(sec);
+
   const hours = Math.floor(sec / 3600);
   const minutes = Math.floor((sec % 3600) / 60);
   const seconds = Math.floor(sec % 60);
+
   return (
     sign +
-    String(hours).padStart(2, "0") + ":" +
-    String(minutes).padStart(2, "0") + ":" +
+    String(hours).padStart(2, "0") +
+    ":" +
+    String(minutes).padStart(2, "0") +
+    ":" +
     String(seconds).padStart(2, "0")
   );
 }
@@ -48,7 +94,7 @@ function formatDate(isoString) {
   if (!isoString) return "--";
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "--";
-  return d.toLocaleString("en-US", { timeZone: "America/Chicago" });
+  return d.toLocaleString();
 }
 
 function setText(id, value) {
@@ -56,47 +102,6 @@ function setText(id, value) {
   if (!el) return;
   el.textContent = value === undefined || value === null ? "--" : value;
 }
-
-// ===============================
-// SECURITY GATE
-// ===============================
-async function checkSecurityAccess() {
-  // If index.html already evaluated security, reuse it
-  if (window.VB_SECURITY) {
-    return window.VB_SECURITY.allowed === true;
-  }
-
-  // Rare fallback — recheck directly
-  try {
-    const res = await fetch(`${SECURITY_BASE}/security/check`, {
-      method: "GET",
-      mode: "cors",
-      credentials: "omit"
-    });
-
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    window.VB_SECURITY = data;
-    return data.allowed === true;
-  } catch (err) {
-    console.error("Security check failed:", err);
-    return false;
-  }
-}
-
-// Footer banner (runs once VB_SECURITY exists)
-(function showSecurityBanner() {
-  window.addEventListener("load", () => {
-    const el = document.getElementById("securityStatus");
-    if (!el || !window.VB_SECURITY || !window.VB_SECURITY.info) return;
-
-    const ip = window.VB_SECURITY.info.ip || window.VB_SECURITY.info.clientIp || "Unknown";
-    const timestamp = window.VB_SECURITY.info.now || "Unknown time";
-    el.textContent =
-      "Access approved from IP " + ip + " at " + timestamp + " (CST)";
-  });
-})();
 
 // ===============================
 // DARK MODE
@@ -137,7 +142,7 @@ let alertSettings = {
   enablePopupAlerts: true,
   tone: "soft",
   volume: 0.8,
-  cooldownSeconds: 30, // 30s: gives you chime every 30s when >1 call
+  cooldownSeconds: 30,
   wallboardMode: false,
   queueTones: {}
 };
@@ -255,7 +260,10 @@ function showAlertPopup(message) {
   popup.classList.add("visible");
 
   if (popupTimeoutId) clearTimeout(popupTimeoutId);
-  popupTimeoutId = setTimeout(() => popup.classList.remove("visible"), 5000);
+  popupTimeoutId = setTimeout(
+    () => popup.classList.remove("visible"),
+    5000
+  );
 }
 
 // ===============================
@@ -400,6 +408,7 @@ function initAlertSettingsUI() {
   const alertSettingsPanel = document.getElementById("alertSettingsPanel");
   const alertHistoryToggle = document.getElementById("alertHistoryToggle");
   const alertHistoryPanel = document.getElementById("alertHistoryPanel");
+  const exitWallboardBtn = document.getElementById("exitWallboardMode");
 
   if (enableQueueAlertsEl) {
     enableQueueAlertsEl.checked = alertSettings.enableQueueAlerts;
@@ -455,16 +464,33 @@ function initAlertSettingsUI() {
     wallboardModeEl.checked = alertSettings.wallboardMode;
     wallboardModeEl.addEventListener("change", () => {
       alertSettings.wallboardMode = wallboardModeEl.checked;
-      document.body.classList.toggle("wallboard-mode", wallboardModeEl.checked);
+      document.body.classList.toggle(
+        "wallboard-mode",
+        wallboardModeEl.checked
+      );
       saveAlertSettings();
     });
-    document.body.classList.toggle("wallboard-mode", wallboardModeEl.checked);
+    document.body.classList.toggle(
+      "wallboard-mode",
+      wallboardModeEl.checked
+    );
+  }
+
+  if (exitWallboardBtn) {
+    exitWallboardBtn.addEventListener("click", () => {
+      alertSettings.wallboardMode = false;
+      if (wallboardModeEl) wallboardModeEl.checked = false;
+      document.body.classList.remove("wallboard-mode");
+      saveAlertSettings();
+    });
   }
 
   if (testButtonEl) {
     testButtonEl.addEventListener("click", () => {
+      const tone = alertSettings.tone || "soft";
       const calls = lastQueueSnapshot.totalCalls || 0;
       const agents = lastQueueSnapshot.totalAgents || 0;
+
       triggerQueueAlert({
         totalCalls: calls,
         totalAgents: agents,
@@ -474,54 +500,62 @@ function initAlertSettingsUI() {
     });
   }
 
-  // Fixed toggles with click-outside close
+  // Fixed toggles
   if (alertSettingsToggle && alertSettingsPanel) {
-    alertSettingsToggle.onclick = (e) => {
+    alertSettingsToggle.onclick = e => {
       e.preventDefault();
       e.stopPropagation();
 
       const isOpen = !alertSettingsPanel.classList.contains("hidden");
 
       alertSettingsPanel.classList.add("hidden");
-      alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
+      alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertSettingsPanel.classList.remove("hidden");
     };
   }
 
   if (alertHistoryToggle && alertHistoryPanel) {
-    alertHistoryToggle.onclick = (e) => {
+    alertHistoryToggle.onclick = e => {
       e.preventDefault();
       e.stopPropagation();
 
       const isOpen = !alertHistoryPanel.classList.contains("hidden");
 
-      alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
+      alertSettingsPanel.classList.add("hidden");
       alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertHistoryPanel.classList.remove("hidden");
     };
   }
 
-  // Click outside to close both panels
-  document.addEventListener("click", (e) => {
-    if (!alertSettingsPanel && !alertHistoryPanel) return;
-
-    const target = e.target;
-    const inSettings =
-      alertSettingsPanel && alertSettingsPanel.contains(target);
-    const inHistory =
-      alertHistoryPanel && alertHistoryPanel.contains(target);
-    const onSettingsToggle =
-      alertSettingsToggle && alertSettingsToggle.contains(target);
-    const onHistoryToggle =
-      alertHistoryToggle && alertHistoryToggle.contains(target);
-
-    if (inSettings || inHistory || onSettingsToggle || onHistoryToggle) return;
-
-    alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
-    alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
+  // Close panels when clicking outside
+  document.addEventListener("click", evt => {
+    const target = evt.target;
+    if (
+      alertSettingsPanel &&
+      !alertSettingsPanel.contains(target) &&
+      target !== alertSettingsToggle
+    ) {
+      alertSettingsPanel.classList.add("hidden");
+    }
+    if (
+      alertHistoryPanel &&
+      !alertHistoryPanel.contains(target) &&
+      target !== alertHistoryToggle
+    ) {
+      alertHistoryPanel.classList.add("hidden");
+    }
   });
+
+  document
+    .querySelectorAll(".alert-panel-close")
+    .forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (alertSettingsPanel) alertSettingsPanel.classList.add("hidden");
+        if (alertHistoryPanel) alertHistoryPanel.classList.add("hidden");
+      });
+    });
 }
 
 // ===============================
@@ -577,14 +611,15 @@ function updateQueueToneOverrides(queues) {
 // ===============================
 // QUEUE ALERT LOGIC
 // ===============================
-//
-// Requirement:
-// - When totalCalls == 1 -> flashing panel only (no chime)
-// - When totalCalls >= 2 -> flashing + audio alerts every cooldownSeconds
-//
-function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
+function triggerQueueAlert({
+  totalCalls,
+  totalAgents,
+  queueNames,
+  isTest = false
+}) {
   if (!isTest && !alertSettings.enableQueueAlerts) return;
-  if (!isTest && totalCalls <= 1) return; // 1 call => no chime
+  // Only chime when > 1 total calls (2+)
+  if (!isTest && totalCalls <= 1) return;
 
   const now = Date.now();
   const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
@@ -629,7 +664,11 @@ async function loadQueueStatus() {
   try {
     const data = await fetchApi("/status/queues");
 
-    if (!data || !Array.isArray(data.QueueStatus) || data.QueueStatus.length === 0) {
+    if (
+      !data ||
+      !Array.isArray(data.QueueStatus) ||
+      data.QueueStatus.length === 0
+    ) {
       body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
       panel && panel.classList.remove("queue-alert-active");
       return;
@@ -675,12 +714,9 @@ async function loadQueueStatus() {
 
     lastQueueSnapshot = { totalCalls, totalAgents };
 
-    // Flash panel whenever any queue has calls (>=1)
-    if (panel) {
-      panel.classList.toggle("queue-alert-active", anyHot);
-    }
+    if (panel) panel.classList.toggle("queue-alert-active", anyHot);
 
-    // Audio + popup only when > 1 call in total
+    // Only trigger audio if total calls > 1 (2+).
     if (anyHot && totalCalls > 1) {
       triggerQueueAlert({
         totalCalls,
@@ -707,7 +743,11 @@ async function loadGlobalStats() {
   try {
     const data = await fetchApi("/statistics/global");
 
-    if (!data || !Array.isArray(data.GlobalStatistics) || data.GlobalStatistics.length === 0) {
+    if (
+      !data ||
+      !Array.isArray(data.GlobalStatistics) ||
+      data.GlobalStatistics.length === 0
+    ) {
       if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
       return;
     }
@@ -743,68 +783,35 @@ async function loadGlobalStats() {
 }
 
 // ===============================
-// AVAILABILITY COLOR MAPPING
-// ===============================
-//
-// GREEN
-//   Available
-//
-// RED
-//   On Call
-//   Dial Out
-//   On Break
-//
-// ORANGE
-//   Wrap
-//   Lunch
-//   Accept Internal
-//   Busy
-//   Not Set
-//
-// YELLOW
-//   Any unrecognized status
-//
-// GRAY
-//   Idle
-//   Unknown
-//
-function getAvailabilityClass(status) {
-  const s = (status || "").toLowerCase();
-
-  if (s.includes("available")) return "status-available";
-
-  if (
-    s.includes("on call") ||
-    s.includes("dial-out") ||
-    s.includes("dial out") ||
-    s.includes("on break") ||
-    s.includes("break")
-  ) {
-    return "status-red";
-  }
-
-  if (
-    s.includes("wrap") ||
-    s.includes("lunch") ||
-    s.includes("accept internal") ||
-    s.includes("accept") ||
-    s.includes("busy") ||
-    s.includes("not set")
-  ) {
-    return "status-orange";
-  }
-
-  if (s.includes("idle") || s.includes("unknown")) {
-    return "status-gray";
-  }
-
-  // Anything else -> light yellow
-  return "status-yellow";
-}
-
-// ===============================
 // AGENT STATUS
 // ===============================
+function getAvailabilityClass(status) {
+  if (!status) return "status-other";
+  const s = status.toLowerCase();
+
+  // GREEN
+  if (s.includes("available")) return "status-available";
+
+  // RED
+  if (s.includes("on call")) return "status-oncall";
+  if (s.includes("dial-out") || s.includes("dial out")) return "status-dialout";
+  if (s.includes("break")) return "status-break";
+
+  // ORANGE
+  if (s.includes("wrap")) return "status-wrap";
+  if (s.includes("lunch")) return "status-lunch";
+  if (s.includes("accept")) return "status-orange";
+  if (s.includes("busy")) return "status-orange";
+  if (s.includes("not set")) return "status-orange";
+
+  // GRAY
+  if (s.includes("idle")) return "status-idle";
+  if (s.includes("unknown")) return "status-unknown";
+
+  // Anything else: light yellow
+  return "status-other";
+}
+
 async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
@@ -814,7 +821,11 @@ async function loadAgentStatus() {
   try {
     const data = await fetchApi("/status/agents");
 
-    if (!data || !Array.isArray(data.AgentStatus) || data.AgentStatus.length === 0) {
+    if (
+      !data ||
+      !Array.isArray(data.AgentStatus) ||
+      data.AgentStatus.length === 0
+    ) {
       body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
       return;
     }
@@ -826,11 +837,14 @@ async function loadAgentStatus() {
       const missed = a.TotalCallsMissed ?? 0;
       const transferred = a.TotalCallsTransferred ?? 0;
       const outbound = a.DialoutCount ?? 0;
+
       const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
       const avgHandleSeconds =
         inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
 
-      const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
+      const availabilityClass = getAvailabilityClass(
+        a.CallTransferStatusDesc
+      );
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -840,12 +854,12 @@ async function loadAgentStatus() {
         <td class="availability-cell ${availabilityClass}">
           ${safe(a.CallTransferStatusDesc)}
         </td>
+        <td class="numeric">${duration}</td>
         <td class="numeric">${inbound}</td>
         <td class="numeric">${missed}</td>
         <td class="numeric">${transferred}</td>
         <td class="numeric">${outbound}</td>
         <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-        <td class="numeric">${duration}</td>
         <td>${formatDate(a.StartDateUtc)}</td>
       `;
       body.appendChild(tr);
@@ -863,20 +877,13 @@ function refreshAll() {
   loadQueueStatus();
   loadAgentStatus();
   loadGlobalStats();
-
-  const lastUpdatedEl = document.getElementById("lastUpdated");
-  if (lastUpdatedEl) {
-    const now = new Date().toLocaleString("en-US", {
-      timeZone: "America/Chicago"
-    });
-    lastUpdatedEl.textContent = now;
-  }
 }
 
 // ===============================
 // INIT
 // ===============================
 document.addEventListener("DOMContentLoaded", async () => {
+  // Only continue if Cloudflare has approved this session
   const ok = await checkSecurityAccess();
   if (!ok) return;
 
@@ -885,4 +892,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAlertHistoryUI();
   refreshAll();
   setInterval(refreshAll, 10000);
+
+  // Update security footer banner (if present)
+  showSecurityBanner();
 });

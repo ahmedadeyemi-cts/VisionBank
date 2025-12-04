@@ -1,116 +1,130 @@
+/* ======================================================================
+   security-dashboard.js
+   VisionBank Dashboard • Security Pre-Check Integration
+   - Performs IP + Business Hours evaluation
+   - Exposes VB_SECURITY object globally
+   - Updates optional footer/status UI if present
+   ====================================================================== */
+
+const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+
 /* ============================================================
-   VisionBank Security Console Guard
-   (Updated to match Cloudflare Worker–based security model)
+   1. RUN SECURITY CHECK ON PAGE LOAD
    ============================================================ */
 
-const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+(async function securityCheck() {
+    try {
+        const res = await fetch(`${WORKER_BASE}/security/check`, {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit"
+        });
 
-/**
- * Calls the Cloudflare Worker to validate:
- *   - IP allowlist
- *   - CIDR subnets
- *   - Business hours
- *   - Approved weekdays
- */
-async function vbCheckAccess() {
-  try {
-    const res = await fetch(`${SECURITY_BASE}/security/check`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
+        if (!res.ok) {
+            console.warn("Security check error:", res.status);
+            window.VB_SECURITY = { allowed: false, reason: "worker-error" };
+            showDeniedMessage("Unable to validate access. Please contact the IT team.");
+            return;
+        }
 
-    if (!res.ok) {
-      throw new Error(`Security HTTP ${res.status}`);
+        const data = await res.json();
+
+        // Store globally
+        window.VB_SECURITY = data;
+
+        // If not allowed, stop dashboard load
+        if (!data.allowed) {
+            if (data.reason === "ip-denied") {
+                showDeniedMessage(
+                    "Your access is being denied due to lack of permission. Please contact the IT Team to enable your access."
+                );
+            } else if (data.reason === "hours-closed") {
+                showDeniedMessage(
+                    "This dashboard is only available during approved business hours (CST)."
+                );
+            } else {
+                showDeniedMessage(
+                    "Your access is currently unavailable. Please contact the IT team."
+                );
+            }
+            return;
+        }
+
+        // If allowed, update footer display if element exists
+        updateSecurityFooterBanner();
+
+    } catch (err) {
+        console.error("Security check failed:", err);
+        window.VB_SECURITY = { allowed: false, reason: "network-error" };
+        showDeniedMessage("Unable to validate security access (network error).");
+    }
+})();
+
+/* ============================================================
+   2. OPTIONAL: SHOW DENIED PAGE MESSAGE
+   ============================================================ */
+
+function showDeniedMessage(msg) {
+    const blocker = document.createElement("div");
+    blocker.style.position = "fixed";
+    blocker.style.top = 0;
+    blocker.style.left = 0;
+    blocker.style.right = 0;
+    blocker.style.bottom = 0;
+    blocker.style.background = "#ffffff";
+    blocker.style.display = "flex";
+    blocker.style.flexDirection = "column";
+    blocker.style.alignItems = "center";
+    blocker.style.justifyContent = "center";
+    blocker.style.zIndex = "999999";
+    blocker.style.fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+    blocker.innerHTML = `
+        <h2 style="color:#c00; margin-bottom: 10px;">Access Denied</h2>
+        <p style="max-width:420px; text-align:center; font-size:15px; color:#333;">
+            ${msg}
+        </p>
+    `;
+    document.body.innerHTML = "";
+    document.body.appendChild(blocker);
+}
+
+/* ============================================================
+   3. UPDATE FOOTER / UI WITH SECURITY STATUS
+   ============================================================ */
+
+function updateSecurityFooterBanner() {
+    if (!window.VB_SECURITY || !window.VB_SECURITY.allowed) return;
+
+    const info = window.VB_SECURITY.info;
+    if (!info) return;
+
+    // If your footer has: <span id="securityStatus"></span>
+    const el = document.getElementById("securityStatus");
+    if (el) {
+        el.textContent =
+            "Access approved from IP " +
+            info.clientIp +
+            " at " +
+            info.nowCst.label +
+            " (CST)";
     }
 
-    return await res.json();
-  } catch (e) {
-    console.error("Security console check failed:", e);
-    return { allowed: false, reason: "unreachable" };
-  }
+    console.log("Security check info:", info);
 }
 
-/**
- * Shows a full lockout screen if user is not allowed.
- */
-function vbShowLockout(message) {
-  document.body.innerHTML = `
-    <div style="
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#050816;
-      color:#f5f7ff;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    ">
-      <div style="
-        max-width:520px;
-        padding:32px 36px;
-        border-radius:16px;
-        background:rgba(19,22,38,0.92);
-        box-shadow:0 18px 40px rgba(0,0,0,0.55);
-        text-align:center;
-      ">
-        <h1 style="margin-top:0;margin-bottom:8px;font-size:24px;">Access Restricted</h1>
-        <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">${message}</p>
-        <p style="margin:0;font-size:12px;color:#9aa3c7;">
-          If you believe this is an error, please contact the VisionBank IT Team.
-        </p>
-      </div>
-    </div>
-  `;
-}
 
-/**
- * Maps Worker result → human readable messages
- */
-function vbExplain(reason) {
-  switch (reason) {
-    case "ip-denied":
-      return "Your IP address is not approved for VisionBank Security Console access.";
-    case "hours-closed":
-      return "Access to the Security Console is restricted outside configured business hours (CST).";
-    case "unreachable":
-      return "Security validation service is unreachable. Access cannot be granted.";
-    default:
-      return "Your access is restricted by security policy.";
-  }
-}
+/* ============================================================
+   4. PLACEHOLDER HOOK FOR OTHER DASHBOARD JS
+   - The rest of your dashboard logic remains untouched.
+   - You can safely load queues, agents, alerts, etc.
+   ============================================================ */
 
-/**
- * MAIN GUARD EXECUTION
- * Runs before security.html loads its UI.
- */
-(async function vbSecurityConsoleGuard() {
-  const sec = await vbCheckAccess();
-
-  if (!sec.allowed) {
-    const msg = vbExplain(sec.reason);
-    vbShowLockout(msg);
-    return;
-  }
-
-  // ------------------------------------------
-  // ACCESS GRANTED
-  // ------------------------------------------
-  console.log("%cSecurity Console Access Approved", "color:#00d97e;font-weight:bold;");
-  console.log("Security Info:", sec);
-
-  // Optional: show a small green badge in console footer
-  const badge = document.createElement("div");
-  badge.style.position = "fixed";
-  badge.style.bottom = "10px";
-  badge.style.right = "10px";
-  badge.style.padding = "6px 12px";
-  badge.style.background = "rgba(0,150,0,0.85)";
-  badge.style.color = "#fff";
-  badge.style.fontSize = "11px";
-  badge.style.borderRadius = "6px";
-  badge.style.zIndex = "9999";
-  badge.textContent = `Security Console Verified — IP ${sec.info.ip}`;
-  document.body.appendChild(badge);
-
-})();
+// Example: If you want your dashboard.js to wait for security:
+// (Uncomment if needed)
+/*
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.VB_SECURITY && window.VB_SECURITY.allowed) {
+        // loadDashboard();
+    }
+});
+*/

@@ -1,114 +1,132 @@
-// worker.js
+// worker.js — VisionBank Security Worker (Full Corrected Version)
+
+/* ============================================
+   GLOBAL CORS POLICY (fixes your CORS problem)
+=============================================== */
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "https://ahmedadeyemi-cts.github.io",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400"
+};
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Simple CORS for your GitHub Pages origin
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "https://ahmedadeyemi-cts.github.io",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
-
+    // ======================================================
+    // PRE-FLIGHT REQUEST HANDLING
+    // ======================================================
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // ---- Access check used by index.html ----
+    // ======================================================
+    // SECURITY CHECK ENDPOINT
+    // ======================================================
     if (url.pathname === "/security/check") {
       const result = await checkAccess(request, env);
-      await logEvent(env, request, result); // always log
-      return json(result, corsHeaders);
+      await logEvent(env, request, result);
+      return json(result);
     }
 
-    // ---- State summary (debug / admin) ----
+    // ======================================================
+    // STATE SUMMARY ENDPOINT
+    // ======================================================
     if (url.pathname === "/security/state" && request.method === "GET") {
       const state = await getState(env, request);
-      return json(state, corsHeaders);
+      return json(state);
     }
 
-    // ---- IP rules: GET returns current, POST updates ----
+    // ======================================================
+    // IP ALLOWLIST ENDPOINTS
+    // ======================================================
     if (url.pathname === "/security/ip") {
       if (request.method === "GET") {
         const rulesText = await env.IP_ALLOWLIST.get("rules");
         const rules = normalizeRules(rulesText || "");
-        return json({ rulesText: rulesText || "", rules }, corsHeaders);
+        return json({ rulesText: rulesText || "", rules });
       }
 
       if (request.method === "POST") {
         const body = await request.json();
         const rulesText = String(body.rules || "");
         await env.IP_ALLOWLIST.put("rules", rulesText);
+
         const state = await getState(env, request);
-        await logEvent(env, request, {
-          allowed: true,
-          reason: "ip-rules-updated",
-        });
-        return json({ ok: true, state }, corsHeaders);
+        await logEvent(env, request, { allowed: true, reason: "ip-rules-updated" });
+
+        return json({ ok: true, state });
       }
     }
 
-    // ---- Business hours: GET returns, POST updates ----
+    // ======================================================
+    // BUSINESS HOURS ENDPOINTS
+    // ======================================================
     if (url.pathname === "/security/hours") {
       if (request.method === "GET") {
         const hours = await loadBusinessHours(env);
-        return json({ hours }, corsHeaders);
+        return json({ hours });
       }
 
       if (request.method === "POST") {
         const body = await request.json();
         const hours = sanitizeHours(body);
+
         await env.BUSINESS.put("hours", JSON.stringify(hours));
         const state = await getState(env, request);
-        await logEvent(env, request, {
-          allowed: true,
-          reason: "business-hours-updated",
-        });
-        return json({ ok: true, state }, corsHeaders);
+
+        await logEvent(env, request, { allowed: true, reason: "business-hours-updated" });
+
+        return json({ ok: true, state });
       }
     }
 
-    // ---- Logs viewer ----
+    // ======================================================
+    // LOG VIEWER ENDPOINT
+    // ======================================================
     if (url.pathname === "/security/logs" && request.method === "GET") {
       const limit = Math.max(
         1,
         Math.min(500, parseInt(url.searchParams.get("limit") || "100", 10))
       );
 
-      const existingRaw = (await env.LOGS.get("events")) || "[]";
-      let list;
+      const raw = (await env.LOGS.get("events")) || "[]";
+      let list = [];
       try {
-        list = JSON.parse(existingRaw);
+        list = JSON.parse(raw);
         if (!Array.isArray(list)) list = [];
-      } catch {
-        list = [];
-      }
+      } catch (_) {}
 
-      const events = list.slice(0, limit);
-      return json({ events }, corsHeaders);
+      return json({ events: list.slice(0, limit) });
     }
 
-    // Fallback – nothing else is served by this Worker
+    // ======================================================
+    // FALLBACK
+    // ======================================================
     return new Response("VisionBank Security Worker", {
       status: 404,
-      headers: corsHeaders,
+      headers: CORS_HEADERS
     });
-  },
+  }
 };
 
-/* ---------- Helpers ---------- */
-
-function json(obj, extraHeaders = {}) {
+/* ======================================================
+   JSON RESPONSE HELPER — ALWAYS RETURNS CORS HEADERS
+========================================================= */
+function json(obj) {
   return new Response(JSON.stringify(obj, null, 2), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      ...extraHeaders,
-    },
+      ...CORS_HEADERS
+    }
   });
 }
 
+/* ======================================================
+   CLIENT IP EXTRACTION
+========================================================= */
 function getClientIp(request) {
   return (
     request.headers.get("cf-connecting-ip") ||
@@ -117,11 +135,9 @@ function getClientIp(request) {
   );
 }
 
-/**
- * Normalize text from KV "rules" into a clean array of rules.
- * - One entry per line
- * - Blank lines and lines starting with "#" are ignored
- */
+/* ======================================================
+   IP RULE NORMALIZATION
+========================================================= */
 function normalizeRules(text) {
   return (text || "")
     .split(/\r?\n/)
@@ -132,38 +148,39 @@ function normalizeRules(text) {
 async function loadIpRules(env) {
   let text = await env.IP_ALLOWLIST.get("rules");
 
-  // If nothing configured, seed with your IP as a safety default
   if (!text || !text.trim()) {
-    text = "45.51.4.217\n";
+    text = "45.51.4.217\n"; // safety seed
     await env.IP_ALLOWLIST.put("rules", text);
   }
 
   return normalizeRules(text);
 }
 
-/* GitHub Pages outbound IPs (must be allowed or dashboard blocks) */
+/* ======================================================
+   GITHUB PAGES IP RANGES — AUTO-ALLOW
+========================================================= */
 const GITHUB_IP_RANGES = [
   "185.199.108.0/22",
   "140.82.112.0/20",
-  "143.55.64.0/20",
+  "143.55.64.0/20"
 ];
 
+/* ======================================================
+   BUSINESS HOURS MANAGEMENT
+========================================================= */
 async function loadBusinessHours(env) {
   const stored = await env.BUSINESS.get("hours");
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
       return sanitizeHours(parsed);
-    } catch (_) {
-      // ignore, fall through
-    }
+    } catch (_) {}
   }
 
-  // Default: Mon–Sat, 07:00–19:00 CST
   return {
     start: "07:00",
     end: "19:00",
-    days: [1, 2, 3, 4, 5, 6],
+    days: [1, 2, 3, 4, 5, 6]
   };
 }
 
@@ -183,9 +200,13 @@ function sanitizeHours(raw) {
   return { start, end, days };
 }
 
+/* ======================================================
+   IP RANGE MATH
+========================================================= */
 function ipToInt(ip) {
   const parts = ip.split(".");
   if (parts.length !== 4) return null;
+
   let res = 0;
   for (const part of parts) {
     const n = parseInt(part, 10);
@@ -196,9 +217,7 @@ function ipToInt(ip) {
 }
 
 function ipMatches(ip, rule) {
-  if (!rule.includes("/")) {
-    return ip === rule;
-  }
+  if (!rule.includes("/")) return ip === rule;
 
   const [range, bitsStr] = rule.split("/");
   const bits = parseInt(bitsStr, 10);
@@ -212,6 +231,9 @@ function ipMatches(ip, rule) {
   return (ipInt & mask) === (rangeInt & mask);
 }
 
+/* ======================================================
+   CST CLOCK
+========================================================= */
 function getNowCst() {
   const now = new Date();
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -219,20 +241,25 @@ function getNowCst() {
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: false
   });
+
   const parts = Object.fromEntries(
     fmt.formatToParts(now).map((p) => [p.type, p.value])
   );
-  const weekday = parts.weekday;
+
   const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
   return {
     hhmm: `${parts.hour}:${parts.minute}`,
-    day: dayMap[weekday] ?? 0,
-    label: `${weekday} ${parts.hour}:${parts.minute} CST`,
+    day: dayMap[parts.weekday] ?? 0,
+    label: `${parts.weekday} ${parts.hour}:${parts.minute} CST`
   };
 }
 
+/* ======================================================
+   BUSINESS HOURS CHECK
+========================================================= */
 function isBusinessOpen(hours, nowCst) {
   return (
     hours.days.includes(nowCst.day) &&
@@ -241,71 +268,44 @@ function isBusinessOpen(hours, nowCst) {
   );
 }
 
+/* ======================================================
+   MAIN ACCESS CHECK
+========================================================= */
 async function checkAccess(request, env) {
   const clientIp = getClientIp(request);
   const ipRules = await loadIpRules(env);
   const hours = await loadBusinessHours(env);
   const nowCst = getNowCst();
 
-  // Allow GitHub Pages IP ranges automatically
   const isGithubIp = GITHUB_IP_RANGES.some((range) => ipMatches(clientIp, range));
-
-  // Otherwise require match with your allowlist
-  const ipAllowed =
-    isGithubIp || ipRules.some((rule) => ipMatches(clientIp, rule));
+  const ipAllowed = isGithubIp || ipRules.some((r) => ipMatches(clientIp, r));
 
   if (!ipAllowed) {
-    return {
-      allowed: false,
-      reason: "ip-denied",
-      clientIp,
-      ipRules,
-      hours,
-      nowCst,
-    };
+    return { allowed: false, reason: "ip-denied", clientIp, ipRules, hours, nowCst };
   }
 
-  const open = isBusinessOpen(hours, nowCst);
-  if (!open) {
-    return {
-      allowed: false,
-      reason: "hours-closed",
-      clientIp,
-      ipRules,
-      hours,
-      nowCst,
-    };
+  if (!isBusinessOpen(hours, nowCst)) {
+    return { allowed: false, reason: "hours-closed", clientIp, ipRules, hours, nowCst };
   }
 
-  return {
-    allowed: true,
-    reason: "ok",
-    clientIp,
-    ipRules,
-    hours,
-    nowCst,
-  };
+  return { allowed: true, reason: "ok", clientIp, ipRules, hours, nowCst };
 }
 
+/* ======================================================
+   STATE SUMMARY
+========================================================= */
 async function getState(env, request) {
   const clientIp = getClientIp(request);
   const ipRules = await loadIpRules(env);
   const hours = await loadBusinessHours(env);
   const nowCst = getNowCst();
 
-  return {
-    clientIp,
-    ipRules,
-    hours,
-    nowCst,
-  };
+  return { clientIp, ipRules, hours, nowCst };
 }
 
-/**
- * Optional alert hook: send an email / webhook for denied access.
- * Configure env.ALERT_WEBHOOK as an HTTPS endpoint that sends an email
- * (for example, a small API you host, or a SendGrid/Mailgun webhook).
- */
+/* ======================================================
+   ALERT WEBHOOK (optional)
+========================================================= */
 async function sendAlert(env, entry) {
   const url = env.ALERT_WEBHOOK;
   if (!url) return;
@@ -317,47 +317,47 @@ async function sendAlert(env, entry) {
       body: JSON.stringify({
         type: "visionbank-security-alert",
         summary: `Denied access from ${entry.ip} (${entry.reason}) at ${entry.time}`,
-        entry,
-      }),
+        entry
+      })
     });
-  } catch (e) {
-    // Alerts must never break main flow
-  }
+  } catch (_) {}
 }
 
+/* ======================================================
+   LOGGING SYSTEM
+========================================================= */
 async function logEvent(env, request, result) {
   try {
     const now = new Date().toISOString();
-    const clientIp = getClientIp(request);
+    const ip = getClientIp(request);
     const ua = request.headers.get("user-agent") || "unknown";
+
     const entry = {
       time: now,
-      ip: clientIp,
+      ip,
       ua,
       path: new URL(request.url).pathname,
       allowed: !!result.allowed,
-      reason: result.reason || "unknown",
+      reason: result.reason || "unknown"
     };
 
-    const existingRaw = (await env.LOGS.get("events")) || "[]";
-    let list;
+    const raw = (await env.LOGS.get("events")) || "[]";
+    let list = [];
+
     try {
-      list = JSON.parse(existingRaw);
+      list = JSON.parse(raw);
       if (!Array.isArray(list)) list = [];
-    } catch {
-      list = [];
-    }
+    } catch (_) {}
 
     list.unshift(entry);
     if (list.length > 500) list = list.slice(0, 500);
 
     await env.LOGS.put("events", JSON.stringify(list));
 
-    // Fire alert on deny
-    if (!entry.allowed && (entry.reason === "ip-denied" || entry.reason === "hours-closed")) {
+    if (!entry.allowed && ["ip-denied", "hours-closed"].includes(entry.reason)) {
       await sendAlert(env, entry);
     }
-  } catch (e) {
-    // logging failures must not break the request
+  } catch (_) {
+    // Never break flow
   }
 }

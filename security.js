@@ -1,6 +1,6 @@
 /* ============================================================
    SECURITY.JS — OLD UI + NEW WORKER LOGIC (FULL MERGE)
-   VisionBank | Admin Login • MFA • Access Control
+   VisionBank | Admin Login • MFA • Access Control • User Mgmt
    ============================================================ */
 
 const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
@@ -130,6 +130,9 @@ loginForm.addEventListener("submit", async (e) => {
         if (data.success && data.session) {
             ACTIVE_SESSION = data.session;
             ACTIVE_ROLE = data.user?.role || "view";
+
+            // normalize 'viewer' vs 'view'
+            if (ACTIVE_ROLE === "viewer") ACTIVE_ROLE = "view";
 
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
@@ -261,7 +264,8 @@ async function showAdminView() {
    ============================================================= */
 
 function applyRolePermissions() {
-    const role = ACTIVE_ROLE || "view";
+    let role = ACTIVE_ROLE || "view";
+    if (role === "viewer") role = "view";
 
     // Business Hours: superadmin, admin, analyst can edit
     const canEditHours = role === "superadmin" || role === "admin" || role === "analyst";
@@ -409,6 +413,9 @@ async function loadAuditLog() {
         auditLogBox.textContent = "Unable to load logs.";
     }
 }
+
+/* Auto-refresh logs every 15 seconds */
+setInterval(loadAuditLog, 15000);
 
 /* =============================================================
    8.  USER MANAGEMENT (SUPERADMIN ONLY)

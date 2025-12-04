@@ -97,7 +97,7 @@ function getAvailabilityClass(desc) {
     if (s.includes("available")) return "status-available";
     if (s.includes("on call") || s.includes("dialing") || s.includes("dial out"))
         return "status-oncall";
-    if (s.includes("busy")) || s.includes("break")) return "status-busy";
+    if (s.includes("busy")) return "status-busy";
     if (s.includes("ring")) return "status-ringing";
     if (s.includes("wrap")) return "status-wrapup";
 

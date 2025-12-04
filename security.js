@@ -41,6 +41,7 @@ const auditLogBox = document.getElementById("audit-log");
 
 /* ---------- State ---------- */
 let ACTIVE_SESSION = null;
+let ACTIVE_USERNAME = null;
 
 /* =============================================================
    1.  LOGIN HANDLING
@@ -51,14 +52,16 @@ loginForm.addEventListener("submit", async (e) => {
     loginMsg.textContent = "";
 
     const username = document.getElementById("login-username").value.trim();
-    const pin = document.getElementById("login-pin").value.trim();
+    const password = document.getElementById("login-pin").value.trim(); // Worker expects "password"
     const totp = loginTotpWrapper.classList.contains("hidden") ? "" : loginTotp.value.trim();
+
+    ACTIVE_USERNAME = username;
 
     try {
         const res = await fetch(`${WORKER_BASE}/api/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, pin, totp }),
+            body: JSON.stringify({ username, password, totp }),
         });
 
         const data = await res.json();
@@ -68,21 +71,21 @@ loginForm.addEventListener("submit", async (e) => {
             return;
         }
 
-        /* -- FIRST LOGIN (MFA NOT SET UP) -- */
+        /* MFA NOT SET UP YET */
         if (data.requireMfaSetup) {
             ACTIVE_SESSION = data.session;
             showMfaSetup(data);
             return;
         }
 
-        /* -- MFA REQUIRED FOR THIS LOGIN -- */
+        /* MFA REQUIRED THIS LOGIN */
         if (data.requireTotp) {
             loginTotpWrapper.classList.remove("hidden");
             loginMsg.textContent = "Enter your 6-digit Google Authenticator code.";
             return;
         }
 
-        /* -- SUCCESSFUL LOGIN -- */
+        /* SUCCESS */
         ACTIVE_SESSION = data.session;
         showAdminView();
     } catch (err) {
@@ -91,7 +94,7 @@ loginForm.addEventListener("submit", async (e) => {
 });
 
 /* =============================================================
-   2.  OVERRIDE KEY HANDLING
+   2.  OVERRIDE KEY HANDLING (DISABLED UNTIL WORKER ROUTE EXISTS)
    ============================================================= */
 
 overrideToggle.addEventListener("click", () => {
@@ -100,30 +103,7 @@ overrideToggle.addEventListener("click", () => {
 
 overrideForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    loginMsg.textContent = "";
-
-    const key = overrideInput.value.trim();
-    if (!key) return;
-
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/override-login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            loginMsg.textContent = data.error || "Override key invalid.";
-            return;
-        }
-
-        ACTIVE_SESSION = data.session;
-        showAdminView();
-    } catch (err) {
-        loginMsg.textContent = "Error validating override key.";
-    }
+    loginMsg.textContent = "Override login unavailable (endpoint not implemented).";
 });
 
 /* =============================================================
@@ -135,9 +115,8 @@ function showMfaSetup(data) {
     adminView.classList.add("hidden");
     mfaSetupView.classList.remove("hidden");
 
-    /* Worker returns { qr, secret, account } */
     mfaQrImg.src = data.qr;
-    mfaAccount.value = data.account;
+    mfaAccount.value = ACTIVE_USERNAME;
     mfaSecret.value = data.secret;
 }
 
@@ -152,16 +131,16 @@ mfaConfirmBtn.addEventListener("click", async () => {
         const res = await fetch(`${WORKER_BASE}/api/confirm-mfa`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session: ACTIVE_SESSION, code }),
+            body: JSON.stringify({ username: ACTIVE_USERNAME, code }),
         });
 
         const data = await res.json();
+
         if (!res.ok) {
             mfaMsg.textContent = data.error || "Invalid MFA code.";
             return;
         }
 
-        /* SUCCESS */
         showAdminView();
     } catch (err) {
         mfaMsg.textContent = "Unable to verify MFA code.";
@@ -194,13 +173,13 @@ async function showAdminView() {
 async function loadBusinessHours() {
     try {
         const res = await fetch(`${WORKER_BASE}/api/get-hours`);
-        const data = await res.json();
+        const hours = await res.json();
 
-        hoursStart.value = data.start || "";
-        hoursEnd.value = data.end || "";
+        hoursStart.value = hours.start || "";
+        hoursEnd.value = hours.end || "";
 
         hoursDayChecks.forEach((cb) => {
-            cb.checked = data.days?.includes(Number(cb.value)) || false;
+            cb.checked = hours.days?.includes(Number(cb.value)) || false;
         });
     } catch (err) {
         console.error("Hours load failed:", err);
@@ -220,7 +199,7 @@ hoursForm.addEventListener("submit", async (e) => {
         await fetch(`${WORKER_BASE}/api/set-hours`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ start, end, days }),
+            body: JSON.stringify({ hours: { start, end, days } }),
         });
     } catch (err) {
         console.error("Save hours failed:", err);
@@ -269,7 +248,11 @@ async function loadAuditLog() {
         const res = await fetch(`${WORKER_BASE}/api/logs`);
         const data = await res.json();
 
-        auditLogBox.textContent = data.logs?.join("\n") || "No logs.";
+        const events = data.events || [];
+
+        auditLogBox.textContent = events
+            .map(ev => `${ev.time} | ${ev.ip} | ${ev.path} | ${ev.reason}`)
+            .join("\n") || "No logs.";
     } catch (err) {
         auditLogBox.textContent = "Unable to load logs.";
     }
@@ -281,6 +264,7 @@ async function loadAuditLog() {
 
 logoutBtn.addEventListener("click", () => {
     ACTIVE_SESSION = null;
+    ACTIVE_USERNAME = null;
     loginTotp.value = "";
     loginTotpWrapper.classList.add("hidden");
 

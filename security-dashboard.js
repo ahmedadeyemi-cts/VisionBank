@@ -1,68 +1,40 @@
 /* ============================================================
-   VisionBank Dashboard Guard
-   Reads config written by security console (localStorage).
-   For real deployments, move this logic into a backend or
-   Cloudflare Worker so IPs and logs cannot be tampered with.
+   VisionBank Security Console Guard
+   (Updated to match Cloudflare Worker–based security model)
    ============================================================ */
 
-const DASHBOARD_KEYS = {
-  HOURS: "vb-security-hours",
-  IPS: "vb-security-ips",
-  AUDIT: "vb-security-audit"
-};
+const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
-async function vbGetIp() {
+/**
+ * Calls the Cloudflare Worker to validate:
+ *   - IP allowlist
+ *   - CIDR subnets
+ *   - Business hours
+ *   - Approved weekdays
+ */
+async function vbCheckAccess() {
   try {
-    const res = await fetch("https://api.ipify.org?format=json");
-    const data = await res.json();
-    return data.ip;
-  } catch {
-    return "0.0.0.0";
+    const res = await fetch(`${SECURITY_BASE}/security/check`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Security HTTP ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (e) {
+    console.error("Security console check failed:", e);
+    return { allowed: false, reason: "unreachable" };
   }
 }
 
-function vbLoadJSON(key, fallback) {
-  try {
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-/* IP in CIDR / single IP check */
-function vbIpToInt(ip) {
-  return ip.split(".").reduce((acc, part) => (acc << 8) + (parseInt(part, 10) || 0), 0) >>> 0;
-}
-
-function vbIpMatches(ip, cidr) {
-  if (!cidr.includes("/")) {
-    return ip === cidr;
-  }
-  const [range, bitsStr] = cidr.split("/");
-  const bits = parseInt(bitsStr, 10);
-  if (Number.isNaN(bits)) return false;
-  const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
-  return (vbIpToInt(ip) & mask) === (vbIpToInt(range) & mask);
-}
-
-/* Business hours in CST */
-function vbIsWithinHours(hours) {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  const [hh, mm] = formatter.format(now).split(":");
-  const current = `${hh}:${mm}`;
-  const day = now.getDay().toString();
-  return hours.days.includes(day) &&
-         current >= hours.start &&
-         current <= hours.end;
-}
-
+/**
+ * Shows a full lockout screen if user is not allowed.
+ */
 function vbShowLockout(message) {
   document.body.innerHTML = `
     <div style="
@@ -85,47 +57,60 @@ function vbShowLockout(message) {
         <h1 style="margin-top:0;margin-bottom:8px;font-size:24px;">Access Restricted</h1>
         <p style="margin:0 0 14px;font-size:14px;line-height:1.5;">${message}</p>
         <p style="margin:0;font-size:12px;color:#9aa3c7;">
-          If you believe this is an error, please contact a system administrator.
+          If you believe this is an error, please contact the VisionBank IT Team.
         </p>
       </div>
     </div>
   `;
 }
 
-/* Main guard */
-(async function vbGuard() {
-  const ip = await vbGetIp();
+/**
+ * Maps Worker result → human readable messages
+ */
+function vbExplain(reason) {
+  switch (reason) {
+    case "ip-denied":
+      return "Your IP address is not approved for VisionBank Security Console access.";
+    case "hours-closed":
+      return "Access to the Security Console is restricted outside configured business hours (CST).";
+    case "unreachable":
+      return "Security validation service is unreachable. Access cannot be granted.";
+    default:
+      return "Your access is restricted by security policy.";
+  }
+}
 
-  const hours = vbLoadJSON(DASHBOARD_KEYS.HOURS, {
-    start: "07:00",
-    end: "19:00",
-    days: ["1", "2", "3", "4", "5", "6"] // Mon–Sat
-  });
+/**
+ * MAIN GUARD EXECUTION
+ * Runs before security.html loads its UI.
+ */
+(async function vbSecurityConsoleGuard() {
+  const sec = await vbCheckAccess();
 
-  const ips = vbLoadJSON(DASHBOARD_KEYS.IPS, [
-    "10.100.100.0/24",
-    "45.19.161.17",
-    "45.19.162.18/32",
-    "120.112.1.119/28"
-  ]);
-
-  const inHours = vbIsWithinHours(hours);
-  const ipAllowed = ips.some(rule => vbIpMatches(ip, rule));
-
-  if (!inHours) {
-    vbShowLockout(
-      "The dashboard is only available during configured business hours (CST). " +
-      "Please try again during the scheduled access window."
-    );
+  if (!sec.allowed) {
+    const msg = vbExplain(sec.reason);
+    vbShowLockout(msg);
     return;
   }
 
-  if (!ipAllowed) {
-    vbShowLockout(
-      `Your IP address ${ip} is not in the allowed list for this dashboard.`
-    );
-    return;
-  }
+  // ------------------------------------------
+  // ACCESS GRANTED
+  // ------------------------------------------
+  console.log("%cSecurity Console Access Approved", "color:#00d97e;font-weight:bold;");
+  console.log("Security Info:", sec);
 
-  // Access granted – no DOM changes, dashboard.js continues to run.
+  // Optional: show a small green badge in console footer
+  const badge = document.createElement("div");
+  badge.style.position = "fixed";
+  badge.style.bottom = "10px";
+  badge.style.right = "10px";
+  badge.style.padding = "6px 12px";
+  badge.style.background = "rgba(0,150,0,0.85)";
+  badge.style.color = "#fff";
+  badge.style.fontSize = "11px";
+  badge.style.borderRadius = "6px";
+  badge.style.zIndex = "9999";
+  badge.textContent = `Security Console Verified — IP ${sec.info.ip}`;
+  document.body.appendChild(badge);
+
 })();

@@ -174,18 +174,31 @@
         </section>
 
         <!-- IP ALLOWLIST -->
-        <section id="admin-ip-section" class="admin-section">
-            <h3>Allowed IPs / Subnets</h3>
-            <p class="section-help">
-                Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
-                One entry per line. Simply back out the IP to remove an allowed IP.
-            </p>
+        <!-- ======================================================= -->
+<!-- Allowed IP / Subnets Section           -->
+<!-- ======================================================= -->
+<section id="ip-manager" class="admin-section">
+    <h3>Allowed IPs / Subnets</h3>
+    <p class="section-help">
+        Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
+        Click remove to delete a rule.
+    </p>
 
-            <form id="ip-form">
-                <textarea id="ip-textarea" rows="6" spellcheck="false"></textarea>
-                <button type="submit" class="btn-primary">Save IP Rules</button>
-            </form>
-        </section>
+    <!-- List container -->
+    <div id="ip-list" class="ip-list"></div>
+
+    <!-- Add rule UI -->
+    <div class="ip-add-row">
+        <input id="ip-add-input" type="text" class="input" placeholder="Enter IPv4, IPv6, or CIDR">
+        <button id="ip-add-btn" class="btn-primary">Add Rule</button>
+    </div>
+
+    <!-- Save -->
+    <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">Save IP Rules</button>
+</section>
+    <!-- ======================================================= -->
+<!-- End of Allowed IP / Subnets Section                   -->
+<!-- ======================================================= -->
 <!-- ======================================================= -->
 <!-- CIDR / IP TESTER (AUTO-LOADED RULES)                     -->
 <!-- ======================================================= -->

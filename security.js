@@ -728,125 +728,235 @@ function initUserManagement() {
    10. CIDR TESTER (Enhanced Stable Version)
    ============================================================= */
 
+/* =============================================================
+   ADVANCED CIDR / IP TESTER + CIDR RANGE TESTER
+   ============================================================= */
+
 document.addEventListener("DOMContentLoaded", () => {
-    const cidrInputA = document.getElementById("cidr-input-a");
-    const cidrInputB = document.getElementById("cidr-input-b");
-    const cidrTestBtn = document.getElementById("cidr-test-btn");
-    const cidrResultBox = document.getElementById("cidr-test-result");
 
-    if (!cidrInputA || !cidrInputB || !cidrTestBtn || !cidrResultBox) return;
+    /* ------------------------------------------------------------
+       SHARED HELPER FUNCTIONS (IPv4, IPv6, CIDR expansion)
+    ------------------------------------------------------------ */
 
-    cidrTestBtn.addEventListener("click", () => {
-        const A = cidrInputA.value.trim();
-        const B = cidrInputB.value.trim();
-
-        if (!A || !B) {
-            return showCidrResult("Enter both values before testing.", "warning");
+    function expandIPv6(address) {
+        if (!address.includes("::")) {
+            return address.split(":").map(p => p.padStart(4, "0")).join(":");
         }
 
-        try {
-            const result = runCidrTest(A, B);
-            showCidrResult(result.text, result.type);
-        } catch (err) {
-            showCidrResult("Error: " + err.message, "fail");
-        }
-    });
+        const [left, right] = address.split("::");
+        const leftParts = left ? left.split(":") : [];
+        const rightParts = right ? right.split(":") : [];
 
-    /* ------------------------------------------------------------------
-       UI Helper
-    ------------------------------------------------------------------ */
-    function showCidrResult(msg, type = "info") {
-        cidrResultBox.textContent = msg;
+        const missing = 8 - (leftParts.length + rightParts.length);
+        const zeros = Array(missing).fill("0000");
 
-        cidrResultBox.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
-
-        if (type === "pass") cidrResultBox.classList.add("cidr-pass");
-        else if (type === "fail") cidrResultBox.classList.add("cidr-fail");
-        else if (type === "warning") cidrResultBox.classList.add("cidr-warning");
-    }
-
-    /* ------------------------------------------------------------------
-       Pure JavaScript CIDR + IP Logic (IPv4 + IPv6 support)
-    ------------------------------------------------------------------ */
-
-    function parseCIDR(str) {
-        if (!str.includes("/")) throw new Error(`Invalid CIDR format: ${str}`);
-        const [ip, prefix] = str.split("/");
-        return { ip, prefix: Number(prefix) };
-    }
-
-    function runCidrTest(A, B) {
-        const isA_cidr = A.includes("/");
-        const isB_cidr = B.includes("/");
-
-        if (!isB_cidr) throw new Error("Second value must be a CIDR block.");
-
-        const cidrB = parseCIDR(B);
-        const bitsB = ipToBits(cidrB.ip).slice(0, cidrB.prefix);
-
-        if (!isA_cidr) {
-            // A is a single IP
-            const bitsA = ipToBits(A).slice(0, cidrB.prefix);
-            if (bitsA === bitsB) {
-                return { text: `${A} IS inside ${B}`, type: "pass" };
-            }
-            return { text: `${A} is NOT inside ${B}`, type: "fail" };
-        }
-
-        // Both are CIDRs — check containment
-        const cidrA = parseCIDR(A);
-        const bitsA = ipToBits(cidrA.ip).slice(0, Math.min(cidrA.prefix, cidrB.prefix));
-
-        if (bitsA === bitsB) {
-            return { text: `${A} IS inside ${B}`, type: "pass" };
-        }
-        return { text: `${A} is NOT inside ${B}`, type: "fail" };
-    }
-
-    /* ------------------------------------------------------------------
-       IP-to-Binary Converter (IPv4 + IPv6)
-    ------------------------------------------------------------------ */
-
-    function ipToBits(ip) {
-        if (ip.includes(".")) return ipv4ToBits(ip);
-        if (ip.includes(":")) return ipv6ToBits(ip);
-        throw new Error("Unknown IP format: " + ip);
+        return [
+            ...leftParts.map(p => p.padStart(4, "0")),
+            ...zeros,
+            ...rightParts.map(p => p.padStart(4, "0"))
+        ].join(":");
     }
 
     function ipv4ToBits(ip) {
         return ip
             .split(".")
-            .map((n) => Number(n).toString(2).padStart(8, "0"))
+            .map(n => Number(n).toString(2).padStart(8, "0"))
             .join("");
     }
 
     function ipv6ToBits(ip) {
-        const expanded = expandIPv6(ip);
-        return expanded
+        const full = expandIPv6(ip);
+        return full
             .split(":")
-            .map((h) => parseInt(h, 16).toString(2).padStart(16, "0"))
+            .map(h => parseInt(h, 16).toString(2).padStart(16, "0"))
             .join("");
     }
 
-    function expandIPv6(address) {
-        if (address.includes("::")) {
-            const [left, right] = address.split("::");
+    function ipToBits(ip) {
+        if (ip.includes(".")) return ipv4ToBits(ip);
+        if (ip.includes(":")) return ipv6ToBits(ip);
+        throw new Error("Invalid IP format: " + ip);
+    }
 
-            const leftParts = left ? left.split(":") : [];
-            const rightParts = right ? right.split(":") : [];
+    function parseCIDR(cidr) {
+        if (!cidr.includes("/"))
+            throw new Error("Not a CIDR: " + cidr);
 
-            const missing = 8 - (leftParts.length + rightParts.length);
-            const zeros = Array(missing).fill("0000");
+        const [ip, prefix] = cidr.split("/");
+        return { ip, prefix: Number(prefix) };
+    }
 
-            return [
-                ...leftParts.map((p) => p.padStart(4, "0")),
-                ...zeros,
-                ...rightParts.map((p) => p.padStart(4, "0")),
-            ].join(":");
+    /* ============================================================
+       UPPER SECTION — CIDR / IP TESTER (Auto-loaded rules)
+       ============================================================ */
+
+    const ipInput = document.getElementById("ip-test-input");
+    const rulesTextarea = document.getElementById("ip-rules-textarea");
+    const runIpBtn = document.getElementById("run-ip-test-btn");
+    const resultBox = document.getElementById("ip-test-result");
+
+    if (runIpBtn) {
+        runIpBtn.addEventListener("click", () => {
+            const ip = ipInput.value.trim();
+            const rules = rulesTextarea.value
+                .split("\n")
+                .map(r => r.trim())
+                .filter(r => r);
+
+            if (!ip) {
+                return showIpBatchResult("Enter an IP.", []);
+            }
+
+            const rows = rules.map(rule => {
+                try {
+                    if (!rule.includes("/")) {
+                        return {
+                            rule,
+                            match: ip === rule ? "✓" : "✗",
+                            type: "IP",
+                            note: ip === rule ? "Exact match" : "No match"
+                        };
+                    }
+
+                    const inside = isIpInCidr(ip, rule);
+
+                    return {
+                        rule,
+                        match: inside ? "✓" : "✗",
+                        type: "CIDR",
+                        note: inside ? "Inside range" : "Not inside range"
+                    };
+
+                } catch (err) {
+                    return {
+                        rule,
+                        match: "✗",
+                        type: "Error",
+                        note: err.message
+                    };
+                }
+            });
+
+            showIpBatchResult(ip, rows);
+        });
+    }
+
+    function isIpInCidr(ip, cidr) {
+        const { ip: baseIP, prefix } = parseCIDR(cidr);
+
+        const bitsA = ipToBits(ip);
+        const bitsB = ipToBits(baseIP);
+
+        return bitsA.slice(0, prefix) === bitsB.slice(0, prefix);
+    }
+
+    function showIpBatchResult(ip, rows) {
+        let html = `
+            <div style="margin-top:10px; font-weight:700;">
+                Results for: <span style="color:#1d4ed8">${ip}</span>
+            </div>
+            <table style="
+                width:100%;
+                border-collapse:collapse;
+                margin-top:10px;
+                font-size:14px;
+                animation: fadeIn 0.35s ease;">
+                <thead>
+                    <tr style="background:#e2e8f0;">
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Rule</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Match?</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Type</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        rows.forEach(r => {
+            const bg =
+                r.match === "✓" ? "#dcfce7" :
+                r.match === "✗" ? "#fee2e2" :
+                "#fef9c3";
+
+            html += `
+                <tr style="background:${bg};">
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.rule}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.match}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.type}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.note}</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+
+        resultBox.innerHTML = html;
+        resultBox.classList.add("cidr-visible");
+    }
+
+    /* ============================================================
+       LOWER SECTION — CIDR RANGE TESTER (A vs B)
+       ============================================================ */
+
+    const cidrA = document.getElementById("cidr-input-a");
+    const cidrB = document.getElementById("cidr-input-b");
+    const cidrBtn = document.getElementById("cidr-test-btn");
+    const cidrResult = document.getElementById("cidr-test-result");
+
+    if (cidrBtn) {
+        cidrBtn.addEventListener("click", () => {
+            const A = cidrA.value.trim();
+            const B = cidrB.value.trim();
+
+            if (!A || !B) {
+                return showCidrRangeResult("Enter both values.", "warning");
+            }
+
+            try {
+                const msg = testCidrRange(A, B);
+                showCidrRangeResult(msg.text, msg.type);
+            } catch (err) {
+                showCidrRangeResult(err.message, "fail");
+            }
+        });
+    }
+
+    function testCidrRange(A, B) {
+        const isA_CIDR = A.includes("/");
+        const isB_CIDR = B.includes("/");
+
+        if (!isB_CIDR) throw new Error("Value B must be a CIDR.");
+
+        const b = parseCIDR(B);
+        const bitsB = ipToBits(b.ip).slice(0, b.prefix);
+
+        if (!isA_CIDR) {
+            const bitsA = ipToBits(A).slice(0, b.prefix);
+            return bitsA === bitsB
+                ? { text: `${A} IS inside ${B}`, type: "pass" }
+                : { text: `${A} is NOT inside ${B}`, type: "fail" };
         }
 
-        return address.split(":").map((p) => p.padStart(4, "0")).join(":");
+        const a = parseCIDR(A);
+        const bitsA = ipToBits(a.ip).slice(0, Math.min(a.prefix, b.prefix));
+
+        return bitsA === bitsB
+            ? { text: `${A} IS inside ${B}`, type: "pass" }
+            : { text: `${A} is NOT inside ${B}`, type: "fail" };
     }
+
+    function showCidrRangeResult(text, type) {
+        cidrResult.textContent = text;
+
+        cidrResult.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
+
+        if (type === "pass") cidrResult.classList.add("cidr-pass");
+        else if (type === "fail") cidrResult.classList.add("cidr-fail");
+        else cidrResult.classList.add("cidr-warning");
+
+        cidrResult.classList.add("cidr-visible");
+    }
+
 });
 /* =============================================================
    End of Section 10

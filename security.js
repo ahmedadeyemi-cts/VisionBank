@@ -327,14 +327,13 @@ function applyRolePermissions() {
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */
 function startAuditLogAutoRefresh() {
-    loadAuditLogs();  // initial load
+    loadAuditLog();  // ✅ correct function name
 
     setInterval(() => {
-        loadAuditLogs();
-    }, 5000); // refresh every 5 seconds
+        loadAuditLog();  // ✅ correct function name
+    }, 5000);
 }
 
-// Start automatically when admin dashboard loads
 document.addEventListener("DOMContentLoaded", startAuditLogAutoRefresh);
 
 /* =============================================================

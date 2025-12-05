@@ -34,8 +34,6 @@ const hoursStart = document.getElementById("hours-start");
 const hoursEnd = document.getElementById("hours-end");
 const hoursDayChecks = document.querySelectorAll(".hours-day");
 
-const ipForm = document.getElementById("ip-form");
-const ipTextarea = document.getElementById("ip-textarea");
 
 const auditLogBox = document.getElementById("audit-log");
 
@@ -306,11 +304,17 @@ function applyRolePermissions() {
     const hoursButtons = hoursForm ? hoursForm.querySelectorAll("button, input[type='submit']") : [];
     hoursButtons.forEach(el => el.disabled = !canEditHours);
 
-    // IP Allowlist: superadmin, admin can edit
-    const canEditIp = role === "superadmin" || role === "admin";
-    ipTextarea.disabled = !canEditIp;
-    const ipButtons = ipForm ? ipForm.querySelectorAll("button, input[type='submit']") : [];
-    ipButtons.forEach(el => el.disabled = !canEditIp);
+  // NEW IP RULE MANAGER — only superadmin/admin can edit
+const canEditIp = role === "superadmin" || role === "admin";
+
+document.getElementById("ip-add-input").disabled = !canEditIp;
+document.getElementById("ip-add-btn").disabled = !canEditIp;
+document.getElementById("ip-save-btn").disabled = !canEditIp;
+
+document.querySelectorAll(".ip-remove-btn").forEach(btn => {
+    btn.disabled = !canEditIp;
+});
+
 
     // Logs: superadmin, admin, auditor can view.
     const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";

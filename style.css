@@ -698,3 +698,15 @@ body.wallboard-mode .main {
     width: 260px;
   }
 }
+/* Queue Calls > 1 = Red Alert Box */
+.queue-alert-red {
+    background: #d10000 !important;
+    color: white !important;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+.dark-mode .queue-alert-red {
+    background: #ff3b3b !important;
+    color: #ffffff !important;
+}

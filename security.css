@@ -729,3 +729,12 @@ body.theme-dark .ip-item {
 .status-box.error { color: #dc2626; }
 .status-box.info { color: #2563eb; }
 .status-box.warning { color: #d97706; }
+#audit-log {
+    color: #fff;
+    background: #0a0f18;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}

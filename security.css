@@ -630,3 +630,19 @@ body.theme-dark .cidr-result-box {
     color: #d97706;
     font-weight: 600;
 }
+.cidr-result-box {
+    margin-top: 14px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: all 0.35s ease;
+    min-height: 20px;
+}
+
+.cidr-result-box.cidr-visible {
+    opacity: 1;
+    transform: translateY(0px);
+}

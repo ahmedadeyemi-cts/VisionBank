@@ -4,14 +4,14 @@
 const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
 const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
 
-// Cloudflare Worker base for security
-const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
-
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
 
+// Cloudflare Worker base
+const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+
 // ===============================
-// HELPERS
+// CC API WRAPPER
 // ===============================
 async function fetchApi(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -29,12 +29,8 @@ async function fetchApi(path) {
 // (Only executed AFTER index.html’s pre-check approves)
 // ===============================
 async function checkSecurityAccess() {
-  // If index.html already evaluated security, reuse it
-  if (window.VB_SECURITY) {
-    return !!window.VB_SECURITY.allowed;
-  }
+  if (window.VB_SECURITY) return window.VB_SECURITY.allowed === true;
 
-  // Fallback – call worker directly
   try {
     const res = await fetch(`${SECURITY_BASE}/security/check`, {
       method: "GET",
@@ -42,30 +38,29 @@ async function checkSecurityAccess() {
       credentials: "omit"
     });
     if (!res.ok) return false;
-
     const data = await res.json();
     window.VB_SECURITY = data;
-    return !!data.allowed;
+    return data.allowed === true;
   } catch (err) {
     console.error("Security check failed:", err);
     return false;
   }
 }
 
-// Optional: show security banner in the UI footer
-function showSecurityBanner() {
-  if (!window.VB_SECURITY || !window.VB_SECURITY.info) return;
+// ===============================
+// SECURITY FOOTER BANNER (fallback)
+// ===============================
+(function showSecurityBanner() {
   const el = document.getElementById("securityStatus");
-  if (!el) return;
+  if (!el || !window.VB_SECURITY || !window.VB_SECURITY.info) return;
+  const ip = window.VB_SECURITY.info.ip || "Unknown IP";
+  const ts = window.VB_SECURITY.info.now || "Unknown time";
+  el.textContent = `Access approved from IP ${ip} at ${ts} (CST)`;
+})();
 
-  const info = window.VB_SECURITY.info;
-  const ip = info.ip || info.clientIp || "Unknown IP";
-  const ts = info.now || (info.nowCst && info.nowCst.label) || "";
-  el.textContent = ts
-    ? `Access approved from IP ${ip} at ${ts} (CST)`
-    : `Access approved from IP ${ip}`;
-}
-
+// ===============================
+// HELPERS
+// ===============================
 function safe(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return value;
@@ -82,10 +77,8 @@ function formatTime(sec) {
 
   return (
     sign +
-    String(hours).padStart(2, "0") +
-    ":" +
-    String(minutes).padStart(2, "0") +
-    ":" +
+    String(hours).padStart(2, "0") + ":" +
+    String(minutes).padStart(2, "0") + ":" +
     String(seconds).padStart(2, "0")
   );
 }
@@ -94,7 +87,7 @@ function formatDate(isoString) {
   if (!isoString) return "--";
   const d = new Date(isoString);
   if (Number.isNaN(d.getTime())) return "--";
-  return d.toLocaleString();
+  return d.toLocaleString("en-US", { timeZone: "America/Chicago" });
 }
 
 function setText(id, value) {
@@ -104,31 +97,28 @@ function setText(id, value) {
 }
 
 // ===============================
-// DARK MODE
+// DARK MODE (bottom-left button)
 // ===============================
 function initDarkMode() {
   const btn = document.getElementById("darkModeToggle");
   if (!btn) return;
 
-  function applyDark(on) {
-    document.body.classList.toggle("dark-mode", !!on);
-    btn.textContent = on ? "☀️ Light Mode" : "🌙 Dark Mode";
+  function apply(isDark) {
+    document.body.classList.toggle("dark-mode", !!isDark);
+    btn.textContent = isDark ? "☀️ Light mode" : "🌙 Dark mode";
   }
 
   const stored = localStorage.getItem("dashboard-dark-mode");
   if (stored === null) {
-    const prefersDark =
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-    applyDark(prefersDark);
-    localStorage.setItem("dashboard-dark-mode", prefersDark ? "1" : "0");
+    apply(false);
+    localStorage.setItem("dashboard-dark-mode", "0");
   } else {
-    applyDark(stored === "1");
+    apply(stored === "1");
   }
 
   btn.addEventListener("click", () => {
-    const isDark = document.body.classList.toggle("dark-mode");
-    btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark Mode";
+    const isDark = !document.body.classList.contains("dark-mode");
+    apply(isDark);
     localStorage.setItem("dashboard-dark-mode", isDark ? "1" : "0");
   });
 }
@@ -181,9 +171,7 @@ function ensureAudio() {
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if (Ctor) audioCtx = new Ctor();
   }
-  if (!voiceAudio) {
-    voiceAudio = new Audio("assets/ttsAlert.mp3");
-  }
+  if (!voiceAudio) voiceAudio = new Audio("assets/ttsAlert.mp3");
 }
 
 function playTone(tone) {
@@ -201,24 +189,15 @@ function playTone(tone) {
 
   switch (tone) {
     case "bright":
-      freq = 1200;
-      type = "square";
-      break;
+      freq = 1200; type = "square"; break;
     case "pulse":
-      freq = 600;
-      type = "sawtooth";
-      break;
+      freq = 600;  type = "sawtooth"; break;
     case "ping":
-      freq = 1500;
-      type = "triangle";
-      break;
+      freq = 1500; type = "triangle"; break;
     case "alarm":
-      freq = 400;
-      type = "square";
-      break;
+      freq = 400;  type = "square"; break;
     default:
-      freq = 880;
-      type = "sine";
+      freq = 880;  type = "sine";
   }
 
   osc.type = type;
@@ -250,6 +229,7 @@ function playVoice() {
 // POPUP ALERT
 // ===============================
 let popupTimeoutId = null;
+
 function showAlertPopup(message) {
   if (!alertSettings.enablePopupAlerts) return;
 
@@ -260,10 +240,7 @@ function showAlertPopup(message) {
   popup.classList.add("visible");
 
   if (popupTimeoutId) clearTimeout(popupTimeoutId);
-  popupTimeoutId = setTimeout(
-    () => popup.classList.remove("visible"),
-    5000
-  );
+  popupTimeoutId = setTimeout(() => popup.classList.remove("visible"), 5000);
 }
 
 // ===============================
@@ -398,17 +375,17 @@ function initAlertSettingsUI() {
   const enableQueueAlertsEl = document.getElementById("enableQueueAlerts");
   const enableVoiceAlertsEl = document.getElementById("enableVoiceAlerts");
   const enablePopupAlertsEl = document.getElementById("enablePopupAlerts");
-  const alertToneSelectEl = document.getElementById("alertToneSelect");
-  const alertVolumeEl = document.getElementById("alertVolume");
-  const alertCooldownEl = document.getElementById("alertCooldown");
-  const wallboardModeEl = document.getElementById("wallboardMode");
-  const testButtonEl = document.getElementById("alertTestButton");
+  const alertToneSelectEl   = document.getElementById("alertToneSelect");
+  const alertVolumeEl       = document.getElementById("alertVolume");
+  const alertCooldownEl     = document.getElementById("alertCooldown");
+  const wallboardModeEl     = document.getElementById("wallboardMode");
+  const exitWallboardBtn    = document.getElementById("exitWallboardButton");
+  const testButtonEl        = document.getElementById("alertTestButton");
 
   const alertSettingsToggle = document.getElementById("alertSettingsToggle");
-  const alertSettingsPanel = document.getElementById("alertSettingsPanel");
-  const alertHistoryToggle = document.getElementById("alertHistoryToggle");
-  const alertHistoryPanel = document.getElementById("alertHistoryPanel");
-  const exitWallboardBtn = document.getElementById("exitWallboardMode");
+  const alertSettingsPanel  = document.getElementById("alertSettingsPanel");
+  const alertHistoryToggle  = document.getElementById("alertHistoryToggle");
+  const alertHistoryPanel   = document.getElementById("alertHistoryPanel");
 
   if (enableQueueAlertsEl) {
     enableQueueAlertsEl.checked = alertSettings.enableQueueAlerts;
@@ -462,32 +439,36 @@ function initAlertSettingsUI() {
 
   if (wallboardModeEl) {
     wallboardModeEl.checked = alertSettings.wallboardMode;
+    document.body.classList.toggle("wallboard-mode", wallboardModeEl.checked);
+
+    const syncExitBtnVisibility = () => {
+      if (!exitWallboardBtn) return;
+      exitWallboardBtn.classList.toggle("hidden", !wallboardModeEl.checked);
+    };
+    syncExitBtnVisibility();
+
     wallboardModeEl.addEventListener("change", () => {
       alertSettings.wallboardMode = wallboardModeEl.checked;
-      document.body.classList.toggle(
-        "wallboard-mode",
-        wallboardModeEl.checked
-      );
+      document.body.classList.toggle("wallboard-mode", wallboardModeEl.checked);
       saveAlertSettings();
+      syncExitBtnVisibility();
     });
-    document.body.classList.toggle(
-      "wallboard-mode",
-      wallboardModeEl.checked
-    );
-  }
 
-  if (exitWallboardBtn) {
-    exitWallboardBtn.addEventListener("click", () => {
-      alertSettings.wallboardMode = false;
-      if (wallboardModeEl) wallboardModeEl.checked = false;
-      document.body.classList.remove("wallboard-mode");
-      saveAlertSettings();
-    });
+    if (exitWallboardBtn) {
+      exitWallboardBtn.addEventListener("click", e => {
+        e.preventDefault();
+        wallboardModeEl.checked = false;
+        alertSettings.wallboardMode = false;
+        document.body.classList.remove("wallboard-mode");
+        saveAlertSettings();
+        exitWallboardBtn.classList.add("hidden");
+      });
+    }
   }
 
   if (testButtonEl) {
     testButtonEl.addEventListener("click", () => {
-      const tone = alertSettings.tone || "soft";
+      const tone  = alertSettings.tone || "soft";
       const calls = lastQueueSnapshot.totalCalls || 0;
       const agents = lastQueueSnapshot.totalAgents || 0;
 
@@ -500,16 +481,15 @@ function initAlertSettingsUI() {
     });
   }
 
-  // Fixed toggles
+  // Toggle panels (side-by-side)
   if (alertSettingsToggle && alertSettingsPanel) {
     alertSettingsToggle.onclick = e => {
       e.preventDefault();
       e.stopPropagation();
 
       const isOpen = !alertSettingsPanel.classList.contains("hidden");
-
       alertSettingsPanel.classList.add("hidden");
-      alertHistoryPanel.classList.add("hidden");
+      alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertSettingsPanel.classList.remove("hidden");
     };
@@ -521,41 +501,28 @@ function initAlertSettingsUI() {
       e.stopPropagation();
 
       const isOpen = !alertHistoryPanel.classList.contains("hidden");
-
-      alertSettingsPanel.classList.add("hidden");
+      alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
       alertHistoryPanel.classList.add("hidden");
 
       if (!isOpen) alertHistoryPanel.classList.remove("hidden");
     };
   }
 
-  // Close panels when clicking outside
-  document.addEventListener("click", evt => {
-    const target = evt.target;
-    if (
-      alertSettingsPanel &&
-      !alertSettingsPanel.contains(target) &&
-      target !== alertSettingsToggle
-    ) {
-      alertSettingsPanel.classList.add("hidden");
-    }
-    if (
-      alertHistoryPanel &&
-      !alertHistoryPanel.contains(target) &&
-      target !== alertHistoryToggle
-    ) {
-      alertHistoryPanel.classList.add("hidden");
+  // Click-outside to close both panels
+  document.addEventListener("click", (ev) => {
+    const t = ev.target;
+    const clickedSettings =
+      (alertSettingsPanel && alertSettingsPanel.contains(t)) ||
+      (alertSettingsToggle && alertSettingsToggle.contains(t));
+    const clickedHistory =
+      (alertHistoryPanel && alertHistoryPanel.contains(t)) ||
+      (alertHistoryToggle && alertHistoryToggle.contains(t));
+
+    if (!clickedSettings && !clickedHistory) {
+      alertSettingsPanel && alertSettingsPanel.classList.add("hidden");
+      alertHistoryPanel && alertHistoryPanel.classList.add("hidden");
     }
   });
-
-  document
-    .querySelectorAll(".alert-panel-close")
-    .forEach(btn => {
-      btn.addEventListener("click", () => {
-        if (alertSettingsPanel) alertSettingsPanel.classList.add("hidden");
-        if (alertHistoryPanel) alertHistoryPanel.classList.add("hidden");
-      });
-    });
 }
 
 // ===============================
@@ -611,19 +578,15 @@ function updateQueueToneOverrides(queues) {
 // ===============================
 // QUEUE ALERT LOGIC
 // ===============================
-function triggerQueueAlert({
-  totalCalls,
-  totalAgents,
-  queueNames,
-  isTest = false
-}) {
+function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
+  // Respect queue audio toggle for real alerts
   if (!isTest && !alertSettings.enableQueueAlerts) return;
-  // Only chime when > 1 total calls (2+)
+
+  // Only alert when > 1 total calls, per requirement
   if (!isTest && totalCalls <= 1) return;
 
   const now = Date.now();
   const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
-
   if (!isTest && now - lastAlertTimestamp < cooldownMs) return;
   lastAlertTimestamp = now;
 
@@ -637,10 +600,17 @@ function triggerQueueAlert({
 
   const escalationLevel = getEscalationLevel(totalCalls);
 
-  playTone(tone);
-  if (alertSettings.enableVoiceAlerts) playVoice();
+  // Audio: chime obeys enableQueueAlerts, voice obeys enableVoiceAlerts
+  if (alertSettings.enableQueueAlerts || isTest) {
+    playTone(tone);
+  }
+  if (alertSettings.enableVoiceAlerts && !isTest) {
+    playVoice();
+  }
 
-  if (!isTest) showAlertPopup("You have calls waiting");
+  if (!isTest) {
+    showAlertPopup("You have calls waiting");
+  }
 
   recordAlertEvent({
     calls: totalCalls,
@@ -664,11 +634,7 @@ async function loadQueueStatus() {
   try {
     const data = await fetchApi("/status/queues");
 
-    if (
-      !data ||
-      !Array.isArray(data.QueueStatus) ||
-      data.QueueStatus.length === 0
-    ) {
+    if (!data || !Array.isArray(data.QueueStatus) || data.QueueStatus.length === 0) {
       body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
       panel && panel.classList.remove("queue-alert-active");
       return;
@@ -678,7 +644,7 @@ async function loadQueueStatus() {
     let anyHot = false;
     let totalCalls = 0;
     let totalAgents = 0;
-    let activeQueueNames = [];
+    const activeQueueNames = [];
 
     const rowsHtml = queues
       .map(q => {
@@ -714,9 +680,10 @@ async function loadQueueStatus() {
 
     lastQueueSnapshot = { totalCalls, totalAgents };
 
+    // Flash panel when any queue has calls > 0
     if (panel) panel.classList.toggle("queue-alert-active", anyHot);
 
-    // Only trigger audio if total calls > 1 (2+).
+    // Only play chime when totalCalls > 1 (>=2)
     if (anyHot && totalCalls > 1) {
       triggerQueueAlert({
         totalCalls,
@@ -743,11 +710,7 @@ async function loadGlobalStats() {
   try {
     const data = await fetchApi("/statistics/global");
 
-    if (
-      !data ||
-      !Array.isArray(data.GlobalStatistics) ||
-      data.GlobalStatistics.length === 0
-    ) {
+    if (!data || !Array.isArray(data.GlobalStatistics) || data.GlobalStatistics.length === 0) {
       if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
       return;
     }
@@ -759,20 +722,11 @@ async function loadGlobalStats() {
     setText("gs-total-abandoned", g.TotalCallsAbandoned);
     setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
 
-    setText(
-      "gs-service-level",
-      g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--"
-    );
+    setText("gs-service-level", g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--");
     setText("gs-total-received", g.TotalCallsReceived);
 
-    setText(
-      "gs-answer-rate",
-      g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--"
-    );
-    setText(
-      "gs-abandon-rate",
-      g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--"
-    );
+    setText("gs-answer-rate", g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--");
+    setText("gs-abandon-rate", g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--");
 
     setText("gs-callbacks-registered", g.CallbacksRegistered);
     setText("gs-callbacks-waiting", g.CallbacksWaiting);
@@ -783,35 +737,39 @@ async function loadGlobalStats() {
 }
 
 // ===============================
-// AGENT STATUS
+// AVAILABILITY CLASS MAPPING
 // ===============================
 function getAvailabilityClass(status) {
-  if (!status) return "status-other";
+  if (!status) return "status-yellow"; // default unknown -> light yellow
+
   const s = status.toLowerCase();
 
   // GREEN
   if (s.includes("available")) return "status-available";
 
-  // RED
+  // RED: On Call, Dial Out, On Break
   if (s.includes("on call")) return "status-oncall";
   if (s.includes("dial-out") || s.includes("dial out")) return "status-dialout";
   if (s.includes("break")) return "status-break";
 
-  // ORANGE
+  // ORANGE: Wrap, Lunch, Accept Internal, Busy, Not Set
   if (s.includes("wrap")) return "status-wrap";
   if (s.includes("lunch")) return "status-lunch";
   if (s.includes("accept")) return "status-orange";
   if (s.includes("busy")) return "status-orange";
   if (s.includes("not set")) return "status-orange";
 
-  // GRAY
+  // GRAY: Idle, Unknown
   if (s.includes("idle")) return "status-idle";
   if (s.includes("unknown")) return "status-unknown";
 
-  // Anything else: light yellow
-  return "status-other";
+  // Everything else: YELLOW
+  return "status-yellow";
 }
 
+// ===============================
+// AGENT STATUS
+// ===============================
 async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
@@ -821,11 +779,7 @@ async function loadAgentStatus() {
   try {
     const data = await fetchApi("/status/agents");
 
-    if (
-      !data ||
-      !Array.isArray(data.AgentStatus) ||
-      data.AgentStatus.length === 0
-    ) {
+    if (!data || !Array.isArray(data.AgentStatus) || data.AgentStatus.length === 0) {
       body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
       return;
     }
@@ -833,18 +787,14 @@ async function loadAgentStatus() {
     body.innerHTML = "";
 
     data.AgentStatus.forEach(a => {
-      const inbound = a.TotalCallsReceived ?? 0;
-      const missed = a.TotalCallsMissed ?? 0;
-      const transferred = a.TotalCallsTransferred ?? 0;
-      const outbound = a.DialoutCount ?? 0;
+      const inbound      = a.TotalCallsReceived ?? 0;
+      const missed       = a.TotalCallsMissed ?? 0;
+      const transferred  = a.TotalCallsTransferred ?? 0;
+      const outbound     = a.DialoutCount ?? 0;
+      const duration     = formatTime(a.SecondsInCurrentStatus ?? 0);
+      const avgHandleSec = inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
 
-      const duration = formatTime(a.SecondsInCurrentStatus ?? 0);
-      const avgHandleSeconds =
-        inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
-
-      const availabilityClass = getAvailabilityClass(
-        a.CallTransferStatusDesc
-      );
+      const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -854,12 +804,12 @@ async function loadAgentStatus() {
         <td class="availability-cell ${availabilityClass}">
           ${safe(a.CallTransferStatusDesc)}
         </td>
-        <td class="numeric">${duration}</td>
         <td class="numeric">${inbound}</td>
         <td class="numeric">${missed}</td>
         <td class="numeric">${transferred}</td>
         <td class="numeric">${outbound}</td>
-        <td class="numeric">${formatTime(avgHandleSeconds)}</td>
+        <td class="numeric">${formatTime(avgHandleSec)}</td>
+        <td class="numeric">${duration}</td>
         <td>${formatDate(a.StartDateUtc)}</td>
       `;
       body.appendChild(tr);
@@ -883,7 +833,6 @@ function refreshAll() {
 // INIT
 // ===============================
 document.addEventListener("DOMContentLoaded", async () => {
-  // Only continue if Cloudflare has approved this session
   const ok = await checkSecurityAccess();
   if (!ok) return;
 
@@ -892,7 +841,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAlertHistoryUI();
   refreshAll();
   setInterval(refreshAll, 10000);
-
-  // Update security footer banner (if present)
-  showSecurityBanner();
 });

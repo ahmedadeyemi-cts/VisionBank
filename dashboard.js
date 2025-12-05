@@ -746,6 +746,17 @@ async function loadQueueStatus() {
       .join("");
 
     body.innerHTML = rowsHtml;
+// === Queue Alert Red Box ===
+const calls = Number(q.TotalCalls);
+const callsCell = document.querySelector("#queueCallsCell");
+
+if (callsCell) {
+    if (calls > 1) {
+        callsCell.classList.add("queue-alert-red");
+    } else {
+        callsCell.classList.remove("queue-alert-red");
+    }
+}
 
     lastQueueSnapshot = { totalCalls, totalAgents };
 

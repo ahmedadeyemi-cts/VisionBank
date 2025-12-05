@@ -721,6 +721,115 @@ function initUserManagement() {
 
     refreshUserList();
 }
+/* =============================================================
+   10. CIDR TESTER
+   ============================================================= */
+
+const cidrInputA = document.getElementById("cidr-input-a");
+const cidrInputB = document.getElementById("cidr-input-b");
+const cidrTestBtn = document.getElementById("cidr-test-btn");
+const cidrResultBox = document.getElementById("cidr-test-result");
+
+if (cidrTestBtn) {
+    cidrTestBtn.addEventListener("click", () => {
+        const a = cidrInputA.value.trim();
+        const b = cidrInputB.value.trim();
+
+        if (!a || !b) {
+            return showCidrResult("Enter both values before testing.", "warning");
+        }
+
+        try {
+            const result = runCidrTest(a, b);
+            showCidrResult(result.text, result.type);
+        } catch (err) {
+            showCidrResult("Error: " + err.message, "fail");
+        }
+    });
+}
+
+function showCidrResult(msg, type = "info") {
+    cidrResultBox.textContent = msg;
+
+    cidrResultBox.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
+
+    if (type === "pass") cidrResultBox.classList.add("cidr-pass");
+    else if (type === "fail") cidrResultBox.classList.add("cidr-fail");
+    else if (type === "warning") cidrResultBox.classList.add("cidr-warning");
+}
+
+/* ---------- CIDR Matching Logic (Pure JS, No Libraries) ---------- */
+
+function parseCIDR(cidr) {
+    if (!cidr.includes("/")) throw new Error(`Not a CIDR: ${cidr}`);
+    const [ip, prefix] = cidr.split("/");
+    return { ip, prefix: Number(prefix) };
+}
+
+function ipToBits(ip) {
+    // IPv4
+    if (ip.includes(".")) {
+        return ip.split(".")
+            .map(n => Number(n).toString(2).padStart(8, "0"))
+            .join("");
+    }
+    // IPv6
+    if (ip.includes(":")) {
+        const expanded = expandIPv6(ip);
+        return expanded.split(":")
+            .map(h => parseInt(h, 16).toString(2).padStart(16, "0"))
+            .join("");
+    }
+    throw new Error("Unknown IP format");
+}
+
+function expandIPv6(address) {
+    const parts = address.split("::");
+    if (parts.length > 2) throw new Error("Invalid IPv6");
+
+    if (parts.length === 1) {
+        return address.split(":").map(p => p.padStart(4, "0")).join(":");
+    }
+
+    const left = parts[0] ? parts[0].split(":") : [];
+    const right = parts[1] ? parts[1].split(":") : [];
+    const missing = 8 - (left.length + right.length);
+
+    return [
+        ...left.map(p => p.padStart(4, "0")),
+        ...Array(missing).fill("0000"),
+        ...right.map(p => p.padStart(4, "0"))
+    ].join(":");
+}
+
+function runCidrTest(a, b) {
+    const isA_CIDR = a.includes("/");
+    const isB_CIDR = b.includes("/");
+
+    if (!isB_CIDR) throw new Error("Second value must be a CIDR");
+
+    const cidrB = parseCIDR(b);
+    const bitsB = ipToBits(cidrB.ip).slice(0, cidrB.prefix);
+
+    if (!isA_CIDR) {
+        // A is an IP
+        const bitsA = ipToBits(a).slice(0, cidrB.prefix);
+
+        if (bitsA === bitsB) {
+            return { text: `${a} IS inside ${b}`, type: "pass" };
+        }
+        return { text: `${a} is NOT inside ${b}`, type: "fail" };
+    }
+
+    // Both are CIDRs
+    const cidrA = parseCIDR(a);
+    const bitsA = ipToBits(cidrA.ip).slice(0, Math.min(cidrA.prefix, cidrB.prefix));
+
+    if (bitsA === bitsB) {
+        return { text: `${a} IS fully inside ${b}`, type: "pass" };
+    }
+    return { text: `${a} is NOT inside ${b}`, type: "fail" };
+}
 
 /* =============================================================
    9.  LOGOUT

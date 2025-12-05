@@ -328,22 +328,23 @@ document.querySelectorAll(".ip-remove-btn").forEach(btn => {
 /* ============================================================
    SAFE USER MGMT INITIALIZER (GLOBAL SCOPE)
    ============================================================ */
+// -------------------------------
+// USER MANAGEMENT INITIALIZER
+// -------------------------------
 function safeInitUserManagement() {
     const audit = document.getElementById("admin-audit-section");
 
-    // DOM not yet ready → retry a moment later
     if (!audit) {
         return setTimeout(safeInitUserManagement, 150);
     }
 
-    // DOM is ready → load the panel
     initUserManagement();
 }
-// User Management: only superadmin
+
 if (role === "superadmin") {
     safeInitUserManagement();
-}
-}
+}  // <-- correct closing bracket for applyRolePermissions()
+
 /* ============================================================
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */

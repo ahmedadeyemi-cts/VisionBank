@@ -726,3 +726,15 @@ body.wallboard-mode .main {
     background: #ff3b3b !important;
     color: #ffffff !important;
 }
+/* Entire queue panel turns red when alert triggered */
+.queue-alert-red {
+    background-color: #b40000 !important;
+    color: #ffffff !important;
+    border-color: #7a0000 !important;
+}
+
+.queue-alert-red td,
+.queue-alert-red th {
+    color: #ffffff !important;
+}
+

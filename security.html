@@ -186,7 +186,30 @@
                 <button type="submit" class="btn-primary">Save IP Rules</button>
             </form>
         </section>
+<!-- CIDR TESTER -->
+<section id="cidr-tester-section" class="admin-section">
+    <h3>CIDR / IP Tester</h3>
+    <p class="section-help">
+        Test whether an IPv4 or IPv6 address matches any allowlist rule. 
+        Uses the same logic as the Cloudflare Worker.
+    </p>
 
+    <div class="cidr-tester">
+        <label>
+            IP Address to Test
+            <input type="text" id="cidr-test-ip" placeholder="e.g., 10.100.100.55 or 2600:1700:abcd::1">
+        </label>
+
+        <label>
+            Rules (auto-loaded)
+            <textarea id="cidr-test-rules" rows="4" readonly></textarea>
+        </label>
+
+        <button id="cidr-test-btn" class="btn-primary">Run CIDR Test</button>
+
+        <div id="cidr-test-result" class="cidr-test-result hidden"></div>
+    </div>
+</section>
         <!-- USER MANAGEMENT WILL BE INSERTED HERE BY JS (before audit section) -->
 
         <!-- AUDIT LOG -->

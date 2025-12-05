@@ -337,7 +337,7 @@ function safeInitUserManagement() {
 if (role === "superadmin") {
     safeInitUserManagement();
 }
-
+}
 /* ============================================================
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */

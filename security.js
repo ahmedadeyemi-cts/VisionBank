@@ -323,6 +323,19 @@ function applyRolePermissions() {
         initUserManagement();
     }
 }
+/* ============================================================
+   AUTO-REFRESH AUDIT LOG — every 5 seconds
+   ============================================================ */
+function startAuditLogAutoRefresh() {
+    loadAuditLogs();  // initial load
+
+    setInterval(() => {
+        loadAuditLogs();
+    }, 5000); // refresh every 5 seconds
+}
+
+// Start automatically when admin dashboard loads
+document.addEventListener("DOMContentLoaded", startAuditLogAutoRefresh);
 
 /* =============================================================
    5.  BUSINESS HOURS

@@ -500,7 +500,12 @@ async function loadIpRulesUI() {
   renderIpList();
 }
 
-loadIpRulesUI();
+loadIpRulesUI().then(() => {
+    const rulesTextarea = document.getElementById("ip-rules-textarea");
+    if (rulesTextarea) {
+        rulesTextarea.value = IP_RULES.join("\n");   // <-- populates tester
+    }
+});
 /* =============================================================
    End of the IP Allow List
    ============================================================= */
@@ -1044,6 +1049,15 @@ document.addEventListener("DOMContentLoaded", () => {
         cidrResult.classList.add("cidr-visible");
     }
 
+});
+// Ensure CIDR tester auto-loads updated rules
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        const rulesTextarea = document.getElementById("ip-rules-textarea");
+        if (rulesTextarea && Array.isArray(IP_RULES)) {
+            rulesTextarea.value = IP_RULES.join("\n");
+        }
+    }, 400); // small delay for UI to build
 });
 /* =============================================================
    End of Section 10

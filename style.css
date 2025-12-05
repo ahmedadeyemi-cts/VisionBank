@@ -420,6 +420,13 @@ body.security-approved {
   background: rgba(248, 113, 22, 0.17);
 }
 
+/* Hint text */
+.wallboard-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
 .alert-panel-divider {
   border: none;
   border-top: 1px solid rgba(148, 163, 184, 0.5);

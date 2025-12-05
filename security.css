@@ -738,3 +738,161 @@ body.theme-dark .ip-item {
     line-height: 1.5;
     white-space: pre-wrap;
 }
+/* ============================================================
+   User Management Modern UI — Option A
+   ============================================================ */
+
+.um-container {
+    padding: 10px 0 20px 0;
+}
+
+.um-header {
+    margin-bottom: 14px;
+}
+
+.um-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--vb-text-primary);
+}
+
+.um-subtitle {
+    margin: 2px 0 12px 0;
+    font-size: 13px;
+    color: var(--vb-text-muted);
+}
+
+.um-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 18px;
+}
+
+.um-card {
+    padding: 16px;
+    background: var(--vb-card-bg);
+    border: 1px solid var(--vb-border);
+    border-radius: 10px;
+    box-shadow: var(--vb-card-shadow);
+}
+
+.um-card-title {
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-size: 16px;
+    border-bottom: 1px solid var(--vb-border);
+    padding-bottom: 6px;
+}
+
+.um-field {
+    margin-bottom: 12px;
+}
+
+.um-field label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: var(--vb-text-muted);
+}
+
+.um-field input,
+.um-field select {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--vb-border);
+    background: var(--vb-input-bg);
+    color: var(--vb-text-primary);
+    border-radius: 6px;
+}
+
+.um-field-checkbox {
+    margin: 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.um-btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.um-btn {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: 0.2s;
+    border: 1px solid transparent;
+}
+
+.um-btn-primary {
+    background: var(--vb-blue);
+    color: white;
+}
+
+.um-btn-danger {
+    background: #dc2626;
+    color: white;
+}
+
+.um-btn-secondary {
+    background: #475569;
+    color: white;
+}
+
+.um-btn-link {
+    background: transparent;
+    color: var(--vb-blue);
+    text-decoration: underline;
+    padding-left: 0;
+}
+
+.um-btn:hover {
+    opacity: 0.85;
+}
+
+.um-list-card {
+    max-height: 450px;
+    overflow: auto;
+}
+
+.um-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.um-table th,
+.um-table td {
+    padding: 6px;
+    border-bottom: 1px solid var(--vb-border);
+}
+
+.um-table tbody tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.um-table tbody tr:hover {
+    background: var(--vb-hover);
+}
+
+.um-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.um-toast {
+    margin-bottom: 12px;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.um-toast.success { background:#d1fae5; color:#065f46; }
+.um-toast.error   { background:#fee2e2; color:#991b1b; }
+.um-toast.info    { background:#dbeafe; color:#1e3a8a; }

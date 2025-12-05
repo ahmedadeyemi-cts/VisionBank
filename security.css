@@ -720,3 +720,12 @@ body.theme-dark .ip-item {
         transform: translateX(0);
     }
 }
+.status-box {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.status-box.success { color: #16a34a; }
+.status-box.error { color: #dc2626; }
+.status-box.info { color: #2563eb; }
+.status-box.warning { color: #d97706; }

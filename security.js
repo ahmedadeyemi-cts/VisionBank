@@ -562,24 +562,37 @@ async function loadAuditLog() {
    8.  USER MANAGEMENT (SUPERADMIN ONLY — FULL UPGRADED VERSION)
    ============================================================= */
 
-function initUserManagement() {
-    if (userPanelInitialized) return;
-    userPanelInitialized = true;
+section.innerHTML = `
+    <div class="um-container">
 
-    const section = document.createElement("section");
-    section.id = "user-management";
-    section.className = "admin-section";
-    section.innerHTML = `
-        <h3>User Management</h3>
+        <div class="um-header">
+            <h2>User Management</h2>
+            <p class="um-subtitle">Create, update, delete users and manage MFA enrollment</p>
+        </div>
 
-        <div id="user-toast" class="user-toast hidden"></div>
+        <div id="user-toast" class="um-toast hidden"></div>
 
-        <div class="user-mgmt">
-            <div class="user-form">
-                <label>Username<br><input type="text" id="user-username" /></label><br>
-                <label>Password<br><input type="password" id="user-password" /></label><br>
+        <div class="um-grid">
 
-                <label>Role<br>
+            <!-- ========================= -->
+            <!-- LEFT PANEL — USER FORM    -->
+            <!-- ========================= -->
+            <div class="um-card um-form-card">
+
+                <h3 class="um-card-title">User Editor</h3>
+
+                <div class="um-field">
+                    <label>Username</label>
+                    <input type="text" id="user-username" placeholder="e.g. jdoe" />
+                </div>
+
+                <div class="um-field">
+                    <label>Password</label>
+                    <input type="password" id="user-password" placeholder="Required for new users" />
+                </div>
+
+                <div class="um-field">
+                    <label>Role</label>
                     <select id="user-role">
                         <option value="superadmin">Super Admin</option>
                         <option value="admin">Admin</option>
@@ -587,35 +600,51 @@ function initUserManagement() {
                         <option value="auditor">Auditor</option>
                         <option value="view">View</option>
                     </select>
-                </label><br>
+                </div>
 
-                <label><input type="checkbox" id="user-mfa" /> MFA Enabled</label>
+                <div class="um-field-checkbox">
+                    <input type="checkbox" id="user-mfa" />
+                    <label for="user-mfa">MFA Enabled</label>
+                </div>
 
-                <div class="user-buttons" style="margin-top:8px;">
-                    <button type="button" id="user-save-btn" class="btn-primary">Add / Update User</button>
-                    <button type="button" id="user-delete-btn" class="btn-secondary">Delete User</button>
-                    <button type="button" id="user-reset-mfa-btn" class="btn-secondary">Reset MFA</button>
-                    <button type="button" id="user-undo-btn" class="btn-link hidden">Undo Delete</button>
+                <div class="um-btn-row">
+                    <button type="button" id="user-save-btn" class="um-btn um-btn-primary">Save User</button>
+                    <button type="button" id="user-delete-btn" class="um-btn um-btn-danger">Delete</button>
+                </div>
+
+                <div class="um-btn-row">
+                    <button type="button" id="user-reset-mfa-btn" class="um-btn um-btn-secondary">Reset MFA</button>
+                    <button type="button" id="user-undo-btn" class="um-btn um-btn-link hidden">Undo Delete</button>
                 </div>
             </div>
 
-            <div class="user-list" style="margin-top:18px;">
-                <h3>Existing Users</h3>
+            <!-- ========================= -->
+            <!-- RIGHT PANEL — USER LIST   -->
+            <!-- ========================= -->
+            <div class="um-card um-list-card">
+                <h3 class="um-card-title">Existing Users</h3>
 
-                <div id="user-loading" class="user-loading hidden">
+                <div id="user-loading" class="um-loading hidden">
                     <div class="spinner"></div>
-                    Loading users...
+                    <span>Loading users...</span>
                 </div>
 
-                <table id="user-table" border="1" cellpadding="4" cellspacing="0">
+                <table id="user-table" class="um-table">
                     <thead>
-                        <tr><th>Username</th><th>Role</th><th>MFA</th></tr>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>MFA</th>
+                        </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
+
         </div>
-    `;
+
+    </div>
+`;
 
     const adminAuditSection = document.getElementById("admin-audit-section");
     if (adminAuditSection) {

@@ -111,7 +111,107 @@ function updateSecurityFooterBanner() {
 
     console.log("Security check info:", info);
 }
+/* ======================================================================
+   5. CIDR TESTER PANEL — PURE JS IPV4 + IPV6 CIDR ENGINE
+   ====================================================================== */
 
+// ---------- BigInt IP Conversion ----------
+function ipToBigInt(ip) {
+    if (ip.includes(".")) {
+        return ip.split(".")
+            .reduce((acc, oct) => (acc << 8n) + BigInt(parseInt(oct, 10)), 0n);
+    }
+
+    // IPv6
+    const parts = ip.split("::");
+    let left = parts[0].split(":").filter(Boolean);
+    let right = parts.length > 1 ? parts[1].split(":").filter(Boolean) : [];
+
+    const missing = 8 - (left.length + right.length);
+    const middle = Array(missing).fill("0");
+
+    const full = [...left, ...middle, ...right]
+        .map(h => BigInt(parseInt(h || "0", 16)));
+
+    return full.reduce((acc, h) => (acc << 16n) + h, 0n);
+}
+
+// ---------- CIDR Check ----------
+function isIpInCidr(ip, cidr) {
+    try {
+        const [range, bits] = cidr.split("/");
+        const prefix = BigInt(bits);
+        const ipNum = ipToBigInt(ip);
+        const rangeNum = ipToBigInt(range);
+        const totalBits = ip.includes(".") ? 32n : 128n;
+
+        const mask = (totalBits === 32n)
+            ? (~0n << (32n - prefix)) & 0xffffffffn
+            : (~0n << (128n - prefix));
+
+        return (ipNum & mask) === (rangeNum & mask);
+    } catch {
+        return false;
+    }
+}
+
+function checkRules(ip, rules) {
+    for (const rule of rules) {
+        if (rule.includes("/")) {
+            if (isIpInCidr(ip, rule)) return { match: true, rule };
+        } else if (ip === rule) {
+            return { match: true, rule };
+        }
+    }
+    return { match: false, rule: null };
+}
+
+// ---------- Hook up CIDR Tester UI ----------
+document.addEventListener("DOMContentLoaded", () => {
+    const ipBox = document.getElementById("cidr-test-ip");
+    const rulesBox = document.getElementById("cidr-test-rules");
+    const btn = document.getElementById("cidr-test-btn");
+    const result = document.getElementById("cidr-test-result");
+
+    if (!ipBox || !rulesBox || !btn) return;
+
+    // Auto-load rules from the allowlist textarea
+    const mainRulesTextarea = document.getElementById("ip-textarea");
+    if (mainRulesTextarea) {
+        rulesBox.value = mainRulesTextarea.value;
+    }
+
+    btn.addEventListener("click", () => {
+        const ip = ipBox.value.trim();
+        const rules = rulesBox.value.split("\n").map(r => r.trim()).filter(Boolean);
+
+        if (!ip) {
+            result.textContent = "Enter an IP address first.";
+            result.className = "cidr-test-result error";
+            result.classList.remove("hidden");
+            return;
+        }
+
+        if (rules.length === 0) {
+            result.textContent = "No rules available to test.";
+            result.className = "cidr-test-result error";
+            result.classList.remove("hidden");
+            return;
+        }
+
+        const { match, rule } = checkRules(ip, rules);
+
+        if (match) {
+            result.textContent = `✔ Allowed. Matching Rule: ${rule}`;
+            result.className = "cidr-test-result success";
+        } else {
+            result.textContent = `✖ Not Allowed. No matching rule found.`;
+            result.className = "cidr-test-result error";
+        }
+
+        result.classList.remove("hidden");
+    });
+});
 /* ============================================================
    4. PLACEHOLDER HOOK FOR OTHER DASHBOARD JS
    ============================================================ */

@@ -112,10 +112,8 @@ function updateSecurityFooterBanner() {
     console.log("Security check info:", info);
 }
 /* ======================================================================
-   5. CIDR TESTER PANEL — PURE JS IPV4 + IPV6 CIDR ENGINE
-   ====================================================================== */
-
-// ---------- BigInt IP Conversion ----------
+   5. CIDR TESTER PANEL — PURE JS IPV4 + IPV6 CIDR ENGINE Section Below is being removed:
+   // ---------- BigInt IP Conversion ----------
 function ipToBigInt(ip) {
     if (ip.includes(".")) {
         return ip.split(".")
@@ -212,6 +210,9 @@ document.addEventListener("DOMContentLoaded", () => {
         result.classList.remove("hidden");
     });
 });
+   ====================================================================== */
+
+
 /* ============================================================
    4. PLACEHOLDER HOOK FOR OTHER DASHBOARD JS
    ============================================================ */

@@ -377,69 +377,114 @@ hoursForm.addEventListener("submit", async (e) => {
 /* =============================================================
    6.  IP ALLOWLIST
    ============================================================= */
+/* ============================================================
+   OPTION A — INTERACTIVE IP MANAGER
+   ============================================================ */
 
-/* =============================================================
-   FIXED — IP ALLOWLIST AUTO-LOAD (Admin + CIDR Tester)
-   ============================================================= */
+let IP_RULES = [];  // in-memory array
 
+function renderIpList() {
+    const container = document.getElementById("ip-list");
+    container.innerHTML = "";
+
+    IP_RULES.forEach((rule, index) => {
+        const item = document.createElement("div");
+        item.className = "ip-item fade-in";
+
+        const icon = detectIpIcon(rule);
+
+        item.innerHTML = `
+            <div>
+                <span class="ip-item-icon">${icon}</span>
+                ${rule}
+            </div>
+            <button class="ip-remove-btn" data-index="${index}">Remove</button>
+        `;
+
+        container.appendChild(item);
+    });
+
+    // Attach remove handlers
+    document.querySelectorAll(".ip-remove-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const index = Number(e.target.getAttribute("data-index"));
+            removeIpRule(index);
+        });
+    });
+}
+
+function detectIpIcon(rule) {
+    if (rule.includes(":")) return "🟣 IPv6";
+    if (rule.includes("/")) return "📐 CIDR";
+    return "🔵 IPv4";
+}
+
+function removeIpRule(index) {
+    const container = document.getElementById("ip-list");
+    const item = container.children[index];
+
+    item.classList.add("fade-out");
+
+    setTimeout(() => {
+        IP_RULES.splice(index, 1);
+        renderIpList();
+    }, 250);
+}
+
+function addIpRule() {
+    const input = document.getElementById("ip-add-input");
+    const value = input.value.trim();
+
+    if (!value) return;
+
+    if (IP_RULES.includes(value)) {
+        showStatus("Rule already exists.", "error");
+        return;
+    }
+
+    IP_RULES.push(value);
+    input.value = "";
+    renderIpList();
+}
+
+document.getElementById("ip-add-btn").addEventListener("click", addIpRule);
+
+/* Save rules to Worker */
+document.getElementById("ip-save-btn").addEventListener("click", async () => {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rules: IP_RULES })
+        });
+
+        if (!res.ok) {
+            showStatus("Failed to save IP rules.", "error");
+            return;
+        }
+
+        showStatus("IP Rules saved successfully!", "success");
+    } catch (err) {
+        console.error(err);
+        showStatus("Unable to save IP rules.", "error");
+    }
+});
+
+/* Override your existing loadIpRules() call behavior */
 async function loadIpRules() {
     try {
         const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
         const data = await res.json();
 
-        const rules = Array.isArray(data.rules) ? data.rules : [];
-
-        // 1. Fill the main admin textarea
-        if (ipTextarea) {
-            ipTextarea.value = rules.join("\n");
-        }
-
-        // 2. Fill CIDR/IP Tester textarea
-        const testerRules = document.getElementById("ip-rules-textarea");
-        if (testerRules) {
-            testerRules.value = rules.join("\n");
-        }
-
-        return rules;
-
+        IP_RULES = Array.isArray(data.rules) ? data.rules : [];
+        renderIpList();
     } catch (err) {
-        console.error("IP rule loading failed:", err);
-
-        // Ensure tester doesn't show stale data
-        const testerRules = document.getElementById("ip-rules-textarea");
-        if (testerRules) {
-            testerRules.value = "";
-        }
+        console.error("Failed to load IP rules:", err);
     }
 }
-
-ipForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const rules = ipTextarea.value
-        .split("\n")
-        .map(r => r.trim())
-        .filter(r => r);
-
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rules }),
-        });
-
-        if (!res.ok) {
-            showStatus("Failed to save IP Allowlist.", "error");
-            return;
-        }
-
-        showStatus("IP Allowlist saved successfully.", "success");
-    } catch (err) {
-        console.error("Save IP rules failed:", err);
-        showStatus("Failed to save IP Allowlist.", "error");
-    }
-});
-
+/* =============================================================
+   End of the IP Allow List
+   ============================================================= */
 /* =============================================================
    7.  AUDIT LOG
    ============================================================= */

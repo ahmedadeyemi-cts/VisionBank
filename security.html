@@ -186,56 +186,55 @@
                 <button type="submit" class="btn-primary">Save IP Rules</button>
             </form>
         </section>
-<!-- CIDR TESTER -->
-<section id="cidr-tester-section" class="admin-section">
+<!-- ======================================================= -->
+<!-- CIDR / IP TESTER (AUTO-LOADED RULES)                     -->
+<!-- ======================================================= -->
+<section id="cidr-ip-tester" class="admin-section">
     <h3>CIDR / IP Tester</h3>
     <p class="section-help">
-        Test whether an IPv4 or IPv6 address matches any allowlist rule. 
-        Uses the same logic as the Cloudflare Worker.
+        Test whether an IPv4 or IPv6 address matches any allowlist rule. Uses the same logic as the Cloudflare Worker.
     </p>
 
-    <div class="cidr-tester">
-        <label>
-            IP Address to Test
-            <input type="text" id="cidr-test-ip" placeholder="e.g., 10.100.100.55 or 2600:1700:abcd::1">
-        </label>
+    <label>IP Address to Test</label>
+    <input id="ip-test-input" type="text" class="input" placeholder="Enter IPv4 or IPv6">
 
-        <label>
-            Rules (auto-loaded)
-            <textarea id="cidr-test-rules" rows="4" readonly></textarea>
-        </label>
+    <label>Rules (auto-loaded)</label>
+    <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
 
-        <button id="cidr-test-btn" class="btn-primary">Run CIDR Test</button>
+    <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
+        Run CIDR Test
+    </button>
 
-        <div id="cidr-test-result" class="cidr-test-result hidden"></div>
-    </div>
+    <div id="ip-test-result" class="cidr-result-box"></div>
 </section>
-        <!-- CIDR TESTER PANEL -->
-<section id="cidr-tester-section" class="admin-section">
+<!-- ======================================================= -->
+<!-- CIDR TESTER (Range vs Range, IP vs CIDR)                -->
+<!-- ======================================================= -->
+<section id="cidr-range-tester" class="admin-section">
     <h3>CIDR Tester</h3>
     <p class="section-help">
         Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.
-        This does not affect live rules; it is only a testing tool.
     </p>
 
-    <div class="cidr-tester-grid">
+    <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
         <label>
             Test IP or CIDR A
-            <input type="text" id="cidr-input-a" placeholder="Example: 45.19.161.17 or 10.0.0.0/24">
+            <input id="cidr-input-a" type="text" placeholder="e.g. 185.199.108.10">
         </label>
 
         <label>
             Against CIDR B
-            <input type="text" id="cidr-input-b" placeholder="Example: 10.0.0.0/16">
+            <input id="cidr-input-b" type="text" placeholder="e.g. 185.199.108.0/22">
         </label>
-
-        <button id="cidr-test-btn" class="btn-primary">Run CIDR Test</button>
     </div>
 
-    <div id="cidr-test-result" class="cidr-result-box">
-        Enter two values and click "Run CIDR Test".
-    </div>
+    <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
+        Run CIDR Test
+    </button>
+
+    <div id="cidr-test-result" class="cidr-result-box"></div>
 </section>
+
         <!-- USER MANAGEMENT WILL BE INSERTED HERE BY JS (before audit section) -->
 
         <!-- AUDIT LOG -->

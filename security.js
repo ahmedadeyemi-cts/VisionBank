@@ -813,7 +813,111 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+/* =============================================================
+   10. CIDR TESTER
+   ============================================================= */
 
+const cidrInputA = document.getElementById("cidr-input-a");
+const cidrInputB = document.getElementById("cidr-input-b");
+const cidrTestBtn = document.getElementById("cidr-test-btn");
+const cidrResultBox = document.getElementById("cidr-test-result");
+
+if (cidrTestBtn) {
+    cidrTestBtn.addEventListener("click", () => {
+        const a = cidrInputA.value.trim();
+        const b = cidrInputB.value.trim();
+
+        if (!a || !b) {
+            return showCidrResult("Enter both values before testing.", "warning");
+        }
+
+        try {
+            const result = runCidrTest(a, b);
+            showCidrResult(result.text, result.type);
+        } catch (err) {
+            showCidrResult("Error: " + err.message, "fail");
+        }
+    });
+}
+
+function showCidrResult(msg, type = "info") {
+    cidrResultBox.textContent = msg;
+
+    cidrResultBox.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
+
+    if (type === "pass") cidrResultBox.classList.add("cidr-pass");
+    else if (type === "fail") cidrResultBox.classList.add("cidr-fail");
+    else if (type === "warning") cidrResultBox.classList.add("cidr-warning");
+}
+
+/* ---------- CIDR Matching Logic (Pure JS, No Libraries) ---------- */
+
+function parseCIDR(cidr) {
+    if (!cidr.includes("/")) throw new Error(`Not a CIDR: ${cidr}`);
+    const [ip, prefix] = cidr.split("/");
+    return { ip, prefix: Number(prefix) };
+}
+
+function ipToBits(ip) {
+    if (ip.includes(".")) {
+        return ip.split(".")
+            .map(n => Number(n).toString(2).padStart(8, "0"))
+            .join("");
+    }
+    if (ip.includes(":")) {
+        const expanded = expandIPv6(ip);
+        return expanded.split(":")
+            .map(h => parseInt(h, 16).toString(2).padStart(16, "0"))
+            .join("");
+    }
+    throw new Error("Unknown IP format");
+}
+
+function expandIPv6(address) {
+    const parts = address.split("::");
+    if (parts.length > 2) throw new Error("Invalid IPv6");
+
+    if (parts.length === 1) {
+        return address.split(":").map(p => p.padStart(4, "0")).join(":");
+    }
+
+    const left = parts[0] ? parts[0].split(":") : [];
+    const right = parts[1] ? parts[1].split(":") : [];
+    const missing = 8 - (left.length + right.length);
+
+    return [
+        ...left.map(p => p.padStart(4, "0")),
+        ...Array(missing).fill("0000"),
+        ...right.map(p => p.padStart(4, "0"))
+    ].join(":");
+}
+
+function runCidrTest(a, b) {
+    const isA_CIDR = a.includes("/");
+    const isB_CIDR = b.includes("/");
+
+    if (!isB_CIDR) throw new Error("Second value must be a CIDR");
+
+    const cidrB = parseCIDR(b);
+    const bitsB = ipToBits(cidrB.ip).slice(0, cidrB.prefix);
+
+    if (!isA_CIDR) {
+        const bitsA = ipToBits(a).slice(0, cidrB.prefix);
+
+        if (bitsA === bitsB) {
+            return { text: `${a} IS inside ${b}`, type: "pass" };
+        }
+        return { text: `${a} is NOT inside ${b}`, type: "fail" };
+    }
+
+    const cidrA = parseCIDR(a);
+    const bitsA = ipToBits(cidrA.ip).slice(0, Math.min(cidrA.prefix, cidrB.prefix));
+
+    if (bitsA === bitsB) {
+        return { text: `${a} IS fully inside ${b}`, type: "pass" };
+    }
+    return { text: `${a} is NOT inside ${b}`, type: "fail" };
+}
     /* ============================================================
        BATCH RULE TESTER TABLE OUTPUT
        ============================================================ */
@@ -905,90 +1009,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 });
-    /* ------------------------------------------------------------------
-       Pure JavaScript CIDR + IP Logic (IPv4 + IPv6 support)
-    ------------------------------------------------------------------ */
-
-    function parseCIDR(str) {
-        if (!str.includes("/")) throw new Error(`Invalid CIDR format: ${str}`);
-        const [ip, prefix] = str.split("/");
-        return { ip, prefix: Number(prefix) };
-    }
-
-    function runCidrTest(A, B) {
-        const isA_cidr = A.includes("/");
-        const isB_cidr = B.includes("/");
-
-        if (!isB_cidr) throw new Error("Second value must be a CIDR block.");
-
-        const cidrB = parseCIDR(B);
-        const bitsB = ipToBits(cidrB.ip).slice(0, cidrB.prefix);
-
-        if (!isA_cidr) {
-            // A is a single IP
-            const bitsA = ipToBits(A).slice(0, cidrB.prefix);
-            if (bitsA === bitsB) {
-                return { text: `${A} IS inside ${B}`, type: "pass" };
-            }
-            return { text: `${A} is NOT inside ${B}`, type: "fail" };
-        }
-
-        // Both are CIDRs — check containment
-        const cidrA = parseCIDR(A);
-        const bitsA = ipToBits(cidrA.ip).slice(0, Math.min(cidrA.prefix, cidrB.prefix));
-
-        if (bitsA === bitsB) {
-            return { text: `${A} IS inside ${B}`, type: "pass" };
-        }
-        return { text: `${A} is NOT inside ${B}`, type: "fail" };
-    }
-
-    /* ------------------------------------------------------------------
-       IP-to-Binary Converter (IPv4 + IPv6)
-    ------------------------------------------------------------------ */
-
-    function ipToBits(ip) {
-        if (ip.includes(".")) return ipv4ToBits(ip);
-        if (ip.includes(":")) return ipv6ToBits(ip);
-        throw new Error("Unknown IP format: " + ip);
-    }
-
-    function ipv4ToBits(ip) {
-        return ip
-            .split(".")
-            .map((n) => Number(n).toString(2).padStart(8, "0"))
-            .join("");
-    }
-
-    function ipv6ToBits(ip) {
-        const expanded = expandIPv6(ip);
-        return expanded
-            .split(":")
-            .map((h) => parseInt(h, 16).toString(2).padStart(16, "0"))
-            .join("");
-    }
-
-    function expandIPv6(address) {
-        if (address.includes("::")) {
-            const [left, right] = address.split("::");
-
-            const leftParts = left ? left.split(":") : [];
-            const rightParts = right ? right.split(":") : [];
-
-            const missing = 8 - (leftParts.length + rightParts.length);
-            const zeros = Array(missing).fill("0000");
-
-            return [
-                ...leftParts.map((p) => p.padStart(4, "0")),
-                ...zeros,
-                ...rightParts.map((p) => p.padStart(4, "0")),
-            ].join(":");
-        }
-
-        return address.split(":").map((p) => p.padStart(4, "0")).join(":");
-    }
-});
-
+   
 /* =============================================================
    9.  LOGOUT
    ============================================================= */

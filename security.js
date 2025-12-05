@@ -285,7 +285,7 @@ async function showAdminView() {
     adminView.classList.remove("hidden");
 
     await loadBusinessHours();
-    await loadIpRules();
+    await loadIpRulesUI();
     await loadAuditLog();
 
     applyRolePermissions();

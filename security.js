@@ -724,7 +724,133 @@ function initUserManagement() {
 /* =============================================================
    End of Section 8
    ============================================================= */
+/* =============================================================
+   10. CIDR TESTER (Enhanced Stable Version)
+   ============================================================= */
 
+document.addEventListener("DOMContentLoaded", () => {
+    const cidrInputA = document.getElementById("cidr-input-a");
+    const cidrInputB = document.getElementById("cidr-input-b");
+    const cidrTestBtn = document.getElementById("cidr-test-btn");
+    const cidrResultBox = document.getElementById("cidr-test-result");
+
+    if (!cidrInputA || !cidrInputB || !cidrTestBtn || !cidrResultBox) return;
+
+    cidrTestBtn.addEventListener("click", () => {
+        const A = cidrInputA.value.trim();
+        const B = cidrInputB.value.trim();
+
+        if (!A || !B) {
+            return showCidrResult("Enter both values before testing.", "warning");
+        }
+
+        try {
+            const result = runCidrTest(A, B);
+            showCidrResult(result.text, result.type);
+        } catch (err) {
+            showCidrResult("Error: " + err.message, "fail");
+        }
+    });
+
+    /* ------------------------------------------------------------------
+       UI Helper
+    ------------------------------------------------------------------ */
+    function showCidrResult(msg, type = "info") {
+        cidrResultBox.textContent = msg;
+
+        cidrResultBox.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
+
+        if (type === "pass") cidrResultBox.classList.add("cidr-pass");
+        else if (type === "fail") cidrResultBox.classList.add("cidr-fail");
+        else if (type === "warning") cidrResultBox.classList.add("cidr-warning");
+    }
+
+    /* ------------------------------------------------------------------
+       Pure JavaScript CIDR + IP Logic (IPv4 + IPv6 support)
+    ------------------------------------------------------------------ */
+
+    function parseCIDR(str) {
+        if (!str.includes("/")) throw new Error(`Invalid CIDR format: ${str}`);
+        const [ip, prefix] = str.split("/");
+        return { ip, prefix: Number(prefix) };
+    }
+
+    function runCidrTest(A, B) {
+        const isA_cidr = A.includes("/");
+        const isB_cidr = B.includes("/");
+
+        if (!isB_cidr) throw new Error("Second value must be a CIDR block.");
+
+        const cidrB = parseCIDR(B);
+        const bitsB = ipToBits(cidrB.ip).slice(0, cidrB.prefix);
+
+        if (!isA_cidr) {
+            // A is a single IP
+            const bitsA = ipToBits(A).slice(0, cidrB.prefix);
+            if (bitsA === bitsB) {
+                return { text: `${A} IS inside ${B}`, type: "pass" };
+            }
+            return { text: `${A} is NOT inside ${B}`, type: "fail" };
+        }
+
+        // Both are CIDRs — check containment
+        const cidrA = parseCIDR(A);
+        const bitsA = ipToBits(cidrA.ip).slice(0, Math.min(cidrA.prefix, cidrB.prefix));
+
+        if (bitsA === bitsB) {
+            return { text: `${A} IS inside ${B}`, type: "pass" };
+        }
+        return { text: `${A} is NOT inside ${B}`, type: "fail" };
+    }
+
+    /* ------------------------------------------------------------------
+       IP-to-Binary Converter (IPv4 + IPv6)
+    ------------------------------------------------------------------ */
+
+    function ipToBits(ip) {
+        if (ip.includes(".")) return ipv4ToBits(ip);
+        if (ip.includes(":")) return ipv6ToBits(ip);
+        throw new Error("Unknown IP format: " + ip);
+    }
+
+    function ipv4ToBits(ip) {
+        return ip
+            .split(".")
+            .map((n) => Number(n).toString(2).padStart(8, "0"))
+            .join("");
+    }
+
+    function ipv6ToBits(ip) {
+        const expanded = expandIPv6(ip);
+        return expanded
+            .split(":")
+            .map((h) => parseInt(h, 16).toString(2).padStart(16, "0"))
+            .join("");
+    }
+
+    function expandIPv6(address) {
+        if (address.includes("::")) {
+            const [left, right] = address.split("::");
+
+            const leftParts = left ? left.split(":") : [];
+            const rightParts = right ? right.split(":") : [];
+
+            const missing = 8 - (leftParts.length + rightParts.length);
+            const zeros = Array(missing).fill("0000");
+
+            return [
+                ...leftParts.map((p) => p.padStart(4, "0")),
+                ...zeros,
+                ...rightParts.map((p) => p.padStart(4, "0")),
+            ].join(":");
+        }
+
+        return address.split(":").map((p) => p.padStart(4, "0")).join(":");
+    }
+});
+/* =============================================================
+   End of Section 10
+   ============================================================= */
 /* =============================================================
    9.  LOGOUT
    ============================================================= */

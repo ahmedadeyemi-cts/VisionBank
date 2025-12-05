@@ -591,3 +591,42 @@ body.theme-dark .cidr-tester input[type="text"] {
     border-color: #3b82f6;
     color: #1e3a8a;
 }
+/* ============================================================
+   CIDR Tester Styles
+   ============================================================ */
+
+.cidr-tester-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cidr-result-box {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+body.theme-dark .cidr-result-box {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(148, 163, 184, 0.5);
+}
+
+.cidr-pass {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.cidr-fail {
+    color: #e11d48;
+    font-weight: 600;
+}
+
+.cidr-warning {
+    color: #d97706;
+    font-weight: 600;
+}

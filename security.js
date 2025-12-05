@@ -377,12 +377,15 @@ hoursForm.addEventListener("submit", async (e) => {
 /* =============================================================
    6.  IP ALLOWLIST
    ============================================================= */
-/* ============================================================
-   OPTION A — INTERACTIVE IP MANAGER
-   ============================================================ */
+/* =============================================================
+   6.  IP ALLOWLIST — FIXED & FULLY SYNCHRONIZED WITH WORKER
+   ============================================================= */
 
 let IP_RULES = [];  // in-memory array
 
+/* -----------------------------
+   Render List
+------------------------------ */
 function renderIpList() {
     const container = document.getElementById("ip-list");
     container.innerHTML = "";
@@ -406,22 +409,30 @@ function renderIpList() {
 
     // Attach remove handlers
     document.querySelectorAll(".ip-remove-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const index = Number(e.target.getAttribute("data-index"));
+        btn.onclick = () => {
+            const index = Number(btn.dataset.index);
             removeIpRule(index);
-        });
+        };
     });
 }
 
+/* -----------------------------
+   Icon Detector
+------------------------------ */
 function detectIpIcon(rule) {
     if (rule.includes(":")) return "🟣 IPv6";
     if (rule.includes("/")) return "📐 CIDR";
     return "🔵 IPv4";
 }
 
+/* -----------------------------
+   Remove item with fade animation
+------------------------------ */
 function removeIpRule(index) {
     const container = document.getElementById("ip-list");
     const item = container.children[index];
+
+    if (!item) return;
 
     item.classList.add("fade-out");
 
@@ -431,12 +442,19 @@ function removeIpRule(index) {
     }, 250);
 }
 
+/* -----------------------------
+   Add New IP/CIDR Rule
+------------------------------ */
 function addIpRule() {
     const input = document.getElementById("ip-add-input");
-    const value = input.value.trim();
+    let value = input.value.trim();
 
     if (!value) return;
 
+    // Normalize IPv6 :: to lowercase for consistency
+    value = value.replace(/\s+/g, "").toLowerCase();
+
+    // Prevent duplicates
     if (IP_RULES.includes(value)) {
         showStatus("Rule already exists.", "error");
         return;
@@ -449,13 +467,21 @@ function addIpRule() {
 
 document.getElementById("ip-add-btn").addEventListener("click", addIpRule);
 
-/* Save rules to Worker */
+/* -----------------------------
+   Save to Cloudflare Worker KV
+------------------------------ */
 document.getElementById("ip-save-btn").addEventListener("click", async () => {
+
+    // FINAL CLEANUP BEFORE SENDING
+    const cleaned = IP_RULES
+        .map(r => r.trim())
+        .filter(r => r.length > 0);
+
     try {
         const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rules: IP_RULES })
+            body: JSON.stringify({ rules: cleaned })   // <-- IMPORTANT FIX
         });
 
         if (!res.ok) {
@@ -470,18 +496,32 @@ document.getElementById("ip-save-btn").addEventListener("click", async () => {
     }
 });
 
-/* Override your existing loadIpRules() call behavior */
+/* -----------------------------
+   Load IP Rules from Cloudflare
+------------------------------ */
 async function loadIpRules() {
     try {
         const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
         const data = await res.json();
 
-        IP_RULES = Array.isArray(data.rules) ? data.rules : [];
+        if (Array.isArray(data.rules)) {
+            // Normalize formatting
+            IP_RULES = data.rules
+                .map(r => r.trim())
+                .filter(Boolean);
+        } else {
+            IP_RULES = [];
+        }
+
         renderIpList();
     } catch (err) {
         console.error("Failed to load IP rules:", err);
     }
 }
+
+/* =============================================================
+   END — IP ALLOWLIST MANAGER
+   ============================================================= */
 /* =============================================================
    End of the IP Allow List
    ============================================================= */

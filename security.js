@@ -378,150 +378,117 @@ hoursForm.addEventListener("submit", async (e) => {
    6.  IP ALLOWLIST
    ============================================================= */
 /* =============================================================
-   6.  IP ALLOWLIST — FIXED & FULLY SYNCHRONIZED WITH WORKER
+   IMPROVED IP ALLOWLIST MANAGER
    ============================================================= */
 
-let IP_RULES = [];  // in-memory array
+let IP_RULES = [];
+let saving = false;
 
-/* -----------------------------
-   Render List
------------------------------- */
+function classifyRule(rule) {
+  if (rule.includes("/")) return "cidr";
+  if (rule.includes(":")) return "ipv6";
+  return "ipv4";
+}
+
+function ruleIcon(rule) {
+  switch (classifyRule(rule)) {
+    case "ipv4": return "🔵 IPv4";
+    case "ipv6": return "🟣 IPv6";
+    case "cidr": return "📐 CIDR";
+  }
+}
+
 function renderIpList() {
-    const container = document.getElementById("ip-list");
-    container.innerHTML = "";
+  const container = document.getElementById("ip-list");
+  container.innerHTML = "";
 
-    IP_RULES.forEach((rule, index) => {
-        const item = document.createElement("div");
-        item.className = "ip-item fade-in";
+  IP_RULES.forEach((rule, index) => {
+    const div = document.createElement("div");
+    div.className = "ip-item fade-in";
 
-        const icon = detectIpIcon(rule);
+    div.innerHTML = `
+      <div>
+        <span class="ip-item-icon">${ruleIcon(rule)}</span>
+        ${rule}
+      </div>
+      <button class="ip-remove-btn" data-index="${index}">Remove</button>
+    `;
 
-        item.innerHTML = `
-            <div>
-                <span class="ip-item-icon">${icon}</span>
-                ${rule}
-            </div>
-            <button class="ip-remove-btn" data-index="${index}">Remove</button>
-        `;
+    container.appendChild(div);
+  });
 
-        container.appendChild(item);
+  document.querySelectorAll(".ip-remove-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const i = Number(e.target.dataset.index);
+
+      if (!confirm(`Remove rule: ${IP_RULES[i]} ?`)) return;
+
+      IP_RULES.splice(i, 1);
+      renderIpList();
+      autoSaveRules();
     });
-
-    // Attach remove handlers
-    document.querySelectorAll(".ip-remove-btn").forEach(btn => {
-        btn.onclick = () => {
-            const index = Number(btn.dataset.index);
-            removeIpRule(index);
-        };
-    });
+  });
 }
 
-/* -----------------------------
-   Icon Detector
------------------------------- */
-function detectIpIcon(rule) {
-    if (rule.includes(":")) return "🟣 IPv6";
-    if (rule.includes("/")) return "📐 CIDR";
-    return "🔵 IPv4";
+async function addRule() {
+  const input = document.getElementById("ip-add-input");
+  const rule = input.value.trim();
+  input.value = "";
+
+  if (!rule) return showStatus("You must enter a valid rule.", "error");
+
+  const res = await fetch(`${WORKER_BASE}/api/validate-ip`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ rule })
+  });
+
+  const data = await res.json();
+
+  if (!data.valid) {
+    return showStatus("Invalid IPv4 / IPv6 / CIDR format", "error");
+  }
+
+  if (IP_RULES.includes(rule)) {
+    return showStatus("Rule already exists.", "warning");
+  }
+
+  IP_RULES.push(rule);
+  renderIpList();
+  autoSaveRules();
 }
 
-/* -----------------------------
-   Remove item with fade animation
------------------------------- */
-function removeIpRule(index) {
-    const container = document.getElementById("ip-list");
-    const item = container.children[index];
+document.getElementById("ip-add-btn").onclick = addRule;
 
-    if (!item) return;
+async function autoSaveRules() {
+  if (saving) return; 
+  saving = true;
 
-    item.classList.add("fade-out");
+  showStatus("Saving...", "info");
 
-    setTimeout(() => {
-        IP_RULES.splice(index, 1);
-        renderIpList();
-    }, 250);
+  const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ rules: IP_RULES })
+  });
+
+  const data = await res.json();
+  saving = false;
+
+  if (!res.ok) return showStatus("Failed to save rules.", "error");
+  
+  showStatus("Saved!", "success");
 }
 
-/* -----------------------------
-   Add New IP/CIDR Rule
------------------------------- */
-function addIpRule() {
-    const input = document.getElementById("ip-add-input");
-    let value = input.value.trim();
+async function loadIpRulesUI() {
+  const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
+  const data = await res.json();
 
-    if (!value) return;
-
-    // Normalize IPv6 :: to lowercase for consistency
-    value = value.replace(/\s+/g, "").toLowerCase();
-
-    // Prevent duplicates
-    if (IP_RULES.includes(value)) {
-        showStatus("Rule already exists.", "error");
-        return;
-    }
-
-    IP_RULES.push(value);
-    input.value = "";
-    renderIpList();
+  IP_RULES = data.rules || [];
+  renderIpList();
 }
 
-document.getElementById("ip-add-btn").addEventListener("click", addIpRule);
-
-/* -----------------------------
-   Save to Cloudflare Worker KV
------------------------------- */
-document.getElementById("ip-save-btn").addEventListener("click", async () => {
-
-    // FINAL CLEANUP BEFORE SENDING
-    const cleaned = IP_RULES
-        .map(r => r.trim())
-        .filter(r => r.length > 0);
-
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rules: cleaned })   // <-- IMPORTANT FIX
-        });
-
-        if (!res.ok) {
-            showStatus("Failed to save IP rules.", "error");
-            return;
-        }
-
-        showStatus("IP Rules saved successfully!", "success");
-    } catch (err) {
-        console.error(err);
-        showStatus("Unable to save IP rules.", "error");
-    }
-});
-
-/* -----------------------------
-   Load IP Rules from Cloudflare
------------------------------- */
-async function loadIpRules() {
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
-        const data = await res.json();
-
-        if (Array.isArray(data.rules)) {
-            // Normalize formatting
-            IP_RULES = data.rules
-                .map(r => r.trim())
-                .filter(Boolean);
-        } else {
-            IP_RULES = [];
-        }
-
-        renderIpList();
-    } catch (err) {
-        console.error("Failed to load IP rules:", err);
-    }
-}
-
-/* =============================================================
-   END — IP ALLOWLIST MANAGER
-   ============================================================= */
+loadIpRulesUI();
 /* =============================================================
    End of the IP Allow List
    ============================================================= */

@@ -1,414 +1,362 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-  <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisionBank | CEG Contact Center Realtime Dashboard</title>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
-  <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css" />
 
-  <!-- ======================================= -->
-  <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION -->
-  <!-- ======================================= -->
-  <script>
-    window.addEventListener("DOMContentLoaded", () => {
-      (async function () {
-        const overlay = document.getElementById("access-denied-overlay");
-        const msgEl = document.getElementById("access-denied-message");
+    <!-- ======================================= -->
+    <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION -->
+    <!-- ======================================= -->
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        (async function () {
+          const overlay = document.getElementById("access-denied-overlay");
+          const msgEl   = document.getElementById("access-denied-message");
+          const statusEl = document.getElementById("securityStatus");
 
-        function showOverlay(text) {
-          if (msgEl && text) {
-            msgEl.textContent = text;
+          function showOverlay(text) {
+            if (msgEl && text) msgEl.textContent = text;
+            if (overlay) overlay.classList.remove("hidden");
+            document.body.classList.remove("security-approved");
           }
-          if (overlay) {
-            overlay.classList.remove("hidden");
-          }
-          document.body.classList.remove("security-approved");
-        }
 
-        try {
-          const res = await fetch(
-            "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
-            {
-              method: "GET",
-              mode: "cors",
-              credentials: "omit"
-            }
-          );
-
-          if (!res.ok) {
-            showOverlay(
-              "Unable to contact security service (HTTP " + res.status + ")."
+          try {
+            const res = await fetch(
+              "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
+              {
+                method: "GET",
+                mode: "cors",
+                credentials: "omit"
+              }
             );
-            return;
-          }
 
-          const data = await res.json();
-          window.VB_SECURITY = data; // share with dashboard.js
-
-          if (!data.allowed) {
-            let text =
-              "Your access is currently unavailable. Please contact the VisionBank IT Team.";
-
-            if (data.reason === "ip-denied") {
-              text =
-                "Your access is being denied due to lack of permission. " +
-                "Please contact the VisionBank IT Team to enable your access.";
-            } else if (data.reason === "hours-closed") {
-              text =
-                "Your access is currently unavailable because this dashboard " +
-                "is restricted to normal business hours.";
+            if (!res.ok) {
+              showOverlay(
+                "Unable to contact security service (HTTP " + res.status + ")."
+              );
+              return;
             }
 
-            showOverlay(text);
-            return;
-          }
+            const data = await res.json();
+            // Expose for dashboard.js and footer banner
+            window.VB_SECURITY = data;
 
-          // Access approved
-          if (overlay) {
-            overlay.classList.add("hidden");
+            if (!data.allowed) {
+              let text =
+                "Your access is currently unavailable. Please contact the VisionBank IT Team.";
+
+              if (data.reason === "ip-denied") {
+                text =
+                  "Your access is being denied due to lack of permission. " +
+                  "Please contact the VisionBank IT Team to enable your access.";
+              } else if (data.reason === "hours-closed") {
+                text =
+                  "Your access is currently unavailable because this dashboard " +
+                  "is restricted to normal business hours.";
+              }
+
+              showOverlay(text);
+              return;
+            }
+
+            // ✔ Access approved
+            if (overlay) overlay.classList.add("hidden");
+            document.body.classList.add("security-approved");
+
+            // Footer banner
+            if (statusEl && data.info) {
+              const ip  = data.info.ip  || "Unknown IP";
+              const now = data.info.now || "Unknown time";
+              statusEl.textContent =
+                "Access approved from IP " + ip + " at " + now + " (CST)";
+            }
+
+          } catch (err) {
+            console.error("Security check failed:", err);
+            showOverlay("Unable to contact security service.");
           }
-          document.body.classList.add("security-approved");
-        } catch (err) {
-          console.error("Security check failed:", err);
-          showOverlay("Unable to contact security service.");
-        }
-      })();
-    });
-  </script>
+        })();
+      });
+    </script>
 </head>
 
 <body>
-  <!-- ACCESS DENIED OVERLAY (visible until Cloudflare approves) -->
-  <div id="access-denied-overlay" class="access-denied-overlay">
-    <div class="access-denied-card">
-      <h1>Access Restricted</h1>
-      <p id="access-denied-message">
-        Your access is currently unavailable. Please contact the IT Team for assistance.
-      </p>
-      <p class="access-denied-note">
-        If you believe this is in error, contact the VisionBank IT Team.
-      </p>
-    </div>
+
+<!-- ACCESS DENIED OVERLAY (visible until Cloudflare approves) -->
+<div id="access-denied-overlay" class="access-denied-overlay">
+  <div class="access-denied-card">
+    <h1>Access Restricted</h1>
+    <p id="access-denied-message">
+      Your access is currently unavailable. Please contact the IT Team for assistance.
+    </p>
+    <p class="access-denied-note">
+      If you believe this is in error, contact the VisionBank IT Team.
+    </p>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
   </div>
 
-  <!-- =============================== -->
-  <!-- FLOATING ALERT BUTTONS -->
-  <!-- =============================== -->
-  <div class="alert-panels-wrapper">
-    <button
-      id="alertSettingsToggle"
-      class="alert-settings-toggle"
-      title="Alert settings"
-    >
+  <div class="header-center">
+    <h1>CEG Contact Center Realtime Dashboard</h1>
+    <div class="header-subtitle">VisionBank</div>
+  </div>
+
+  <div class="header-right">
+    <button id="alertSettingsToggle" class="alert-settings-btn">
       Alert Settings
     </button>
-
-    <button
-      id="alertHistoryToggle"
-      class="alert-history-toggle"
-      title="Alert history"
-    >
+    <button id="alertHistoryToggle" class="alert-history-btn">
       Alert History
     </button>
+  </div>
+</header>
 
-    <!-- ALERT SETTINGS PANEL -->
-    <div id="alertSettingsPanel" class="alert-settings-panel hidden">
-      <div class="alert-panel-header">
-        <h3>Alert Settings</h3>
-        <button
-          type="button"
-          class="alert-panel-close"
-          aria-label="Close settings"
-        >
-          ✕
+<!-- =============================== -->
+<!-- ALERT PANELS + POPUP -->
+<!-- =============================== -->
+<div class="alert-panels-wrapper">
+
+  <!-- ALERT SETTINGS PANEL -->
+  <div id="alertSettingsPanel" class="alert-settings-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert Settings</h3>
+    </div>
+    <div class="alert-panel-body">
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableQueueAlerts" />
+          Enable queue audio alerts
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableVoiceAlerts" />
+          Enable voice message
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enablePopupAlerts" />
+          Enable popup toast
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertToneSelect">Alert tone</label>
+        <select id="alertToneSelect">
+          <option value="soft">Soft chime</option>
+          <option value="bright">Bright bell</option>
+          <option value="pulse">Pulse beep</option>
+          <option value="ping">Ping tone</option>
+          <option value="alarm">Alarm tone</option>
+        </select>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertVolume">Volume</label>
+        <input type="range" id="alertVolume" min="0" max="100" step="5" />
+      </div>
+
+      <div class="alert-row">
+        <label for="alertCooldown">Alert cooldown (seconds)</label>
+        <input type="number" id="alertCooldown" min="10" max="300" step="5" />
+      </div>
+
+      <div class="alert-row alert-wallboard-row">
+        <label>
+          <input type="checkbox" id="wallboardMode" />
+          Wallboard mode (full-screen dashboard)
+        </label>
+        <button id="exitWallboardButton" class="exit-wallboard-btn hidden">
+          Exit wallboard mode
         </button>
       </div>
 
-      <div class="alert-panel-body">
-        <div class="alert-setting-row">
-          <label>
-            <input type="checkbox" id="enableQueueAlerts" />
-            Enable queue audio alerts
-          </label>
-        </div>
+      <div class="alert-row">
+        <button id="alertTestButton" class="btn-primary">
+          Test alert
+        </button>
+      </div>
 
-        <div class="alert-setting-row">
-          <label>
-            <input type="checkbox" id="enableVoiceAlerts" />
-            Enable voice message
-          </label>
-        </div>
+      <hr class="alert-panel-divider" />
 
-        <div class="alert-setting-row">
-          <label>
-            <input type="checkbox" id="enablePopupAlerts" />
-            Enable popup toast
-          </label>
-        </div>
-
-        <div class="alert-setting-row">
-          <label for="alertToneSelect">Alert tone</label>
-          <select id="alertToneSelect">
-            <option value="soft">Soft chime</option>
-            <option value="bright">Bright bell</option>
-            <option value="pulse">Pulse beep</option>
-            <option value="ping">Ping tone</option>
-            <option value="alarm">Alarm tone</option>
-          </select>
-        </div>
-
-        <div class="alert-setting-row">
-          <label for="alertVolume">Volume</label>
-          <input
-            type="range"
-            id="alertVolume"
-            min="0"
-            max="100"
-            step="5"
-          />
-        </div>
-
-        <div class="alert-setting-row">
-          <label for="alertCooldown">
-            Cooldown (seconds between alerts)
-          </label>
-          <input
-            type="number"
-            id="alertCooldown"
-            min="10"
-            max="300"
-            step="5"
-          />
-        </div>
-
-        <div class="alert-setting-row">
-          <label>
-            <input type="checkbox" id="wallboardMode" />
-            Wallboard mode
-          </label>
-        </div>
-
-        <div class="alert-setting-row">
-          <button id="alertTestButton" class="btn-primary">
-            Test Alert
-          </button>
-        </div>
-
-        <hr class="alert-panel-divider" />
-
-        <div class="alert-setting-row">
-          <h4>Queue-specific tones</h4>
-          <p class="alert-hint">
-            Each queue can override the global tone.
-          </p>
-        </div>
-        <div id="queueToneOverrides" class="queue-override-container">
+      <div class="alert-queue-overrides">
+        <h4>Per-queue tone overrides</h4>
+        <div id="queueToneOverrides" class="queue-overrides-body">
           <div class="queue-override-empty">
             No queues loaded yet.
           </div>
         </div>
-
-        <div class="alert-setting-row wallboard-exit-row">
-          <button id="exitWallboardMode" class="btn-secondary">
-            Exit Wallboard Mode
-          </button>
-        </div>
       </div>
-    </div>
-
-    <!-- ALERT HISTORY PANEL -->
-    <div id="alertHistoryPanel" class="alert-history-panel hidden">
-      <div class="alert-panel-header">
-        <h3>Alert History</h3>
-        <button
-          type="button"
-          class="alert-panel-close"
-          aria-label="Close history"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div class="alert-panel-body">
-        <div id="alertHistoryList" class="alert-history-list">
-          <!-- Filled by JS -->
-        </div>
-        <button id="clearAlertHistory" class="btn-secondary full-width">
-          Clear History
-        </button>
-      </div>
-    </div>
-
-    <!-- POPUP TOAST -->
-    <div id="queueAlertPopup" class="queue-alert-popup">
-      You have calls waiting
     </div>
   </div>
 
-  <!-- =============================== -->
-  <!-- HEADER -->
-  <!-- =============================== -->
-  <header class="header">
-    <div class="header-left">
-      <img
-        src="assets/VisionBank-Logo.png"
-        alt="VisionBank"
-        class="logo"
-      />
+  <!-- ALERT HISTORY PANEL -->
+  <div id="alertHistoryPanel" class="alert-history-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert History</h3>
     </div>
-    <div class="header-center">
-      <h1>CEG Contact Center Realtime Dashboard</h1>
-      <span class="header-subtitle">VisionBank</span>
-    </div>
-  </header>
-
-  <!-- =============================== -->
-  <!-- MAIN CONTENT -->
-  <!-- =============================== -->
-  <main class="main">
-    <!-- CURRENT QUEUE STATUS -->
-    <section class="panel" id="queue-panel">
-      <h2>Current Queue Status</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Queue</th>
-            <th>Calls</th>
-            <th>Agents</th>
-            <th>Max Wait</th>
-            <th>Avg Wait</th>
-          </tr>
-        </thead>
-        <tbody id="queue-body">
-          <tr>
-            <td colspan="5" class="loading">Loading queue status…</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- AGENT PERFORMANCE -->
-    <section class="panel">
-      <h2>Agent Performance</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>CEG Agent</th>
-            <th>Team</th>
-            <th>Number</th>
-            <th>Availability</th>
-            <th>Duration</th>
-            <th>Inbound</th>
-            <th>Missed</th>
-            <th>Transferred</th>
-            <th>Outbound</th>
-            <th>Avg Handle</th>
-            <th>Start Date</th>
-          </tr>
-        </thead>
-        <tbody id="agent-body">
-          <tr>
-            <td colspan="11" class="loading">Loading agent data…</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <!-- REALTIME GLOBAL STATISTICS -->
-    <section class="panel">
-      <h2>Realtime Global Statistics</h2>
-      <div id="global-error" class="error"></div>
-
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-value" id="gs-total-queued">--</div>
-          <div class="stat-label">Total Calls Queued</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-total-transferred">--</div>
-          <div class="stat-label">Total Calls Transferred</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-total-abandoned">--</div>
-          <div class="stat-label">Total Calls Abandoned</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-max-wait">--</div>
-          <div class="stat-label">Maximum Queue Wait Time</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-service-level">--%</div>
-          <div class="stat-label">Service Level</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-total-received">--</div>
-          <div class="stat-label">Total Calls Received</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-answer-rate">--%</div>
-          <div class="stat-label">Answer Rate</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-abandon-rate">--%</div>
-          <div class="stat-label">Abandon Rate</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-callbacks-registered">--</div>
-          <div class="stat-label">Callbacks Registered</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value" id="gs-callbacks-waiting">--</div>
-          <div class="stat-label">Callbacks Waiting</div>
-        </div>
+    <div class="alert-panel-body">
+      <div id="alertHistoryList" class="alert-history-list">
+        <div class="history-empty">No alerts yet.</div>
       </div>
-    </section>
-  </main>
-
-  <!-- =============================== -->
-  <!-- FOOTER -->
-  <!-- =============================== -->
-  <footer class="footer">
-    <div class="footer-left">
-      <button id="darkModeToggle" class="dark-mode-toggle">
-        🌙 Dark Mode
+      <button id="clearAlertHistory" class="btn-secondary">
+        Clear history
       </button>
     </div>
-    <div class="footer-center">
-      <span id="securityStatus" class="security-status">
-        Running security checks…
-      </span>
-    </div>
-    <div class="footer-right">
-      <span class="footer-attribution">
-        <img
-          src="assets/US-Signal-Logo.png"
-          alt="US Signal"
-          class="footer-ussignal-logo"
-        />
-        <span>
-          Created and maintained by
-          <strong>Ahmed Adeyemi, US Signal, 2025</strong>
-        </span>
-      </span>
-    </div>
-  </footer>
+  </div>
 
-  <script src="dashboard.js"></script>
+  <!-- QUEUE ALERT POPUP (BOTTOM CENTER) -->
+  <div id="queueAlertPopup" class="queue-alert-popup">
+    You have calls waiting
+  </div>
+</div>
+
+<main class="main">
+
+  <!-- CURRENT QUEUE STATUS (TOP) -->
+  <section class="panel" id="queue-panel">
+    <h2>Current Queue Status</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Queue</th>
+          <th>Calls</th>
+          <th>Agents</th>
+          <th>Max Wait</th>
+          <th>Avg Wait</th>
+        </tr>
+      </thead>
+      <tbody id="queue-body">
+        <tr>
+          <td colspan="5" class="loading">Loading queue status…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- AGENT PERFORMANCE (MIDDLE) -->
+  <section class="panel">
+    <h2>Agent Performance</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>CEG Agent</th>
+          <th>Team</th>
+          <th>Number</th>
+          <th>Availability</th>
+          <th>Inbound</th>
+          <th>Missed</th>
+          <th>Transferred</th>
+          <th>Outbound</th>
+          <th>Avg Handle</th>
+          <th>Duration</th>
+          <th>Start Date</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body">
+        <tr>
+          <td colspan="11" class="loading">Loading agent data…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- REALTIME GLOBAL STATISTICS (BOTTOM) -->
+  <section class="panel">
+    <h2>Realtime Global Statistics</h2>
+    <div id="global-error" class="error"></div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-queued">--</div>
+        <div class="stat-label">Total Calls Queued</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-transferred">--</div>
+        <div class="stat-label">Total Calls Transferred</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-abandoned">--</div>
+        <div class="stat-label">Total Calls Abandoned</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-max-wait">--</div>
+        <div class="stat-label">Maximum Queue Wait Time</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-service-level">--%</div>
+        <div class="stat-label">Service Level</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-received">--</div>
+        <div class="stat-label">Total Calls Received</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-answer-rate">--%</div>
+        <div class="stat-label">Answer Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-abandon-rate">--%</div>
+        <div class="stat-label">Abandon Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-registered">--</div>
+        <div class="stat-label">Callbacks Registered</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-waiting">--</div>
+        <div class="stat-label">Callbacks Waiting</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-left">
+    <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">
+      🌙 Dark mode
+    </button>
+  </div>
+
+  <div class="footer-center">
+    <span id="securityStatus" class="security-status">
+      Running security checks…
+    </span>
+  </div>
+
+  <div class="footer-right">
+    <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-us-logo" />
+    <span class="footer-text">
+      Created and maintained by Ahmed Adeyemi, US Signal, 2025
+    </span>
+  </div>
+</footer>
+
+<script src="dashboard.js"></script>
 </body>
 </html>

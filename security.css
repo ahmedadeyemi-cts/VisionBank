@@ -545,3 +545,49 @@ body.theme-dark #user-table tbody tr:hover {
         gap: 8px;
     }
 }
+/* ============================================================
+   CIDR Tester Panel
+   ============================================================ */
+
+.cidr-tester {
+    display: grid;
+    gap: 12px;
+    max-width: 520px;
+}
+
+.cidr-tester textarea,
+.cidr-tester input[type="text"] {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+body.theme-dark .cidr-tester textarea,
+body.theme-dark .cidr-tester input[type="text"] {
+    background: #020617;
+}
+
+.cidr-test-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.cidr-test-result.success {
+    background: #d4ffd9;
+    border-color: #22c55e;
+    color: #14532d;
+}
+
+.cidr-test-result.error {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #7f1d1d;
+}
+
+.cidr-test-result.info {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e3a8a;
+}

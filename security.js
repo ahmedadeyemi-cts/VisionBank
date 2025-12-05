@@ -286,7 +286,8 @@ async function showAdminView() {
     await loadIpRulesUI();
     await loadAuditLog();
 
-    applyRolePermissions();
+   setTimeout(() => applyRolePermissions(), 50);
+
 }
 
 /* =============================================================

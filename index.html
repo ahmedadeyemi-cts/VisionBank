@@ -16,8 +16,8 @@
     <script>
       window.addEventListener("DOMContentLoaded", () => {
         (async function () {
-          const overlay = document.getElementById("access-denied-overlay");
-          const msgEl   = document.getElementById("access-denied-message");
+          const overlay  = document.getElementById("access-denied-overlay");
+          const msgEl    = document.getElementById("access-denied-message");
           const statusEl = document.getElementById("securityStatus");
 
           function showOverlay(text) {
@@ -69,12 +69,23 @@
             if (overlay) overlay.classList.add("hidden");
             document.body.classList.add("security-approved");
 
-            // Footer banner
+            // Footer banner with proper time fallback
             if (statusEl && data.info) {
-              const ip  = data.info.ip  || "Unknown IP";
-              const now = data.info.now || "Unknown time";
+              const ip = data.info.ip || "Unknown IP";
+              let nowLabel = data.info.now;
+
+              if (!nowLabel) {
+                try {
+                  nowLabel = new Date().toLocaleString("en-US", {
+                    timeZone: "America/Chicago"
+                  });
+                } catch (e) {
+                  nowLabel = new Date().toLocaleString();
+                }
+              }
+
               statusEl.textContent =
-                "Access approved from IP " + ip + " at " + now + " (CST)";
+                "Access approved from IP " + ip + " at " + nowLabel + " (CST)";
             }
 
           } catch (err) {
@@ -185,6 +196,10 @@
           Exit wallboard mode
         </button>
       </div>
+
+      <p class="wallboard-hint">
+        Press ESC to exit wallboard mode.
+      </p>
 
       <div class="alert-row">
         <button id="alertTestButton" class="btn-primary">

@@ -378,15 +378,38 @@ hoursForm.addEventListener("submit", async (e) => {
    6.  IP ALLOWLIST
    ============================================================= */
 
+/* =============================================================
+   FIXED — IP ALLOWLIST AUTO-LOAD (Admin + CIDR Tester)
+   ============================================================= */
+
 async function loadIpRules() {
     try {
         const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
         const data = await res.json();
-        ipTextarea.value = Array.isArray(data.rules)
-            ? data.rules.join("\n")
-            : "";
+
+        const rules = Array.isArray(data.rules) ? data.rules : [];
+
+        // 1. Fill the main admin textarea
+        if (ipTextarea) {
+            ipTextarea.value = rules.join("\n");
+        }
+
+        // 2. Fill CIDR/IP Tester textarea
+        const testerRules = document.getElementById("ip-rules-textarea");
+        if (testerRules) {
+            testerRules.value = rules.join("\n");
+        }
+
+        return rules;
+
     } catch (err) {
-        console.error("IP load failed:", err);
+        console.error("IP rule loading failed:", err);
+
+        // Ensure tester doesn't show stale data
+        const testerRules = document.getElementById("ip-rules-textarea");
+        if (testerRules) {
+            testerRules.value = "";
+        }
     }
 }
 

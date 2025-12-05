@@ -722,46 +722,189 @@ function initUserManagement() {
     refreshUserList();
 }
 /* =============================================================
-   10. CIDR TESTER (Enhanced Stable Version)
+   ADVANCED CIDR TOOL UPGRADE
    ============================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
-    const cidrInputA = document.getElementById("cidr-input-a");
-    const cidrInputB = document.getElementById("cidr-input-b");
-    const cidrTestBtn = document.getElementById("cidr-test-btn");
-    const cidrResultBox = document.getElementById("cidr-test-result");
 
-    if (!cidrInputA || !cidrInputB || !cidrTestBtn || !cidrResultBox) return;
+    /* ============================================================
+       HELPERS
+       ============================================================ */
 
-    cidrTestBtn.addEventListener("click", () => {
-        const A = cidrInputA.value.trim();
-        const B = cidrInputB.value.trim();
-
-        if (!A || !B) {
-            return showCidrResult("Enter both values before testing.", "warning");
-        }
-
-        try {
-            const result = runCidrTest(A, B);
-            showCidrResult(result.text, result.type);
-        } catch (err) {
-            showCidrResult("Error: " + err.message, "fail");
-        }
-    });
-
-    /* ------------------------------------------------------------------
-       UI Helper
-    ------------------------------------------------------------------ */
-    function showCidrResult(msg, type = "info") {
-        cidrResultBox.textContent = msg;
-
-        cidrResultBox.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
-
-        if (type === "pass") cidrResultBox.classList.add("cidr-pass");
-        else if (type === "fail") cidrResultBox.classList.add("cidr-fail");
-        else if (type === "warning") cidrResultBox.classList.add("cidr-warning");
+    function isValidIPv4(ip) {
+        const parts = ip.split(".");
+        if (parts.length !== 4) return false;
+        return parts.every(p => /^\d+$/.test(p) && Number(p) >= 0 && Number(p) <= 255);
     }
 
+    function isValidIPv6(ip) {
+        try {
+            expandIPv6(ip);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function detectIpType(ip) {
+        if (isValidIPv4(ip)) return "IPv4";
+        if (isValidIPv6(ip)) return "IPv6";
+        return "Invalid";
+    }
+
+    function validateRule(rule) {
+        if (rule.includes("/")) {
+            const [ip, prefix] = rule.split("/");
+            const num = Number(prefix);
+
+            if (isValidIPv4(ip) && num >= 0 && num <= 32) return "IPv4";
+            if (isValidIPv6(ip) && num >= 0 && num <= 128) return "IPv6";
+            return "Invalid";
+        }
+        return "Invalid";
+    }
+
+    /* ============================================================
+       UPPER IP TESTER: AUTO-HIGHLIGHT RULES
+       ============================================================ */
+
+    const ipRules = document.getElementById("ip-rules-textarea");
+
+    if (ipRules) {
+        ipRules.addEventListener("input", () => {
+            const lines = ipRules.value.split("\n");
+
+            const highlighted = lines.map(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return "";
+
+                const type = validateRule(trimmed);
+
+                if (type === "IPv4")
+                    return `✓ ${trimmed}`;
+                if (type === "IPv6")
+                    return `🟣 ${trimmed}`;
+                return `✗ ${trimmed}`;
+            });
+
+            // Do not overwrite user's text. Just show markers in console.
+            console.table(highlighted);
+        });
+    }
+
+    /* ============================================================
+       IP VALIDATION WHILE TYPING
+       ============================================================ */
+
+    const ipInput = document.getElementById("ip-test-input");
+
+    if (ipInput) {
+        ipInput.addEventListener("input", () => {
+            const ip = ipInput.value.trim();
+            if (!ip) return;
+
+            const type = detectIpType(ip);
+            if (type === "IPv4") {
+                ipInput.style.borderColor = "#16a34a";
+            } else if (type === "IPv6") {
+                ipInput.style.borderColor = "#4f46e5";
+            } else {
+                ipInput.style.borderColor = "#dc2626";
+            }
+        });
+    }
+
+    /* ============================================================
+       BATCH RULE TESTER TABLE OUTPUT
+       ============================================================ */
+
+    const runIpTestBtn = document.getElementById("run-ip-test-btn");
+    const ipResultBox = document.getElementById("ip-test-result");
+
+    if (runIpTestBtn) {
+        runIpTestBtn.addEventListener("click", () => {
+            const ip = ipInput.value.trim();
+            const rules = ipRules.value.split("\n").map(r => r.trim()).filter(Boolean);
+
+            if (!ip) return showBatch("Enter an IP to test.", []);
+
+            const rows = rules.map(rule => {
+                let match = false;
+                let note = "";
+                const type = validateRule(rule);
+
+                if (type === "Invalid") {
+                    return { rule, match: "✗", type, note: "Invalid rule" };
+                }
+
+                try {
+                    match = isIpInCidr(ip, rule);
+                    note = match ? "Inside range" : "No match";
+                } catch (e) {
+                    return { rule, match: "✗", type: "Error", note: e.message };
+                }
+
+                return {
+                    rule,
+                    match: match ? "✓" : "✗",
+                    type,
+                    note
+                };
+            });
+
+            showBatch(ip, rows);
+        });
+    }
+
+    function showBatch(ip, rows) {
+        let html = `
+            <div style="margin-top:12px; font-weight:700;">
+                Results for: <span style="color:#1d4ed8">${ip}</span>
+            </div>
+        `;
+
+        html += `
+            <table style="
+                width:100%;
+                margin-top:10px;
+                border-collapse:collapse;
+                font-size:13px;
+                animation: fadeIn 0.4s ease;
+            ">
+                <thead>
+                    <tr style="background:#e2e8f0;">
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Rule</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Match?</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Type</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        rows.forEach(r => {
+            const color =
+                r.match === "✓" ? "#dcfce7" :
+                r.match === "✗" ? "#fee2e2" :
+                "#fef9c3";
+
+            html += `
+                <tr style="background:${color}; transition:0.3s;">
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.rule}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.match}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.type}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.note}</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+
+        ipResultBox.innerHTML = html;
+        ipResultBox.classList.add("cidr-visible");
+    }
+
+});
     /* ------------------------------------------------------------------
        Pure JavaScript CIDR + IP Logic (IPv4 + IPv6 support)
     ------------------------------------------------------------------ */

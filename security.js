@@ -319,10 +319,25 @@ function applyRolePermissions() {
     }
 
     // User Management: only superadmin
-    if (role === "superadmin") {
-        initUserManagement();
+ /* ============================================================
+   SAFE USER MGMT INITIALIZER (GLOBAL SCOPE)
+   ============================================================ */
+function safeInitUserManagement() {
+    const audit = document.getElementById("admin-audit-section");
+
+    // DOM not yet ready → retry a moment later
+    if (!audit) {
+        return setTimeout(safeInitUserManagement, 150);
     }
+
+    // DOM is ready → load the panel
+    initUserManagement();
 }
+// User Management: only superadmin
+if (role === "superadmin") {
+    safeInitUserManagement();
+}
+
 /* ============================================================
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */

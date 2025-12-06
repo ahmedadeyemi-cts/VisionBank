@@ -1,826 +1,1003 @@
-// =======================================================
-// Dashboard JS - Created and Maintained by Ahmed Adeyemi
-// =======================================================
-
-// ===============================
-// CONFIG
-// ===============================
-const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
-const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
-
-// Cloudflare Worker base
-const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
-
-const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
-const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
-
-// ===============================
-// CC API WRAPPER
-// ===============================
-async function fetchApi(path) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      token: TOKEN
-    }
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-// ===============================
-// SECURITY GATE
-// (Only executed AFTER index.html’s pre-check approves)
-// ===============================
-async function checkSecurityAccess() {
-  if (window.VB_SECURITY) return window.VB_SECURITY.allowed;
-
-  try {
-    const res = await fetch(`${SECURITY_BASE}/security/check`, {
-      method: "GET",
-      mode: "cors",
-      credentials: "omit"
-    });
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    window.VB_SECURITY = data;
-    return data.allowed === true;
-  } catch (err) {
-    console.error("Security check failed:", err);
-    return false;
-  }
-}
-
-// ===============================
-// HELPERS
-// ===============================
-function safe(value, fallback = "--") {
-  if (value === undefined || value === null || value === "") return fallback;
-  return value;
-}
-
-function formatTime(sec) {
-  sec = Number(sec);
-  if (!Number.isFinite(sec)) return "00:00:00";
-
-  const sign = sec < 0 ? "-" : "";
-  sec = Math.abs(sec);
-
-  const hours = Math.floor(sec / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  const seconds = Math.floor(sec % 60);
-
-  return (
-    sign +
-    String(hours).padStart(2, "0") + ":" +
-    String(minutes).padStart(2, "0") + ":" +
-    String(seconds).padStart(2, "0")
-  );
-}
-
-function formatDate(isoString) {
-  if (!isoString) return "--";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "--";
-  return d.toLocaleString("en-US", { timeZone: "America/Chicago" });
-}
-
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = value === undefined || value === null ? "--" : value;
-}
-
-// ===============================
-// AVAILABILITY MAPPING
-// ===============================
-function getAvailabilityClass(status) {
-  if (!status) return "status-yellow";
-  const s = status.toLowerCase();
-
-  if (s.includes("available")) return "status-available";
-
-  if (
-    s.includes("on call") ||
-    s.includes("dial-out") ||
-    s.includes("dial out") ||
-    s.includes("dialing")
-  ) {
-    return "status-oncall";
-  }
-
-  if (s.includes("break")) return "status-break";
-
-  if (s.includes("wrap")) return "status-wrap";
-  if (s.includes("lunch")) return "status-lunch";
-  if (s.includes("accept")) return "status-orange";
-  if (s.includes("busy")) return "status-orange";
-  if (s.includes("not set")) return "status-orange";
-
-  if (s.includes("idle")) return "status-idle";
-  if (s.includes("unknown")) return "status-unknown";
-
-  return "status-yellow";
-}
-
-// ===============================
-// DARK MODE
-// ===============================
-function initDarkMode() {
-  const btn = document.getElementById("darkModeToggle");
-  if (!btn) return;
-
-  function applyDark(on) {
-    document.body.classList.toggle("dark-mode", !!on);
-    btn.textContent = on ? "☀️ Light Mode" : "🌙 Dark mode";
-  }
-
-  const stored = localStorage.getItem("dashboard-dark-mode");
-  if (stored === null) {
-    const prefersDark =
-      window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-    applyDark(prefersDark);
-    localStorage.setItem("dashboard-dark-mode", prefersDark ? "1" : "0");
-  } else {
-    applyDark(stored === "1");
-  }
-
-  btn.addEventListener("click", () => {
-    const isDark = document.body.classList.toggle("dark-mode");
-    btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark mode";
-    localStorage.setItem("dashboard-dark-mode", isDark ? "1" : "0");
-  });
-}
-
-// ===============================
-// ALERT SETTINGS / AUDIO
-// ===============================
-let alertSettings = {
-  enableQueueAlerts: true,
-  enableVoiceAlerts: true,
-  enablePopupAlerts: true,
-  tone: "soft",
-  volume: 0.8,
-  cooldownSeconds: 30,
-  wallboardMode: false,
-  queueTones: {}
-};
-
-let lastAlertTimestamp = 0;
-let lastQueueSnapshot = { totalCalls: 0, totalAgents: 0 };
-
-let audioCtx = null;
-let voiceAudio = null;
-
-function loadAlertSettings() {
-  try {
-    const raw = localStorage.getItem(ALERT_SETTINGS_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    alertSettings = {
-      ...alertSettings,
-      ...parsed,
-      queueTones: parsed.queueTones || {}
-    };
-  } catch (e) {
-    console.warn("Alert settings parse error:", e);
-  }
-}
-
-function saveAlertSettings() {
-  try {
-    localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify(alertSettings));
-  } catch (e) {
-    console.warn("Alert settings save error:", e);
-  }
-}
-
-function ensureAudio() {
-  if (!audioCtx) {
-    const Ctor = window.AudioContext || window.webkitAudioContext;
-    if (Ctor) audioCtx = new Ctor();
-  }
-  if (!voiceAudio) voiceAudio = new Audio("assets/ttsAlert.mp3");
-}
-
-function playTone(tone) {
-  if (!alertSettings.enableQueueAlerts) return;
-  ensureAudio();
-  if (!audioCtx) return;
-
-  const duration = 0.7;
-  const now = audioCtx.currentTime;
-
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-
-  let freq = 880;
-  let type = "sine";
-
-  switch (tone) {
-    case "bright": freq = 1200; type = "square"; break;
-    case "pulse": freq = 600; type = "sawtooth"; break;
-    case "ping": freq = 1500; type = "triangle"; break;
-    case "alarm": freq = 400; type = "square"; break;
-  }
-
-  osc.type = type;
-  osc.frequency.value = freq;
-
-  const vol = Math.max(0, Math.min(1, alertSettings.volume));
-  gain.gain.setValueAtTime(vol, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(now);
-  osc.stop(now + duration);
-}
-
-function playVoice() {
-  if (!alertSettings.enableVoiceAlerts) return;
-  ensureAudio();
-  if (!voiceAudio) return;
-
-  voiceAudio.pause();
-  voiceAudio.currentTime = 0;
-  voiceAudio.volume = alertSettings.volume;
-  voiceAudio.play().catch(() => {});
-}
-
-// ===============================
-// POPUP ALERT
-// ===============================
-let popupTimeoutId = null;
-function showAlertPopup(message) {
-  if (!alertSettings.enablePopupAlerts) return;
-
-  const popup = document.getElementById("queueAlertPopup");
-  if (!popup) return;
-
-  popup.textContent = message || "You have calls waiting";
-  popup.classList.add("visible");
-
-  if (popupTimeoutId) clearTimeout(popupTimeoutId);
-  popupTimeoutId = setTimeout(() => {
-    popup.classList.remove("visible");
-  }, 5000);
-}
-
-// ===============================
-// ESCALATION LEVELS
-// ===============================
-function getEscalationLevel(totalCalls) {
-  if (totalCalls <= 1) return 0;
-  if (totalCalls <= 3) return 1;
-  if (totalCalls <= 6) return 2;
-  return 3;
-}
-
-// ===============================
-// ALERT HISTORY
-// ===============================
-
-const alertHistory = [];
-const MAX_ALERT_HISTORY = 100;
-
-function loadAlertHistory() {
-  try {
-    const raw = localStorage.getItem(ALERT_HISTORY_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return;
-
-    alertHistory.length = 0;
-    parsed.forEach(e => {
-      if (!e.timestamp) return;
-      alertHistory.push({
-        timestamp: new Date(e.timestamp),
-        calls: e.calls ?? 0,
-        agents: e.agents ?? 0,
-        tone: e.tone || "soft",
-        voiceEnabled: !!e.voiceEnabled,
-        escalationLevel: e.escalationLevel ?? 0
-      });
-    });
-  } catch {}
-}
-
-function saveAlertHistory() {
-  const payload = alertHistory.map(e => ({
-    timestamp: e.timestamp.toISOString(),
-    calls: e.calls,
-    agents: e.agents,
-    tone: e.tone,
-    voiceEnabled: e.voiceEnabled,
-    escalationLevel: e.escalationLevel
-  }));
-  localStorage.setItem(ALERT_HISTORY_KEY, JSON.stringify(payload));
-}
-
-function recordAlertEvent({ calls, agents, tone, voiceEnabled, escalationLevel }) {
-  const entry = {
-    timestamp: new Date(),
-    calls,
-    agents,
-    tone,
-    voiceEnabled,
-    escalationLevel
-  };
-
-  alertHistory.unshift(entry);
-  if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
-
-  saveAlertHistory();
-  renderAlertHistory();
-}
-
-function renderAlertHistory() {
-  const listEl = document.getElementById("alertHistoryList");
-  if (!listEl) return;
-
-  if (alertHistory.length === 0) {
-    listEl.innerHTML = `<div class="history-empty">No alerts yet.</div>`;
-    return;
-  }
-
-  listEl.innerHTML = alertHistory
-    .map(entry => {
-      const timeStr = entry.timestamp.toLocaleString("en-US", {
-        month: "numeric",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit"
-      });
-
-      return `
-        <div class="history-item">
-          <div class="history-time">${timeStr}</div>
-          <div>Calls: ${entry.calls}</div>
-          <div>Agents: ${entry.agents}</div>
-          <div>Tone: ${entry.tone}</div>
-          <div>Voice: ${entry.voiceEnabled ? "Yes" : "No"}</div>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-// ===============================
-// ALERT SETTINGS UI
-// ===============================
-function initAlertSettingsUI() {
-  loadAlertSettings();
-  loadAlertHistory();
-  renderAlertHistory();
-
-  const enableQueueAlertsEl = document.getElementById("enableQueueAlerts");
-  const enableVoiceAlertsEl = document.getElementById("enableVoiceAlerts");
-  const enablePopupAlertsEl = document.getElementById("enablePopupAlerts");
-  const toneSelectEl       = document.getElementById("alertToneSelect");
-  const volumeEl           = document.getElementById("alertVolume");
-  const cooldownEl         = document.getElementById("alertCooldown");
-  const wallboardModeEl    = document.getElementById("wallboardMode");
-  const testBtn            = document.getElementById("alertTestButton");
-  const settingsToggle     = document.getElementById("alertSettingsToggle");
-  const settingsPanel      = document.getElementById("alertSettingsPanel");
-  const historyToggle      = document.getElementById("alertHistoryToggle");
-  const historyPanel       = document.getElementById("alertHistoryPanel");
-  const exitWallboardBtn   = document.getElementById("exitWallboardButton");
-
-  if (enableQueueAlertsEl) {
-    enableQueueAlertsEl.checked = alertSettings.enableQueueAlerts;
-    enableQueueAlertsEl.addEventListener("change", () => {
-      alertSettings.enableQueueAlerts = enableQueueAlertsEl.checked;
-      saveAlertSettings();
-    });
-  }
-
-  if (enableVoiceAlertsEl) {
-    enableVoiceAlertsEl.checked = alertSettings.enableVoiceAlerts;
-    enableVoiceAlertsEl.addEventListener("change", () => {
-      alertSettings.enableVoiceAlerts = enableVoiceAlertsEl.checked;
-      saveAlertSettings();
-    });
-  }
-
-  if (enablePopupAlertsEl) {
-    enablePopupAlertsEl.checked = alertSettings.enablePopupAlerts;
-    enablePopupAlertsEl.addEventListener("change", () => {
-      alertSettings.enablePopupAlerts = enablePopupAlertsEl.checked;
-      saveAlertSettings();
-    });
-  }
-
-  if (toneSelectEl) {
-    toneSelectEl.value = alertSettings.tone;
-    toneSelectEl.addEventListener("change", () => {
-      alertSettings.tone = toneSelectEl.value;
-      saveAlertSettings();
-    });
-  }
-
-  if (volumeEl) {
-    volumeEl.value = Math.round(alertSettings.volume * 100);
-    volumeEl.addEventListener("input", () => {
-      alertSettings.volume = Number(volumeEl.value) / 100;
-      saveAlertSettings();
-    });
-  }
-
-  if (cooldownEl) {
-    cooldownEl.value = alertSettings.cooldownSeconds;
-    cooldownEl.addEventListener("change", () => {
-      let v = Number(cooldownEl.value) || 30;
-      alertSettings.cooldownSeconds = Math.max(10, Math.min(v, 300));
-      cooldownEl.value = alertSettings.cooldownSeconds;
-      saveAlertSettings();
-    });
-  }
-
-  // Wallboard mode
-  function applyWallboard(on) {
-    document.body.classList.toggle("wallboard-mode", !!on);
-    if (exitWallboardBtn) exitWallboardBtn.classList.toggle("hidden", !on);
-  }
-
-  if (wallboardModeEl) {
-    wallboardModeEl.checked = alertSettings.wallboardMode;
-    applyWallboard(alertSettings.wallboardMode);
-
-    wallboardModeEl.addEventListener("change", () => {
-      alertSettings.wallboardMode = wallboardModeEl.checked;
-      saveAlertSettings();
-      applyWallboard(alertSettings.wallboardMode);
-    });
-  }
-
-  if (exitWallboardBtn) {
-    exitWallboardBtn.addEventListener("click", () => {
-      alertSettings.wallboardMode = false;
-      saveAlertSettings();
-      applyWallboard(false);
-      if (wallboardModeEl) wallboardModeEl.checked = false;
-    });
-  }
-
-  if (testBtn) {
-    testBtn.addEventListener("click", () => {
-      triggerQueueAlert({
-        totalCalls: lastQueueSnapshot.totalCalls || 3,
-        totalAgents: lastQueueSnapshot.totalAgents || 0,
-        queueNames: ["Test Queue"],
-        isTest: true
-      });
-    });
-  }
-
-  // Toggle panels
-  if (settingsToggle && settingsPanel) {
-    settingsToggle.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      settingsPanel.classList.toggle("hidden");
-      if (!historyPanel.classList.contains("hidden"))
-        historyPanel.classList.add("hidden");
-    };
-  }
-
-  if (historyToggle && historyPanel) {
-    historyToggle.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      historyPanel.classList.toggle("hidden");
-      if (!settingsPanel.classList.contains("hidden"))
-        settingsPanel.classList.add("hidden");
-    };
-  }
-
-  // Close panels on outside click
-  document.addEventListener("click", (e) => {
-    if (settingsPanel && !settingsPanel.contains(e.target) && e.target !== settingsToggle) {
-      settingsPanel.classList.add("hidden");
-    }
-    if (historyPanel && !historyPanel.contains(e.target) && e.target !== historyToggle) {
-      historyPanel.classList.add("hidden");
-    }
-  });
-}
-
-// ===============================
-// QUEUE TONE OVERRIDES
-// ===============================
-function updateQueueToneOverrides(queues) {
-  const container = document.getElementById("queueToneOverrides");
-  if (!container) return;
-
-  if (!queues || queues.length === 0) {
-    container.innerHTML = `<div class="queue-override-empty">No queues loaded yet.</div>`;
-    return;
-  }
-
-  const toneOptions = `
-    <option value="soft">Soft chime</option>
-    <option value="bright">Bright bell</option>
-    <option value="pulse">Pulse beep</option>
-    <option value="ping">Ping tone</option>
-    <option value="alarm">Alarm tone</option>
-  `;
-
-  container.innerHTML = "";
-  queues.forEach(q => {
-    const name = q.QueueName || "Unknown Queue";
-    const row = document.createElement("div");
-    row.className = "queue-override-row";
-
-    const id = `queue-tone-${name.replace(/\s+/g, "-")}`;
-
-    row.innerHTML = `
-      <label class="queue-override-label" for="${id}">${name}</label>
-      <select id="${id}" class="queue-override-select">${toneOptions}</select>
-    `;
-
-    container.appendChild(row);
-
-    const select = row.querySelector("select");
-    const savedTone = alertSettings.queueTones[name];
-    if (savedTone) select.value = savedTone;
-
-    select.addEventListener("change", () => {
-      alertSettings.queueTones[name] = select.value;
-      saveAlertSettings();
-    });
-  });
-}
-
-// ===============================
-// QUEUE ALERT LOGIC
-// ===============================
-function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
-  const calls = totalCalls ?? 0;
-  const agents = totalAgents ?? 0;
-  const now = Date.now();
-  const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
-
-  if (!isTest) {
-    if (
-      !alertSettings.enableQueueAlerts &&
-      !alertSettings.enableVoiceAlerts &&
-      !alertSettings.enablePopupAlerts
-    ) return;
-
-    if (calls <= 1) return;
-    if (now - lastAlertTimestamp < cooldownMs) return;
-  }
-
-  lastAlertTimestamp = now;
-
-  let tone = alertSettings.tone;
-  if (queueNames && queueNames.length === 1) {
-    const qn = queueNames[0];
-    if (alertSettings.queueTones[qn]) {
-      tone = alertSettings.queueTones[qn];
-    }
-  }
-
-  const escalationLevel = getEscalationLevel(calls);
-
-  if (alertSettings.enableQueueAlerts) playTone(tone);
-  if (alertSettings.enableVoiceAlerts) playVoice();
-  if (alertSettings.enablePopupAlerts) showAlertPopup("You have calls waiting");
-
-  recordAlertEvent({
-    calls,
-    agents,
-    tone,
-    voiceEnabled: alertSettings.enableVoiceAlerts,
-    escalationLevel
-  });
-}
-
-// ===============================
-// QUEUE STATUS (MULTI-QUEUE)
-// ===============================
-async function loadQueueStatus() {
-  const body = document.getElementById("queue-body");
-  const panel = document.getElementById("queue-panel");
-  if (!body) return;
-
-  body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
-
-  try {
-    const data = await fetchApi("/status/queues");
-
-    if (!data || !data.QueueStatus || data.QueueStatus.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
-      if (panel) panel.classList.remove("queue-alert-active");
-      return;
+/* ============================================================
+   SECURITY.JS — Upgraded UI + Worker Integration
+   VisionBank | Admin Login • MFA • Access Control
+   ============================================================ */
+
+const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+
+/* ---------- UI Elements ---------- */
+const loginView = document.getElementById("login-view");
+const mfaSetupView = document.getElementById("mfa-setup-view");
+const adminView = document.getElementById("admin-view");
+
+const loginForm = document.getElementById("login-form");
+const loginMsg = document.getElementById("login-message");
+const overrideToggle = document.getElementById("override-toggle");
+const overrideForm = document.getElementById("override-form");
+const overrideInput = document.getElementById("override-input");
+
+const loginTotpWrapper = document.getElementById("login-totp-wrapper");
+const loginTotp = document.getElementById("login-totp");
+
+const mfaQrImg = document.getElementById("mfa-qr-img");
+const mfaAccount = document.getElementById("mfa-account");
+const mfaSecret = document.getElementById("mfa-secret");
+const mfaCodeInput = document.getElementById("mfa-code");
+const mfaConfirmBtn = document.getElementById("mfa-confirm-btn");
+const mfaCancelBtn = document.getElementById("mfa-cancel-btn");
+const mfaMsg = document.getElementById("mfa-message");
+
+const logoutBtn = document.getElementById("logout-btn");
+
+const hoursForm = document.getElementById("hours-form");
+const hoursStart = document.getElementById("hours-start");
+const hoursEnd = document.getElementById("hours-end");
+const hoursDayChecks = document.querySelectorAll(".hours-day");
+
+const ipForm = document.getElementById("ip-form");
+const ipTextarea = document.getElementById("ip-textarea");
+
+const auditLogBox = document.getElementById("audit-log");
+
+const themeToggle = document.getElementById("themeToggle");
+const themeToggleIcon = document.getElementById("themeToggleIcon");
+const themeToggleText = document.getElementById("themeToggleText");
+
+/* ---------- State ---------- */
+let ACTIVE_SESSION = null;
+let ACTIVE_USERNAME = null;
+let ACTIVE_ROLE = null;
+
+let statusTimer = null;
+let userPanelInitialized = false;
+let LAST_DELETED_USER = null;
+
+/* =============================================================
+   THEME TOGGLE
+   ============================================================= */
+(function initTheme() {
+    const saved = localStorage.getItem("vbTheme");
+    if (saved === "dark") {
+        document.body.classList.remove("theme-light");
+        document.body.classList.add("theme-dark");
+        themeToggleIcon.textContent = "☀️";
+        themeToggleText.textContent = "Light mode";
     }
 
-    const queues = data.QueueStatus;
-    let anyHot = false;
-    let totalCalls = 0;
-    let totalAgents = 0;
-    let activeQueues = [];
+    themeToggle.addEventListener("click", () => {
+        const dark = document.body.classList.toggle("theme-dark");
+        document.body.classList.toggle("theme-light", !dark);
+        if (dark) {
+            themeToggleIcon.textContent = "☀️";
+            themeToggleText.textContent = "Light mode";
+            localStorage.setItem("vbTheme", "dark");
+        } else {
+            themeToggleIcon.textContent = "🌙";
+            themeToggleText.textContent = "Dark mode";
+            localStorage.setItem("vbTheme", "light");
+        }
+    });
+})();
 
-    const rowsHtml = queues
-      .map(q => {
-        const calls = Number(q.TotalCalls ?? 0);
-        const agents = Number(q.TotalLoggedAgents ?? 0);
-        const maxWait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-        const avgWait = q.AvgWaitInterval ?? 0;
+/* =============================================================
+   STATUS BANNER
+   ============================================================= */
+function showStatus(msg, type = "info") {
+    let bar = document.getElementById("admin-status");
+    if (!bar) {
+        bar = document.createElement("div");
+        bar.id = "admin-status";
+        bar.style.marginBottom = "10px";
+        bar.style.padding = "8px 12px";
+        bar.style.borderRadius = "8px";
+        bar.style.fontSize = "14px";
+        bar.style.display = "none";
+        adminView.insertBefore(bar, adminView.firstChild);
+    }
 
-        totalCalls += calls;
-        totalAgents += agents;
+    bar.textContent = msg;
+    bar.style.display = "block";
 
-        const isHot = calls > 0;
-        if (isHot) {
-          anyHot = true;
-          activeQueues.push(q.QueueName);
+    if (type === "success") {
+        bar.style.backgroundColor = "#d4ffd9";
+        bar.style.border = "1px solid #22c55e";
+        bar.style.color = "#14532d";
+    } else if (type === "error") {
+        bar.style.backgroundColor = "#fee2e2";
+        bar.style.border = "1px solid #ef4444";
+        bar.style.color = "#7f1d1d";
+    } else {
+        bar.style.backgroundColor = "#dbeafe";
+        bar.style.border = "1px solid #3b82f6";
+        bar.style.color = "#1e3a8a";
+    }
+
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+        bar.style.display = "none";
+    }, 4000);
+}
+
+/* =============================================================
+   1.  LOGIN HANDLING
+   ============================================================= */
+
+loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    loginMsg.textContent = "";
+
+    const username = document.getElementById("login-username").value.trim();
+    const password = document.getElementById("login-pin").value.trim(); // Worker expects "password"
+    const totp = loginTotpWrapper.classList.contains("hidden")
+        ? ""
+        : loginTotp.value.trim();
+
+    ACTIVE_USERNAME = username;
+
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, totp }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            loginMsg.textContent = data.error || "Login failed.";
+            return;
         }
 
-        const rowClass = isHot ? "queue-hot" : "";
+        // MFA not yet configured for a user that requires MFA
+        if (data.requireMfaSetup) {
+            await beginMfaEnrollment(username);
+            return;
+        }
 
-        return `
-          <tr class="${rowClass}">
-            <td>${safe(q.QueueName, "Unknown")}</td>
-            <!-- ✔ INSERTED REQUIRED ID FOR RED BOX LOGIC -->
-            <td id="queueCallsCell" class="numeric">${calls}</td>
-            <td class="numeric">${agents}</td>
-            <td class="numeric">${formatTime(maxWait)}</td>
-            <td class="numeric">${formatTime(avgWait)}</td>
-          </tr>
-        `;
-      })
-      .join("");
+        // MFA is required for this login (but code not sent yet)
+        if (data.requireTotp) {
+            loginTotpWrapper.classList.remove("hidden");
+            loginMsg.textContent = "Enter your 6-digit Microsoft Authenticator code.";
+            return;
+        }
 
-    body.innerHTML = rowsHtml;
+        // SUCCESS
+        if (data.success && data.session) {
+            ACTIVE_SESSION = data.session;
+            ACTIVE_ROLE = data.user?.role || "view";
 
-    lastQueueSnapshot = { totalCalls, totalAgents };
+            loginTotp.value = "";
+            loginTotpWrapper.classList.add("hidden");
+            showAdminView();
+            return;
+        }
 
-    if (panel) panel.classList.toggle("queue-alert-active", anyHot);
-
-    // ==========================================
-    // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
-    // ==========================================
-    const callsCell = document.querySelector("#queueCallsCell");
-    if (callsCell) {
-      if (totalCalls > 1) {
-        callsCell.classList.add("queue-alert-red");
-      } else {
-        callsCell.classList.remove("queue-alert-red");
-      }
+        loginMsg.textContent = "Unexpected response from authentication service.";
+    } catch (err) {
+        console.error(err);
+        loginMsg.textContent = "Network error connecting to authentication service.";
     }
-    // ==========================================
+});
 
-    // Trigger alert when totalCalls ≥ 2
-    if (anyHot && totalCalls >= 2) {
-      triggerQueueAlert({
-        totalCalls,
-        totalAgents,
-        queueNames: activeQueues
-      });
+/* =============================================================
+   2.  OVERRIDE KEY HANDLING (UI ONLY — NO BACKEND ENDPOINT)
+   ============================================================= */
+
+overrideToggle.addEventListener("click", () => {
+    overrideForm.classList.toggle("hidden");
+});
+
+overrideForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    loginMsg.textContent = "Override login is not enabled on this system.";
+});
+
+/* =============================================================
+   3.  MFA SETUP FLOW
+   ============================================================= */
+
+async function beginMfaEnrollment(username) {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/setup-mfa`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            loginMsg.textContent = data.error || "Unable to start MFA setup.";
+            return;
+        }
+
+        ACTIVE_USERNAME = username;
+        showMfaSetup({
+            username,
+            qr: data.qr,
+            secret: data.secret,
+        });
+    } catch (err) {
+        console.error(err);
+        loginMsg.textContent = "Network error starting MFA setup.";
     }
-
-    updateQueueToneOverrides(queues);
-  } catch (err) {
-    console.error("Queue load error:", err);
-    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
-  }
 }
 
-// ===============================
-// GLOBAL STATS
-// ===============================
-async function loadGlobalStats() {
-  const errorDiv = document.getElementById("global-error");
-  if (errorDiv) errorDiv.textContent = "";
+function showMfaSetup(data) {
+    loginView.classList.add("hidden");
+    adminView.classList.add("hidden");
+    mfaSetupView.classList.remove("hidden");
 
-  try {
-    const data = await fetchApi("/statistics/global");
-    if (!data || !data.GlobalStatistics || data.GlobalStatistics.length === 0) {
-      if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
-      return;
-    }
-
-    const g = data.GlobalStatistics[0];
-
-    setText("gs-total-queued", g.TotalCallsQueued);
-    setText("gs-total-transferred", g.TotalCallsTransferred);
-    setText("gs-total-abandoned", g.TotalCallsAbandoned);
-    setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
-
-    setText(
-      "gs-service-level",
-      g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--"
-    );
-    setText("gs-total-received", g.TotalCallsReceived);
-
-    setText(
-      "gs-answer-rate",
-      g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--"
-    );
-    setText(
-      "gs-abandon-rate",
-      g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--"
-    );
-
-    setText("gs-callbacks-registered", g.CallbacksRegistered);
-    setText("gs-callbacks-waiting", g.CallbacksWaiting);
-  } catch (err) {
-    console.error("Global stats error:", err);
-    if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
-  }
+    mfaQrImg.src = data.qr;
+    mfaAccount.value = data.username || ACTIVE_USERNAME || "";
+    mfaSecret.value = data.secret || "";
+    mfaCodeInput.value = "";
+    mfaMsg.textContent = "";
 }
 
-// ===============================
-// AGENT STATUS
-// ===============================
-async function loadAgentStatus() {
-  const body = document.getElementById("agent-body");
-  if (!body) return;
-
-  body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
-
-  try {
-    const data = await fetchApi("/status/agents");
-
-    if (!data || !data.AgentStatus || data.AgentStatus.length === 0) {
-      body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
-      return;
+mfaConfirmBtn.addEventListener("click", async () => {
+    const code = mfaCodeInput.value.trim();
+    if (!code) {
+        mfaMsg.textContent = "Enter a 6-digit code.";
+        return;
     }
 
-    body.innerHTML = "";
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/confirm-mfa`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: ACTIVE_USERNAME, code }),
+        });
 
-    data.AgentStatus.forEach(a => {
-      const inbound = a.TotalCallsReceived ?? 0;
-      const missed = a.TotalCallsMissed ?? 0;
-      const transferred = a.TotalCallsTransferred ?? 0;
-      const outbound = a.DialoutCount ?? 0;
+        const data = await res.json();
 
-      const avgHandleSeconds =
-        inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
+        if (!res.ok) {
+            mfaMsg.textContent = data.error || "Invalid MFA code.";
+            return;
+        }
 
-      const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
+        // MFA confirmed: send user back to login to authenticate with password + TOTP
+        mfaMsg.textContent = "MFA confirmed. Please log in with your password and 6-digit code.";
+        setTimeout(() => {
+            mfaSetupView.classList.add("hidden");
+            loginView.classList.remove("hidden");
+            loginMsg.textContent = "MFA configured. Please log in.";
+        }, 1200);
 
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${safe(a.FullName)}</td>
-        <td>${safe(a.TeamName)}</td>
-        <td>${safe(a.PhoneExt)}</td>
-        <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
-        <td class="numeric">${inbound}</td>
-        <td class="numeric">${missed}</td>
-        <td class="numeric">${transferred}</td>
-        <td class="numeric">${outbound}</td>
-        <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-        <td class="numeric">${formatTime(a.SecondsInCurrentStatus ?? 0)}</td>
-        <td>${formatDate(a.StartDateUtc)}</td>
-      `;
-      body.appendChild(tr);
+    } catch (err) {
+        console.error(err);
+        mfaMsg.textContent = "Unable to verify MFA code.";
+    }
+});
+
+mfaCancelBtn.addEventListener("click", () => {
+    mfaSetupView.classList.add("hidden");
+    loginView.classList.remove("hidden");
+});
+
+/* =============================================================
+   4.  SHOW ADMIN VIEW
+   ============================================================= */
+
+async function showAdminView() {
+    loginView.classList.add("hidden");
+    mfaSetupView.classList.add("hidden");
+    adminView.classList.remove("hidden");
+
+    await loadBusinessHours();
+    await loadIpRules();
+    await loadAuditLog();
+
+    applyRolePermissions();
+}
+
+/* =============================================================
+   ROLE-BASED PERMISSIONS
+   ============================================================= */
+
+function applyRolePermissions() {
+    const role = ACTIVE_ROLE || "view";
+
+    // Business Hours: superadmin, admin, analyst can edit
+    const canEditHours = role === "superadmin" || role === "admin" || role === "analyst";
+    hoursStart.disabled = !canEditHours;
+    hoursEnd.disabled = !canEditHours;
+    hoursDayChecks.forEach(cb => cb.disabled = !canEditHours);
+    const hoursButtons = hoursForm ? hoursForm.querySelectorAll("button, input[type='submit']") : [];
+    hoursButtons.forEach(el => el.disabled = !canEditHours);
+
+    // IP Allowlist: superadmin, admin can edit
+    const canEditIp = role === "superadmin" || role === "admin";
+    ipTextarea.disabled = !canEditIp;
+    const ipButtons = ipForm ? ipForm.querySelectorAll("button, input[type='submit']") : [];
+    ipButtons.forEach(el => el.disabled = !canEditIp);
+
+    // Logs: superadmin, admin, auditor can view.
+    const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
+    if (!canViewLogs) {
+        auditLogBox.textContent = "You do not have permission to view logs.";
+    }
+
+    // User Management: only superadmin
+    if (role === "superadmin") {
+        initUserManagement();
+    }
+}
+
+/* =============================================================
+   5.  BUSINESS HOURS
+   ============================================================= */
+
+async function loadBusinessHours() {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/get-hours`);
+        const hours = await res.json();
+
+        hoursStart.value = hours.start || "";
+        hoursEnd.value = hours.end || "";
+
+        hoursDayChecks.forEach((cb) => {
+            cb.checked = Array.isArray(hours.days)
+                ? hours.days.includes(Number(cb.value))
+                : false;
+        });
+    } catch (err) {
+        console.error("Hours load failed:", err);
+    }
+}
+
+hoursForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const start = hoursStart.value;
+    const end = hoursEnd.value;
+    const days = [...hoursDayChecks]
+        .filter(cb => cb.checked)
+        .map(cb => Number(cb.value));
+
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/set-hours`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ start, end, days }),
+        });
+
+        if (!res.ok) {
+            showStatus("Failed to save business hours.", "error");
+            return;
+        }
+
+        showStatus("Business hours saved successfully.", "success");
+    } catch (err) {
+        console.error("Save hours failed:", err);
+        showStatus("Failed to save business hours.", "error");
+    }
+});
+
+/* =============================================================
+   6.  IP ALLOWLIST
+   ============================================================= */
+
+/* =============================================================
+   FIXED — IP ALLOWLIST AUTO-LOAD (Admin + CIDR Tester)
+   ============================================================= */
+
+async function loadIpRules() {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
+        const data = await res.json();
+
+        const rules = Array.isArray(data.rules) ? data.rules : [];
+
+        // 1. Fill the main admin textarea
+        if (ipTextarea) {
+            ipTextarea.value = rules.join("\n");
+        }
+
+        // 2. Fill CIDR/IP Tester textarea
+        const testerRules = document.getElementById("ip-rules-textarea");
+        if (testerRules) {
+            testerRules.value = rules.join("\n");
+        }
+
+        return rules;
+
+    } catch (err) {
+        console.error("IP rule loading failed:", err);
+
+        // Ensure tester doesn't show stale data
+        const testerRules = document.getElementById("ip-rules-textarea");
+        if (testerRules) {
+            testerRules.value = "";
+        }
+    }
+}
+
+ipForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const rules = ipTextarea.value
+        .split("\n")
+        .map(r => r.trim())
+        .filter(r => r);
+
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rules }),
+        });
+
+        if (!res.ok) {
+            showStatus("Failed to save IP Allowlist.", "error");
+            return;
+        }
+
+        showStatus("IP Allowlist saved successfully.", "success");
+    } catch (err) {
+        console.error("Save IP rules failed:", err);
+        showStatus("Failed to save IP Allowlist.", "error");
+    }
+});
+
+/* =============================================================
+   7.  AUDIT LOG
+   ============================================================= */
+
+async function loadAuditLog() {
+    try {
+        const res = await fetch(`${WORKER_BASE}/api/logs`);
+        const data = await res.json();
+
+        const events = Array.isArray(data.events) ? data.events : [];
+
+        auditLogBox.textContent =
+            events
+                .map(ev => {
+                    const t = ev.time || "";
+                    const ip = ev.ip || "";
+                    const path = ev.path || "";
+                    const reason = ev.reason || "";
+                    const allowed = ev.allowed ? "ALLOWED" : "DENIED";
+                    return `${t} | ${ip} | ${path} | ${allowed} | ${reason}`;
+                })
+                .join("\n") || "No logs yet.";
+    } catch (err) {
+        console.error("Log load failed:", err);
+        auditLogBox.textContent = "Unable to load logs.";
+    }
+}
+
+/* =============================================================
+   8.  USER MANAGEMENT (SUPERADMIN ONLY — FULL UPGRADED VERSION)
+   ============================================================= */
+
+function initUserManagement() {
+    if (userPanelInitialized) return;
+    userPanelInitialized = true;
+
+    const section = document.createElement("section");
+    section.id = "user-management";
+    section.className = "admin-section";
+    section.innerHTML = `
+        <h3>User Management</h3>
+
+        <div id="user-toast" class="user-toast hidden"></div>
+
+        <div class="user-mgmt">
+            <div class="user-form">
+                <label>Username<br><input type="text" id="user-username" /></label><br>
+                <label>Password<br><input type="password" id="user-password" /></label><br>
+
+                <label>Role<br>
+                    <select id="user-role">
+                        <option value="superadmin">Super Admin</option>
+                        <option value="admin">Admin</option>
+                        <option value="analyst">Analyst</option>
+                        <option value="auditor">Auditor</option>
+                        <option value="view">View</option>
+                    </select>
+                </label><br>
+
+                <label><input type="checkbox" id="user-mfa" /> MFA Enabled</label>
+
+                <div class="user-buttons" style="margin-top:8px;">
+                    <button type="button" id="user-save-btn" class="btn-primary">Add / Update User</button>
+                    <button type="button" id="user-delete-btn" class="btn-secondary">Delete User</button>
+                    <button type="button" id="user-reset-mfa-btn" class="btn-secondary">Reset MFA</button>
+                    <button type="button" id="user-undo-btn" class="btn-link hidden">Undo Delete</button>
+                </div>
+            </div>
+
+            <div class="user-list" style="margin-top:18px;">
+                <h3>Existing Users</h3>
+
+                <div id="user-loading" class="user-loading hidden">
+                    <div class="spinner"></div>
+                    Loading users...
+                </div>
+
+                <table id="user-table" border="1" cellpadding="4" cellspacing="0">
+                    <thead>
+                        <tr><th>Username</th><th>Role</th><th>MFA</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    const adminAuditSection = document.getElementById("admin-audit-section");
+    if (adminAuditSection) {
+        adminView.insertBefore(section, adminAuditSection);
+    } else {
+        adminView.appendChild(section);
+    }
+
+    const usernameInput = section.querySelector("#user-username");
+    const passwordInput = section.querySelector("#user-password");
+    const roleSelect = section.querySelector("#user-role");
+    const mfaCheckbox = section.querySelector("#user-mfa");
+
+    const saveBtn = section.querySelector("#user-save-btn");
+    const deleteBtn = section.querySelector("#user-delete-btn");
+    const resetMfaBtn = section.querySelector("#user-reset-mfa-btn");
+    const undoBtn = section.querySelector("#user-undo-btn");
+
+    const tbody = section.querySelector("#user-table tbody");
+    const toast = section.querySelector("#user-toast");
+    const loadingIndicator = section.querySelector("#user-loading");
+
+    function showToast(message, type = "info") {
+        toast.textContent = message;
+        toast.className = `user-toast ${type}`;
+        toast.classList.remove("hidden");
+
+        setTimeout(() => {
+            toast.classList.add("hidden");
+        }, 3000);
+    }
+
+    saveBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        const role = roleSelect.value;
+        const mfaEnabled = mfaCheckbox.checked;
+
+        if (!username || !password) {
+            showToast("Username and password are required.", "error");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password, role, mfaEnabled }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showToast(data.error || "Failed to save user.", "error");
+                return;
+            }
+
+            showToast("User saved successfully!", "success");
+            passwordInput.value = "";
+            await refreshUserList();
+
+        } catch (err) {
+            console.error("Save user failed:", err);
+            showToast("Failed to save user.", "error");
+        }
     });
-  } catch (err) {
-    console.error("Agent load error:", err);
-    body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
-  }
-}
 
-// ===============================
-// MAIN REFRESH LOOP
-// ===============================
-function refreshAll() {
-  loadQueueStatus();
-  loadAgentStatus();
-  loadGlobalStats();
-}
+    deleteBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        if (!username) {
+            showToast("Select a user to delete.", "error");
+            return;
+        }
 
-// ===============================
-// INIT
-// ===============================
-document.addEventListener("DOMContentLoaded", async () => {
-  const ok = await checkSecurityAccess();
-  if (!ok) return;
+        if (!confirm(`Delete user "${username}"?`)) return;
 
-  initDarkMode();
-  initAlertSettingsUI();
+        try {
+            LAST_DELETED_USER = { username };
 
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      alertSettings.wallboardMode = false;
-      saveAlertSettings();
-      document.body.classList.remove("wallboard-mode");
-      const exitBtn = document.getElementById("exitWallboardButton");
-      const wallboardModeEl = document.getElementById("wallboardMode");
-      if (exitBtn) exitBtn.classList.add("hidden");
-      if (wallboardModeEl) wallboardModeEl.checked = false;
+            const res = await fetch(`${WORKER_BASE}/api/users/delete`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showToast(data.error || "Failed to delete user.", "error");
+                return;
+            }
+
+            showToast(`User "${username}" deleted.`, "success");
+            undoBtn.classList.remove("hidden");
+
+            usernameInput.value = "";
+            passwordInput.value = "";
+            mfaCheckbox.checked = false;
+
+            await refreshUserList();
+
+        } catch (err) {
+            console.error("Delete user failed:", err);
+            showToast("Failed to delete user.", "error");
+        }
+    });
+
+    undoBtn.addEventListener("click", async () => {
+        if (!LAST_DELETED_USER) return;
+
+        const { username } = LAST_DELETED_USER;
+        showToast(`Restoring user "${username}"...`, "info");
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username,
+                    password: "ChangeMeNow!",
+                    role: "view",
+                    mfaEnabled: false
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showToast(data.error || "Failed to restore user.", "error");
+                return;
+            }
+
+            showToast(`User "${username}" restored.`, "success");
+            undoBtn.classList.add("hidden");
+            LAST_DELETED_USER = null;
+
+            await refreshUserList();
+
+        } catch (err) {
+            console.error("Restore user failed:", err);
+            showToast("Failed to restore user.", "error");
+        }
+    });
+
+    resetMfaBtn.addEventListener("click", async () => {
+        const username = usernameInput.value.trim();
+        if (!username) {
+            showToast("Select a user to reset MFA.", "error");
+            return;
+        }
+
+        if (!confirm(`Reset MFA for "${username}"?`)) return;
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/reset-mfa`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showToast(data.error || "Failed to reset MFA.", "error");
+                return;
+            }
+
+            showToast("MFA reset. User will be prompted to re-enroll on next login.", "success");
+        } catch (err) {
+            console.error("Reset MFA failed:", err);
+            showToast("Failed to reset MFA.", "error");
+        }
+    });
+
+    async function refreshUserList(retry = 0) {
+        loadingIndicator.classList.remove("hidden");
+
+        try {
+            const res = await fetch(`${WORKER_BASE}/api/users/list`);
+            const data = await res.json();
+
+            if ((!data || !Array.isArray(data.users)) && retry < 3) {
+                return setTimeout(() => refreshUserList(retry + 1), 250);
+            }
+
+            const users = Array.isArray(data.users) ? data.users : [];
+            tbody.innerHTML = "";
+
+            users.forEach((u) => {
+                const tr = document.createElement("tr");
+                tr.style.opacity = "0";
+                tr.innerHTML = `
+                    <td>${u.username}</td>
+                    <td>${u.role}</td>
+                    <td>${u.mfaEnabled ? "Yes" : "No"}</td>
+                `;
+                tr.addEventListener("click", () => {
+                    usernameInput.value = u.username;
+                    roleSelect.value = u.role || "view";
+                    mfaCheckbox.checked = !!u.mfaEnabled;
+                    passwordInput.value = "";
+                });
+
+                tbody.appendChild(tr);
+                setTimeout(() => {
+                    tr.style.opacity = "1";
+                }, 10);
+            });
+
+        } catch (err) {
+            console.error("User load failed:", err);
+            if (retry < 3) {
+                return setTimeout(() => refreshUserList(retry + 1), 250);
+            }
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">Unable to load users.</td></tr>`;
+        } finally {
+            setTimeout(() => loadingIndicator.classList.add("hidden"), 200);
+        }
     }
-  });
 
-  refreshAll();
-  setInterval(refreshAll, 10000);
+    refreshUserList();
+}
+/* =============================================================
+   End of Section 8
+   ============================================================= */
+/* =============================================================
+   10. CIDR TESTER (Enhanced Stable Version)
+   ============================================================= */
+
+/* =============================================================
+   ADVANCED CIDR / IP TESTER + CIDR RANGE TESTER
+   ============================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    /* ------------------------------------------------------------
+       SHARED HELPER FUNCTIONS (IPv4, IPv6, CIDR expansion)
+    ------------------------------------------------------------ */
+
+    function expandIPv6(address) {
+        if (!address.includes("::")) {
+            return address.split(":").map(p => p.padStart(4, "0")).join(":");
+        }
+
+        const [left, right] = address.split("::");
+        const leftParts = left ? left.split(":") : [];
+        const rightParts = right ? right.split(":") : [];
+
+        const missing = 8 - (leftParts.length + rightParts.length);
+        const zeros = Array(missing).fill("0000");
+
+        return [
+            ...leftParts.map(p => p.padStart(4, "0")),
+            ...zeros,
+            ...rightParts.map(p => p.padStart(4, "0"))
+        ].join(":");
+    }
+
+    function ipv4ToBits(ip) {
+        return ip
+            .split(".")
+            .map(n => Number(n).toString(2).padStart(8, "0"))
+            .join("");
+    }
+
+    function ipv6ToBits(ip) {
+        const full = expandIPv6(ip);
+        return full
+            .split(":")
+            .map(h => parseInt(h, 16).toString(2).padStart(16, "0"))
+            .join("");
+    }
+
+    function ipToBits(ip) {
+        if (ip.includes(".")) return ipv4ToBits(ip);
+        if (ip.includes(":")) return ipv6ToBits(ip);
+        throw new Error("Invalid IP format: " + ip);
+    }
+
+    function parseCIDR(cidr) {
+        if (!cidr.includes("/"))
+            throw new Error("Not a CIDR: " + cidr);
+
+        const [ip, prefix] = cidr.split("/");
+        return { ip, prefix: Number(prefix) };
+    }
+
+    /* ============================================================
+       UPPER SECTION — CIDR / IP TESTER (Auto-loaded rules)
+       ============================================================ */
+
+    const ipInput = document.getElementById("ip-test-input");
+    const rulesTextarea = document.getElementById("ip-rules-textarea");
+    const runIpBtn = document.getElementById("run-ip-test-btn");
+    const resultBox = document.getElementById("ip-test-result");
+
+    if (runIpBtn) {
+        runIpBtn.addEventListener("click", () => {
+            const ip = ipInput.value.trim();
+            const rules = rulesTextarea.value
+                .split("\n")
+                .map(r => r.trim())
+                .filter(r => r);
+
+            if (!ip) {
+                return showIpBatchResult("Enter an IP.", []);
+            }
+
+            const rows = rules.map(rule => {
+                try {
+                    if (!rule.includes("/")) {
+                        return {
+                            rule,
+                            match: ip === rule ? "✓" : "✗",
+                            type: "IP",
+                            note: ip === rule ? "Exact match" : "No match"
+                        };
+                    }
+
+                    const inside = isIpInCidr(ip, rule);
+
+                    return {
+                        rule,
+                        match: inside ? "✓" : "✗",
+                        type: "CIDR",
+                        note: inside ? "Inside range" : "Not inside range"
+                    };
+
+                } catch (err) {
+                    return {
+                        rule,
+                        match: "✗",
+                        type: "Error",
+                        note: err.message
+                    };
+                }
+            });
+
+            showIpBatchResult(ip, rows);
+        });
+    }
+
+    function isIpInCidr(ip, cidr) {
+        const { ip: baseIP, prefix } = parseCIDR(cidr);
+
+        const bitsA = ipToBits(ip);
+        const bitsB = ipToBits(baseIP);
+
+        return bitsA.slice(0, prefix) === bitsB.slice(0, prefix);
+    }
+
+    function showIpBatchResult(ip, rows) {
+        let html = `
+            <div style="margin-top:10px; font-weight:700;">
+                Results for: <span style="color:#1d4ed8">${ip}</span>
+            </div>
+            <table style="
+                width:100%;
+                border-collapse:collapse;
+                margin-top:10px;
+                font-size:14px;
+                animation: fadeIn 0.35s ease;">
+                <thead>
+                    <tr style="background:#e2e8f0;">
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Rule</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Match?</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Type</th>
+                        <th style="padding:6px; border:1px solid #cbd5e1;">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        rows.forEach(r => {
+            const bg =
+                r.match === "✓" ? "#dcfce7" :
+                r.match === "✗" ? "#fee2e2" :
+                "#fef9c3";
+
+            html += `
+                <tr style="background:${bg};">
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.rule}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.match}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.type}</td>
+                    <td style="padding:6px; border:1px solid #cbd5e1;">${r.note}</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+
+        resultBox.innerHTML = html;
+        resultBox.classList.add("cidr-visible");
+    }
+
+    /* ============================================================
+       LOWER SECTION — CIDR RANGE TESTER (A vs B)
+       ============================================================ */
+
+    const cidrA = document.getElementById("cidr-input-a");
+    const cidrB = document.getElementById("cidr-input-b");
+    const cidrBtn = document.getElementById("cidr-test-btn");
+    const cidrResult = document.getElementById("cidr-test-result");
+
+    if (cidrBtn) {
+        cidrBtn.addEventListener("click", () => {
+            const A = cidrA.value.trim();
+            const B = cidrB.value.trim();
+
+            if (!A || !B) {
+                return showCidrRangeResult("Enter both values.", "warning");
+            }
+
+            try {
+                const msg = testCidrRange(A, B);
+                showCidrRangeResult(msg.text, msg.type);
+            } catch (err) {
+                showCidrRangeResult(err.message, "fail");
+            }
+        });
+    }
+
+    function testCidrRange(A, B) {
+        const isA_CIDR = A.includes("/");
+        const isB_CIDR = B.includes("/");
+
+        if (!isB_CIDR) throw new Error("Value B must be a CIDR.");
+
+        const b = parseCIDR(B);
+        const bitsB = ipToBits(b.ip).slice(0, b.prefix);
+
+        if (!isA_CIDR) {
+            const bitsA = ipToBits(A).slice(0, b.prefix);
+            return bitsA === bitsB
+                ? { text: `${A} IS inside ${B}`, type: "pass" }
+                : { text: `${A} is NOT inside ${B}`, type: "fail" };
+        }
+
+        const a = parseCIDR(A);
+        const bitsA = ipToBits(a.ip).slice(0, Math.min(a.prefix, b.prefix));
+
+        return bitsA === bitsB
+            ? { text: `${A} IS inside ${B}`, type: "pass" }
+            : { text: `${A} is NOT inside ${B}`, type: "fail" };
+    }
+
+    function showCidrRangeResult(text, type) {
+        cidrResult.textContent = text;
+
+        cidrResult.classList.remove("cidr-pass", "cidr-fail", "cidr-warning");
+
+        if (type === "pass") cidrResult.classList.add("cidr-pass");
+        else if (type === "fail") cidrResult.classList.add("cidr-fail");
+        else cidrResult.classList.add("cidr-warning");
+
+        cidrResult.classList.add("cidr-visible");
+    }
+
+});
+/* =============================================================
+   End of Section 10
+   ============================================================= */
+/* =============================================================
+   9.  LOGOUT
+   ============================================================= */
+
+logoutBtn.addEventListener("click", () => {
+    ACTIVE_SESSION = null;
+    ACTIVE_USERNAME = null;
+    ACTIVE_ROLE = null;
+
+    loginTotp.value = "";
+    loginTotpWrapper.classList.add("hidden");
+
+    adminView.classList.add("hidden");
+    mfaSetupView.classList.add("hidden");
+    loginView.classList.remove("hidden");
+    loginMsg.textContent = "";
 });

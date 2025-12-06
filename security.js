@@ -1,506 +1,826 @@
-/* ======================================================================
-   SECURITY ADMIN CONSOLE – FINAL BUILD (PIN → PASSWORD FIX APPLIED)
-   Designer: Ahmed Adeyemi
-   ====================================================================== */
+// =======================================================
+// Dashboard JS - Created and Maintained by Ahmed Adeyemi
+// =======================================================
 
-console.log("%cSecurity Console Loaded (FINAL BUILD)", "color:#4ade80; font-size:14px;");
+// ===============================
+// CONFIG
+// ===============================
+const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
+const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
 
-/* ------------------------------------------------------------
-   GLOBAL CONSTANTS
------------------------------------------------------------- */
-const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+// Cloudflare Worker base
+const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
-let CURRENT_USER = null;
-let userPanelInitialized = false;
+const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
+const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
 
-/* ------------------------------------------------------------
-   DOM ELEMENTS
------------------------------------------------------------- */
-const loginView      = document.getElementById("login-view");
-const adminView      = document.getElementById("admin-view");
-const mfaView        = document.getElementById("mfa-setup-view");
-
-const loginForm      = document.getElementById("login-form");
-const loginMessage   = document.getElementById("login-message");
-const loginTotpWrap  = document.getElementById("login-totp-wrapper");
-
-const logoutBtn      = document.getElementById("logout-btn");
-
-const hoursForm      = document.getElementById("hours-form");
-const auditLogEl     = document.getElementById("audit-log");
-
-const ipAddInput     = document.getElementById("ip-add-input");
-const ipAddBtn       = document.getElementById("ip-add-btn");
-const ipListEl       = document.getElementById("ip-list");
-const ipSaveBtn      = document.getElementById("ip-save-btn");
-
-const testerInput    = document.getElementById("ip-test-input");
-const testerRules    = document.getElementById("ip-rules-textarea");
-const testerBtn      = document.getElementById("run-ip-test-btn");
-const testerResult   = document.getElementById("ip-test-result");
-
-/* ======================================================================
-   SECTION 1 — LOGIN + MFA (PIN → PASSWORD MAPPING)
-   ====================================================================== */
-
-loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const username = document.getElementById("login-username").value.trim();
-
-    // IMPORTANT: map your PIN input to password for Worker.js
-    const password = document.getElementById("login-pin").value.trim();
-
-    const totp     = document.getElementById("login-totp").value.trim();
-
-    loginMessage.textContent = "";
-
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/login`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                username,
-                password,  // FIXED
-                totp
-            })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            if (data.requireTotp) {
-                loginTotpWrap.classList.remove("hidden");
-                loginMessage.textContent = "Enter Microsoft Authenticator code.";
-                return;
-            }
-            if (data.requireMfaSetup) {
-                showMfaSetup({ account: username, secret: "Pending", qr: "" });
-                return;
-            }
-
-            loginMessage.textContent = data.error || "Invalid login.";
-            return;
-        }
-
-        CURRENT_USER = data.user;
-
-        if (data.requireMfaSetup) {
-            showMfaSetup(data.requireMfaSetup);
-            return;
-        }
-
-        showAdminView();
-
-    } catch (err) {
-        console.error(err);
-        loginMessage.textContent = "Network error. Try again.";
+// ===============================
+// CC API WRAPPER
+// ===============================
+async function fetchApi(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      token: TOKEN
     }
-});
-
-
-function showMfaSetup(mfaData) {
-    loginView.classList.add("hidden");
-    adminView.classList.add("hidden");
-    mfaView.classList.remove("hidden");
-
-    document.getElementById("mfa-account").value = mfaData.account;
-    document.getElementById("mfa-secret").value  = mfaData.secret;
-    if (mfaData.qr) document.getElementById("mfa-qr-img").src = mfaData.qr;
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
+// ===============================
+// SECURITY GATE
+// (Only executed AFTER index.html’s pre-check approves)
+// ===============================
+async function checkSecurityAccess() {
+  if (window.VB_SECURITY) return window.VB_SECURITY.allowed;
 
-/* ======================================================================
-   SECTION 2 — ADMIN VIEW LOADING
-   ====================================================================== */
+  try {
+    const res = await fetch(`${SECURITY_BASE}/security/check`, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit"
+    });
+    if (!res.ok) return false;
 
-function showAdminView() {
-    loginView.classList.add("hidden");
-    mfaView.classList.add("hidden");
-    adminView.classList.remove("hidden");
-
-    loadBusinessHours();
-    loadIpRulesUI();
-    loadAuditLogs();
-    applyRolePermissions();
+    const data = await res.json();
+    window.VB_SECURITY = data;
+    return data.allowed === true;
+  } catch (err) {
+    console.error("Security check failed:", err);
+    return false;
+  }
 }
 
-
-/* ======================================================================
-   SECTION 3 — ROLE PERMISSIONS
-   ====================================================================== */
-
-function applyRolePermissions() {
-    if (!CURRENT_USER) return;
-
-    if (CURRENT_USER.role === "superadmin") {
-        safeInitUserManagement();
-    }
+// ===============================
+// HELPERS
+// ===============================
+function safe(value, fallback = "--") {
+  if (value === undefined || value === null || value === "") return fallback;
+  return value;
 }
 
+function formatTime(sec) {
+  sec = Number(sec);
+  if (!Number.isFinite(sec)) return "00:00:00";
 
-/* ======================================================================
-   SECTION 4 — SAFE INITIALIZER
-   ====================================================================== */
+  const sign = sec < 0 ? "-" : "";
+  sec = Math.abs(sec);
 
-function safeInitUserManagement() {
-    if (userPanelInitialized) return;
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const seconds = Math.floor(sec % 60);
 
-    const audit = document.getElementById("admin-audit-section");
-    if (!audit) return setTimeout(safeInitUserManagement, 100);
-
-    initUserManagement();
+  return (
+    sign +
+    String(hours).padStart(2, "0") + ":" +
+    String(minutes).padStart(2, "0") + ":" +
+    String(seconds).padStart(2, "0")
+  );
 }
 
+function formatDate(isoString) {
+  if (!isoString) return "--";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "--";
+  return d.toLocaleString("en-US", { timeZone: "America/Chicago" });
+}
 
-/* ======================================================================
-   SECTION 5 — USER MANAGEMENT ENGINE
-   ====================================================================== */
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value === undefined || value === null ? "--" : value;
+}
 
-function initUserManagement() {
-    if (userPanelInitialized) return;
-    userPanelInitialized = true;
+// ===============================
+// AVAILABILITY MAPPING
+// ===============================
+function getAvailabilityClass(status) {
+  if (!status) return "status-yellow";
+  const s = status.toLowerCase();
 
-    const audit = document.getElementById("admin-audit-section");
+  if (s.includes("available")) return "status-available";
 
-    const wrapper = document.createElement("section");
-    wrapper.className = "admin-section";
-    wrapper.id = "user-mgmt-section";
+  if (
+    s.includes("on call") ||
+    s.includes("dial-out") ||
+    s.includes("dial out") ||
+    s.includes("dialing")
+  ) {
+    return "status-oncall";
+  }
 
-    wrapper.innerHTML = `
-        <h3>User Management</h3>
-        <div id="user-toast" class="user-toast hidden"></div>
-        <div class="user-loading hidden"><div class="spinner"></div>Loading…</div>
+  if (s.includes("break")) return "status-break";
 
-        <div class="user-mgmt">
-            <div>
-                <table id="user-table">
-                    <thead><tr><th>Username</th><th>Role</th><th>MFA</th></tr></thead>
-                    <tbody id="user-tbody"></tbody>
-                </table>
-            </div>
+  if (s.includes("wrap")) return "status-wrap";
+  if (s.includes("lunch")) return "status-lunch";
+  if (s.includes("accept")) return "status-orange";
+  if (s.includes("busy")) return "status-orange";
+  if (s.includes("not set")) return "status-orange";
 
-            <div class="user-editor">
-                <label>Username<input id="um-username"></label>
-                <label>Password<input id="um-password" type="password"></label>
-                <label>Role<select id="um-role">
-                    <option value="view">Viewer</option>
-                    <option value="admin">Admin</option>
-                    <option value="superadmin">SuperAdmin</option>
-                </select></label>
-                <label><input type="checkbox" id="um-mfa"> Enable MFA</label>
+  if (s.includes("idle")) return "status-idle";
+  if (s.includes("unknown")) return "status-unknown";
 
-                <div class="user-buttons">
-                    <button id="um-create" class="btn-primary">Create</button>
-                    <button id="um-update" class="btn-secondary">Update</button>
-                    <button id="um-delete" class="btn-secondary">Delete</button>
-                </div>
-            </div>
+  return "status-yellow";
+}
+
+// ===============================
+// DARK MODE
+// ===============================
+function initDarkMode() {
+  const btn = document.getElementById("darkModeToggle");
+  if (!btn) return;
+
+  function applyDark(on) {
+    document.body.classList.toggle("dark-mode", !!on);
+    btn.textContent = on ? "☀️ Light Mode" : "🌙 Dark mode";
+  }
+
+  const stored = localStorage.getItem("dashboard-dark-mode");
+  if (stored === null) {
+    const prefersDark =
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    applyDark(prefersDark);
+    localStorage.setItem("dashboard-dark-mode", prefersDark ? "1" : "0");
+  } else {
+    applyDark(stored === "1");
+  }
+
+  btn.addEventListener("click", () => {
+    const isDark = document.body.classList.toggle("dark-mode");
+    btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark mode";
+    localStorage.setItem("dashboard-dark-mode", isDark ? "1" : "0");
+  });
+}
+
+// ===============================
+// ALERT SETTINGS / AUDIO
+// ===============================
+let alertSettings = {
+  enableQueueAlerts: true,
+  enableVoiceAlerts: true,
+  enablePopupAlerts: true,
+  tone: "soft",
+  volume: 0.8,
+  cooldownSeconds: 30,
+  wallboardMode: false,
+  queueTones: {}
+};
+
+let lastAlertTimestamp = 0;
+let lastQueueSnapshot = { totalCalls: 0, totalAgents: 0 };
+
+let audioCtx = null;
+let voiceAudio = null;
+
+function loadAlertSettings() {
+  try {
+    const raw = localStorage.getItem(ALERT_SETTINGS_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    alertSettings = {
+      ...alertSettings,
+      ...parsed,
+      queueTones: parsed.queueTones || {}
+    };
+  } catch (e) {
+    console.warn("Alert settings parse error:", e);
+  }
+}
+
+function saveAlertSettings() {
+  try {
+    localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify(alertSettings));
+  } catch (e) {
+    console.warn("Alert settings save error:", e);
+  }
+}
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (Ctor) audioCtx = new Ctor();
+  }
+  if (!voiceAudio) voiceAudio = new Audio("assets/ttsAlert.mp3");
+}
+
+function playTone(tone) {
+  if (!alertSettings.enableQueueAlerts) return;
+  ensureAudio();
+  if (!audioCtx) return;
+
+  const duration = 0.7;
+  const now = audioCtx.currentTime;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  let freq = 880;
+  let type = "sine";
+
+  switch (tone) {
+    case "bright": freq = 1200; type = "square"; break;
+    case "pulse": freq = 600; type = "sawtooth"; break;
+    case "ping": freq = 1500; type = "triangle"; break;
+    case "alarm": freq = 400; type = "square"; break;
+  }
+
+  osc.type = type;
+  osc.frequency.value = freq;
+
+  const vol = Math.max(0, Math.min(1, alertSettings.volume));
+  gain.gain.setValueAtTime(vol, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + duration);
+}
+
+function playVoice() {
+  if (!alertSettings.enableVoiceAlerts) return;
+  ensureAudio();
+  if (!voiceAudio) return;
+
+  voiceAudio.pause();
+  voiceAudio.currentTime = 0;
+  voiceAudio.volume = alertSettings.volume;
+  voiceAudio.play().catch(() => {});
+}
+
+// ===============================
+// POPUP ALERT
+// ===============================
+let popupTimeoutId = null;
+function showAlertPopup(message) {
+  if (!alertSettings.enablePopupAlerts) return;
+
+  const popup = document.getElementById("queueAlertPopup");
+  if (!popup) return;
+
+  popup.textContent = message || "You have calls waiting";
+  popup.classList.add("visible");
+
+  if (popupTimeoutId) clearTimeout(popupTimeoutId);
+  popupTimeoutId = setTimeout(() => {
+    popup.classList.remove("visible");
+  }, 5000);
+}
+
+// ===============================
+// ESCALATION LEVELS
+// ===============================
+function getEscalationLevel(totalCalls) {
+  if (totalCalls <= 1) return 0;
+  if (totalCalls <= 3) return 1;
+  if (totalCalls <= 6) return 2;
+  return 3;
+}
+
+// ===============================
+// ALERT HISTORY
+// ===============================
+
+const alertHistory = [];
+const MAX_ALERT_HISTORY = 100;
+
+function loadAlertHistory() {
+  try {
+    const raw = localStorage.getItem(ALERT_HISTORY_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+
+    alertHistory.length = 0;
+    parsed.forEach(e => {
+      if (!e.timestamp) return;
+      alertHistory.push({
+        timestamp: new Date(e.timestamp),
+        calls: e.calls ?? 0,
+        agents: e.agents ?? 0,
+        tone: e.tone || "soft",
+        voiceEnabled: !!e.voiceEnabled,
+        escalationLevel: e.escalationLevel ?? 0
+      });
+    });
+  } catch {}
+}
+
+function saveAlertHistory() {
+  const payload = alertHistory.map(e => ({
+    timestamp: e.timestamp.toISOString(),
+    calls: e.calls,
+    agents: e.agents,
+    tone: e.tone,
+    voiceEnabled: e.voiceEnabled,
+    escalationLevel: e.escalationLevel
+  }));
+  localStorage.setItem(ALERT_HISTORY_KEY, JSON.stringify(payload));
+}
+
+function recordAlertEvent({ calls, agents, tone, voiceEnabled, escalationLevel }) {
+  const entry = {
+    timestamp: new Date(),
+    calls,
+    agents,
+    tone,
+    voiceEnabled,
+    escalationLevel
+  };
+
+  alertHistory.unshift(entry);
+  if (alertHistory.length > MAX_ALERT_HISTORY) alertHistory.pop();
+
+  saveAlertHistory();
+  renderAlertHistory();
+}
+
+function renderAlertHistory() {
+  const listEl = document.getElementById("alertHistoryList");
+  if (!listEl) return;
+
+  if (alertHistory.length === 0) {
+    listEl.innerHTML = `<div class="history-empty">No alerts yet.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = alertHistory
+    .map(entry => {
+      const timeStr = entry.timestamp.toLocaleString("en-US", {
+        month: "numeric",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+
+      return `
+        <div class="history-item">
+          <div class="history-time">${timeStr}</div>
+          <div>Calls: ${entry.calls}</div>
+          <div>Agents: ${entry.agents}</div>
+          <div>Tone: ${entry.tone}</div>
+          <div>Voice: ${entry.voiceEnabled ? "Yes" : "No"}</div>
         </div>
+      `;
+    })
+    .join("");
+}
+
+// ===============================
+// ALERT SETTINGS UI
+// ===============================
+function initAlertSettingsUI() {
+  loadAlertSettings();
+  loadAlertHistory();
+  renderAlertHistory();
+
+  const enableQueueAlertsEl = document.getElementById("enableQueueAlerts");
+  const enableVoiceAlertsEl = document.getElementById("enableVoiceAlerts");
+  const enablePopupAlertsEl = document.getElementById("enablePopupAlerts");
+  const toneSelectEl       = document.getElementById("alertToneSelect");
+  const volumeEl           = document.getElementById("alertVolume");
+  const cooldownEl         = document.getElementById("alertCooldown");
+  const wallboardModeEl    = document.getElementById("wallboardMode");
+  const testBtn            = document.getElementById("alertTestButton");
+  const settingsToggle     = document.getElementById("alertSettingsToggle");
+  const settingsPanel      = document.getElementById("alertSettingsPanel");
+  const historyToggle      = document.getElementById("alertHistoryToggle");
+  const historyPanel       = document.getElementById("alertHistoryPanel");
+  const exitWallboardBtn   = document.getElementById("exitWallboardButton");
+
+  if (enableQueueAlertsEl) {
+    enableQueueAlertsEl.checked = alertSettings.enableQueueAlerts;
+    enableQueueAlertsEl.addEventListener("change", () => {
+      alertSettings.enableQueueAlerts = enableQueueAlertsEl.checked;
+      saveAlertSettings();
+    });
+  }
+
+  if (enableVoiceAlertsEl) {
+    enableVoiceAlertsEl.checked = alertSettings.enableVoiceAlerts;
+    enableVoiceAlertsEl.addEventListener("change", () => {
+      alertSettings.enableVoiceAlerts = enableVoiceAlertsEl.checked;
+      saveAlertSettings();
+    });
+  }
+
+  if (enablePopupAlertsEl) {
+    enablePopupAlertsEl.checked = alertSettings.enablePopupAlerts;
+    enablePopupAlertsEl.addEventListener("change", () => {
+      alertSettings.enablePopupAlerts = enablePopupAlertsEl.checked;
+      saveAlertSettings();
+    });
+  }
+
+  if (toneSelectEl) {
+    toneSelectEl.value = alertSettings.tone;
+    toneSelectEl.addEventListener("change", () => {
+      alertSettings.tone = toneSelectEl.value;
+      saveAlertSettings();
+    });
+  }
+
+  if (volumeEl) {
+    volumeEl.value = Math.round(alertSettings.volume * 100);
+    volumeEl.addEventListener("input", () => {
+      alertSettings.volume = Number(volumeEl.value) / 100;
+      saveAlertSettings();
+    });
+  }
+
+  if (cooldownEl) {
+    cooldownEl.value = alertSettings.cooldownSeconds;
+    cooldownEl.addEventListener("change", () => {
+      let v = Number(cooldownEl.value) || 30;
+      alertSettings.cooldownSeconds = Math.max(10, Math.min(v, 300));
+      cooldownEl.value = alertSettings.cooldownSeconds;
+      saveAlertSettings();
+    });
+  }
+
+  // Wallboard mode
+  function applyWallboard(on) {
+    document.body.classList.toggle("wallboard-mode", !!on);
+    if (exitWallboardBtn) exitWallboardBtn.classList.toggle("hidden", !on);
+  }
+
+  if (wallboardModeEl) {
+    wallboardModeEl.checked = alertSettings.wallboardMode;
+    applyWallboard(alertSettings.wallboardMode);
+
+    wallboardModeEl.addEventListener("change", () => {
+      alertSettings.wallboardMode = wallboardModeEl.checked;
+      saveAlertSettings();
+      applyWallboard(alertSettings.wallboardMode);
+    });
+  }
+
+  if (exitWallboardBtn) {
+    exitWallboardBtn.addEventListener("click", () => {
+      alertSettings.wallboardMode = false;
+      saveAlertSettings();
+      applyWallboard(false);
+      if (wallboardModeEl) wallboardModeEl.checked = false;
+    });
+  }
+
+  if (testBtn) {
+    testBtn.addEventListener("click", () => {
+      triggerQueueAlert({
+        totalCalls: lastQueueSnapshot.totalCalls || 3,
+        totalAgents: lastQueueSnapshot.totalAgents || 0,
+        queueNames: ["Test Queue"],
+        isTest: true
+      });
+    });
+  }
+
+  // Toggle panels
+  if (settingsToggle && settingsPanel) {
+    settingsToggle.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      settingsPanel.classList.toggle("hidden");
+      if (!historyPanel.classList.contains("hidden"))
+        historyPanel.classList.add("hidden");
+    };
+  }
+
+  if (historyToggle && historyPanel) {
+    historyToggle.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      historyPanel.classList.toggle("hidden");
+      if (!settingsPanel.classList.contains("hidden"))
+        settingsPanel.classList.add("hidden");
+    };
+  }
+
+  // Close panels on outside click
+  document.addEventListener("click", (e) => {
+    if (settingsPanel && !settingsPanel.contains(e.target) && e.target !== settingsToggle) {
+      settingsPanel.classList.add("hidden");
+    }
+    if (historyPanel && !historyPanel.contains(e.target) && e.target !== historyToggle) {
+      historyPanel.classList.add("hidden");
+    }
+  });
+}
+
+// ===============================
+// QUEUE TONE OVERRIDES
+// ===============================
+function updateQueueToneOverrides(queues) {
+  const container = document.getElementById("queueToneOverrides");
+  if (!container) return;
+
+  if (!queues || queues.length === 0) {
+    container.innerHTML = `<div class="queue-override-empty">No queues loaded yet.</div>`;
+    return;
+  }
+
+  const toneOptions = `
+    <option value="soft">Soft chime</option>
+    <option value="bright">Bright bell</option>
+    <option value="pulse">Pulse beep</option>
+    <option value="ping">Ping tone</option>
+    <option value="alarm">Alarm tone</option>
+  `;
+
+  container.innerHTML = "";
+  queues.forEach(q => {
+    const name = q.QueueName || "Unknown Queue";
+    const row = document.createElement("div");
+    row.className = "queue-override-row";
+
+    const id = `queue-tone-${name.replace(/\s+/g, "-")}`;
+
+    row.innerHTML = `
+      <label class="queue-override-label" for="${id}">${name}</label>
+      <select id="${id}" class="queue-override-select">${toneOptions}</select>
     `;
 
-    audit.before(wrapper);
+    container.appendChild(row);
 
-    setupUserEvents();
-    refreshUserList();
+    const select = row.querySelector("select");
+    const savedTone = alertSettings.queueTones[name];
+    if (savedTone) select.value = savedTone;
+
+    select.addEventListener("change", () => {
+      alertSettings.queueTones[name] = select.value;
+      saveAlertSettings();
+    });
+  });
 }
 
+// ===============================
+// QUEUE ALERT LOGIC
+// ===============================
+function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false }) {
+  const calls = totalCalls ?? 0;
+  const agents = totalAgents ?? 0;
+  const now = Date.now();
+  const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
 
-function showToast(msg, type="info") {
-    const t = document.getElementById("user-toast");
-    t.textContent = msg;
-    t.className = `user-toast ${type}`;
-    setTimeout(() => t.classList.add("hidden"), 2500);
+  if (!isTest) {
+    if (
+      !alertSettings.enableQueueAlerts &&
+      !alertSettings.enableVoiceAlerts &&
+      !alertSettings.enablePopupAlerts
+    ) return;
+
+    if (calls <= 1) return;
+    if (now - lastAlertTimestamp < cooldownMs) return;
+  }
+
+  lastAlertTimestamp = now;
+
+  let tone = alertSettings.tone;
+  if (queueNames && queueNames.length === 1) {
+    const qn = queueNames[0];
+    if (alertSettings.queueTones[qn]) {
+      tone = alertSettings.queueTones[qn];
+    }
+  }
+
+  const escalationLevel = getEscalationLevel(calls);
+
+  if (alertSettings.enableQueueAlerts) playTone(tone);
+  if (alertSettings.enableVoiceAlerts) playVoice();
+  if (alertSettings.enablePopupAlerts) showAlertPopup("You have calls waiting");
+
+  recordAlertEvent({
+    calls,
+    agents,
+    tone,
+    voiceEnabled: alertSettings.enableVoiceAlerts,
+    escalationLevel
+  });
 }
 
+// ===============================
+// QUEUE STATUS (MULTI-QUEUE)
+// ===============================
+async function loadQueueStatus() {
+  const body = document.getElementById("queue-body");
+  const panel = document.getElementById("queue-panel");
+  if (!body) return;
 
-async function refreshUserList() {
-    const loader = document.querySelector(".user-loading");
-    const tbody  = document.getElementById("user-tbody");
+  body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
 
-    loader.classList.remove("hidden");
-    tbody.innerHTML = "";
+  try {
+    const data = await fetchApi("/status/queues");
 
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/users/list`);
-        const data = await res.json();
-
-        (data.users || []).forEach(u => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${u.username}</td>
-                <td>${u.role}</td>
-                <td>${u.mfaEnabled ? "Yes" : "No"}</td>
-            `;
-
-            tr.onclick = () => {
-                document.getElementById("um-username").value = u.username;
-                document.getElementById("um-role").value = u.role;
-                document.getElementById("um-password").value = "";
-                document.getElementById("um-mfa").checked = !!u.mfaEnabled;
-            };
-
-            tbody.appendChild(tr);
-        });
-
-    } catch (err) {
-        console.error("User load error:", err);
+    if (!data || !data.QueueStatus || data.QueueStatus.length === 0) {
+      body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+      if (panel) panel.classList.remove("queue-alert-active");
+      return;
     }
 
-    loader.classList.add("hidden");
-}
+    const queues = data.QueueStatus;
+    let anyHot = false;
+    let totalCalls = 0;
+    let totalAgents = 0;
+    let activeQueues = [];
 
+    const rowsHtml = queues
+      .map(q => {
+        const calls = Number(q.TotalCalls ?? 0);
+        const agents = Number(q.TotalLoggedAgents ?? 0);
+        const maxWait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+        const avgWait = q.AvgWaitInterval ?? 0;
 
-function setupUserEvents() {
-    const uname = document.getElementById("um-username");
-    const pwd   = document.getElementById("um-password");
-    const role  = document.getElementById("um-role");
-    const mfa   = document.getElementById("um-mfa");
+        totalCalls += calls;
+        totalAgents += agents;
 
-    document.getElementById("um-create").onclick = async () => {
-        if (!uname.value || !pwd.value) {
-            return showToast("Username + Password required", "error");
+        const isHot = calls > 0;
+        if (isHot) {
+          anyHot = true;
+          activeQueues.push(q.QueueName);
         }
 
-        const res = await fetch(`${WORKER_BASE}/api/users/save`, {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-                username: uname.value,
-                password: pwd.value,
-                role: role.value,
-                mfaEnabled: mfa.checked
-            })
-        });
+        const rowClass = isHot ? "queue-hot" : "";
 
-        const data = await res.json();
-        if (res.ok) {
-            showToast("User created","success");
-            refreshUserList();
-        } else showToast(data.error,"error");
-    };
-
-    document.getElementById("um-update").onclick = async () => {
-        if (!uname.value) return showToast("Select a user","error");
-
-        const res = await fetch(`${WORKER_BASE}/api/users/save`, {
-            method:"POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-                username: uname.value,
-                password: pwd.value || undefined,
-                role: role.value,
-                mfaEnabled: mfa.checked
-            })
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            showToast("User updated","success");
-            refreshUserList();
-        } else showToast(data.error,"error");
-    };
-
-    document.getElementById("um-delete").onclick = async () => {
-        if (!uname.value) return showToast("Select a user","error");
-
-        const res = await fetch(`${WORKER_BASE}/api/users/delete`, {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({ username: uname.value })
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-            showToast("User deleted","success");
-            refreshUserList();
-        } else showToast(data.error,"error");
-    };
-}
-
-
-/* ======================================================================
-   SECTION 6 — BUSINESS HOURS
-   ====================================================================== */
-
-async function loadBusinessHours() {
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/get-hours`);
-        const data = await res.json();
-
-        document.getElementById("hours-start").value = data.start;
-        document.getElementById("hours-end").value   = data.end;
-
-        document.querySelectorAll(".hours-day").forEach(c => {
-            c.checked = (data.days || []).includes(parseInt(c.value));
-        });
-
-    } catch (err) {
-        console.error("Hours load error:", err);
-    }
-}
-
-
-/* ======================================================================
-   SECTION 7 — IP RULES
-   ====================================================================== */
-
-async function loadIpRulesUI() {
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
-        const data = await res.json();
-
-        renderIpList(data.rules || []);
-        testerRules.value = (data.rules || []).join("\n");
-
-    } catch (err) {
-        console.error("IP rule load error:", err);
-    }
-}
-
-
-function renderIpList(rules) {
-    ipListEl.innerHTML = "";
-
-    rules.forEach(rule => {
-        const row = document.createElement("div");
-        row.className = "ip-item";
-
-        row.innerHTML = `
-            <span><strong>${rule}</strong></span>
-            <button class="ip-remove-btn" data-rule="${rule}">Remove</button>
+        return `
+          <tr class="${rowClass}">
+            <td>${safe(q.QueueName, "Unknown")}</td>
+            <!-- ✔ INSERTED REQUIRED ID FOR RED BOX LOGIC -->
+            <td id="queueCallsCell" class="numeric">${calls}</td>
+            <td class="numeric">${agents}</td>
+            <td class="numeric">${formatTime(maxWait)}</td>
+            <td class="numeric">${formatTime(avgWait)}</td>
+          </tr>
         `;
+      })
+      .join("");
 
-        row.querySelector(".ip-remove-btn").onclick = async () => {
-            await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-                method:"POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ rules: rules.filter(r => r !== rule) })
-            });
+    body.innerHTML = rowsHtml;
 
-            loadIpRulesUI();
-        };
+    lastQueueSnapshot = { totalCalls, totalAgents };
 
-        ipListEl.appendChild(row);
-    });
+    if (panel) panel.classList.toggle("queue-alert-active", anyHot);
+
+    // ==========================================
+    // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
+    // ==========================================
+    const callsCell = document.querySelector("#queueCallsCell");
+    if (callsCell) {
+      if (totalCalls > 1) {
+        callsCell.classList.add("queue-alert-red");
+      } else {
+        callsCell.classList.remove("queue-alert-red");
+      }
+    }
+    // ==========================================
+
+    // Trigger alert when totalCalls ≥ 2
+    if (anyHot && totalCalls >= 2) {
+      triggerQueueAlert({
+        totalCalls,
+        totalAgents,
+        queueNames: activeQueues
+      });
+    }
+
+    updateQueueToneOverrides(queues);
+  } catch (err) {
+    console.error("Queue load error:", err);
+    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+  }
 }
 
+// ===============================
+// GLOBAL STATS
+// ===============================
+async function loadGlobalStats() {
+  const errorDiv = document.getElementById("global-error");
+  if (errorDiv) errorDiv.textContent = "";
 
-ipAddBtn.onclick = async () => {
-    const value = ipAddInput.value.trim();
-    if (!value) return;
+  try {
+    const data = await fetchApi("/statistics/global");
+    if (!data || !data.GlobalStatistics || data.GlobalStatistics.length === 0) {
+      if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
+      return;
+    }
 
-    const list = testerRules.value.split("\n").filter(x=>x.trim());
-    list.push(value);
+    const g = data.GlobalStatistics[0];
 
-    await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ rules: list })
+    setText("gs-total-queued", g.TotalCallsQueued);
+    setText("gs-total-transferred", g.TotalCallsTransferred);
+    setText("gs-total-abandoned", g.TotalCallsAbandoned);
+    setText("gs-max-wait", formatTime(g.MaxQueueWaitingTime));
+
+    setText(
+      "gs-service-level",
+      g.ServiceLevel != null ? g.ServiceLevel.toFixed(2) + "%" : "--"
+    );
+    setText("gs-total-received", g.TotalCallsReceived);
+
+    setText(
+      "gs-answer-rate",
+      g.AnswerRate != null ? g.AnswerRate.toFixed(2) + "%" : "--"
+    );
+    setText(
+      "gs-abandon-rate",
+      g.AbandonRate != null ? g.AbandonRate.toFixed(2) + "%" : "--"
+    );
+
+    setText("gs-callbacks-registered", g.CallbacksRegistered);
+    setText("gs-callbacks-waiting", g.CallbacksWaiting);
+  } catch (err) {
+    console.error("Global stats error:", err);
+    if (errorDiv) errorDiv.textContent = "Unable to load global statistics.";
+  }
+}
+
+// ===============================
+// AGENT STATUS
+// ===============================
+async function loadAgentStatus() {
+  const body = document.getElementById("agent-body");
+  if (!body) return;
+
+  body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
+
+  try {
+    const data = await fetchApi("/status/agents");
+
+    if (!data || !data.AgentStatus || data.AgentStatus.length === 0) {
+      body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = "";
+
+    data.AgentStatus.forEach(a => {
+      const inbound = a.TotalCallsReceived ?? 0;
+      const missed = a.TotalCallsMissed ?? 0;
+      const transferred = a.TotalCallsTransferred ?? 0;
+      const outbound = a.DialoutCount ?? 0;
+
+      const avgHandleSeconds =
+        inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
+
+      const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${safe(a.FullName)}</td>
+        <td>${safe(a.TeamName)}</td>
+        <td>${safe(a.PhoneExt)}</td>
+        <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
+        <td class="numeric">${inbound}</td>
+        <td class="numeric">${missed}</td>
+        <td class="numeric">${transferred}</td>
+        <td class="numeric">${outbound}</td>
+        <td class="numeric">${formatTime(avgHandleSeconds)}</td>
+        <td class="numeric">${formatTime(a.SecondsInCurrentStatus ?? 0)}</td>
+        <td>${formatDate(a.StartDateUtc)}</td>
+      `;
+      body.appendChild(tr);
     });
+  } catch (err) {
+    console.error("Agent load error:", err);
+    body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
+  }
+}
 
-    ipAddInput.value = "";
-    loadIpRulesUI();
-};
+// ===============================
+// MAIN REFRESH LOOP
+// ===============================
+function refreshAll() {
+  loadQueueStatus();
+  loadAgentStatus();
+  loadGlobalStats();
+}
 
+// ===============================
+// INIT
+// ===============================
+document.addEventListener("DOMContentLoaded", async () => {
+  const ok = await checkSecurityAccess();
+  if (!ok) return;
 
-/* ======================================================================
-   SECTION 8 — CIDR TESTER
-   ====================================================================== */
+  initDarkMode();
+  initAlertSettingsUI();
 
-testerBtn.addEventListener("click", () => {
-    const ip = testerInput.value.trim();
-    const rules = testerRules.value.split("\n").map(r=>r.trim()).filter(Boolean);
-
-    if (!ip) {
-        testerResult.textContent = "Enter an IP address.";
-        testerResult.className = "cidr-result-box cidr-fail cidr-visible";
-        return;
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      alertSettings.wallboardMode = false;
+      saveAlertSettings();
+      document.body.classList.remove("wallboard-mode");
+      const exitBtn = document.getElementById("exitWallboardButton");
+      const wallboardModeEl = document.getElementById("wallboardMode");
+      if (exitBtn) exitBtn.classList.add("hidden");
+      if (wallboardModeEl) wallboardModeEl.checked = false;
     }
+  });
 
-    for (const rule of rules) {
-        if (rule.includes("/")) {
-            if (isIpInCidr(ip, rule)) {
-                testerResult.textContent = `✓ Allowed by ${rule}`;
-                testerResult.className = "cidr-result-box cidr-pass cidr-visible";
-                return;
-            }
-        } else if (rule === ip) {
-            testerResult.textContent = `✓ Exact IP match`;
-            testerResult.className = "cidr-result-box cidr-pass cidr-visible";
-            return;
-        }
-    }
-
-    testerResult.textContent = "✖ Not allowed";
-    testerResult.className = "cidr-result-box cidr-fail cidr-visible";
+  refreshAll();
+  setInterval(refreshAll, 10000);
 });
-
-
-function ipToBigInt(ip) {
-    if (ip.includes(".")) {
-        return ip.split(".").reduce((a, o) => (a<<8n)+BigInt(o), 0n);
-    }
-
-    const parts = ip.split("::");
-    const left = parts[0].split(":").filter(Boolean);
-    const right = parts[1] ? parts[1].split(":") : [];
-
-    const missing = 8 - (left.length + right.length);
-    const middle = Array(missing).fill("0");
-
-    const full = [...left, ...middle, ...right].map(x=>BigInt(parseInt(x,16)));
-
-    return full.reduce((a,b)=>(a<<16n)+b, 0n);
-}
-
-function isIpInCidr(ip, cidr) {
-    const [range, bits] = cidr.split("/");
-    const prefix = BigInt(bits);
-
-    const ipN = ipToBigInt(ip);
-    const rangeN = ipToBigInt(range);
-
-    const size = ip.includes(".") ? 32n : 128n;
-    const mask = (~0n) << (size - prefix);
-
-    return (ipN & mask) === (rangeN & mask);
-}
-
-
-/* ======================================================================
-   SECTION 9 — AUDIT LOGS
-   ====================================================================== */
-
-async function loadAuditLogs() {
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/logs`);
-        const txt = await res.text();
-
-        auditLogEl.textContent = txt;
-    } catch (e) {
-        auditLogEl.textContent = "Failed to load logs.";
-    }
-}
-
-setInterval(loadAuditLogs, 4000);
-
-
-/* ======================================================================
-   SECTION 10 — LOGOUT
-   ====================================================================== */
-
-logoutBtn.onclick = () => {
-    CURRENT_USER = null;
-    userPanelInitialized = false;
-
-    adminView.classList.add("hidden");
-    mfaView.classList.add("hidden");
-    loginView.classList.remove("hidden");
-
-    loginMessage.textContent = "";
-};
-
-/* ======================================================================
-   END OF FILE
-   ====================================================================== */

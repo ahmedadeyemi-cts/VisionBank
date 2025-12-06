@@ -1,224 +1,238 @@
-/* ------------------------------------------------------------
+/* ============================================================
+   COLOR PALETTE — Hybrid Azure + US Signal Blue
+============================================================ */
+:root {
+    --primary: #003366;      /* Deep enterprise blue */
+    --primary-light: #0a4c8a;
+    --primary-soft: #e5edf5;
+
+    --bg: #f5f7fa;
+    --card-bg: #ffffff;
+    --text: #1e1e1e;
+    --text-light: #6b7280;
+
+    --border: #d0d7e1;
+    --radius: 10px;
+    --shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* DARK MODE */
+body.theme-dark {
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --text: #e2e8f0;
+    --text-light: #94a3b8;
+    --border: #334155;
+    --shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+
+/* ============================================================
    GLOBAL LAYOUT
------------------------------------------------------------- */
+============================================================ */
 body {
     margin: 0;
-    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-    background: #f8fafc;
-    color: #0f172a;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", sans-serif;
 }
 
-/* Dark theme */
-body.theme-dark {
-    background: #0f172a;
-    color: #e2e8f0;
+.panel {
+    max-width: 950px;
+    margin: 40px auto;
+    padding: 30px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
 }
 
+.panel-title {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--primary);
+}
 
-/* ------------------------------------------------------------
-   HEADER BAR
------------------------------------------------------------- */
-.vb-header {
-    background: #1e293b;
+/* ============================================================
+   HEADER
+============================================================ */
+.top-header {
+    background: var(--primary);
     color: white;
-    padding: 12px 20px;
+    padding: 18px 30px;
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
+    box-shadow: var(--shadow);
 }
 
-.vb-header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.vb-logo {
-    height: 40px;
-}
-
-.vb-title .vb-app {
-    font-size: 18px;
-    font-weight: bold;
-}
-.vb-title .vb-sub {
+.top-header .subtitle {
+    opacity: 0.85;
     font-size: 13px;
-    opacity: 0.7;
 }
 
-.vb-header-right {
-    display: flex;
-    align-items: center;
-}
-
-.vb-theme-toggle {
-    background: #334155;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
+/* ============================================================
+   THEME TOGGLE
+============================================================ */
+.theme-toggle {
+    background: rgba(255,255,255,0.2);
     border: none;
-}
-body.theme-dark .vb-theme-toggle {
-    background: #475569;
-}
-
-/* ------------------------------------------------------------
-   MAIN CONTENT
------------------------------------------------------------- */
-.vb-main {
-    max-width: 1100px;
-    margin: 30px auto;
-    padding: 0 20px;
-}
-
-/* ------------------------------------------------------------
-   CARD / PANEL
------------------------------------------------------------- */
-.vb-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 26px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-body.theme-dark .vb-card {
-    background: #1e293b;
-    color: #e2e8f0;
-}
-
-/* ------------------------------------------------------------
-   TITLES
------------------------------------------------------------- */
-.card-title {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-}
-
-.card-subtitle {
-    margin-top: 4px;
-    opacity: 0.8;
-}
-
-/* ------------------------------------------------------------
-   FORMS
------------------------------------------------------------- */
-.vb-form-grid {
-    display: grid;
-    gap: 12px;
-}
-
-.vb-form-grid input, 
-.vb-form-grid select,
-textarea {
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid #cbd5e1;
-    font-size: 14px;
-}
-
-body.theme-dark input,
-body.theme-dark select,
-body.theme-dark textarea {
-    background: #0f172a;
-    border-color: #334155;
-    color: #e2e8f0;
-}
-
-/* ------------------------------------------------------------
-   BUTTONS
------------------------------------------------------------- */
-.btn-primary,
-.btn-secondary,
-.btn-link {
     padding: 10px 14px;
-    border: none;
-    border-radius: 6px;
+    border-radius: var(--radius);
     cursor: pointer;
-    font-weight: 600;
+    color: white;
+    transition: background 0.2s;
 }
 
-.btn-primary {
-    background: #2563eb;
-    color: white;
+.theme-toggle:hover {
+    background: rgba(255,255,255,0.3);
 }
-.btn-primary:hover { background: #1e4fd6; }
+
+/* ============================================================
+   FORMS
+============================================================ */
+.form label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.form input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-top: 4px;
+}
+
+.form-inline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.form-message {
+    margin-top: 10px;
+    color: red;
+}
+
+/* ============================================================
+   BUTTONS
+============================================================ */
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background: var(--primary-light);
+}
 
 .btn-secondary {
-    background: #64748b;
-    color: white;
-}
-.btn-secondary:hover { background: #4b5563; }
-
-.btn-link {
-    background: none;
-    color: #2563eb;
-    padding: 4px 0;
+    background: var(--primary-soft);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
 }
 
-/* ------------------------------------------------------------
-   STATUS BAR
------------------------------------------------------------- */
-#admin-status {
+.btn-secondary:hover {
+    background: #dce7f3;
+}
+
+.link-btn {
     margin-top: 8px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    display: none;
-    font-size: 14px;
+    color: var(--primary);
+    cursor: pointer;
+    background: none;
+    border: none;
 }
 
-/* ------------------------------------------------------------
-   IP LIST STYLING
------------------------------------------------------------- */
+.small {
+    font-size: 13px;
+}
+
+/* ============================================================
+   CARDS
+============================================================ */
+.card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 25px;
+    box-shadow: var(--shadow);
+}
+
+/* ============================================================
+   IP LIST
+============================================================ */
+.ip-list {
+    margin-top: 12px;
+}
+
 .ip-item {
+    background: var(--primary-soft);
+    border-left: 4px solid var(--primary);
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: var(--radius);
     display: flex;
     justify-content: space-between;
-    background: #f1f5f9;
-    padding: 8px;
-    margin-bottom: 6px;
-    border-radius: 6px;
-}
-body.theme-dark .ip-item {
-    background: #0f172a;
+    align-items: center;
 }
 
-/* ------------------------------------------------------------
-   CIDR TESTER RESULTS
------------------------------------------------------------- */
-.cidr-result {
-    margin-top: 10px;
-    padding: 12px;
-    border-radius: 8px;
-    background: #f1f5f9;
+.ip-item button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: var(--radius);
 }
 
-.cidr-pass { background: #dcfce7; }
-.cidr-fail { background: #fee2e2; }
-.cidr-warning { background: #fef9c3; }
-
-/* ------------------------------------------------------------
-   TABLES
------------------------------------------------------------- */
-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-table th, table td {
-    padding: 8px;
-    border-bottom: 1px solid #cbd5e1;
-}
-
-/* ------------------------------------------------------------
-   AUDIT LOG
------------------------------------------------------------- */
-.audit-log {
-    background: #0f172a;
-    color: #a3e635;
-    padding: 14px;
-    height: 240px;
+/* ============================================================
+   LOG BOX
+============================================================ */
+.log-box {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 15px;
+    height: 260px;
     overflow-y: auto;
-    border-radius: 8px;
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+/* ============================================================
+   MFA BOX
+============================================================ */
+.mfa-box {
+    display: flex;
+    gap: 25px;
+    align-items: flex-start;
+}
+
+.mfa-qr {
+    width: 180px;
+    height: 180px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.mfa-info input {
+    width: 200px;
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+.fade-in {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }

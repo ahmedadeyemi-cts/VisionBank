@@ -830,22 +830,39 @@ if (testBtn) {
     });
   });
 }
+    // ===============================
+  // CLEAR ALERT HISTORY (SAFE)
+  // ===============================
+  setTimeout(() => {
+    const clearHistoryBtn = document.getElementById("clearAlertHistory");
+    if (!clearHistoryBtn) return;
+
+    clearHistoryBtn.onclick = () => {
+      try {
+        alertHistory.length = 0;
+        localStorage.removeItem(ALERT_HISTORY_KEY);
+        renderAlertHistory();
+      } catch (e) {
+        console.error("Failed to clear alert history:", e);
+      }
+    };
+  }, 0);
   // ===============================
   // CLEAR ALERT HISTORY BUTTON
-  // ===============================
-  const clearHistoryBtn = document.getElementById("clearAlertHistory");
-  if (clearHistoryBtn) {
-    clearHistoryBtn.addEventListener("click", () => {
+ 
+//  const clearHistoryBtn = document.getElementById("clearAlertHistory");
+ // if (clearHistoryBtn) {
+//    clearHistoryBtn.addEventListener("click", () => {
       // Clear in-memory history
-      alertHistory.length = 0;
+//      alertHistory.length = 0;
 
       // Clear persisted history
-      localStorage.removeItem(ALERT_HISTORY_KEY);
+//      localStorage.removeItem(ALERT_HISTORY_KEY);
 
       // Re-render UI
-      renderAlertHistory();
-    });
-  }
+//      renderAlertHistory();
+//    });
+//  }
 
 
 

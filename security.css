@@ -325,3 +325,416 @@ body.theme-dark .mfa-qr-wrapper {
     display: block;
     margin-bottom: 10px;
 }
+
+/* ============================================================
+   Admin View
+   ============================================================ */
+
+.admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.admin-section {
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, 0.38);
+}
+
+.admin-section h3 {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+.section-help {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--vb-muted);
+}
+
+.hours-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.days-fieldset {
+    border-radius: 10px;
+    border: 1px dashed var(--vb-border);
+    padding: 8px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.days-fieldset legend {
+    font-size: 12px;
+    color: var(--vb-muted);
+}
+
+/* Audit log */
+
+.audit-log {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #020617;
+    color: #e5e7eb;
+    font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    max-height: 250px;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+/* ============================================================
+   User Management
+   ============================================================ */
+
+.user-mgmt {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+
+.user-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Toast notifications */
+
+.user-toast {
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.3s ease;
+}
+
+.user-toast.success {
+    background: #d4ffd9;
+    border: 1px solid #22c55e;
+    color: #14532d;
+}
+
+.user-toast.error {
+    background: #fee2e2;
+    border: 1px solid #ef4444;
+    color: #7f1d1d;
+}
+
+.user-toast.info {
+    background: #dbeafe;
+    border: 1px solid #3b82f6;
+    color: #1e3a8a;
+}
+
+.user-toast.hidden {
+    display: none;
+}
+
+/* Loading spinner */
+
+.user-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: 12px;
+    color: var(--vb-muted);
+}
+
+.user-loading.hidden {
+    display: none;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid #9ca3af;
+    border-top: 3px solid var(--vb-blue);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* User table */
+
+#user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+#user-table thead {
+    background: rgba(15, 23, 42, 0.08);
+}
+
+body.theme-dark #user-table thead {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+}
+
+#user-table th,
+#user-table td {
+    padding: 6px 8px;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+#user-table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s ease, opacity 0.25s ease-in-out;
+}
+
+#user-table tbody tr:hover {
+    background: rgba(15, 23, 42, 0.06);
+}
+
+body.theme-dark #user-table tbody tr:hover {
+    background: rgba(148, 163, 184, 0.15);
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.vb-footer {
+    border-top: 1px solid rgba(15, 23, 42, 0.2);
+    padding: 10px 18px;
+    background: rgba(15, 23, 42, 0.96);
+    color: #9ca3af;
+}
+
+.vb-footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo {
+    height: 22px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 800px) {
+    .mfa-layout,
+    .user-mgmt {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .vb-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
+/* ============================================================
+   CIDR Tester Panel
+   ============================================================ */
+
+.cidr-tester {
+    display: grid;
+    gap: 12px;
+    max-width: 520px;
+}
+
+.cidr-tester textarea,
+.cidr-tester input[type="text"] {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+body.theme-dark .cidr-tester textarea,
+body.theme-dark .cidr-tester input[type="text"] {
+    background: #020617;
+}
+
+.cidr-test-result {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.cidr-test-result.success {
+    background: #d4ffd9;
+    border-color: #22c55e;
+    color: #14532d;
+}
+
+.cidr-test-result.error {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #7f1d1d;
+}
+
+.cidr-test-result.info {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e3a8a;
+}
+/* ============================================================
+   CIDR Tester Styles
+   ============================================================ */
+
+.cidr-tester-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cidr-result-box {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+body.theme-dark .cidr-result-box {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(148, 163, 184, 0.5);
+}
+
+.cidr-pass {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.cidr-fail {
+    color: #e11d48;
+    font-weight: 600;
+}
+
+.cidr-warning {
+    color: #d97706;
+    font-weight: 600;
+}
+.cidr-result-box {
+    margin-top: 14px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: all 0.35s ease;
+    min-height: 20px;
+}
+
+.cidr-result-box.cidr-visible {
+    opacity: 1;
+    transform: translateY(0px);
+}
+@keyframes fadeIn {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+/* ============================================================
+   IP MANAGER UI (Option A)
+   ============================================================ */
+
+.ip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ip-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #cbd5e1;
+    font-size: 14px;
+    transition: all 0.25s ease;
+}
+
+body.theme-dark .ip-item {
+    background: rgba(15,23,42,0.6);
+    border-color: #475569;
+}
+
+.ip-item-icon {
+    font-weight: 700;
+    margin-right: 8px;
+}
+
+.ip-remove-btn {
+    background: #ef4444;
+    border: none;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: 0.2s;
+}
+
+.ip-remove-btn:hover {
+    background: #dc2626;
+}
+
+.ip-add-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.ip-item.fade-out {
+    opacity: 0;
+    transform: translateX(-10px);
+}
+
+.ip-item.fade-in {
+    opacity: 0;
+    transform: translateX(10px);
+    animation: fadeInRow 0.35s forwards;
+}
+
+@keyframes fadeInRow {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+.status-box {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.status-box.success { color: #16a34a; }
+.status-box.error { color: #dc2626; }
+.status-box.info { color: #2563eb; }
+.status-box.warning { color: #d97706; }
+#audit-log {
+    color: #fff;
+    background: #0a0f18;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}

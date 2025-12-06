@@ -8,13 +8,9 @@
 
 <body class="theme-light">
 
-<!-- ====================================== -->
-<!-- HEADER                                 -->
-<!-- ====================================== -->
 <header class="vb-header">
     <div class="vb-header-inner">
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
-
         <div class="vb-title-block">
             <div class="vb-app-name">Security Admin Console</div>
             <div class="vb-app-subtitle">VisionBank®</div>
@@ -22,7 +18,7 @@
     </div>
 
     <div class="vb-header-actions">
-        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+        <button id="themeToggle" class="theme-toggle">
             <span id="themeToggleIcon">🌙</span>
             <span id="themeToggleText">Dark mode</span>
         </button>
@@ -31,214 +27,143 @@
 
 <main class="vb-main">
 
-    <!-- ====================================== -->
-    <!-- LOGIN VIEW                             -->
-    <!-- ====================================== -->
-    <section id="login-view" class="card">
-        <h2>Secure Administrator Login</h2>
+<!-- LOGIN VIEW -->
+<section id="login-view" class="card">
+    <h2>Secure Administrator Login</h2>
+    <p class="card-subtitle">
+        Sign in with your Username, Password, and Microsoft Authenticator.
+    </p>
+
+    <form id="login-form" class="form-grid">
+        <label>Username <input id="login-username"></label>
+        <label>Password <input id="login-pin" type="password"></label>
+
+        <label id="login-totp-wrapper" class="hidden">
+            Microsoft Authenticator Code
+            <input id="login-totp">
+        </label>
+
+        <button class="btn-primary">Login</button>
+    </form>
+
+    <div id="login-message" class="message"></div>
+</section>
+
+<!-- MFA VIEW -->
+<section id="mfa-setup-view" class="card hidden">
+    <h2>Microsoft Authenticator Setup</h2>
+    <div class="mfa-layout">
+        <img id="mfa-qr-img">
+        <input id="mfa-account" readonly>
+        <input id="mfa-secret" readonly>
+        <input id="mfa-code">
+        <button id="mfa-confirm-btn" class="btn-primary">Confirm</button>
+        <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
+        <div id="mfa-message"></div>
+    </div>
+</section>
+
+<!-- ADMIN VIEW -->
+<section id="admin-view" class="card hidden">
+
+<div class="admin-header">
+    <div>
+        <h2>VisionBank® Security Administration</h2>
         <p class="card-subtitle">
-            Sign in with your Username, Password, and (when required) a Microsoft Authenticator code.
+            Access Control • User Management • Logs • Business Rules
         </p>
+    </div>
 
-        <form id="login-form" class="form-grid">
-            <label>
-                Username
-                <input type="text" id="login-username" autocomplete="username">
-            </label>
+    <div class="admin-controls">
+        <button id="expand-all-btn" class="btn-secondary small">Expand All</button>
+        <button id="collapse-all-btn" class="btn-secondary small">Collapse All</button>
+        <button id="logout-btn" class="btn-secondary small">Logout</button>
+    </div>
+</div>
 
-            <label>
-                Password
-                <input type="password" id="login-pin" autocomplete="current-password">
-            </label>
-
-            <label id="login-totp-wrapper" class="hidden">
-                Microsoft Authenticator Code
-                <input type="text" id="login-totp" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-            </label>
-
-            <button type="submit" class="btn-primary">Login</button>
+<!-- BUSINESS HOURS -->
+<section id="admin-hours-section" class="admin-section">
+    <div class="collapsible-header">
+        <h3>Business Hours</h3>
+        <button class="collapse-toggle"><span>▾</span> Collapse</button>
+    </div>
+    <div class="collapsible-content">
+        <form id="hours-form" class="form-grid hours-grid">
+            <input id="hours-start" type="time">
+            <input id="hours-end" type="time">
+            <button class="btn-primary">Save Business Hours</button>
         </form>
+    </div>
+</section>
 
-        <div class="login-helper">
-            <strong>If you do not have a login credential, contact IT</strong>
-        </div>
+<!-- IP ALLOWLIST -->
+<section id="ip-manager" class="admin-section">
+    <div class="collapsible-header">
+        <h3>Allowed IPs / Subnets</h3>
+        <button class="collapse-toggle"><span>▾</span> Collapse</button>
+    </div>
 
-        <button id="override-toggle" class="link-button">VisionBank® disabled</button>
+    <div class="collapsible-content">
+        <div id="ip-list"></div>
+        <input id="ip-add-input">
+        <button id="ip-add-btn" class="btn-primary">Add Rule</button>
+        <button id="ip-save-btn" class="btn-secondary">Save IP Rules</button>
+    </div>
+</section>
 
-        <form id="override-form" class="form-inline hidden">
-            <input type="password" id="override-input" placeholder="Override key">
-            <button type="submit" class="btn-secondary">
-                Enter Override – Contact Ahmed to Setup
-            </button>
-        </form>
+<!-- ✅ CIDR / IP TESTER (RESTORED) -->
+<section id="cidr-ip-tester" class="admin-section collapsed">
+    <div class="collapsible-header">
+        <h3>CIDR / IP Tester</h3>
+        <button class="collapse-toggle">
+            <span>▸</span> Expand
+        </button>
+    </div>
 
-        <div id="login-message" class="message"></div>
-    </section>
+    <div class="collapsible-content">
+        <input id="ip-test-input" placeholder="IPv4 or IPv6">
+        <textarea id="ip-rules-textarea"></textarea>
+        <button id="run-ip-test-btn" class="btn-primary">Run CIDR Test</button>
+        <div id="ip-test-result"></div>
+    </div>
+</section>
 
-    <!-- ====================================== -->
-    <!-- MFA SETUP VIEW                         -->
-    <!-- ====================================== -->
-    <section id="mfa-setup-view" class="card hidden">
-        <h2>Microsoft Authenticator Setup</h2>
-        <p class="card-subtitle">
-            Scan this QR code or use the text key below in Microsoft Authenticator.
-            Then enter a 6-digit code from the app to confirm.
-        </p>
+<!-- ✅ CIDR RANGE TESTER (RESTORED) -->
+<section id="cidr-range-tester" class="admin-section collapsed">
+    <div class="collapsible-header">
+        <h3>CIDR Tester</h3>
+        <button class="collapse-toggle">
+            <span>▸</span> Expand
+        </button>
+    </div>
 
-        <div class="mfa-layout">
-            <div class="mfa-qr-wrapper">
-                <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
-                <p class="mfa-qr-caption">Scan in Microsoft Authenticator</p>
-            </div>
+    <div class="collapsible-content">
+        <input id="cidr-input-a">
+        <input id="cidr-input-b">
+        <button id="cidr-test-btn" class="btn-primary">Run CIDR Test</button>
+        <div id="cidr-test-result"></div>
+    </div>
+</section>
 
-            <div class="mfa-details">
-                <label>
-                    Account
-                    <input type="text" id="mfa-account" readonly>
-                </label>
+<!-- USER MANAGEMENT INSERTED BY JS -->
 
-                <label>
-                    Secret Key
-                    <input type="text" id="mfa-secret" readonly>
-                </label>
+<!-- AUDIT LOG -->
+<section id="admin-audit-section" class="admin-section collapsed">
+    <div class="collapsible-header">
+        <h3>Security Audit Log</h3>
+        <button class="collapse-toggle"><span>▸</span> Expand</button>
+    </div>
 
-                <label>
-                    Enter 6-digit code from app
-                    <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
-                </label>
+    <div class="collapsible-content">
+        <pre id="audit-log"></pre>
+    </div>
+</section>
 
-                <button id="mfa-confirm-btn" class="btn-primary">
-                    Confirm &amp; Enable MFA
-                </button>
-
-                <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
-                <div id="mfa-message" class="message"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ====================================== -->
-    <!-- ADMIN VIEW                             -->
-    <!-- ====================================== -->
-    <section id="admin-view" class="card hidden">
-
-        <div class="admin-header">
-            <div>
-                <h2>VisionBank® Security Administration</h2>
-                <p class="card-subtitle">
-                    Access Control • User Management • Logs • Business Rules
-                </p>
-            </div>
-
-            <div class="admin-controls" style="display:flex; gap:8px;">
-                <button id="expand-all-btn" class="btn-secondary small">Expand All</button>
-                <button id="collapse-all-btn" class="btn-secondary small">Collapse All</button>
-                <button id="logout-btn" class="btn-secondary small">Logout</button>
-            </div>
-        </div>
-
-        <!-- BUSINESS HOURS -->
-        <section id="admin-hours-section" class="admin-section">
-            <div class="collapsible-header">
-                <h3>Business Hours</h3>
-                <button class="collapse-toggle" aria-expanded="true">
-                    <span>▾</span> Collapse
-                </button>
-            </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    These hours are enforced on the main dashboard.
-                    Times are CST/CDT automatically adjusted.
-                </p>
-
-                <form id="hours-form" class="form-grid hours-grid">
-                    <label>Start (HH:MM, CST)
-                        <input type="time" id="hours-start">
-                    </label>
-
-                    <label>End (HH:MM, CST)
-                        <input type="time" id="hours-end">
-                    </label>
-
-                    <fieldset class="days-fieldset">
-                        <legend>Active Days (CST)</legend>
-                        <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                        <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                        <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                        <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                        <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                        <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                        <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                    </fieldset>
-
-                    <button type="submit" class="btn-primary">
-                        Save Business Hours
-                    </button>
-                </form>
-            </div>
-        </section>
-
-        <!-- ALLOWED IPs -->
-        <section id="ip-manager" class="admin-section">
-            <div class="collapsible-header">
-                <h3>Allowed IPs / Subnets</h3>
-                <button class="collapse-toggle" aria-expanded="true">
-                    <span>▾</span> Collapse
-                </button>
-            </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Only listed IPs/Subnets may access the dashboard.
-                </p>
-
-                <div id="ip-list" class="ip-list"></div>
-                <div id="ip-status" class="status-box"></div>
-
-                <div class="ip-add-row">
-                    <input id="ip-add-input" type="text" class="input"
-                           placeholder="Enter IPv4, IPv6, or CIDR">
-                    <button id="ip-add-btn" class="btn-primary">Add Rule</button>
-                </div>
-
-                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">
-                    Save IP Rules
-                </button>
-            </div>
-        </section>
-
-        <!-- USER MANAGEMENT (JS BUILDS CONTENT HERE) -->
-        <!-- This container enables modern directory-style UI -->
-        <!-- JS inserts #user-management BEFORE audit log -->
-        
-        <!-- AUDIT LOG -->
-        <section id="admin-audit-section" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>Security Audit Log</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
-            </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Recent security events.
-                </p>
-                <pre id="audit-log" class="audit-log"></pre>
-            </div>
-        </section>
-
-    </section>
+</section>
 </main>
 
-<!-- ====================================== -->
-<!-- FOOTER                                 -->
-<!-- ====================================== -->
 <footer class="vb-footer">
-    <div class="vb-footer-inner">
-        <img src="assets/US-Signal-Logo.png" class="footer-logo" alt="US Signal">
-        <span>
-            Created and maintained by <strong>Ahmed Adeyemi</strong>, ©2025. US Signal
-        </span>
-    </div>
+    <span>Created by <strong>Ahmed Adeyemi</strong>, ©2025 US Signal</span>
 </footer>
 
 <script src="security.js"></script>

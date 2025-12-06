@@ -1101,7 +1101,7 @@ logoutBtn.addEventListener("click", () => {
     loginMsg.textContent = "";
 });
 /* =============================================================
-   COLLAPSIBLE ADMIN SECTIONS (UI-ONLY, NON-DESTRUCTIVE)
+   COLLAPSIBLE ADMIN SECTIONS — FIXED & ROBUST
    ============================================================= */
 
 document.addEventListener("click", (e) => {
@@ -1113,11 +1113,12 @@ document.addEventListener("click", (e) => {
 
     const isCollapsed = section.classList.toggle("collapsed");
 
-    // Accessibility
     toggle.setAttribute("aria-expanded", String(!isCollapsed));
 
-    // Update label text
-    if (toggle.lastChild) {
-        toggle.lastChild.textContent = isCollapsed ? " Expand" : " Collapse";
+    const label = toggle.querySelector("span");
+    if (label) {
+        label.textContent = isCollapsed ? "▸" : "▾";
     }
+
+    toggle.lastChild.textContent = isCollapsed ? " Expand" : " Collapse";
 });

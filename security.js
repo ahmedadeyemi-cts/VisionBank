@@ -48,7 +48,7 @@ loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const username = document.getElementById("login-username").value.trim();
-    const pin      = document.getElementById("login-pin").value.trim();
+    const password      = document.getElementById("login-password").value.trim();
     const totp     = document.getElementById("login-totp").value.trim();
 
     loginMessage.textContent = "";
@@ -57,7 +57,7 @@ loginForm.addEventListener("submit", async (e) => {
         const res = await fetch(`${WORKER_BASE}/api/login`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ username, pin, totp })
+            body: JSON.stringify({ username, password, totp })
         });
 
         const data = await res.json();
@@ -170,7 +170,7 @@ function initUserManagement() {
     wrapper.innerHTML = `
         <h3>User Management</h3>
         <div id="user-toast" class="user-toast hidden"></div>
-        <div class="user-loading hidden"><div class="spinner"></div>Loading…</div>
+        <div class="user-loading hidden"><div class="spasswordner"></div>Loading…</div>
 
         <div class="user-mgmt">
             <div>
@@ -456,7 +456,7 @@ function ipToBigInt(ip) {
     return full.reduce((acc,x)=>(acc<<16n)+x, 0n);
 }
 
-function isIpInCidr(ip, cidr) {
+function isIpasswordCidr(ip, cidr) {
     try {
         const [range, bits] = cidr.split("/");
         const prefix = BigInt(bits);
@@ -488,7 +488,7 @@ testerBtn.addEventListener("click", () => {
 
     for (const rule of rules) {
         if (rule.includes("/")) {
-            if (isIpInCidr(ip, rule)) {
+            if (isIpasswordCidr(ip, rule)) {
                 testerResult.textContent = `✓ Allowed (matched ${rule})`;
                 testerResult.className = "cidr-result-box cidr-visible cidr-pass";
                 return;

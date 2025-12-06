@@ -60,14 +60,16 @@
         </form>
 
         <div class="login-helper">
-            <strong>If you do not have a login credential, contact IT</strong><be>
+            <strong>If you do not have a login credential, contact IT</strong>
         </div>
 
         <button id="override-toggle" class="link-button">VisionBank® disabled</button>
 
         <form id="override-form" class="form-inline hidden">
             <input type="password" id="override-input" placeholder="Override key">
-            <button type="submit" class="btn-secondary">Enter Override - Contact Ahmed to Setup</button>
+            <button type="submit" class="btn-secondary">
+                Enter Override – Contact Ahmed to Setup
+            </button>
         </form>
 
         <div id="login-message" class="message"></div>
@@ -79,7 +81,7 @@
     <section id="mfa-setup-view" class="card hidden">
         <h2>Microsoft Authenticator Setup</h2>
         <p class="card-subtitle">
-            Scan this QR code or use the text key below in Microsoft Authenticator. 
+            Scan this QR code or use the text key below in Microsoft Authenticator.
             Then enter a 6-digit code from the app to confirm.
         </p>
 
@@ -90,15 +92,18 @@
             </div>
 
             <div class="mfa-details">
-                <label>Account
+                <label>
+                    Account
                     <input type="text" id="mfa-account" readonly>
                 </label>
 
-                <label>Secret Key
+                <label>
+                    Secret Key
                     <input type="text" id="mfa-secret" readonly>
                 </label>
 
-                <label>Enter 6-digit code from app
+                <label>
+                    Enter 6-digit code from app
                     <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
                 </label>
 
@@ -125,7 +130,6 @@
                 </p>
             </div>
 
-            <!-- ✅ ADDED CONTROLS HERE -->
             <div class="admin-controls" style="display:flex; gap:8px;">
                 <button id="expand-all-btn" class="btn-secondary small">Expand All</button>
                 <button id="collapse-all-btn" class="btn-secondary small">Collapse All</button>
@@ -141,11 +145,10 @@
                     <span>▾</span> Collapse
                 </button>
             </div>
-
             <div class="collapsible-content">
                 <p class="section-help">
-                    These hours are enforced on the main dashboard. Outside these times, access is denied
-                    unless an override is used. All times are CST/CDT automatically adjusted.
+                    These hours are enforced on the main dashboard.
+                    Times are CST/CDT automatically adjusted.
                 </p>
 
                 <form id="hours-form" class="form-grid hours-grid">
@@ -168,7 +171,9 @@
                         <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
                     </fieldset>
 
-                    <button type="submit" class="btn-primary">Save Business Hours</button>
+                    <button type="submit" class="btn-primary">
+                        Save Business Hours
+                    </button>
                 </form>
             </div>
         </section>
@@ -181,87 +186,30 @@
                     <span>▾</span> Collapse
                 </button>
             </div>
-
             <div class="collapsible-content">
                 <p class="section-help">
-                    Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
-                    Click remove to delete a rule.
+                    Only listed IPs/Subnets may access the dashboard.
                 </p>
 
                 <div id="ip-list" class="ip-list"></div>
                 <div id="ip-status" class="status-box"></div>
 
                 <div class="ip-add-row">
-                    <input id="ip-add-input" type="text" class="input" placeholder="Enter IPv4, IPv6, or CIDR">
+                    <input id="ip-add-input" type="text" class="input"
+                           placeholder="Enter IPv4, IPv6, or CIDR">
                     <button id="ip-add-btn" class="btn-primary">Add Rule</button>
                 </div>
 
-                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">Save IP Rules</button>
+                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">
+                    Save IP Rules
+                </button>
             </div>
         </section>
 
-        <!-- CIDR / IP TESTER -->
-        <section id="cidr-ip-tester" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>CIDR / IP Tester</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
-            </div>
-
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Test whether an IPv4 or IPv6 address matches any allowlist rule.
-                </p>
-
-                <label>IP Address to Test</label>
-                <input id="ip-test-input" type="text" class="input">
-
-                <label>Rules (auto-loaded)</label>
-                <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
-
-                <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
-                    Run CIDR Test
-                </button>
-
-                <div id="ip-test-result" class="cidr-result-box"></div>
-            </div>
-        </section>
-
-        <!-- CIDR RANGE TESTER -->
-        <section id="cidr-range-tester" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>CIDR Tester</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
-            </div>
-
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.
-                </p>
-
-                <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-                    <label>Test IP or CIDR A
-                        <input id="cidr-input-a" type="text">
-                    </label>
-
-                    <label>Against CIDR B
-                        <input id="cidr-input-b" type="text">
-                    </label>
-                </div>
-
-                <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
-                    Run CIDR Test
-                </button>
-
-                <div id="cidr-test-result" class="cidr-result-box"></div>
-            </div>
-        </section>
-
-        <!-- USER MANAGEMENT INSERTED BY JS -->
-
+        <!-- USER MANAGEMENT (JS BUILDS CONTENT HERE) -->
+        <!-- This container enables modern directory-style UI -->
+        <!-- JS inserts #user-management BEFORE audit log -->
+        
         <!-- AUDIT LOG -->
         <section id="admin-audit-section" class="admin-section collapsed">
             <div class="collapsible-header">
@@ -270,10 +218,9 @@
                     <span>▸</span> Expand
                 </button>
             </div>
-
             <div class="collapsible-content">
                 <p class="section-help">
-                    Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
+                    Recent security events.
                 </p>
                 <pre id="audit-log" class="audit-log"></pre>
             </div>

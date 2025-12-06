@@ -7,170 +7,176 @@
 </head>
 
 <body class="theme-light">
-
-<!-- ============================================================
-     SIDEBAR NAVIGATION
-============================================================ -->
-<aside id="sidebar">
-    <div class="nav-header">
-        <h2>Security Console</h2>
-    </div>
-
-    <nav class="nav-menu">
-        <button class="nav-item active" data-target="login-view">🔐 Login</button>
-        <button class="nav-item" data-target="admin-view">🛡️ Admin</button>
-        <button class="nav-item" data-target="audit-section-scroll">📜 Audit Logs</button>
-        <button class="nav-item" data-target="ip-section-scroll">🌐 Allowlist</button>
-        <button class="nav-item" data-target="hours-section-scroll">⏱ Business Hours</button>
-    </nav>
-
-    <div class="sidebar-footer">
-        <button id="themeToggle" class="theme-toggle">
-            <span id="themeToggleIcon">🌙</span>
-            <span id="themeToggleText">Dark mode</span>
-        </button>
-    </div>
-</aside>
-
-<!-- ============================================================
-     MAIN CONTENT AREA
-============================================================ -->
-<main id="main">
-
-<!-- LOGIN VIEW -->
-<div id="login-view" class="panel active">
-    <h2 class="panel-title">Administrator Login</h2>
-
-    <form id="login-form" class="form">
-        <label>Username
-            <input type="text" id="login-username" required />
-        </label>
-
-        <label>Password / PIN
-            <input type="password" id="login-pin" required />
-        </label>
-
-        <div id="login-totp-wrapper" class="hidden">
-            <label>Microsoft Authenticator Code
-                <input type="text" id="login-totp" maxlength="6" />
-            </label>
+    <!-- TOP NAVIGATION BAR -->
+    <header class="top-nav">
+        <div class="nav-left">
+            <img src="assets/VisionBank-Logo.png" class="nav-logo" alt="Logo">
+            <span class="nav-title">Security Admin Console</span>
         </div>
 
-        <button type="submit" class="btn-primary">Login</button>
-        <div id="login-message" class="form-message"></div>
-    </form>
+        <div class="nav-right">
+            <button id="themeToggle" class="theme-btn">
+                <span id="themeToggleIcon">🌙</span>
+                <span id="themeToggleText">Dark mode</span>
+            </button>
 
-    <button id="override-toggle" class="link-btn small">Use Override Key</button>
-
-    <form id="override-form" class="form hidden">
-        <label>Override Key
-            <input type="password" id="override-input" />
-        </label>
-        <button type="submit" class="btn-secondary">Submit</button>
-    </form>
-</div>
-
-<!-- MFA SETUP VIEW -->
-<div id="mfa-setup-view" class="panel hidden">
-    <h2 class="panel-title">MFA Enrollment</h2>
-
-    <div class="mfa-box">
-        <img id="mfa-qr-img" class="mfa-qr" />
-        <div class="mfa-info">
-            <label>Account
-                <input id="mfa-account" readonly />
-            </label>
-
-            <label>Secret
-                <input id="mfa-secret" readonly />
-            </label>
-
-            <label>6-Digit Code
-                <input id="mfa-code" maxlength="6" />
-            </label>
-
-            <button id="mfa-confirm-btn" class="btn-primary">Confirm MFA</button>
-            <button id="mfa-cancel-btn" class="btn-secondary">Cancel</button>
-            <div id="mfa-message" class="form-message"></div>
+            <button id="logout-btn" class="logout-btn">Logout</button>
         </div>
-    </div>
-</div>
+    </header>
 
-<!-- ADMIN VIEW -->
-<div id="admin-view" class="panel hidden">
-    <div class="admin-header">
-        <h2 class="panel-title">Admin Dashboard</h2>
-        <button id="logout-btn" class="btn-secondary small">Logout</button>
-    </div>
+    <!-- MAIN WRAPPER -->
+    <div class="main-container">
 
-    <div id="admin-status"></div>
+        <!-- LOGIN VIEW -->
+        <section id="login-view" class="view active-view">
+            <div class="card login-card">
+                <h2>Administrator Login</h2>
 
-    <!-- BUSINESS HOURS -->
-    <section id="hours-section-scroll" class="card">
-        <h3>Business Hours</h3>
+                <form id="login-form">
+                    <label>Username</label>
+                    <input id="login-username" type="text" autocomplete="off">
 
-        <form id="hours-form" class="form-inline">
-            <label>Start
-                <input type="time" id="hours-start" />
-            </label>
+                    <label>Password / PIN</label>
+                    <input id="login-pin" type="password">
 
-            <label>End
-                <input type="time" id="hours-end" />
-            </label>
+                    <div id="login-totp-wrapper" class="hidden">
+                        <label>Microsoft Authenticator Code</label>
+                        <input id="login-totp" type="text" maxlength="6">
+                    </div>
 
-            <div class="day-grid">
-                <label><input type="checkbox" value="1" class="hours-day" /> Mon</label>
-                <label><input type="checkbox" value="2" class="hours-day" /> Tue</label>
-                <label><input type="checkbox" value="3" class="hours-day" /> Wed</label>
-                <label><input type="checkbox" value="4" class="hours-day" /> Thu</label>
-                <label><input type="checkbox" value="5" class="hours-day" /> Fri</label>
-                <label><input type="checkbox" value="6" class="hours-day" /> Sat</label>
-                <label><input type="checkbox" value="0" class="hours-day" /> Sun</label>
+                    <button class="primary-btn" type="submit">Login</button>
+                </form>
+
+                <p id="login-message" class="error-text"></p>
+            </div>
+        </section>
+
+        <!-- MFA SETUP -->
+        <section id="mfa-setup-view" class="view hidden">
+            <div class="card mfa-card">
+                <h2>MFA Enrollment</h2>
+                <p>Scan the QR with Microsoft Authenticator.</p>
+
+                <img id="mfa-qr-img" class="mfa-qr">
+
+                <label>Account</label>
+                <input id="mfa-account" readonly>
+
+                <label>Secret</label>
+                <input id="mfa-secret" readonly>
+
+                <label>Enter 6-digit code</label>
+                <input id="mfa-code">
+
+                <button id="mfa-confirm-btn" class="primary-btn">Confirm</button>
+                <button id="mfa-cancel-btn" class="secondary-btn">Cancel</button>
+
+                <p id="mfa-message" class="error-text"></p>
+            </div>
+        </section>
+
+        <!-- ADMIN VIEW -->
+        <section id="admin-view" class="view hidden">
+
+            <!-- TAB BAR -->
+            <div class="tab-bar">
+                <button class="tab-btn active-tab" data-tab="tab-hours">Business Hours</button>
+                <button class="tab-btn" data-tab="tab-ip">IP Allowlist</button>
+                <button class="tab-btn" data-tab="tab-users">User Management</button>
+                <button class="tab-btn" data-tab="tab-logs">Audit Logs</button>
             </div>
 
-            <button type="submit" class="btn-primary">Save Hours</button>
-        </form>
-    </section>
+            <!-- TAB CONTENT AREA -->
+            <div class="tab-content">
 
-    <!-- IP ALLOWLIST -->
-    <section id="ip-section-scroll" class="card">
-        <h3>IP Allowlist</h3>
+                <!-- BUSINESS HOURS TAB -->
+                <div id="tab-hours" class="tab-section active-section">
+                    <div class="card">
+                        <h2>Business Hours Policy</h2>
 
-        <div class="ip-add-row">
-            <input id="ip-add-input" placeholder="IPv4 / IPv6 / CIDR" />
-            <button id="ip-add-btn" class="btn-primary">Add</button>
-        </div>
+                        <form id="hours-form">
 
-        <div id="ip-list" class="ip-list"></div>
+                            <div class="grid-2">
+                                <div>
+                                    <label>Start Time</label>
+                                    <input id="hours-start" type="time">
+                                </div>
 
-        <button id="ip-save-btn" class="btn-secondary small">Save Rules</button>
-    </section>
+                                <div>
+                                    <label>End Time</label>
+                                    <input id="hours-end" type="time">
+                                </div>
+                            </div>
 
-    <!-- AUDIT LOG -->
-    <section id="audit-section-scroll" class="card">
-        <h3>Security Audit Logs</h3>
-        <pre id="audit-log" class="log-box"></pre>
-    </section>
-</div>
+                            <label>Active Days:</label>
+                            <div class="days-grid">
+                                <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
+                                <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
+                                <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
+                                <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
+                                <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
+                                <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
+                                <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
+                            </div>
 
-</main>
+                            <button type="submit" class="primary-btn">Save Hours</button>
+                        </form>
 
-<script src="security.js"></script>
-<script>
-document.querySelectorAll(".nav-item").forEach(btn => {
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
+                        <div id="admin-status" class="status-banner"></div>
+                    </div>
+                </div>
 
-        const target = btn.dataset.target;
-        const el = document.getElementById(target);
+                <!-- IP RULES TAB -->
+                <div id="tab-ip" class="tab-section">
+                    <div class="card">
+                        <h2>Allowed IP Addresses</h2>
 
-        if (el) {
-            el.scrollIntoView({ behavior: "smooth" });
-        }
-    });
-});
-</script>
+                        <div class="ip-add-row">
+                            <input id="ip-add-input" placeholder="Enter IPv4 / IPv6 / CIDR">
+                            <button id="ip-add-btn" class="primary-btn">Add</button>
+                        </div>
 
+                        <div id="ip-list" class="ip-list"></div>
+
+                        <textarea id="ip-rules-textarea" class="ip-textarea test-box"></textarea>
+
+                        <button id="ip-save-btn" class="secondary-btn">Save Rules</button>
+                    </div>
+                </div>
+
+                <!-- USERS TAB -->
+                <div id="tab-users" class="tab-section">
+                    <div class="card">
+                        <h2>User Management</h2>
+                        <div id="user-management-anchor"></div>
+                    </div>
+                </div>
+
+                <!-- LOGS TAB -->
+                <div id="tab-logs" class="tab-section">
+                    <div class="card">
+                        <h2>Audit Log</h2>
+                        <pre id="audit-log" class="log-box"></pre>
+                    </div>
+                </div>
+
+            </div> <!-- END TAB CONTENT -->
+        </section>
+    </div>
+
+    <script src="security.js"></script>
+    <script>
+        /* TAB SWITCHING */
+        document.querySelectorAll(".tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".tab-btn").forEach(x => x.classList.remove("active-tab"));
+                document.querySelectorAll(".tab-section").forEach(x => x.classList.remove("active-section"));
+
+                btn.classList.add("active-tab");
+                const tab = btn.dataset.tab;
+                document.getElementById(tab).classList.add("active-section");
+            });
+        });
+    </script>
 </body>
 </html>

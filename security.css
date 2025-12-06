@@ -955,3 +955,38 @@ body.theme-dark .ip-item {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+/* ============================================================
+   COLLAPSIBLE SECTION VISIBILITY FIX
+   ============================================================ */
+
+.admin-section .collapsible-content {
+    display: block;
+}
+
+.admin-section.collapsed .collapsible-content {
+    display: none;
+}
+
+/* 🔹 Make collapsed sections still "visible" */
+.admin-section.collapsed {
+    opacity: 0.92;
+}
+
+/* 🔹 Header always clickable */
+.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 🔹 Subtle divider so users know there's more */
+.admin-section {
+    margin-bottom: 14px;
+}
+.admin-section.collapsed::after {
+    content: "Section collapsed";
+    display: block;
+    font-size: 12px;
+    padding: 6px 0 0;
+    color: #9ca3af;
+    font-style: italic;
+}

@@ -1014,6 +1014,26 @@ body.theme-dark .ip-item {
 #cidr-range-tester {
     outline: 2px dashed red;
 }
+/* ============================================================
+   SAFE FIX — REMOVE BROWSER INVALID OUTLINES (CIDR TESTERS)
+   ============================================================ */
+
+#cidr-ip-tester input,
+#cidr-ip-tester textarea,
+#cidr-range-tester input,
+#cidr-range-tester textarea {
+    outline: none;
+    box-shadow: none;
+}
+
+#cidr-ip-tester input:invalid,
+#cidr-ip-tester textarea:invalid,
+#cidr-range-tester input:invalid,
+#cidr-range-tester textarea:invalid {
+    outline: none;
+    box-shadow: none;
+    border-color: var(--vb-border);
+}
 /* ===============================
    DARK MODE – CIDR TESTERS
    =============================== */

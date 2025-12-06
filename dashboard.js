@@ -817,6 +817,41 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initDarkMode();
   initAlertSettingsUI();
+  // ===============================
+// New Add
+// ===============================
+if (testBtn) {
+  testBtn.addEventListener("click", () => {
+    triggerQueueAlert({
+      totalCalls: lastQueueSnapshot.totalCalls || 3,
+      totalAgents: lastQueueSnapshot.totalAgents || 0,
+      queueNames: ["Test Queue"],
+      isTest: true
+    });
+  });
+}
+  // ===============================
+  // CLEAR ALERT HISTORY BUTTON
+  // ===============================
+  const clearHistoryBtn = document.getElementById("clearAlertHistory");
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener("click", () => {
+      // Clear in-memory history
+      alertHistory.length = 0;
+
+      // Clear persisted history
+      localStorage.removeItem(ALERT_HISTORY_KEY);
+
+      // Re-render UI
+      renderAlertHistory();
+    });
+  }
+
+
+
+  // ===============================
+// End of New Add
+// ===============================
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

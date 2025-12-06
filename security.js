@@ -1100,3 +1100,24 @@ logoutBtn.addEventListener("click", () => {
     loginView.classList.remove("hidden");
     loginMsg.textContent = "";
 });
+/* =============================================================
+   COLLAPSIBLE ADMIN SECTIONS (UI-ONLY, NON-DESTRUCTIVE)
+   ============================================================= */
+
+document.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".collapse-toggle");
+    if (!toggle) return;
+
+    const section = toggle.closest(".admin-section");
+    if (!section) return;
+
+    const isCollapsed = section.classList.toggle("collapsed");
+
+    // Accessibility
+    toggle.setAttribute("aria-expanded", String(!isCollapsed));
+
+    // Update label text
+    if (toggle.lastChild) {
+        toggle.lastChild.textContent = isCollapsed ? " Expand" : " Collapse";
+    }
+});

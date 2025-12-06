@@ -9,25 +9,36 @@
 <body class="theme-light">
 
 <!-- ============================================================
-     HEADER
+     SIDEBAR NAVIGATION
 ============================================================ -->
-<header class="top-header">
-    <div class="header-title">
-        <h1>Security Admin Console</h1>
-        <p class="subtitle">VisionBank • Access • MFA • Allowlist</p>
+<aside id="sidebar">
+    <div class="nav-header">
+        <h2>Security Console</h2>
     </div>
 
-    <button id="themeToggle" class="theme-toggle">
-        <span id="themeToggleIcon">🌙</span>
-        <span id="themeToggleText">Dark mode</span>
-    </button>
-</header>
+    <nav class="nav-menu">
+        <button class="nav-item active" data-target="login-view">🔐 Login</button>
+        <button class="nav-item" data-target="admin-view">🛡️ Admin</button>
+        <button class="nav-item" data-target="audit-section-scroll">📜 Audit Logs</button>
+        <button class="nav-item" data-target="ip-section-scroll">🌐 Allowlist</button>
+        <button class="nav-item" data-target="hours-section-scroll">⏱ Business Hours</button>
+    </nav>
+
+    <div class="sidebar-footer">
+        <button id="themeToggle" class="theme-toggle">
+            <span id="themeToggleIcon">🌙</span>
+            <span id="themeToggleText">Dark mode</span>
+        </button>
+    </div>
+</aside>
 
 <!-- ============================================================
-     LOGIN VIEW
+     MAIN CONTENT AREA
 ============================================================ -->
-<div id="login-view" class="panel active">
+<main id="main">
 
+<!-- LOGIN VIEW -->
+<div id="login-view" class="panel active">
     <h2 class="panel-title">Administrator Login</h2>
 
     <form id="login-form" class="form">
@@ -57,14 +68,10 @@
         </label>
         <button type="submit" class="btn-secondary">Submit</button>
     </form>
-
 </div>
 
-<!-- ============================================================
-     MFA SETUP VIEW
-============================================================ -->
+<!-- MFA SETUP VIEW -->
 <div id="mfa-setup-view" class="panel hidden">
-
     <h2 class="panel-title">MFA Enrollment</h2>
 
     <div class="mfa-box">
@@ -84,18 +91,13 @@
 
             <button id="mfa-confirm-btn" class="btn-primary">Confirm MFA</button>
             <button id="mfa-cancel-btn" class="btn-secondary">Cancel</button>
-
             <div id="mfa-message" class="form-message"></div>
         </div>
     </div>
-
 </div>
 
-<!-- ============================================================
-     ADMIN VIEW
-============================================================ -->
+<!-- ADMIN VIEW -->
 <div id="admin-view" class="panel hidden">
-
     <div class="admin-header">
         <h2 class="panel-title">Admin Dashboard</h2>
         <button id="logout-btn" class="btn-secondary small">Logout</button>
@@ -104,7 +106,7 @@
     <div id="admin-status"></div>
 
     <!-- BUSINESS HOURS -->
-    <section class="card">
+    <section id="hours-section-scroll" class="card">
         <h3>Business Hours</h3>
 
         <form id="hours-form" class="form-inline">
@@ -131,7 +133,7 @@
     </section>
 
     <!-- IP ALLOWLIST -->
-    <section class="card">
+    <section id="ip-section-scroll" class="card">
         <h3>IP Allowlist</h3>
 
         <div class="ip-add-row">
@@ -145,13 +147,30 @@
     </section>
 
     <!-- AUDIT LOG -->
-    <section id="admin-audit-section" class="card">
+    <section id="audit-section-scroll" class="card">
         <h3>Security Audit Logs</h3>
         <pre id="audit-log" class="log-box"></pre>
     </section>
-
 </div>
 
+</main>
+
 <script src="security.js"></script>
+<script>
+document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        const target = btn.dataset.target;
+        const el = document.getElementById(target);
+
+        if (el) {
+            el.scrollIntoView({ behavior: "smooth" });
+        }
+    });
+});
+</script>
+
 </body>
 </html>

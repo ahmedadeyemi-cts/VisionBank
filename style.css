@@ -205,11 +205,15 @@ body.security-approved {
 /* ===============================
    AVAILABILITY STATUS COLORS
    =============================== */
+/* Make availability behave like normal table content */
 .availability-cell {
   font-weight: 600;
   padding: 6px 10px !important;
-  border-radius: 999px;
-  display: inline-block;
+  border-radius: 6px;          /* subtle, not a floating pill */
+  display: inline-flex;        /* aligns text cleanly */
+  align-items: center;
+  justify-content: center;
+  min-width: 90px;             /* consistent width */
 }
 
 /* GREEN: Available */

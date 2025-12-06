@@ -1010,10 +1010,7 @@ body.theme-dark .ip-item {
     overflow: visible;
     max-height: none;
 }
-#cidr-ip-tester,
-#cidr-range-tester {
-    outline: 2px dashed red;
-}
+
 /* ============================================================
    SAFE FIX — REMOVE BROWSER INVALID OUTLINES (CIDR TESTERS)
    ============================================================ */

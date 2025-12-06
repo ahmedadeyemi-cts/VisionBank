@@ -206,14 +206,18 @@ body.security-approved {
    AVAILABILITY STATUS COLORS
    =============================== */
 /* Make availability behave like normal table content */
+/* Availability cell should behave like a normal table cell */
 .availability-cell {
   font-weight: 600;
-  padding: 6px 10px !important;
-  border-radius: 6px;          /* subtle, not a floating pill */
-  display: inline-flex;        /* aligns text cleanly */
-  align-items: center;
-  justify-content: center;
-  min-width: 90px;             /* consistent width */
+  padding: 8px 0 !important;
+  border-radius: 0;              /* removes pill look */
+  display: block;                /* fill entire td */
+  width: 100%;
+  height: 100%;
+  text-align: center;
+}
+.data-table td.availability-cell {
+  line-height: 1.4;
 }
 
 /* GREEN: Available */

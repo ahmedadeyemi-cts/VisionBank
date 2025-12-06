@@ -990,3 +990,27 @@ body.theme-dark .ip-item {
     color: #9ca3af;
     font-style: italic;
 }
+/* ============================================================
+   ADMIN VIEW VISIBILITY FIX (CIDR SECTIONS)
+   ============================================================ */
+
+#admin-view {
+    overflow: visible;
+}
+
+#admin-view .admin-section {
+    overflow: visible;
+}
+
+.vb-main {
+    overflow: visible;
+}
+
+.card {
+    overflow: visible;
+    max-height: none;
+}
+#cidr-ip-tester,
+#cidr-range-tester {
+    outline: 2px dashed red;
+}

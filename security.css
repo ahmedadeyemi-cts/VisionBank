@@ -897,113 +897,136 @@ body.theme-dark .ip-item {
 .um-toast.error   { background:#fee2e2; color:#991b1b; }
 .um-toast.info    { background:#dbeafe; color:#1e3a8a; }
 
-/* ============================================================
-   ICONOGRAPHY (Inline SVG only)
-   ============================================================ */
 
-.section-icon {
+/* ============================================================
+   ICONOGRAPHY (INLINE SVG)
+   ============================================================ */
+.svg-icon {
+    display: inline-flex;
     width: 18px;
     height: 18px;
-    stroke-width: 2;
-    stroke: var(--vb-blue);
-    flex-shrink: 0;
+    margin-right: 8px;
+    vertical-align: middle;
+    color: var(--vb-blue);
 }
 
-body.theme-dark .section-icon {
-    stroke: #93c5fd;
+body.theme-dark .svg-icon {
+    color: #93c5fd;
 }
 
 /* ============================================================
    COLLAPSIBLE SECTIONS
    ============================================================ */
 
-.vb-section {
-    border-radius: 16px;
-    background: rgba(255,255,255,0.55);
-    border: 1px solid rgba(148,163,184,0.35);
-    margin-top: 26px;
-    overflow: hidden;
+.admin-section {
+    position: relative;
 }
 
-body.theme-dark .vb-section {
-    background: rgba(15,23,42,0.55);
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
 }
 
-.vb-section summary {
+.section-header-left {
     display: flex;
     align-items: center;
     gap: 10px;
-    cursor: pointer;
-    padding: 16px 20px;
-    font-weight: 700;
-    font-size: 16px;
-    list-style: none;
 }
 
-.vb-section summary::-webkit-details-marker {
-    display: none;
-}
-
-.vb-section summary::after {
-    content: "▾";
-    margin-left: auto;
+.section-toggle {
     transition: transform 0.25s ease;
     color: var(--vb-muted);
 }
 
-.vb-section[open] summary::after {
-    transform: rotate(180deg);
+.admin-section[data-collapsed="true"] .section-toggle {
+    transform: rotate(-90deg);
 }
 
-.vb-section-content {
-    padding: 18px 20px 22px;
-    animation: fadeIn 0.3s ease;
+.section-body {
+    margin-top: 10px;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+    overflow: hidden;
+}
+
+.admin-section[data-collapsed="true"] .section-body {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* ============================================================
-   MICRO-LOADING SKELETONS
+   SKELETON LOADERS
    ============================================================ */
 
 .skeleton {
-    position: relative;
     background: linear-gradient(
         90deg,
         rgba(148,163,184,0.15) 25%,
-        rgba(148,163,184,0.35) 37%,
+        rgba(148,163,184,0.3) 37%,
         rgba(148,163,184,0.15) 63%
     );
     background-size: 400% 100%;
-    animation: skeletonShimmer 1.4s ease infinite;
-    border-radius: 8px;
-}
-
-body.theme-dark .skeleton {
-    background: linear-gradient(
-        90deg,
-        rgba(71,85,105,0.25) 25%,
-        rgba(148,163,184,0.4) 37%,
-        rgba(71,85,105,0.25) 63%
-    );
+    animation: skeletonShimmer 1.2s infinite;
+    border-radius: 6px;
 }
 
 @keyframes skeletonShimmer {
-    0% { background-position: 100% 0 }
-    100% { background-position: 0 0 }
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
 }
 
-.skeleton-line {
+.skeleton-text {
     height: 12px;
+    margin-bottom: 8px;
+}
+
+.skeleton-block {
+    height: 36px;
     margin-bottom: 10px;
 }
 
-.skeleton-box {
-    height: 70px;
+.skeleton-table-row {
+    height: 22px;
+    margin-bottom: 6px;
+}
+
+/* Hide skeletons when content exists */
+.ip-list:not(:empty) + .ip-skeleton,
+#audit-log:not(:empty) + .audit-skeleton,
+#user-table:not(:empty) + .user-skeleton {
+    display: none;
 }
 
 /* ============================================================
-   SECTION SPACING REFINEMENTS
+   POLISH / SPACING IMPROVEMENTS
    ============================================================ */
 
-.vb-section-content > .section-help {
-    margin-top: 0;
+.admin-section {
+    padding-top: 16px;
+}
+
+.admin-section h3 {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.card {
+    animation: fadeIn 0.4s ease;
+}
+
+/* ============================================================
+   SUBTLE DIVIDERS
+   ============================================================ */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(
+        to right,
+        transparent,
+        rgba(148,163,184,0.5),
+        transparent
+    );
+    margin: 18px 0;
 }

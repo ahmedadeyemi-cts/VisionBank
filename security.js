@@ -34,8 +34,6 @@ const hoursStart = document.getElementById("hours-start");
 const hoursEnd = document.getElementById("hours-end");
 const hoursDayChecks = document.querySelectorAll(".hours-day");
 
-const ipForm = document.getElementById("ip-form");
-const ipTextarea = document.getElementById("ip-textarea");
 
 const auditLogBox = document.getElementById("audit-log");
 
@@ -285,10 +283,11 @@ async function showAdminView() {
     adminView.classList.remove("hidden");
 
     await loadBusinessHours();
-    await loadIpRules();
+    await loadIpRulesUI();
     await loadAuditLog();
 
-    applyRolePermissions();
+   setTimeout(() => applyRolePermissions(), 50);
+
 }
 
 /* =============================================================
@@ -306,11 +305,17 @@ function applyRolePermissions() {
     const hoursButtons = hoursForm ? hoursForm.querySelectorAll("button, input[type='submit']") : [];
     hoursButtons.forEach(el => el.disabled = !canEditHours);
 
-    // IP Allowlist: superadmin, admin can edit
-    const canEditIp = role === "superadmin" || role === "admin";
-    ipTextarea.disabled = !canEditIp;
-    const ipButtons = ipForm ? ipForm.querySelectorAll("button, input[type='submit']") : [];
-    ipButtons.forEach(el => el.disabled = !canEditIp);
+  // NEW IP RULE MANAGER — only superadmin/admin can edit
+const canEditIp = role === "superadmin" || role === "admin";
+
+document.getElementById("ip-add-input").disabled = !canEditIp;
+document.getElementById("ip-add-btn").disabled = !canEditIp;
+document.getElementById("ip-save-btn").disabled = !canEditIp;
+
+document.querySelectorAll(".ip-remove-btn").forEach(btn => {
+    btn.disabled = !canEditIp;
+});
+
 
     // Logs: superadmin, admin, auditor can view.
     const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
@@ -319,10 +324,38 @@ function applyRolePermissions() {
     }
 
     // User Management: only superadmin
-    if (role === "superadmin") {
-        initUserManagement();
+ // User Management: only superadmin
+/* ============================================================
+   SAFE USER MGMT INITIALIZER (GLOBAL SCOPE)
+   ============================================================ */
+function safeInitUserManagement() {
+    const audit = document.getElementById("admin-audit-section");
+
+    // DOM not yet ready → retry a moment later
+    if (!audit) {
+        return setTimeout(safeInitUserManagement, 150);
     }
+
+    // DOM is ready → load the panel
+    initUserManagement();
 }
+// User Management: only superadmin
+if (role === "superadmin") {
+    safeInitUserManagement();
+}
+}
+/* ============================================================
+   AUTO-REFRESH AUDIT LOG — every 5 seconds
+   ============================================================ */
+function startAuditLogAutoRefresh() {
+    loadAuditLog();  // ✅ correct function name
+
+    setInterval(() => {
+        loadAuditLog();  // ✅ correct function name
+    }, 5000);
+}
+
+document.addEventListener("DOMContentLoaded", startAuditLogAutoRefresh);
 
 /* =============================================================
    5.  BUSINESS HOURS
@@ -377,69 +410,126 @@ hoursForm.addEventListener("submit", async (e) => {
 /* =============================================================
    6.  IP ALLOWLIST
    ============================================================= */
-
 /* =============================================================
-   FIXED — IP ALLOWLIST AUTO-LOAD (Admin + CIDR Tester)
+   IMPROVED IP ALLOWLIST MANAGER
    ============================================================= */
 
-async function loadIpRules() {
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
-        const data = await res.json();
+let IP_RULES = [];
+let saving = false;
 
-        const rules = Array.isArray(data.rules) ? data.rules : [];
-
-        // 1. Fill the main admin textarea
-        if (ipTextarea) {
-            ipTextarea.value = rules.join("\n");
-        }
-
-        // 2. Fill CIDR/IP Tester textarea
-        const testerRules = document.getElementById("ip-rules-textarea");
-        if (testerRules) {
-            testerRules.value = rules.join("\n");
-        }
-
-        return rules;
-
-    } catch (err) {
-        console.error("IP rule loading failed:", err);
-
-        // Ensure tester doesn't show stale data
-        const testerRules = document.getElementById("ip-rules-textarea");
-        if (testerRules) {
-            testerRules.value = "";
-        }
-    }
+function classifyRule(rule) {
+  if (rule.includes("/")) return "cidr";
+  if (rule.includes(":")) return "ipv6";
+  return "ipv4";
 }
 
-ipForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+function ruleIcon(rule) {
+  switch (classifyRule(rule)) {
+    case "ipv4": return "🔵 IPv4";
+    case "ipv6": return "🟣 IPv6";
+    case "cidr": return "📐 CIDR";
+  }
+}
 
-    const rules = ipTextarea.value
-        .split("\n")
-        .map(r => r.trim())
-        .filter(r => r);
+function renderIpList() {
+  const container = document.getElementById("ip-list");
+  container.innerHTML = "";
 
-    try {
-        const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rules }),
-        });
+  IP_RULES.forEach((rule, index) => {
+    const div = document.createElement("div");
+    div.className = "ip-item fade-in";
 
-        if (!res.ok) {
-            showStatus("Failed to save IP Allowlist.", "error");
-            return;
-        }
+    div.innerHTML = `
+      <div>
+        <span class="ip-item-icon">${ruleIcon(rule)}</span>
+        ${rule}
+      </div>
+      <button class="ip-remove-btn" data-index="${index}">Remove</button>
+    `;
 
-        showStatus("IP Allowlist saved successfully.", "success");
-    } catch (err) {
-        console.error("Save IP rules failed:", err);
-        showStatus("Failed to save IP Allowlist.", "error");
+    container.appendChild(div);
+  });
+
+  document.querySelectorAll(".ip-remove-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      const i = Number(e.target.dataset.index);
+
+      if (!confirm(`Remove rule: ${IP_RULES[i]} ?`)) return;
+
+      IP_RULES.splice(i, 1);
+      renderIpList();
+      autoSaveRules();
+    });
+  });
+}
+
+async function addRule() {
+  const input = document.getElementById("ip-add-input");
+  const rule = input.value.trim();
+  input.value = "";
+
+  if (!rule) return showStatus("You must enter a valid rule.", "error");
+
+  const res = await fetch(`${WORKER_BASE}/api/validate-ip`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ rule })
+  });
+
+  const data = await res.json();
+
+  if (!data.valid) {
+    return showStatus("Invalid IPv4 / IPv6 / CIDR format", "error");
+  }
+
+  if (IP_RULES.includes(rule)) {
+    return showStatus("Rule already exists.", "warning");
+  }
+
+  IP_RULES.push(rule);
+  renderIpList();
+  autoSaveRules();
+}
+
+document.getElementById("ip-add-btn").onclick = addRule;
+
+async function autoSaveRules() {
+  if (saving) return; 
+  saving = true;
+
+  showStatus("Saving...", "info");
+
+  const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ rules: IP_RULES })
+  });
+
+  const data = await res.json();
+  saving = false;
+
+  if (!res.ok) return showStatus("Failed to save rules.", "error");
+  
+  showStatus("Saved!", "success");
+}
+
+async function loadIpRulesUI() {
+  const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
+  const data = await res.json();
+
+  IP_RULES = data.rules || [];
+  renderIpList();
+}
+
+loadIpRulesUI().then(() => {
+    const rulesTextarea = document.getElementById("ip-rules-textarea");
+    if (rulesTextarea) {
+        rulesTextarea.value = IP_RULES.join("\n");   // <-- populates tester
     }
 });
-
+/* =============================================================
+   End of the IP Allow List
+   ============================================================= */
 /* =============================================================
    7.  AUDIT LOG
    ============================================================= */
@@ -980,6 +1070,15 @@ document.addEventListener("DOMContentLoaded", () => {
         cidrResult.classList.add("cidr-visible");
     }
 
+});
+// Ensure CIDR tester auto-loads updated rules
+document.addEventListener("DOMContentLoaded", () => {
+    setTimeout(() => {
+        const rulesTextarea = document.getElementById("ip-rules-textarea");
+        if (rulesTextarea && Array.isArray(IP_RULES)) {
+            rulesTextarea.value = IP_RULES.join("\n");
+        }
+    }, 400); // small delay for UI to build
 });
 /* =============================================================
    End of Section 10

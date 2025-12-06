@@ -2,275 +2,156 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>VisionBank® | Security Administration Console</title>
-
-    <!-- Unified modern UI stylesheet -->
-    <link rel="stylesheet" href="ui.css" />
-
-    <link rel="icon" href="assets/VisionBank-Logo.png" type="image/png" />
+    <title>Security Admin Console</title>
+    <link rel="stylesheet" href="security.css" />
 </head>
+
 <body class="theme-light">
 
-
-<!-- ============================================================ -->
-<!-- HEADER BAR -->
-<!-- ============================================================ -->
-<header class="vb-header">
-    <div class="vb-header-left">
-        <img src="assets/VisionBank-Logo.png" class="vb-logo" />
-        <div class="vb-title">
-            <div class="vb-app">Security Admin Console</div>
-            <div class="vb-sub">VisionBank®</div>
-        </div>
+<!-- ============================================================
+     HEADER
+============================================================ -->
+<header class="top-header">
+    <div class="header-title">
+        <h1>Security Admin Console</h1>
+        <p class="subtitle">VisionBank • Access • MFA • Allowlist</p>
     </div>
 
-    <div class="vb-header-right">
-        <button id="themeToggle" class="vb-theme-toggle">
-            <span id="themeToggleIcon">🌙</span>
-            <span id="themeToggleText">Dark mode</span>
-        </button>
-    </div>
+    <button id="themeToggle" class="theme-toggle">
+        <span id="themeToggleIcon">🌙</span>
+        <span id="themeToggleText">Dark mode</span>
+    </button>
 </header>
-
-
-
-
-<!-- ============================================================ -->
-<!-- MAIN CONTAINER -->
-<!-- ============================================================ -->
-<main class="vb-main">
-
 
 <!-- ============================================================
      LOGIN VIEW
 ============================================================ -->
-<section id="login-view" class="vb-card login-card">
+<div id="login-view" class="panel active">
 
-    <h2 class="card-title">Admin Login</h2>
-    <p class="card-subtitle">Secure access using MFA + IP restrictions.</p>
+    <h2 class="panel-title">Administrator Login</h2>
 
-    <form id="login-form" class="vb-form-grid">
-
-        <label>
-            Username
-            <input type="text" id="login-username" autocomplete="username" />
+    <form id="login-form" class="form">
+        <label>Username
+            <input type="text" id="login-username" required />
         </label>
 
-        <label>
-            Password
-            <input type="password" id="login-pin" autocomplete="current-password" />
+        <label>Password / PIN
+            <input type="password" id="login-pin" required />
         </label>
 
-        <label id="login-totp-wrapper" class="hidden">
-            Microsoft Authenticator Code
-            <input type="text" id="login-totp" maxlength="6" inputmode="numeric" />
-        </label>
+        <div id="login-totp-wrapper" class="hidden">
+            <label>Microsoft Authenticator Code
+                <input type="text" id="login-totp" maxlength="6" />
+            </label>
+        </div>
 
-        <button class="btn-primary">Login</button>
+        <button type="submit" class="btn-primary">Login</button>
+        <div id="login-message" class="form-message"></div>
     </form>
 
-    <div id="login-message" class="vb-message"></div>
+    <button id="override-toggle" class="link-btn small">Use Override Key</button>
 
-    <button id="override-toggle" class="vb-link">System Override</button>
-
-    <form id="override-form" class="hidden vb-override-form">
-        <input type="password" id="override-input" placeholder="Override Key" />
-        <button class="btn-secondary">Enter Override</button>
+    <form id="override-form" class="form hidden">
+        <label>Override Key
+            <input type="password" id="override-input" />
+        </label>
+        <button type="submit" class="btn-secondary">Submit</button>
     </form>
-</section>
 
-
-
-
-
+</div>
 
 <!-- ============================================================
      MFA SETUP VIEW
 ============================================================ -->
-<section id="mfa-setup-view" class="vb-card hidden">
+<div id="mfa-setup-view" class="panel hidden">
 
-    <h2 class="card-title">Microsoft Authenticator Setup</h2>
-    <p class="card-subtitle">Scan the QR code or use the secret key.</p>
+    <h2 class="panel-title">MFA Enrollment</h2>
 
-    <div class="mfa-container">
-
-        <div class="mfa-left">
-            <img id="mfa-qr-img" class="mfa-qr" />
-        </div>
-
-        <div class="mfa-right">
+    <div class="mfa-box">
+        <img id="mfa-qr-img" class="mfa-qr" />
+        <div class="mfa-info">
             <label>Account
                 <input id="mfa-account" readonly />
             </label>
 
-            <label>Secret Key
+            <label>Secret
                 <input id="mfa-secret" readonly />
             </label>
 
-            <label>6-digit Code from Authenticator
-                <input id="mfa-code" maxlength="6" inputmode="numeric" />
+            <label>6-Digit Code
+                <input id="mfa-code" maxlength="6" />
             </label>
 
             <button id="mfa-confirm-btn" class="btn-primary">Confirm MFA</button>
-            <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
+            <button id="mfa-cancel-btn" class="btn-secondary">Cancel</button>
 
-            <div id="mfa-message" class="vb-message"></div>
+            <div id="mfa-message" class="form-message"></div>
         </div>
-
     </div>
-</section>
 
-
-
-
-
+</div>
 
 <!-- ============================================================
-     ADMIN VIEW (Main Dashboard)
+     ADMIN VIEW
 ============================================================ -->
-<section id="admin-view" class="hidden">
+<div id="admin-view" class="panel hidden">
 
     <div class="admin-header">
-        <div>
-            <h2>Security Administration</h2>
-            <p class="card-subtitle">Business Hours • IP Rules • Logs • User Management</p>
-        </div>
+        <h2 class="panel-title">Admin Dashboard</h2>
         <button id="logout-btn" class="btn-secondary small">Logout</button>
     </div>
 
-
-    <!-- Status bar injected here -->
     <div id="admin-status"></div>
 
-
-
-    <!-- ============================================================
-         BUSINESS HOURS
-    ============================================================ -->
-    <section class="vb-card admin-section">
+    <!-- BUSINESS HOURS -->
+    <section class="card">
         <h3>Business Hours</h3>
-        <p class="section-help">Access allowed only during active hours (CST/CDT).</p>
 
-        <form id="hours-form" class="vb-form-grid hours-grid">
-            <label>Start Time
+        <form id="hours-form" class="form-inline">
+            <label>Start
                 <input type="time" id="hours-start" />
             </label>
 
-            <label>End Time
+            <label>End
                 <input type="time" id="hours-end" />
             </label>
 
-            <fieldset class="days-fieldset">
-                <legend>Active Days</legend>
+            <div class="day-grid">
+                <label><input type="checkbox" value="1" class="hours-day" /> Mon</label>
+                <label><input type="checkbox" value="2" class="hours-day" /> Tue</label>
+                <label><input type="checkbox" value="3" class="hours-day" /> Wed</label>
+                <label><input type="checkbox" value="4" class="hours-day" /> Thu</label>
+                <label><input type="checkbox" value="5" class="hours-day" /> Fri</label>
+                <label><input type="checkbox" value="6" class="hours-day" /> Sat</label>
+                <label><input type="checkbox" value="0" class="hours-day" /> Sun</label>
+            </div>
 
-                <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-            </fieldset>
-
-            <button class="btn-primary">Save</button>
+            <button type="submit" class="btn-primary">Save Hours</button>
         </form>
     </section>
 
-
-
-
-
-
-
-    <!-- ============================================================
-         IP ALLOWLIST
-    ============================================================ -->
-    <section class="vb-card admin-section">
-        <h3>Allowed IPs / Subnets</h3>
-        <p class="section-help">Only listed IPs can access the system.</p>
-
-        <div id="ip-list" class="ip-list"></div>
-        <textarea id="ip-rules-textarea" class="hidden"></textarea>
+    <!-- IP ALLOWLIST -->
+    <section class="card">
+        <h3>IP Allowlist</h3>
 
         <div class="ip-add-row">
-            <input id="ip-add-input" placeholder="Add IPv4 / IPv6 / CIDR" />
+            <input id="ip-add-input" placeholder="IPv4 / IPv6 / CIDR" />
             <button id="ip-add-btn" class="btn-primary">Add</button>
         </div>
 
-        <button id="ip-save-btn" class="btn-secondary">Save Rules</button>
+        <div id="ip-list" class="ip-list"></div>
+
+        <button id="ip-save-btn" class="btn-secondary small">Save Rules</button>
     </section>
 
-
-
-
-
-
-    <!-- ============================================================
-         CIDR TESTER
-    ============================================================ -->
-    <section class="vb-card admin-section">
-        <h3>CIDR / IP Tester</h3>
-
-        <label>IP to Test
-            <input id="ip-test-input" placeholder="Enter IP address" />
-        </label>
-
-        <label>Loaded Rules
-            <textarea id="ip-rules-textarea" rows="4"></textarea>
-        </label>
-
-        <button id="run-ip-test-btn" class="btn-primary">Run Test</button>
-        <div id="ip-test-result" class="cidr-result"></div>
+    <!-- AUDIT LOG -->
+    <section id="admin-audit-section" class="card">
+        <h3>Security Audit Logs</h3>
+        <pre id="audit-log" class="log-box"></pre>
     </section>
 
+</div>
 
-
-
-
-
-    <!-- ============================================================
-         CIDR RANGE TESTER
-    ============================================================ -->
-    <section class="vb-card admin-section">
-        <h3>CIDR Range Comparison</h3>
-
-        <div class="two-column">
-            <label>Value A (IP or CIDR)
-                <input id="cidr-input-a" placeholder="e.g. 192.168.1.10 or 10.0.0.0/24" />
-            </label>
-
-            <label>Value B (CIDR only)
-                <input id="cidr-input-b" placeholder="e.g. 192.168.0.0/16" />
-            </label>
-        </div>
-
-        <button id="cidr-test-btn" class="btn-primary">Compare</button>
-        <div id="cidr-test-result" class="cidr-result"></div>
-    </section>
-
-
-
-
-
-
-    <!-- ============================================================
-         AUDIT LOG
-    ============================================================ -->
-    <section id="admin-audit-section" class="vb-card admin-section">
-        <h3>Security Audit Log</h3>
-        <p class="section-help">Recent security events.</p>
-        <pre id="audit-log" class="audit-log"></pre>
-    </section>
-
-</section>
-
-
-
-
-<!-- ============================================================ -->
-<!-- JS -->
-<!-- ============================================================ -->
 <script src="security.js"></script>
-
 </body>
 </html>

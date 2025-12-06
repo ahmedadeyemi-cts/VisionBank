@@ -207,17 +207,38 @@ body.security-approved {
    =============================== */
 /* Make availability behave like normal table content */
 /* Availability cell should behave like a normal table cell */
-.availability-cell {
-  font-weight: 600;
-  padding: 8px 0 !important;
-  border-radius: 0;              /* removes pill look */
-  display: block;                /* fill entire td */
-  width: 100%;
-  height: 100%;
-  text-align: center;
-}
+/* ===== HARD FIX: availability must fill the entire table cell ===== */
 .data-table td.availability-cell {
-  line-height: 1.4;
+  position: relative;
+  padding: 0 !important;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+/* full-cell background layer */
+.data-table td.availability-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: inherit;   /* take color from status class */
+  z-index: 0;
+}
+
+/* foreground text */
+.data-table td.availability-cell {
+  background: transparent !important;
+}
+
+.data-table td.availability-cell > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* center text properly */
+.data-table td.availability-cell {
+  display: table-cell;
+  vertical-align: middle;
+  text-align: center;
 }
 
 /* GREEN: Available */

@@ -277,9 +277,6 @@ body.dark-mode .availability-cell {
 
 
 /* foreground text */
-.data-table td.availability-cell {
-  background: transparent !important;
-}
 
 .data-table td.availability-cell > * {
   position: relative;
@@ -308,12 +305,6 @@ body.dark-mode .availability-cell {
 }
 
 /* RED: On Call, Dial Out, On Break */
-.status-oncall,
-.status-dialout,
-.status-break {
-  background: #fee2e2;
-  color: #b91c1c;
-}
 
 /* GRAY: Idle, Unknown */
 .status-idle,
@@ -888,21 +879,6 @@ body,
   padding: 8px;
 }
 
-/* Status colors – flat, table-style */
-.status-break {
-  background: #fde68a !important;
-  color: #78350f;
-}
-
-.status-oncall {
-  background: #fecaca !important;
-  color: #7f1d1d;
-}
-
-.status-available {
-  background: #bbf7d0 !important;
-  color: #14532d;
-}
 
 .status-idle,
 .status-unknown {
@@ -1270,6 +1246,87 @@ body.dark-mode .data-table td.availability-cell.status-break {
 body.dark-mode .data-table td.availability-cell.status-oncall {
   background-color: #7f1d1d;
   color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #334155;
+  color: #e5e7eb;
+}
+
+
+/* =====================================================
+   AVAILABILITY – FINAL, CLEAN, SINGLE SOURCE OF TRUTH
+   ===================================================== */
+
+/* Base availability cell */
+.data-table td.availability-cell {
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 0;
+}
+
+/* ========== LIGHT MODE ========== */
+
+/* Available */
+.data-table td.availability-cell.status-available {
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+/* On Call / Dial Out */
+.data-table td.availability-cell.status-oncall,
+.data-table td.availability-cell.status-dialout {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+/* Break */
+.data-table td.availability-cell.status-break {
+  background-color: #b91c1c;
+  color: #ffffff;
+}
+
+/* Wrap / Lunch / Orange */
+.data-table td.availability-cell.status-wrap,
+.data-table td.availability-cell.status-lunch,
+.data-table td.availability-cell.status-orange {
+  background-color: #d97706;
+  color: #ffffff;
+}
+
+/* Idle / Unknown */
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #6b7280;
+  color: #ffffff;
+}
+
+/* ========== DARK MODE ========== */
+
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #166534;
+  color: #dcfce7;
+}
+
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-dialout {
+  background-color: #7f1d1d;
+  color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-break {
+  background-color: #991b1b;
+  color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-lunch,
+body.dark-mode .data-table td.availability-cell.status-orange {
+  background-color: #7c2d12;
+  color: #ffedd5;
 }
 
 body.dark-mode .data-table td.availability-cell.status-idle,

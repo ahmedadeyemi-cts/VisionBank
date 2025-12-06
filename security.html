@@ -124,12 +124,17 @@
                     Access Control • User Management • Logs • Business Rules
                 </p>
             </div>
-            <button id="logout-btn" class="btn-secondary small">Logout</button>
+
+            <!-- ✅ ADDED CONTROLS HERE -->
+            <div class="admin-controls" style="display:flex; gap:8px;">
+                <button id="expand-all-btn" class="btn-secondary small">Expand All</button>
+                <button id="collapse-all-btn" class="btn-secondary small">Collapse All</button>
+                <button id="logout-btn" class="btn-secondary small">Logout</button>
+            </div>
         </div>
 
         <!-- BUSINESS HOURS -->
         <section id="admin-hours-section" class="admin-section">
-
             <div class="collapsible-header">
                 <h3>Business Hours</h3>
                 <button class="collapse-toggle" aria-expanded="true">
@@ -197,7 +202,6 @@
 
         <!-- CIDR / IP TESTER -->
         <section id="cidr-ip-tester" class="admin-section collapsed">
-
             <div class="collapsible-header">
                 <h3>CIDR / IP Tester</h3>
                 <button class="collapse-toggle" aria-expanded="false">
@@ -226,7 +230,6 @@
 
         <!-- CIDR RANGE TESTER -->
         <section id="cidr-range-tester" class="admin-section collapsed">
-
             <div class="collapsible-header">
                 <h3>CIDR Tester</h3>
                 <button class="collapse-toggle" aria-expanded="false">
@@ -261,7 +264,6 @@
 
         <!-- AUDIT LOG -->
         <section id="admin-audit-section" class="admin-section collapsed">
-
             <div class="collapsible-header">
                 <h3>Security Audit Log</h3>
                 <button class="collapse-toggle" aria-expanded="false">

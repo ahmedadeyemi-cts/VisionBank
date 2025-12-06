@@ -1031,6 +1031,15 @@ body.theme-dark .ip-item {
     box-shadow: none;
     border-color: var(--vb-border);
 }
+
+/* ✅ CLEAN FOCUS STATE (DO NOT MOVE ABOVE) */
+#cidr-ip-tester input:focus,
+#cidr-range-tester input:focus,
+#cidr-ip-tester textarea:focus,
+#cidr-range-tester textarea:focus {
+    border-color: var(--vb-blue);
+    outline: none;
+}
 /* ===============================
    DARK MODE – CIDR TESTERS
    =============================== */

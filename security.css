@@ -1,200 +1,242 @@
-/* ============================================================
-   GLOBAL VARIABLES
-============================================================ */
+/* -------------------------------------------------------------
+   ROOT COLORS
+------------------------------------------------------------- */
 :root {
-    --sidebar-width: 240px;
+    --blue: #003B73;
+    --blue-light: #1E5AA8;
+    --blue-dark: #002950;
 
-    --primary: #003366;
-    --primary-hover: #0a4c8a;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-700: #374151;
+    --gray-900: #111827;
 
-    --bg: #f5f7fa;
-    --card-bg: #ffffff;
-
-    --text: #1e1e1e;
-    --text-muted: #6b7280;
-
-    --border: #d0d7e1;
-    --radius: 10px;
-    --shadow: 0 2px 6px rgba(0,0,0,0.08);
+    --green: #159947;
+    --red: #d00000;
 }
 
 /* DARK MODE */
 body.theme-dark {
-    --bg: #0f172a;
-    --card-bg: #1e293b;
-
-    --text: #e2e8f0;
-    --text-muted: #94a3b8;
-
-    --border: #334155;
-    --shadow: 0 2px 10px rgba(0,0,0,0.4);
+    background: #0f172a;
+    color: #e2e8f0;
+}
+body.theme-dark .card {
+    background: #1e293b;
+    border-color: #334155;
+}
+body.theme-dark input, body.theme-dark select, body.theme-dark textarea {
+    background: #0f172a;
+    color: #fff;
+    border-color: #475569;
+}
+body.theme-dark .tab-btn {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+body.theme-dark .active-tab {
+    background: var(--blue-light);
 }
 
-/* ============================================================
+/* -------------------------------------------------------------
    LAYOUT
-============================================================ */
+------------------------------------------------------------- */
 body {
     margin: 0;
-    padding: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: "Segoe UI", sans-serif;
-    display: flex;
+    font-family: "Inter", Arial, sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-900);
 }
 
-/* ============================================================
-   SIDEBAR
-============================================================ */
-#sidebar {
-    width: var(--sidebar-width);
-    background: var(--primary);
-    color: white;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 14px;
-    position: fixed;
-    left: 0;
-    top: 0;
-}
-
-.nav-header h2 {
-    margin: 0 0 20px 0;
-    font-size: 20px;
-    letter-spacing: 0.4px;
-}
-
-.nav-menu {
-    flex-grow: 1;
-}
-
-.nav-item {
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: none;
-    padding: 12px;
-    margin-bottom: 6px;
-    font-size: 15px;
-    color: white;
-    opacity: 0.9;
-    cursor: pointer;
-    border-radius: var(--radius);
-    transition: background 0.2s, opacity 0.2s;
-}
-
-.nav-item:hover {
-    background: rgba(255,255,255,0.15);
-    opacity: 1;
-}
-
-.nav-item.active {
-    background: rgba(255,255,255,0.25);
-    opacity: 1;
-}
-
-/* Sidebar footer */
-.sidebar-footer {
-    padding-top: 20px;
-}
-
-.theme-toggle {
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: none;
-    padding: 10px;
-    width: 100%;
-    border-radius: var(--radius);
-    cursor: pointer;
-}
-
-.theme-toggle:hover {
-    background: rgba(255,255,255,0.3);
-}
-
-/* ============================================================
-   MAIN CONTENT
-============================================================ */
-#main {
-    margin-left: var(--sidebar-width);
-    width: calc(100% - var(--sidebar-width));
+.main-container {
     padding: 30px;
+    max-width: 1400px;
+    margin: auto;
 }
 
-/* ============================================================
-   PANELS
-============================================================ */
-.panel {
-    background: var(--card-bg);
-    padding: 28px;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    margin-bottom: 30px;
+.view {
+    display: none;
+}
+.active-view {
+    display: block;
 }
 
-/* ============================================================
-   CARDS
-============================================================ */
-.card {
-    background: var(--card-bg);
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-top: 25px;
-    box-shadow: var(--shadow);
-}
-
-/* ============================================================
-   LOG BOX
-============================================================ */
-.log-box {
-    background: #0d1117;
-    color: #c9d1d9;
-    padding: 15px;
-    height: 280px;
-    overflow-y: auto;
-    border-radius: var(--radius);
-    font-size: 13px;
-}
-
-/* ============================================================
-   IP LIST
-============================================================ */
-.ip-item {
-    background: #e5edf5;
-    border-left: 4px solid var(--primary);
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: var(--radius);
+/* -------------------------------------------------------------
+   NAVBAR
+------------------------------------------------------------- */
+.top-nav {
     display: flex;
     justify-content: space-between;
-}
-
-/* ============================================================
-   BUTTONS
-============================================================ */
-.btn-primary {
-    background: var(--primary);
+    align-items: center;
+    background: var(--blue);
+    padding: 14px 22px;
     color: white;
-    padding: 10px 16px;
-    border-radius: var(--radius);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-logo {
+    height: 34px;
+}
+
+.nav-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: .5px;
+}
+
+/* -------------------------------------------------------------
+   CARD COMPONENT
+------------------------------------------------------------- */
+.card {
+    background: white;
+    border: 1px solid var(--gray-300);
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+}
+
+h2 {
+    margin-top: 0;
+}
+
+/* -------------------------------------------------------------
+   INPUTS / BUTTONS
+------------------------------------------------------------- */
+input, select, textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0 18px;
+    border-radius: 8px;
+    border: 1px solid var(--gray-300);
+    font-size: 15px;
+}
+
+.primary-btn {
+    background: var(--blue-light);
+    color: white;
     border: none;
-}
-
-.btn-primary:hover {
-    background: var(--primary-hover);
-}
-
-.btn-secondary {
-    background: var(--card-bg);
-    border: 1px solid var(--primary);
-    color: var(--primary);
-    padding: 8px 14px;
-    border-radius: var(--radius);
-}
-
-.link-btn {
-    background: none;
-    color: var(--primary);
-    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
     cursor: pointer;
+    font-size: 15px;
+}
+.primary-btn:hover {
+    background: var(--blue-dark);
+}
+
+.secondary-btn {
+    background: var(--gray-300);
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+}
+
+.logout-btn {
+    background: #991b1b;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+}
+.logout-btn:hover {
+    background: #7f1d1d;
+}
+
+/* -------------------------------------------------------------
+   TABS
+------------------------------------------------------------- */
+.tab-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.tab-btn {
+    padding: 10px 18px;
+    background: var(--gray-200);
+    border-radius: 8px;
+    border: 1px solid var(--gray-300);
+    cursor: pointer;
+}
+
+.active-tab {
+    background: var(--blue-light);
+    color: white;
+    border-color: var(--blue-dark);
+}
+
+.tab-section {
+    display: none;
+}
+.active-section {
+    display: block;
+}
+
+/* -------------------------------------------------------------
+   BUSINESS HOURS
+------------------------------------------------------------- */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.days-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+/* -------------------------------------------------------------
+   IP LIST
+------------------------------------------------------------- */
+.ip-list {
+    margin-top: 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--gray-100);
+}
+
+.ip-item {
+    display: flex;
+    justify-content: space-between;
+    background: white;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+}
+
+.test-box {
+    margin-top: 16px;
+    height: 140px;
+}
+
+/* -------------------------------------------------------------
+   LOGS
+------------------------------------------------------------- */
+.log-box {
+    background: black;
+    color: #00ff00;
+    padding: 15px;
+    height: 400px;
+    overflow-y: scroll;
+    border-radius: 8px;
+}
+
+/* -------------------------------------------------------------
+   STATUS BANNER
+------------------------------------------------------------- */
+.status-banner {
+    margin-top: 18px;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
 }

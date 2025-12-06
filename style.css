@@ -208,21 +208,8 @@ body.security-approved {
 /* Make availability behave like normal table content */
 /* Availability cell should behave like a normal table cell */
 /* ===== HARD FIX: availability must fill the entire table cell ===== */
-.data-table td.availability-cell {
-  position: relative;
-  padding: 0 !important;
-  font-weight: 600;
-  overflow: hidden;
-}
 
-/* full-cell background layer */
-.data-table td.availability-cell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: inherit;   /* take color from status class */
-  z-index: 0;
-}
+
 
 /* foreground text */
 .data-table td.availability-cell {
@@ -1170,4 +1157,58 @@ body.dark-mode .data-table td.availability-cell.status-idle *,
 body.dark-mode .data-table td.availability-cell.status-unknown,
 body.dark-mode .data-table td.availability-cell.status-unknown * {
   color: #e5e7eb !important;
+}
+/* =====================================================
+   AVAILABILITY – FINAL, SINGLE SOURCE OF TRUTH
+   ===================================================== */
+
+.data-table td.availability-cell {
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* ---------- LIGHT MODE ---------- */
+.data-table td.availability-cell.status-available {
+  background-color: #bbf7d0;
+  color: #14532d;
+}
+
+.data-table td.availability-cell.status-break {
+  background-color: #fde68a;
+  color: #78350f;
+}
+
+.data-table td.availability-cell.status-oncall {
+  background-color: #fecaca;
+  color: #7f1d1d;
+}
+
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+/* ---------- DARK MODE ---------- */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #166534;
+  color: #dcfce7;
+}
+
+body.dark-mode .data-table td.availability-cell.status-break {
+  background-color: #ca8a04;
+  color: #ffedd5;
+}
+
+body.dark-mode .data-table td.availability-cell.status-oncall {
+  background-color: #7f1d1d;
+  color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #334155;
+  color: #e5e7eb;
 }

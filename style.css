@@ -1110,3 +1110,64 @@ body.dark-mode .data-table td.availability-cell.status-unknown {
   letter-spacing: 0.02em;
 }
 
+/* =====================================================
+   AVAILABILITY TEXT – HARD OVERRIDE (GUARANTEED)
+   ===================================================== */
+
+/* Force visibility of text inside availability cell */
+.data-table td.availability-cell,
+.data-table td.availability-cell *,
+.data-table td.availability-cell span,
+.data-table td.availability-cell div {
+  opacity: 1 !important;
+  visibility: visible !important;
+  mix-blend-mode: normal !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+
+/* ---------- LIGHT MODE ---------- */
+.data-table td.availability-cell.status-available,
+.data-table td.availability-cell.status-available * {
+  color: #064e3b !important;
+}
+
+.data-table td.availability-cell.status-break,
+.data-table td.availability-cell.status-break * {
+  color: #78350f !important;
+}
+
+.data-table td.availability-cell.status-oncall,
+.data-table td.availability-cell.status-oncall * {
+  color: #7f1d1d !important;
+}
+
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-idle *,
+.data-table td.availability-cell.status-unknown,
+.data-table td.availability-cell.status-unknown * {
+  color: #374151 !important;
+}
+
+/* ---------- DARK MODE ---------- */
+body.dark-mode .data-table td.availability-cell.status-available,
+body.dark-mode .data-table td.availability-cell.status-available * {
+  color: #dcfce7 !important;
+}
+
+body.dark-mode .data-table td.availability-cell.status-break,
+body.dark-mode .data-table td.availability-cell.status-break * {
+  color: #ffedd5 !important;
+}
+
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-oncall * {
+  color: #fee2e2 !important;
+}
+
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-idle *,
+body.dark-mode .data-table td.availability-cell.status-unknown,
+body.dark-mode .data-table td.availability-cell.status-unknown * {
+  color: #e5e7eb !important;
+}

@@ -769,28 +769,19 @@ async function loadAgentStatus() {
       const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
       const tr = document.createElement("tr");
-tr.innerHTML = `
-  <td>${safe(a.FullName)}</td>
-  <td>${safe(a.TeamName)}</td>
-  <td>${safe(a.PhoneExt)}</td>
-
-  <!-- Availability -->
-  <td class="availability-cell ${availabilityClass}">
-    ${safe(a.CallTransferStatusDesc)}
-  </td>
-
-  <!-- Duration (moved next to availability) -->
-  <td class="numeric">
-    ${formatTime(a.SecondsInCurrentStatus ?? 0)}
-  </td>
-
-  <td class="numeric">${inbound}</td>
-  <td class="numeric">${missed}</td>
-  <td class="numeric">${transferred}</td>
-  <td class="numeric">${outbound}</td>
-  <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-  <td>${formatDate(a.StartDateUtc)}</td>
-`;
+      tr.innerHTML = `
+        <td>${safe(a.FullName)}</td>
+        <td>${safe(a.TeamName)}</td>
+        <td>${safe(a.PhoneExt)}</td>
+        <td class="availability-cell ${availabilityClass}">${safe(a.CallTransferStatusDesc)}</td>
+        <td class="numeric">${inbound}</td>
+        <td class="numeric">${missed}</td>
+        <td class="numeric">${transferred}</td>
+        <td class="numeric">${outbound}</td>
+        <td class="numeric">${formatTime(avgHandleSeconds)}</td>
+        <td class="numeric">${formatTime(a.SecondsInCurrentStatus ?? 0)}</td>
+        <td>${formatDate(a.StartDateUtc)}</td>
+      `;
       body.appendChild(tr);
     });
   } catch (err) {
@@ -817,29 +808,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initDarkMode();
   initAlertSettingsUI();
-
-  // ===============================
-  // CLEAR ALERT HISTORY BUTTON
- 
-const clearHistoryBtn = document.getElementById("clearAlertHistory");
- // if (clearHistoryBtn) {
- clearHistoryBtn.addEventListener("click", () => {
-      // Clear in-memory history
-   alertHistory.length = 0;
-
-      // Clear persisted history
- localStorage.removeItem(ALERT_HISTORY_KEY);
-
-      // Re-render UI
-   renderAlertHistory();
-  });
- }
-
-
-
-  // ===============================
-// End of New Add
-// ===============================
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

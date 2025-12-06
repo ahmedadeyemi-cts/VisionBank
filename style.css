@@ -1334,3 +1334,129 @@ body.dark-mode .data-table td.availability-cell.status-unknown {
   background-color: #334155;
   color: #e5e7eb;
 }
+
+
+
+
+
+/* ============================================================
+   AVAILABILITY SYSTEM — FULL REWRITE (AUTHORITATIVE)
+   This block intentionally overrides all legacy availability styles
+   ============================================================ */
+
+/* -----------------------------
+   BASE CELL BEHAVIOR
+------------------------------ */
+.data-table td.availability-cell {
+  padding: 10px 12px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  border-radius: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Ensure nested spans never disappear */
+.data-table td.availability-cell *,
+.data-table td.availability-cell span {
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: inherit !important;
+}
+
+/* ============================================================
+   LIGHT MODE — SOLID, HIGH-CONTRAST BLOCKS
+   (NO PASTELS, NO PINK)
+   ============================================================ */
+
+/* AVAILABLE */
+.data-table td.availability-cell.status-available {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+}
+
+/* ON CALL / DIAL OUT */
+.data-table td.availability-cell.status-oncall,
+.data-table td.availability-cell.status-dialout {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+/* BUSY / WRAP / LUNCH */
+.data-table td.availability-cell.status-busy,
+.data-table td.availability-cell.status-wrap,
+.data-table td.availability-cell.status-wrapup,
+.data-table td.availability-cell.status-lunch,
+.data-table td.availability-cell.status-orange {
+  background-color: #d97706 !important;
+  color: #ffffff !important;
+}
+
+/* RINGING */
+.data-table td.availability-cell.status-ringing {
+  background-color: #e67e22 !important;
+  color: #ffffff !important;
+}
+
+/* IDLE / UNKNOWN */
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+/* ============================================================
+   DARK MODE — GLASSMORPHISM + GLOW (MATCHES YOUR REFERENCE)
+   ============================================================ */
+
+/* AVAILABLE */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #2ecc71 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+}
+
+/* ON CALL / DIAL OUT */
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-dialout {
+  background-color: #e74c3c !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+}
+
+/* BUSY */
+body.dark-mode .data-table td.availability-cell.status-busy {
+  background-color: #f1c40f !important;
+  color: #000000 !important;
+  box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
+}
+
+/* RINGING */
+body.dark-mode .data-table td.availability-cell.status-ringing {
+  background-color: #e67e22 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+}
+
+/* WRAP / WRAPUP */
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-wrapup {
+  background-color: #ff8c42 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px rgba(255, 140, 66, 0.6);
+}
+
+/* IDLE / UNKNOWN */
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #4b5563 !important;
+  color: #e5e7eb !important;
+}
+
+/* ============================================================
+   HARD STOP — THIS BLOCK WINS
+   ============================================================ */

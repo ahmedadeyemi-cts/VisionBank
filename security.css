@@ -1014,3 +1014,36 @@ body.theme-dark .ip-item {
 #cidr-range-tester {
     outline: 2px dashed red;
 }
+/* ===============================
+   DARK MODE – CIDR TESTERS
+   =============================== */
+
+.theme-dark #cidr-ip-tester .input,
+.theme-dark #cidr-ip-tester textarea,
+.theme-dark #cidr-range-tester .input,
+.theme-dark #cidr-range-tester textarea {
+    background-color: #161b22;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+}
+
+.theme-dark #cidr-ip-tester .input::placeholder,
+.theme-dark #cidr-range-tester .input::placeholder,
+.theme-dark #cidr-ip-tester textarea::placeholder,
+.theme-dark #cidr-range-tester textarea::placeholder {
+    color: #8b949e;
+}
+
+.theme-dark #cidr-ip-tester label,
+.theme-dark #cidr-range-tester label,
+.theme-dark #cidr-ip-tester .section-help,
+.theme-dark #cidr-range-tester .section-help {
+    color: #e6edf3;
+}
+
+/* Result boxes */
+.theme-dark .cidr-result-box {
+    background-color: #0d1117;
+    color: #e6edf3;
+    border: 1px solid #30363d;
+}

@@ -1122,3 +1122,34 @@ document.addEventListener("click", (e) => {
 
     toggle.lastChild.textContent = isCollapsed ? " Expand" : " Collapse";
 });
+/* =============================================================
+   EXPAND ALL / COLLAPSE ALL CONTROLS
+   ============================================================= */
+
+document.getElementById("expand-all-btn")?.addEventListener("click", () => {
+    document.querySelectorAll(".admin-section").forEach(section => {
+        section.classList.remove("collapsed");
+
+        const toggle = section.querySelector(".collapse-toggle");
+        if (toggle) {
+            toggle.setAttribute("aria-expanded", "true");
+            const icon = toggle.querySelector("span");
+            if (icon) icon.textContent = "▾";
+            toggle.lastChild.textContent = " Collapse";
+        }
+    });
+});
+
+document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
+    document.querySelectorAll(".admin-section").forEach(section => {
+        section.classList.add("collapsed");
+
+        const toggle = section.querySelector(".collapse-toggle");
+        if (toggle) {
+            toggle.setAttribute("aria-expanded", "false");
+            const icon = toggle.querySelector("span");
+            if (icon) icon.textContent = "▸";
+            toggle.lastChild.textContent = " Expand";
+        }
+    });
+});

@@ -897,136 +897,68 @@ body.theme-dark .ip-item {
 .um-toast.error   { background:#fee2e2; color:#991b1b; }
 .um-toast.info    { background:#dbeafe; color:#1e3a8a; }
 
-
 /* ============================================================
-   ICONOGRAPHY (INLINE SVG)
-   ============================================================ */
-.svg-icon {
-    display: inline-flex;
-    width: 18px;
-    height: 18px;
-    margin-right: 8px;
-    vertical-align: middle;
-    color: var(--vb-blue);
-}
-
-body.theme-dark .svg-icon {
-    color: #93c5fd;
-}
-
-/* ============================================================
-   COLLAPSIBLE SECTIONS
+   Collapsible Admin Sections
    ============================================================ */
 
-.admin-section {
-    position: relative;
-}
-
-.section-header {
+.section-toggle {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
     cursor: pointer;
     user-select: none;
 }
 
-.section-header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.section-toggle {
+.section-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
     transition: transform 0.25s ease;
-    color: var(--vb-muted);
 }
 
-.admin-section[data-collapsed="true"] .section-toggle {
+.admin-section.collapsed .section-toggle svg {
     transform: rotate(-90deg);
 }
 
-.section-body {
-    margin-top: 10px;
-    transition: max-height 0.35s ease, opacity 0.25s ease;
-    overflow: hidden;
+.admin-section .section-content {
+    margin-top: 12px;
 }
 
-.admin-section[data-collapsed="true"] .section-body {
-    max-height: 0;
-    opacity: 0;
-    pointer-events: none;
+.admin-section.collapsed .section-content {
+    display: none;
+}
+
+/* Subtle divider feel */
+.admin-section {
+    padding-bottom: 6px;
 }
 
 /* ============================================================
-   SKELETON LOADERS
+   Skeleton Loading (micro-loading)
    ============================================================ */
 
 .skeleton {
     background: linear-gradient(
         90deg,
         rgba(148,163,184,0.15) 25%,
-        rgba(148,163,184,0.3) 37%,
+        rgba(148,163,184,0.35) 37%,
         rgba(148,163,184,0.15) 63%
     );
     background-size: 400% 100%;
-    animation: skeletonShimmer 1.2s infinite;
+    animation: skeleton-loading 1.2s ease infinite;
     border-radius: 6px;
 }
 
-@keyframes skeletonShimmer {
-    0% { background-position: 100% 0; }
-    100% { background-position: 0 0; }
+@keyframes skeleton-loading {
+    0% { background-position: 100% 0 }
+    100% { background-position: 0 0 }
 }
 
-.skeleton-text {
-    height: 12px;
-    margin-bottom: 8px;
+.skeleton-line {
+    height: 14px;
+    margin: 6px 0;
 }
 
 .skeleton-block {
-    height: 36px;
-    margin-bottom: 10px;
-}
-
-.skeleton-table-row {
-    height: 22px;
-    margin-bottom: 6px;
-}
-
-/* Hide skeletons when content exists */
-.ip-list:not(:empty) + .ip-skeleton,
-#audit-log:not(:empty) + .audit-skeleton,
-#user-table:not(:empty) + .user-skeleton {
-    display: none;
-}
-
-/* ============================================================
-   POLISH / SPACING IMPROVEMENTS
-   ============================================================ */
-
-.admin-section {
-    padding-top: 16px;
-}
-
-.admin-section h3 {
-    font-size: 17px;
-    font-weight: 700;
-}
-
-.card {
-    animation: fadeIn 0.4s ease;
-}
-
-/* ============================================================
-   SUBTLE DIVIDERS
-   ============================================================ */
-.section-divider {
-    height: 1px;
-    background: linear-gradient(
-        to right,
-        transparent,
-        rgba(148,163,184,0.5),
-        transparent
-    );
-    margin: 18px 0;
+    height: 80px;
 }

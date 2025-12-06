@@ -738,3 +738,19 @@ body.theme-dark .ip-item {
     line-height: 1.5;
     white-space: pre-wrap;
 }
+/* ===============================
+   Collapsible Sections
+   =============================== */
+
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+    max-height: 2000px;
+    opacity: 1;
+}
+
+.admin-section.collapsed .collapsible-content {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}

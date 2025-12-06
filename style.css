@@ -209,6 +209,71 @@ body.security-approved {
 /* Availability cell should behave like a normal table cell */
 /* ===== HARD FIX: availability must fill the entire table cell ===== */
 
+/* New Add/
+/* =====================================================
+   Availability Status – Light & Dark Mode (High Contrast)
+   ===================================================== */
+
+.availability-cell {
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 6px 10px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* ---------- AVAILABLE ---------- */
+.availability-cell.status-available {
+    background-color: #16a34a; /* solid green */
+    color: #ffffff;
+}
+
+/* ---------- ON CALL / BUSY ---------- */
+.availability-cell.status-oncall,
+.availability-cell.status-orange {
+    background-color: #d97706; /* amber */
+    color: #ffffff;
+}
+
+/* ---------- BREAK ---------- */
+.availability-cell.status-break {
+    background-color: #dc2626; /* solid red */
+    color: #ffffff;            /* high contrast */
+}
+
+/* ---------- WRAP ---------- */
+.availability-cell.status-wrap {
+    background-color: #2563eb; /* blue */
+    color: #ffffff;
+}
+
+/* ---------- LUNCH ---------- */
+.availability-cell.status-lunch {
+    background-color: #7c3aed; /* purple */
+    color: #ffffff;
+}
+
+/* ---------- IDLE ---------- */
+.availability-cell.status-idle {
+    background-color: #6b7280; /* gray */
+    color: #ffffff;
+}
+
+/* ---------- UNKNOWN / FALLBACK ---------- */
+.availability-cell.status-unknown,
+.availability-cell.status-yellow {
+    background-color: #f59e0b; /* yellow */
+    color: #000000;            /* dark text for contrast */
+}
+
+/* =====================================================
+   Dark Mode reinforcement (optional but safe)
+   ===================================================== */
+body.dark-mode .availability-cell {
+    filter: none;
+}
+
+/* Close of New add
 
 
 /* foreground text */

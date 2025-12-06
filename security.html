@@ -61,8 +61,6 @@
 
         <div class="login-helper">
             <strong>If you do not have a login credential, contact IT</strong><be>
-            <!--ID: <code>superadmin</code> • PIN: <code>ChangeMeNow!</code><br>
-            <small>You will be asked to set up Microsoft Authenticator on first login.</small> -->
         </div>
 
         <button id="override-toggle" class="link-button">VisionBank® disabled</button>
@@ -86,25 +84,21 @@
         </p>
 
         <div class="mfa-layout">
-
             <div class="mfa-qr-wrapper">
                 <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
                 <p class="mfa-qr-caption">Scan in Microsoft Authenticator</p>
             </div>
 
             <div class="mfa-details">
-                <label>
-                    Account
+                <label>Account
                     <input type="text" id="mfa-account" readonly>
                 </label>
 
-                <label>
-                    Secret Key
+                <label>Secret Key
                     <input type="text" id="mfa-secret" readonly>
                 </label>
 
-                <label>
-                    Enter 6-digit code from app
+                <label>Enter 6-digit code from app
                     <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
                 </label>
 
@@ -112,13 +106,9 @@
                     Confirm &amp; Enable MFA
                 </button>
 
-                <button id="mfa-cancel-btn" class="btn-link">
-                    Cancel
-                </button>
-
+                <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
                 <div id="mfa-message" class="message"></div>
             </div>
-
         </div>
     </section>
 
@@ -137,131 +127,157 @@
             <button id="logout-btn" class="btn-secondary small">Logout</button>
         </div>
 
-        <!-- Status banner injected by JS (showStatus) -->
-
         <!-- BUSINESS HOURS -->
         <section id="admin-hours-section" class="admin-section">
-            <h3>Business Hours</h3>
-            <p class="section-help">
-                These hours are enforced on the main dashboard. Outside these times, access is denied
-                unless an override is used. All times are CST/CDT automatically adjusted.
-            </p>
 
-            <form id="hours-form" class="form-grid hours-grid">
-                <label>
-                    Start (HH:MM, CST)
-                    <input type="time" id="hours-start">
-                </label>
+            <div class="collapsible-header">
+                <h3>Business Hours</h3>
+                <button class="collapse-toggle" aria-expanded="true">
+                    <span>▾</span> Collapse
+                </button>
+            </div>
 
-                <label>
-                    End (HH:MM, CST)
-                    <input type="time" id="hours-end">
-                </label>
+            <div class="collapsible-content">
+                <p class="section-help">
+                    These hours are enforced on the main dashboard. Outside these times, access is denied
+                    unless an override is used. All times are CST/CDT automatically adjusted.
+                </p>
 
-                <fieldset class="days-fieldset">
-                    <legend>Active Days (CST)</legend>
-                    <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                    <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                    <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                    <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                    <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                    <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                    <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                </fieldset>
+                <form id="hours-form" class="form-grid hours-grid">
+                    <label>Start (HH:MM, CST)
+                        <input type="time" id="hours-start">
+                    </label>
 
-                <button type="submit" class="btn-primary">Save Business Hours</button>
-            </form>
+                    <label>End (HH:MM, CST)
+                        <input type="time" id="hours-end">
+                    </label>
+
+                    <fieldset class="days-fieldset">
+                        <legend>Active Days (CST)</legend>
+                        <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
+                        <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
+                        <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
+                        <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
+                        <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
+                        <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
+                        <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
+                    </fieldset>
+
+                    <button type="submit" class="btn-primary">Save Business Hours</button>
+                </form>
+            </div>
         </section>
 
-        <!-- IP ALLOWLIST -->
-        <!-- ======================================================= -->
-<!-- Allowed IP / Subnets Section           -->
-<!-- ======================================================= -->
-<section id="ip-manager" class="admin-section">
-    <h3>Allowed IPs / Subnets</h3>
-    <p class="section-help">
-        Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
-        Click remove to delete a rule.
-    </p>
+        <!-- ALLOWED IPs -->
+        <section id="ip-manager" class="admin-section">
+            <div class="collapsible-header">
+                <h3>Allowed IPs / Subnets</h3>
+                <button class="collapse-toggle" aria-expanded="true">
+                    <span>▾</span> Collapse
+                </button>
+            </div>
 
-    <!-- List container -->
-    <div id="ip-list" class="ip-list"></div>
-<div id="ip-status" class="status-box"></div>
+            <div class="collapsible-content">
+                <p class="section-help">
+                    Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
+                    Click remove to delete a rule.
+                </p>
 
-    <!-- Add rule UI -->
-    <div class="ip-add-row">
-        <input id="ip-add-input" type="text" class="input" placeholder="Enter IPv4, IPv6, or CIDR">
-        <button id="ip-add-btn" class="btn-primary">Add Rule</button>
-    </div>
+                <div id="ip-list" class="ip-list"></div>
+                <div id="ip-status" class="status-box"></div>
 
-    <!-- Save -->
-    <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">Save IP Rules</button>
-</section>
-    <!-- ======================================================= -->
-<!-- End of Allowed IP / Subnets Section                   -->
-<!-- ======================================================= -->
-<!-- ======================================================= -->
-<!-- CIDR / IP TESTER (AUTO-LOADED RULES)                     -->
-<!-- ======================================================= -->
-<section id="cidr-ip-tester" class="admin-section">
-    <h3>CIDR / IP Tester</h3>
-    <p class="section-help">
-        Test whether an IPv4 or IPv6 address matches any allowlist rule. Uses the same logic as the Cloudflare Worker.
-    </p>
+                <div class="ip-add-row">
+                    <input id="ip-add-input" type="text" class="input" placeholder="Enter IPv4, IPv6, or CIDR">
+                    <button id="ip-add-btn" class="btn-primary">Add Rule</button>
+                </div>
 
-    <label>IP Address to Test</label>
-    <input id="ip-test-input" type="text" class="input" placeholder="Enter IPv4 or IPv6">
+                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">Save IP Rules</button>
+            </div>
+        </section>
 
-    <label>Rules (auto-loaded)</label>
-    <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
+        <!-- CIDR / IP TESTER -->
+        <section id="cidr-ip-tester" class="admin-section collapsed">
 
-    <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
-        Run CIDR Test
-    </button>
+            <div class="collapsible-header">
+                <h3>CIDR / IP Tester</h3>
+                <button class="collapse-toggle" aria-expanded="false">
+                    <span>▸</span> Expand
+                </button>
+            </div>
 
-    <div id="ip-test-result" class="cidr-result-box"></div>
-</section>
-<!-- ======================================================= -->
-<!-- CIDR TESTER (Range vs Range, IP vs CIDR)                -->
-<!-- ======================================================= -->
-<section id="cidr-range-tester" class="admin-section">
-    <h3>CIDR Tester</h3>
-    <p class="section-help">
-        Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.
-    </p>
+            <div class="collapsible-content">
+                <p class="section-help">
+                    Test whether an IPv4 or IPv6 address matches any allowlist rule.
+                </p>
 
-    <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
-        <label>
-            Test IP or CIDR A
-            <input id="cidr-input-a" type="text" placeholder="e.g. 185.199.108.10">
-        </label>
+                <label>IP Address to Test</label>
+                <input id="ip-test-input" type="text" class="input">
 
-        <label>
-            Against CIDR B
-            <input id="cidr-input-b" type="text" placeholder="e.g. 185.199.108.0/22">
-        </label>
-    </div>
+                <label>Rules (auto-loaded)</label>
+                <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
 
-    <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
-        Run CIDR Test
-    </button>
+                <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
+                    Run CIDR Test
+                </button>
 
-    <div id="cidr-test-result" class="cidr-result-box"></div>
-</section>
+                <div id="ip-test-result" class="cidr-result-box"></div>
+            </div>
+        </section>
 
-        <!-- USER MANAGEMENT WILL BE INSERTED HERE BY JS (before audit section) -->
+        <!-- CIDR RANGE TESTER -->
+        <section id="cidr-range-tester" class="admin-section collapsed">
+
+            <div class="collapsible-header">
+                <h3>CIDR Tester</h3>
+                <button class="collapse-toggle" aria-expanded="false">
+                    <span>▸</span> Expand
+                </button>
+            </div>
+
+            <div class="collapsible-content">
+                <p class="section-help">
+                    Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.
+                </p>
+
+                <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                    <label>Test IP or CIDR A
+                        <input id="cidr-input-a" type="text">
+                    </label>
+
+                    <label>Against CIDR B
+                        <input id="cidr-input-b" type="text">
+                    </label>
+                </div>
+
+                <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
+                    Run CIDR Test
+                </button>
+
+                <div id="cidr-test-result" class="cidr-result-box"></div>
+            </div>
+        </section>
+
+        <!-- USER MANAGEMENT INSERTED BY JS -->
 
         <!-- AUDIT LOG -->
-        <section id="admin-audit-section" class="admin-section">
-            <h3>Security Audit Log</h3>
-            <p class="section-help">
-                Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
-            </p>
-            <pre id="audit-log" class="audit-log"></pre>
+        <section id="admin-audit-section" class="admin-section collapsed">
+
+            <div class="collapsible-header">
+                <h3>Security Audit Log</h3>
+                <button class="collapse-toggle" aria-expanded="false">
+                    <span>▸</span> Expand
+                </button>
+            </div>
+
+            <div class="collapsible-content">
+                <p class="section-help">
+                    Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
+                </p>
+                <pre id="audit-log" class="audit-log"></pre>
+            </div>
         </section>
 
     </section>
-
 </main>
 
 <!-- ====================================== -->
@@ -269,17 +285,13 @@
 <!-- ====================================== -->
 <footer class="vb-footer">
     <div class="vb-footer-inner">
-        <span class="vb-footer-left">
-            <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo">
-        </span>
-        <span class="vb-footer-text">
+        <img src="assets/US-Signal-Logo.png" class="footer-logo" alt="US Signal">
+        <span>
             Created and maintained by <strong>Ahmed Adeyemi</strong>, ©2025. US Signal
         </span>
     </div>
 </footer>
 
-<!-- MAIN JS -->
 <script src="security.js"></script>
-
 </body>
 </html>

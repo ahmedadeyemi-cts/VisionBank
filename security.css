@@ -1,15 +1,17 @@
 /* ============================================================
-   COLOR PALETTE — Hybrid Azure + US Signal Blue
+   GLOBAL VARIABLES
 ============================================================ */
 :root {
-    --primary: #003366;      /* Deep enterprise blue */
-    --primary-light: #0a4c8a;
-    --primary-soft: #e5edf5;
+    --sidebar-width: 240px;
+
+    --primary: #003366;
+    --primary-hover: #0a4c8a;
 
     --bg: #f5f7fa;
     --card-bg: #ffffff;
+
     --text: #1e1e1e;
-    --text-light: #6b7280;
+    --text-muted: #6b7280;
 
     --border: #d0d7e1;
     --radius: 10px;
@@ -20,66 +22,90 @@
 body.theme-dark {
     --bg: #0f172a;
     --card-bg: #1e293b;
+
     --text: #e2e8f0;
-    --text-light: #94a3b8;
+    --text-muted: #94a3b8;
+
     --border: #334155;
     --shadow: 0 2px 10px rgba(0,0,0,0.4);
 }
 
 /* ============================================================
-   GLOBAL LAYOUT
+   LAYOUT
 ============================================================ */
 body {
     margin: 0;
+    padding: 0;
     background: var(--bg);
     color: var(--text);
     font-family: "Segoe UI", sans-serif;
-}
-
-.panel {
-    max-width: 950px;
-    margin: 40px auto;
-    padding: 30px;
-    background: var(--card-bg);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
-
-.panel-title {
-    margin-top: 0;
-    margin-bottom: 20px;
-    color: var(--primary);
+    display: flex;
 }
 
 /* ============================================================
-   HEADER
+   SIDEBAR
 ============================================================ */
-.top-header {
+#sidebar {
+    width: var(--sidebar-width);
     background: var(--primary);
     color: white;
-    padding: 18px 30px;
+    height: 100vh;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: var(--shadow);
+    flex-direction: column;
+    padding: 20px 14px;
+    position: fixed;
+    left: 0;
+    top: 0;
 }
 
-.top-header .subtitle {
-    opacity: 0.85;
-    font-size: 13px;
+.nav-header h2 {
+    margin: 0 0 20px 0;
+    font-size: 20px;
+    letter-spacing: 0.4px;
 }
 
-/* ============================================================
-   THEME TOGGLE
-============================================================ */
+.nav-menu {
+    flex-grow: 1;
+}
+
+.nav-item {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 12px;
+    margin-bottom: 6px;
+    font-size: 15px;
+    color: white;
+    opacity: 0.9;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.nav-item:hover {
+    background: rgba(255,255,255,0.15);
+    opacity: 1;
+}
+
+.nav-item.active {
+    background: rgba(255,255,255,0.25);
+    opacity: 1;
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+    padding-top: 20px;
+}
+
 .theme-toggle {
     background: rgba(255,255,255,0.2);
+    color: white;
     border: none;
-    padding: 10px 14px;
+    padding: 10px;
+    width: 100%;
     border-radius: var(--radius);
     cursor: pointer;
-    color: white;
-    transition: background 0.2s;
 }
 
 .theme-toggle:hover {
@@ -87,72 +113,23 @@ body {
 }
 
 /* ============================================================
-   FORMS
+   MAIN CONTENT
 ============================================================ */
-.form label {
-    display: block;
-    font-size: 14px;
-    margin-bottom: 12px;
-}
-
-.form input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-top: 4px;
-}
-
-.form-inline {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 15px;
-}
-
-.form-message {
-    margin-top: 10px;
-    color: red;
+#main {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    padding: 30px;
 }
 
 /* ============================================================
-   BUTTONS
+   PANELS
 ============================================================ */
-.btn-primary {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 10px 16px;
+.panel {
+    background: var(--card-bg);
+    padding: 28px;
     border-radius: var(--radius);
-    cursor: pointer;
-}
-
-.btn-primary:hover {
-    background: var(--primary-light);
-}
-
-.btn-secondary {
-    background: var(--primary-soft);
-    color: var(--primary);
-    border: 1px solid var(--primary);
-    padding: 8px 14px;
-    border-radius: var(--radius);
-    cursor: pointer;
-}
-
-.btn-secondary:hover {
-    background: #dce7f3;
-}
-
-.link-btn {
-    margin-top: 8px;
-    color: var(--primary);
-    cursor: pointer;
-    background: none;
-    border: none;
-}
-
-.small {
-    font-size: 13px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
 }
 
 /* ============================================================
@@ -167,72 +144,57 @@ body {
 }
 
 /* ============================================================
-   IP LIST
-============================================================ */
-.ip-list {
-    margin-top: 12px;
-}
-
-.ip-item {
-    background: var(--primary-soft);
-    border-left: 4px solid var(--primary);
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: var(--radius);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.ip-item button {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: var(--radius);
-}
-
-/* ============================================================
    LOG BOX
 ============================================================ */
 .log-box {
     background: #0d1117;
     color: #c9d1d9;
     padding: 15px;
-    height: 260px;
+    height: 280px;
     overflow-y: auto;
     border-radius: var(--radius);
     font-size: 13px;
 }
 
 /* ============================================================
-   MFA BOX
+   IP LIST
 ============================================================ */
-.mfa-box {
-    display: flex;
-    gap: 25px;
-    align-items: flex-start;
-}
-
-.mfa-qr {
-    width: 180px;
-    height: 180px;
+.ip-item {
+    background: #e5edf5;
+    border-left: 4px solid var(--primary);
+    padding: 10px;
+    margin-bottom: 8px;
     border-radius: var(--radius);
-    border: 1px solid var(--border);
-}
-
-.mfa-info input {
-    width: 200px;
+    display: flex;
+    justify-content: space-between;
 }
 
 /* ============================================================
-   ANIMATIONS
+   BUTTONS
 ============================================================ */
-.fade-in {
-    animation: fadeIn 0.4s ease;
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    border: none;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-secondary {
+    background: var(--card-bg);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 8px 14px;
+    border-radius: var(--radius);
+}
+
+.link-btn {
+    background: none;
+    color: var(--primary);
+    border: none;
+    cursor: pointer;
 }

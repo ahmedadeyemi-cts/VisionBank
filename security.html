@@ -31,240 +31,179 @@
 
 <main class="vb-main">
 
-    <!-- ====================================== -->
-    <!-- LOGIN VIEW                             -->
-    <!-- ====================================== -->
-    <section id="login-view" class="card">
-        <h2>Secure Administrator Login</h2>
-        <p class="card-subtitle">
-            Sign in with your Username, Password, and when required a Microsoft Authenticator code.
-        </p>
+<!-- ====================================== -->
+<!-- LOGIN VIEW -->
+<!-- ====================================== -->
+<section id="login-view" class="card">
+    <h2>Secure Administrator Login</h2>
+    <p class="card-subtitle">
+        Sign in with your Username, Password, and (when required) a Microsoft Authenticator code.
+    </p>
 
-        <form id="login-form" class="form-grid">
-            <label>Username
-                <input type="text" id="login-username" autocomplete="username">
-            </label>
+    <form id="login-form" class="form-grid">
+        <label>
+            Username
+            <input type="text" id="login-username">
+        </label>
 
-            <label>Password
-                <input type="password" id="login-pin" autocomplete="current-password">
-            </label>
+        <label>
+            Password
+            <input type="password" id="login-pin">
+        </label>
 
-            <label id="login-totp-wrapper" class="hidden">
-                Microsoft Authenticator Code
-                <input type="text" id="login-totp" maxlength="6" inputmode="numeric">
-            </label>
+        <label id="login-totp-wrapper" class="hidden">
+            Microsoft Authenticator Code
+            <input type="text" id="login-totp" maxlength="6">
+        </label>
 
-            <button type="submit" class="btn-primary">Login</button>
+        <button type="submit" class="btn-primary">Login</button>
+    </form>
+
+    <div id="login-message" class="message"></div>
+</section>
+
+<!-- ====================================== -->
+<!-- MFA SETUP VIEW -->
+<!-- ====================================== -->
+<section id="mfa-setup-view" class="card hidden">
+    <h2>Microsoft Authenticator Setup</h2>
+
+    <div class="mfa-layout">
+        <div class="mfa-qr-wrapper">
+            <img id="mfa-qr-img" class="mfa-qr-img">
+        </div>
+        <div class="mfa-details">
+            <label>Account <input id="mfa-account" readonly></label>
+            <label>Secret <input id="mfa-secret" readonly></label>
+            <label>Code <input id="mfa-code"></label>
+
+            <button id="mfa-confirm-btn" class="btn-primary">Confirm</button>
+            <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
+            <div id="mfa-message" class="message"></div>
+        </div>
+    </div>
+</section>
+
+<!-- ====================================== -->
+<!-- ADMIN VIEW -->
+<!-- ====================================== -->
+<section id="admin-view" class="card hidden">
+
+<div class="admin-header">
+    <h2>VisionBank® Security Administration</h2>
+    <button id="logout-btn" class="btn-secondary small">Logout</button>
+</div>
+
+<!-- ====================================== -->
+<!-- BUSINESS HOURS -->
+<!-- ====================================== -->
+<section id="admin-hours-section" class="admin-section collapsed">
+    <div class="section-toggle">
+        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
+        <h3>Business Hours</h3>
+    </div>
+
+    <div class="section-content">
+        <p class="section-help">Time-based access enforcement.</p>
+        <form id="hours-form" class="form-grid hours-grid">
+            <input type="time" id="hours-start">
+            <input type="time" id="hours-end">
+            <fieldset class="days-fieldset">
+                <label><input type="checkbox" class="hours-day" value="1"> Mon</label>
+                <label><input type="checkbox" class="hours-day" value="2"> Tue</label>
+                <label><input type="checkbox" class="hours-day" value="3"> Wed</label>
+                <label><input type="checkbox" class="hours-day" value="4"> Thu</label>
+                <label><input type="checkbox" class="hours-day" value="5"> Fri</label>
+                <label><input type="checkbox" class="hours-day" value="6"> Sat</label>
+                <label><input type="checkbox" class="hours-day" value="0"> Sun</label>
+            </fieldset>
+            <button class="btn-primary">Save</button>
         </form>
+    </div>
+</section>
 
-        <div id="login-message" class="message"></div>
-    </section>
+<!-- ====================================== -->
+<!-- IP ALLOWLIST -->
+<!-- ====================================== -->
+<section id="ip-manager" class="admin-section collapsed">
+    <div class="section-toggle">
+        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
+        <h3>Allowed IPs / Subnets</h3>
+    </div>
 
-    <!-- ====================================== -->
-    <!-- MFA SETUP VIEW                         -->
-    <!-- ====================================== -->
-    <section id="mfa-setup-view" class="card hidden">
-        <h2>Microsoft Authenticator Setup</h2>
+    <div class="section-content">
+        <div id="ip-list"></div>
 
-        <div class="mfa-layout">
-            <div class="mfa-qr-wrapper">
-                <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
-                <p class="mfa-qr-caption">Scan with Microsoft Authenticator</p>
-            </div>
-
-            <div class="mfa-details">
-                <label>Account
-                    <input type="text" id="mfa-account" readonly>
-                </label>
-
-                <label>Secret Key
-                    <input type="text" id="mfa-secret" readonly>
-                </label>
-
-                <label>Enter 6-digit code
-                    <input type="text" id="mfa-code" maxlength="6">
-                </label>
-
-                <button id="mfa-confirm-btn" class="btn-primary">Confirm & Enable MFA</button>
-                <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
-
-                <div id="mfa-message" class="message"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ====================================== -->
-    <!-- ADMIN VIEW                             -->
-    <!-- ====================================== -->
-    <section id="admin-view" class="card hidden">
-
-        <div class="admin-header">
-            <div>
-                <h2>VisionBank® Security Administration</h2>
-                <p class="card-subtitle">Access Control • Users • Logs • Rules</p>
-            </div>
-            <button id="logout-btn" class="btn-secondary small">Logout</button>
+        <div class="ip-add-row">
+            <input id="ip-add-input">
+            <button id="ip-add-btn" class="btn-primary">Add</button>
         </div>
 
-        <!-- ===================================================== -->
-        <!-- BUSINESS HOURS                                       -->
-        <!-- ===================================================== -->
-        <section id="admin-hours-section" class="admin-section" data-collapsed="false">
+        <button id="ip-save-btn" class="btn-secondary">Save Rules</button>
+    </div>
+</section>
 
-            <div class="section-header">
-                <div class="section-header-left">
-                    <span class="svg-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 6v6l4 2"/>
-                        </svg>
-                    </span>
-                    <h3>Business Hours</h3>
-                </div>
+<!-- ====================================== -->
+<!-- CIDR / IP TESTER -->
+<!-- ====================================== -->
+<section id="cidr-ip-tester" class="admin-section collapsed">
+    <div class="section-toggle">
+        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
+        <h3>CIDR / IP Tester</h3>
+    </div>
 
-                <span class="section-toggle svg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </span>
-            </div>
+    <div class="section-content">
+        <input id="ip-test-input">
+        <textarea id="ip-rules-textarea"></textarea>
+        <button id="run-ip-test-btn" class="btn-primary">Test</button>
+        <div id="ip-test-result" class="cidr-result-box"></div>
+    </div>
+</section>
 
-            <div class="section-body">
-                <p class="section-help">Access enforced by CST/CDT hours.</p>
+<!-- ====================================== -->
+<!-- CIDR RANGE TESTER -->
+<!-- ====================================== -->
+<section id="cidr-range-tester" class="admin-section collapsed">
+    <div class="section-toggle">
+        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
+        <h3>CIDR Range Tester</h3>
+    </div>
 
-                <form id="hours-form" class="form-grid hours-grid">
-                    <label>Start
-                        <input type="time" id="hours-start">
-                    </label>
+    <div class="section-content">
+        <input id="cidr-input-a">
+        <input id="cidr-input-b">
+        <button id="cidr-test-btn" class="btn-primary">Test</button>
+        <div id="cidr-test-result"></div>
+    </div>
+</section>
 
-                    <label>End
-                        <input type="time" id="hours-end">
-                    </label>
+<!-- USER MANAGEMENT INSERTED BY JS -->
 
-                    <fieldset class="days-fieldset">
-                        <legend>Active Days</legend>
-                        <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                        <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                        <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                        <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                        <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                        <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                        <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                    </fieldset>
+<!-- ====================================== -->
+<!-- AUDIT LOG -->
+<!-- ====================================== -->
+<section id="admin-audit-section" class="admin-section collapsed">
+    <div class="section-toggle">
+        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
+        <h3>Security Audit Log</h3>
+    </div>
 
-                    <button type="submit" class="btn-primary">Save Business Hours</button>
-                </form>
-            </div>
-        </section>
+    <div class="section-content">
+        <pre id="audit-log" class="audit-log"></pre>
+    </div>
+</section>
 
-        <!-- ===================================================== -->
-        <!-- IP ALLOWLIST                                         -->
-        <!-- ===================================================== -->
-        <section id="ip-manager" class="admin-section" data-collapsed="false">
-
-            <div class="section-header">
-                <div class="section-header-left">
-                    <span class="svg-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="16"/>
-                            <path d="M7 8h10M7 12h10M7 16h10"/>
-                        </svg>
-                    </span>
-                    <h3>Allowed IPs / Subnets</h3>
-                </div>
-
-                <span class="section-toggle svg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </span>
-            </div>
-
-            <div class="section-body">
-                <p class="section-help">Allowed access ranges.</p>
-
-                <div id="ip-list" class="ip-list"></div>
-
-                <!-- Skeleton -->
-                <div class="ip-skeleton">
-                    <div class="skeleton skeleton-block"></div>
-                    <div class="skeleton skeleton-block"></div>
-                </div>
-
-                <div class="ip-add-row">
-                    <input id="ip-add-input" type="text" class="input" placeholder="IPv4 / IPv6 / CIDR">
-                    <button id="ip-add-btn" class="btn-primary">Add Rule</button>
-                </div>
-
-                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">
-                    Save IP Rules
-                </button>
-            </div>
-        </section>
-
-        <!-- ===================================================== -->
-        <!-- USER MANAGEMENT INSERTED BY JS                        -->
-        <!-- ===================================================== -->
-
-        <!-- ===================================================== -->
-        <!-- AUDIT LOG                                            -->
-        <!-- ===================================================== -->
-        <section id="admin-audit-section" class="admin-section" data-collapsed="false">
-
-            <div class="section-header">
-                <div class="section-header-left">
-                    <span class="svg-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 4h16v16H4z"/>
-                            <path d="M8 8h8M8 12h8M8 16h8"/>
-                        </svg>
-                    </span>
-                    <h3>Security Audit Log</h3>
-                </div>
-
-                <span class="section-toggle svg-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </span>
-            </div>
-
-            <div class="section-body">
-                <pre id="audit-log" class="audit-log"></pre>
-
-                <!-- Skeleton -->
-                <div class="audit-skeleton">
-                    <div class="skeleton skeleton-text"></div>
-                    <div class="skeleton skeleton-text"></div>
-                    <div class="skeleton skeleton-text"></div>
-                </div>
-            </div>
-        </section>
-
-    </section>
+</section>
 </main>
 
-<!-- ====================================== -->
-<!-- FOOTER                                 -->
-<!-- ====================================== -->
-<footer class="vb-footer">
-    <div class="vb-footer-inner">
-        <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo">
-        <span>Created and maintained by <strong>Ahmed Adeyemi</strong>, ©2025</span>
-    </div>
-</footer>
-
-<!-- MAIN JS -->
 <script src="security.js"></script>
 
-<!-- SECTION TOGGLE SCRIPT (SAFE) -->
+<!-- Toggle Behavior -->
 <script>
-document.querySelectorAll(".section-header").forEach(header => {
-    header.addEventListener("click", () => {
-        const section = header.closest(".admin-section");
-        const collapsed = section.getAttribute("data-collapsed") === "true";
-        section.setAttribute("data-collapsed", String(!collapsed));
-    });
+document.addEventListener("click", e => {
+    const toggle = e.target.closest(".section-toggle");
+    if (!toggle) return;
+    toggle.closest(".admin-section").classList.toggle("collapsed");
 });
 </script>
 

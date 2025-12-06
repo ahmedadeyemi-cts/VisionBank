@@ -9,169 +9,277 @@
 <body class="theme-light">
 
 <!-- ====================================== -->
-<!-- HEADER -->
+<!-- HEADER                                 -->
 <!-- ====================================== -->
 <header class="vb-header">
     <div class="vb-header-inner">
-        <img src="assets/VisionBank-Logo.png" class="vb-logo">
+        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
+
         <div class="vb-title-block">
             <div class="vb-app-name">Security Admin Console</div>
             <div class="vb-app-subtitle">VisionBank®</div>
         </div>
     </div>
 
-    <button id="themeToggle" class="theme-toggle">
-        <span id="themeToggleIcon">🌙</span>
-        <span id="themeToggleText">Dark mode</span>
-    </button>
+    <div class="vb-header-actions">
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+            <span id="themeToggleIcon">🌙</span>
+            <span id="themeToggleText">Dark mode</span>
+        </button>
+    </div>
 </header>
 
 <main class="vb-main">
 
-<!-- ====================================== -->
-<!-- LOGIN VIEW -->
-<!-- ====================================== -->
-<section id="login-view" class="card">
-    <h2>Secure Administrator Login</h2>
+    <!-- ====================================== -->
+    <!-- LOGIN VIEW                             -->
+    <!-- ====================================== -->
+    <section id="login-view" class="card">
+        <h2>Secure Administrator Login</h2>
+        <p class="card-subtitle">
+            Sign in with your Username, Password, and (when required) a Microsoft Authenticator code.
+        </p>
 
-    <form id="login-form" class="form-grid">
-        <label>Username <input id="login-username"></label>
-        <label>Password <input id="login-pin" type="password"></label>
+        <form id="login-form" class="form-grid">
+            <label>
+                Username
+                <input type="text" id="login-username" autocomplete="username">
+            </label>
 
-        <!-- MFA PROMPT (REQUIRED) -->
-        <label id="login-totp-wrapper" class="hidden">
-            Microsoft Authenticator Code
-            <input id="login-totp" maxlength="6">
+            <label>
+                Password
+                <input type="password" id="login-pin" autocomplete="current-password">
+            </label>
+
+            <label id="login-totp-wrapper" class="hidden">
+                Microsoft Authenticator Code
+                <input type="text" id="login-totp" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+            </label>
+
+            <button type="submit" class="btn-primary">Login</button>
+        </form>
+
+        <div class="login-helper">
+            <strong>If you do not have a login credential, contact IT</strong><be>
+            <!--ID: <code>superadmin</code> • PIN: <code>ChangeMeNow!</code><br>
+            <small>You will be asked to set up Microsoft Authenticator on first login.</small> -->
+        </div>
+
+        <button id="override-toggle" class="link-button">VisionBank® disabled</button>
+
+        <form id="override-form" class="form-inline hidden">
+            <input type="password" id="override-input" placeholder="Override key">
+            <button type="submit" class="btn-secondary">Enter Override - Contact Ahmed to Setup</button>
+        </form>
+
+        <div id="login-message" class="message"></div>
+    </section>
+
+    <!-- ====================================== -->
+    <!-- MFA SETUP VIEW                         -->
+    <!-- ====================================== -->
+    <section id="mfa-setup-view" class="card hidden">
+        <h2>Microsoft Authenticator Setup</h2>
+        <p class="card-subtitle">
+            Scan this QR code or use the text key below in Microsoft Authenticator. 
+            Then enter a 6-digit code from the app to confirm.
+        </p>
+
+        <div class="mfa-layout">
+
+            <div class="mfa-qr-wrapper">
+                <img id="mfa-qr-img" class="mfa-qr-img" alt="MFA QR Code" />
+                <p class="mfa-qr-caption">Scan in Microsoft Authenticator</p>
+            </div>
+
+            <div class="mfa-details">
+                <label>
+                    Account
+                    <input type="text" id="mfa-account" readonly>
+                </label>
+
+                <label>
+                    Secret Key
+                    <input type="text" id="mfa-secret" readonly>
+                </label>
+
+                <label>
+                    Enter 6-digit code from app
+                    <input type="text" id="mfa-code" maxlength="6" inputmode="numeric">
+                </label>
+
+                <button id="mfa-confirm-btn" class="btn-primary">
+                    Confirm &amp; Enable MFA
+                </button>
+
+                <button id="mfa-cancel-btn" class="btn-link">
+                    Cancel
+                </button>
+
+                <div id="mfa-message" class="message"></div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ====================================== -->
+    <!-- ADMIN VIEW                             -->
+    <!-- ====================================== -->
+    <section id="admin-view" class="card hidden">
+
+        <div class="admin-header">
+            <div>
+                <h2>VisionBank® Security Administration</h2>
+                <p class="card-subtitle">
+                    Access Control • User Management • Logs • Business Rules
+                </p>
+            </div>
+            <button id="logout-btn" class="btn-secondary small">Logout</button>
+        </div>
+
+        <!-- Status banner injected by JS (showStatus) -->
+
+        <!-- BUSINESS HOURS -->
+        <section id="admin-hours-section" class="admin-section">
+            <h3>Business Hours</h3>
+            <p class="section-help">
+                These hours are enforced on the main dashboard. Outside these times, access is denied
+                unless an override is used. All times are CST/CDT automatically adjusted.
+            </p>
+
+            <form id="hours-form" class="form-grid hours-grid">
+                <label>
+                    Start (HH:MM, CST)
+                    <input type="time" id="hours-start">
+                </label>
+
+                <label>
+                    End (HH:MM, CST)
+                    <input type="time" id="hours-end">
+                </label>
+
+                <fieldset class="days-fieldset">
+                    <legend>Active Days (CST)</legend>
+                    <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
+                    <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
+                    <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
+                    <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
+                    <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
+                    <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
+                    <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
+                </fieldset>
+
+                <button type="submit" class="btn-primary">Save Business Hours</button>
+            </form>
+        </section>
+
+        <!-- IP ALLOWLIST -->
+        <!-- ======================================================= -->
+<!-- Allowed IP / Subnets Section           -->
+<!-- ======================================================= -->
+<section id="ip-manager" class="admin-section">
+    <h3>Allowed IPs / Subnets</h3>
+    <p class="section-help">
+        Only IPs/Subnets listed here will be allowed to access the dashboard during active hours.
+        Click remove to delete a rule.
+    </p>
+
+    <!-- List container -->
+    <div id="ip-list" class="ip-list"></div>
+<div id="ip-status" class="status-box"></div>
+
+    <!-- Add rule UI -->
+    <div class="ip-add-row">
+        <input id="ip-add-input" type="text" class="input" placeholder="Enter IPv4, IPv6, or CIDR">
+        <button id="ip-add-btn" class="btn-primary">Add Rule</button>
+    </div>
+
+    <!-- Save -->
+    <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">Save IP Rules</button>
+</section>
+    <!-- ======================================================= -->
+<!-- End of Allowed IP / Subnets Section                   -->
+<!-- ======================================================= -->
+<!-- ======================================================= -->
+<!-- CIDR / IP TESTER (AUTO-LOADED RULES)                     -->
+<!-- ======================================================= -->
+<section id="cidr-ip-tester" class="admin-section">
+    <h3>CIDR / IP Tester</h3>
+    <p class="section-help">
+        Test whether an IPv4 or IPv6 address matches any allowlist rule. Uses the same logic as the Cloudflare Worker.
+    </p>
+
+    <label>IP Address to Test</label>
+    <input id="ip-test-input" type="text" class="input" placeholder="Enter IPv4 or IPv6">
+
+    <label>Rules (auto-loaded)</label>
+    <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
+
+    <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
+        Run CIDR Test
+    </button>
+
+    <div id="ip-test-result" class="cidr-result-box"></div>
+</section>
+<!-- ======================================================= -->
+<!-- CIDR TESTER (Range vs Range, IP vs CIDR)                -->
+<!-- ======================================================= -->
+<section id="cidr-range-tester" class="admin-section">
+    <h3>CIDR Tester</h3>
+    <p class="section-help">
+        Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.
+    </p>
+
+    <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+        <label>
+            Test IP or CIDR A
+            <input id="cidr-input-a" type="text" placeholder="e.g. 185.199.108.10">
         </label>
 
-        <button class="btn-primary">Login</button>
-    </form>
+        <label>
+            Against CIDR B
+            <input id="cidr-input-b" type="text" placeholder="e.g. 185.199.108.0/22">
+        </label>
+    </div>
 
-    <div id="login-message" class="message"></div>
+    <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
+        Run CIDR Test
+    </button>
+
+    <div id="cidr-test-result" class="cidr-result-box"></div>
 </section>
 
-<!-- ====================================== -->
-<!-- MFA SETUP VIEW (NOT COLLAPSIBLE) -->
-<!-- ====================================== -->
-<section id="mfa-setup-view" class="card hidden">
-    <h2>Microsoft Authenticator Setup</h2>
+        <!-- USER MANAGEMENT WILL BE INSERTED HERE BY JS (before audit section) -->
 
-    <div class="mfa-layout">
-        <div class="mfa-qr-wrapper">
-            <img id="mfa-qr-img" class="mfa-qr-img">
-        </div>
+        <!-- AUDIT LOG -->
+        <section id="admin-audit-section" class="admin-section">
+            <h3>Security Audit Log</h3>
+            <p class="section-help">
+                Recent security events. For permanent logs, store them within Cloudflare Workers KV or D1.
+            </p>
+            <pre id="audit-log" class="audit-log"></pre>
+        </section>
 
-        <div class="mfa-details">
-            <label>Account <input id="mfa-account" readonly></label>
-            <label>Secret <input id="mfa-secret" readonly></label>
-            <label>Code <input id="mfa-code"></label>
+    </section>
 
-            <button id="mfa-confirm-btn" class="btn-primary">Confirm</button>
-            <button id="mfa-cancel-btn" class="btn-link">Cancel</button>
-            <div id="mfa-message" class="message"></div>
-        </div>
-    </div>
-</section>
-
-<!-- ====================================== -->
-<!-- ADMIN VIEW -->
-<!-- ====================================== -->
-<section id="admin-view" class="card hidden">
-
-<div class="admin-header">
-    <h2>VisionBank® Security Administration</h2>
-    <button id="logout-btn" class="btn-secondary small">Logout</button>
-</div>
-
-<!-- ================= BUSINESS HOURS ================= -->
-<section id="admin-hours-section" class="admin-section collapsed">
-    <div class="section-toggle">
-        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
-        <h3>Business Hours</h3>
-    </div>
-    <div class="section-content">
-        <form id="hours-form" class="form-grid hours-grid">
-            <input type="time" id="hours-start">
-            <input type="time" id="hours-end">
-            <fieldset class="days-fieldset">
-                <label><input type="checkbox" class="hours-day" value="1">Mon</label>
-                <label><input type="checkbox" class="hours-day" value="2">Tue</label>
-                <label><input type="checkbox" class="hours-day" value="3">Wed</label>
-                <label><input type="checkbox" class="hours-day" value="4">Thu</label>
-                <label><input type="checkbox" class="hours-day" value="5">Fri</label>
-                <label><input type="checkbox" class="hours-day" value="6">Sat</label>
-                <label><input type="checkbox" class="hours-day" value="0">Sun</label>
-            </fieldset>
-            <button class="btn-primary">Save</button>
-        </form>
-    </div>
-</section>
-
-<!-- ================= IP ALLOWLIST ================= -->
-<section id="ip-manager" class="admin-section collapsed">
-    <div class="section-toggle">
-        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
-        <h3>Allowed IPs / Subnets</h3>
-    </div>
-    <div class="section-content">
-        <div id="ip-list" class="skeleton skeleton-block"></div>
-        <div class="ip-add-row">
-            <input id="ip-add-input">
-            <button id="ip-add-btn" class="btn-primary">Add</button>
-        </div>
-        <button id="ip-save-btn" class="btn-secondary">Save</button>
-    </div>
-</section>
-
-<!-- ================= CIDR TESTERS ================= -->
-<section id="cidr-ip-tester" class="admin-section collapsed">
-    <div class="section-toggle">
-        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
-        <h3>CIDR / IP Tester</h3>
-    </div>
-    <div class="section-content">
-        <input id="ip-test-input">
-        <textarea id="ip-rules-textarea"></textarea>
-        <button id="run-ip-test-btn" class="btn-primary">Test</button>
-        <div id="ip-test-result" class="cidr-result-box"></div>
-    </div>
-</section>
-
-<!-- ✅ USER MANAGEMENT INSERTION POINT — DO NOT TOUCH -->
-<!-- security.js inserts User Management HERE -->
-
-<!-- ================= AUDIT LOG ================= -->
-<section id="admin-audit-section" class="admin-section collapsed">
-    <div class="section-toggle">
-        <svg viewBox="0 0 24 24"><path d="M8 5l8 7-8 7"/></svg>
-        <h3>Security Audit Log</h3>
-    </div>
-    <div class="section-content">
-        <pre id="audit-log" class="audit-log skeleton skeleton-block"></pre>
-    </div>
-</section>
-
-</section>
 </main>
 
 <!-- ====================================== -->
-<!-- FOOTER (RESTORED) -->
+<!-- FOOTER                                 -->
 <!-- ====================================== -->
 <footer class="vb-footer">
     <div class="vb-footer-inner">
-        <img src="assets/US-Signal-Logo.png" class="footer-logo">
-        <span>Created and maintained by <strong>Ahmed Adeyemi</strong>, ©2025 US Signal</span>
+        <span class="vb-footer-left">
+            <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo">
+        </span>
+        <span class="vb-footer-text">
+            Created and maintained by <strong>Ahmed Adeyemi</strong>, ©2025. US Signal
+        </span>
     </div>
 </footer>
 
+<!-- MAIN JS -->
 <script src="security.js"></script>
-
-<script>
-document.addEventListener("click", e => {
-    const t = e.target.closest(".section-toggle");
-    if (t) t.closest(".admin-section").classList.toggle("collapsed");
-});
-</script>
 
 </body>
 </html>

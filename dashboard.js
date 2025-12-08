@@ -668,14 +668,25 @@ async function loadQueueStatus() {
     // ==========================================
     // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
     // ==========================================
-    const callsCell = document.querySelector("#queueCallsCell");
-    if (callsCell) {
-      if (totalCalls > 1) {
-        callsCell.classList.add("queue-alert-red");
-      } else {
-        callsCell.classList.remove("queue-alert-red");
-      }
-    }
+const callsCell = document.querySelector("#queueCallsCell");
+if (callsCell) {
+  const callsValue = totalCalls;
+
+  callsCell.classList.add("queue-calls-cell");
+  callsCell.classList.remove(
+    "queue-calls-zero",
+    "queue-calls-one",
+    "queue-calls-many"
+  );
+
+  if (callsValue === 0) {
+    callsCell.classList.add("queue-calls-zero");
+  } else if (callsValue === 1) {
+    callsCell.classList.add("queue-calls-one");
+  } else {
+    callsCell.classList.add("queue-calls-many");
+  }
+}
     // ==========================================
 
     // Trigger alert when totalCalls ≥ 2

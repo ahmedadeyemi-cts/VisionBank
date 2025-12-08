@@ -924,3 +924,44 @@ body.dark-mode .numeric {
 body.dark-mode .data-table td:last-child {
   color: #d1d5db !important;
 }
+/* ============================================================
+   🔥 FINAL FIX — DARK MODE TABLE BACKGROUND OVERRIDE
+   Fixes light/washed-out data cells WITHOUT touching availability
+   ============================================================ */
+
+/* Force dark background back onto table cells */
+body.dark-mode .data-table tbody td {
+  background: #020617 !important;
+}
+
+/* Maintain alternating rows subtly (optional but readable) */
+body.dark-mode .data-table tbody tr:nth-child(even) td {
+  background: #020617 !important;
+}
+
+body.dark-mode .data-table tbody tr:nth-child(odd) td {
+  background: #020617 !important;
+}
+
+/* Keep hover visible but dark */
+body.dark-mode .data-table tbody tr:hover td {
+  background: #111827 !important;
+}
+
+/* Ensure ALL table text is readable */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  color: #e5e7eb !important;
+}
+
+/* Headers slightly brighter */
+body.dark-mode .data-table th {
+  color: #f9fafb !important;
+}
+
+/* Guarantee nested content visibility */
+body.dark-mode .data-table td *,
+body.dark-mode .data-table th * {
+  color: inherit !important;
+  opacity: 1 !important;
+}

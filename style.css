@@ -965,3 +965,35 @@ body.dark-mode .data-table th * {
   color: inherit !important;
   opacity: 1 !important;
 }
+/* ============================================================
+   ✅ RESTORE AVAILABILITY COLORS IN DARK MODE (FINAL)
+   Overrides table-wide dark backgrounds ONLY for availability
+   ============================================================ */
+
+/* AVAILABLE */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #2ecc71 !important;
+  color: #ffffff !important;
+}
+
+/* ON CALL / DIAL OUT */
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-dialout {
+  background-color: #e74c3c !important;
+  color: #ffffff !important;
+}
+
+/* ACCEPT INTERNAL / BUSY / WRAP */
+body.dark-mode .data-table td.availability-cell.status-orange,
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-busy {
+  background-color: #f39c12 !important;
+  color: #ffffff !important;
+}
+
+/* IDLE / UNKNOWN */
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+}

@@ -894,3 +894,33 @@ body.dark-mode .data-table th {
   text-align: center;
   vertical-align: middle;
 }
+/* ============================================================
+   DARK MODE — DATA TABLE TEXT VISIBILITY FIX
+   (Does NOT affect availability styling)
+   ============================================================ */
+
+body.dark-mode .data-table td {
+  color: #e5e7eb !important;   /* light gray, high contrast */
+}
+
+body.dark-mode .data-table th {
+  color: #f9fafb !important;   /* brighter headers */
+}
+
+/* Names, links, spans, numbers inside cells */
+body.dark-mode .data-table td span,
+body.dark-mode .data-table td div,
+body.dark-mode .data-table td a {
+  color: #e5e7eb !important;
+  opacity: 1 !important;
+}
+
+/* Numeric columns (counts, durations, percentages) */
+body.dark-mode .numeric {
+  color: #e5e7eb !important;
+}
+
+/* Dates & timestamps */
+body.dark-mode .data-table td:last-child {
+  color: #d1d5db !important;
+}

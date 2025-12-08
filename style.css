@@ -772,7 +772,7 @@ body,
 /* On Break */
 .data-table td.availability-cell.status-break {
   background-color: #facc15;   /* yellow */
-  color: #111827;
+  color: #ffffff;              /* white text */
 }
 
 /* Available */
@@ -808,7 +808,7 @@ body,
 /* On Break */
 body.dark-mode .data-table td.availability-cell.status-break {
   background-color: #facc15 !important;
-  color: #111827 !important;
+  color: #ffffff !important;
 }
 
 body.dark-mode .data-table td.availability-cell {

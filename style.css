@@ -774,6 +774,12 @@ body,
   background-color: #facc15;   /* yellow */
   color: #ffffff;              /* white text */
 }
+/* On Lunch */
+.data-table td.availability-cell.status-lunch {
+  background-color: #facc15;   /* yellow */
+  color: #ffffff;              /* white text */
+}
+
 
 /* Available */
 .data-table td.availability-cell.status-available {
@@ -812,6 +818,11 @@ body.dark-mode .data-table td.availability-cell.status-break {
 }
 
 body.dark-mode .data-table td.availability-cell {
+  color: #ffffff !important;
+}
+/* On Lunch*/
+body.dark-mode .data-table td.availability-cell.status-lunch {
+  background-color: #facc15 !important;
   color: #ffffff !important;
 }
 
@@ -1042,10 +1053,7 @@ body.dark-mode .queue-calls-green {
   background-color: #16a34a;
   color: #ecfdf5;            /* very light green-ish text */
 }
-body.dark-mode .status-lunch {
-  background-color: #facc15;
-  color: #111827;
-}
+
 body.dark-mode .queue-calls-yellow {
   background-color: #ca8a04;
   color: #fffbeb;            /* pale yellow text */
@@ -1056,10 +1064,3 @@ body.dark-mode .queue-calls-red {
   color: #fef2f2;            /* pale red/white text */
 }
 
-/* ===============================
-   DARK MODE – LUNCH STATUS
-   =============================== */
-body.dark-mode .status-lunch {
-  background-color: #eab308;  /* warm amber that pops on dark */
-  color: #111827;
-}

@@ -1052,3 +1052,15 @@ body.dark-mode .queue-calls-red {
   background-color: #dc2626;
   color: #fef2f2;            /* pale red/white text */
 }
+.status-lunch {
+  background-color: #2563eb; /* blue */
+  color: #ffffff;
+  font-weight: 600;
+}
+/* ===============================
+   DARK MODE – LUNCH STATUS
+   =============================== */
+body.dark-mode .status-lunch {
+  background-color: #eab308;  /* warm amber that pops on dark */
+  color: #111827;
+}

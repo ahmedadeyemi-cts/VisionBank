@@ -753,3 +753,83 @@ body,
 .data-table tbody tr:hover {
   background: #ffffff;
 }
+
+/* ============================================================
+ /* ====== AVAILABILITY COLORS ====== */
+   ============================================================ */
+
+.status-available {
+    background: #2ecc71;
+    color: white;
+}
+.status-oncall {
+    background: #e74c3c;
+    color: white;
+}
+.status-busy {
+    background: #f1c40f;
+    color: black;
+}
+.status-ringing {
+    background: #e67e22;
+    color: white;
+}
+/* NEW — Wrap-Up */
+.status-wrapup {
+    background: #ff8c42;
+    color: white;
+}
+
+/* ============================================================
+   GLASSMORPHISM DARK MODE — Global Behavior
+   ============================================================ */
+
+body.dark-mode {
+    background: #0c0c0c !important;
+    color: #f5f5f5 !important;
+    backdrop-filter: blur(8px);
+}
+
+/* Universal dark text theme EXCEPT availability cells */
+body.dark-mode *:not(.availability-cell)
+               :not(.status-available)
+               :not(.status-oncall)
+               :not(.status-busy)
+               :not(.status-ringing)
+               :not(.status-wrapup) {
+    color: #efefef !important;
+}
+
+/* ============================================================
+   PRESERVE AVAILABILITY COLORS (unchanged)
+   ============================================================ */
+
+body.dark-mode .status-available {
+    background: #2ecc71 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+}
+
+body.dark-mode .status-oncall {
+    background: #e74c3c !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+}
+
+body.dark-mode .status-busy {
+    background: #f1c40f !important;
+    color: #000 !important;
+    box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
+}
+
+body.dark-mode .status-ringing {
+    background: #e67e22 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+}
+
+body.dark-mode .status-wrapup {
+    background: #ff8c42 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(255, 140, 66, 0.6);
+}

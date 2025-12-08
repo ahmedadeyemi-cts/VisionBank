@@ -692,7 +692,9 @@ async function loadQueueStatus() {
     return `
       <tr class="${rowClass}">
         <td>${safe(q.QueueName, "Unknown")}</td>
-        <td class="numeric ${callsClass}">${calls}</td>
+        <td class="numeric">
+  <span class="queue-calls-badge ${callsClass}">${calls}</span>
+</td>
         <td class="numeric">${agents}</td>
         <td class="numeric">${formatTime(maxWait)}</td>
         <td class="numeric">${formatTime(avgWait)}</td>

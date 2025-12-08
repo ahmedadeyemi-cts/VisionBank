@@ -866,3 +866,31 @@ body.dark-mode .data-table td,
 body.dark-mode .data-table th {
   border-color: rgba(255, 255, 255, 0.15) !important;
 }
+/* ============================================================
+   AVAILABILITY — TEXT WRAPPING & CONTAINMENT FIX
+   ============================================================ */
+
+/* Allow Availability text to wrap safely inside cell */
+.data-table td.availability-cell {
+  white-space: normal !important;      /* allow wrapping */
+  word-break: break-word !important;   /* break long words */
+  overflow-wrap: anywhere !important;  /* force containment */
+  line-height: 1.25;
+  max-width: 100%;
+  padding: 8px 10px;
+}
+
+/* Ensure inner elements also wrap correctly */
+.data-table td.availability-cell *,
+.data-table td.availability-cell span,
+.data-table td.availability-cell div {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Center wrapped text vertically & horizontally */
+.data-table td.availability-cell {
+  text-align: center;
+  vertical-align: middle;
+}

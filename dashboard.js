@@ -173,6 +173,16 @@ let lastQueueSnapshot = { totalCalls: 0, totalAgents: 0 };
 
 let audioCtx = null;
 let voiceAudio = null;
+function unlockAudio() {
+  if (!audioCtx) {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (Ctor) audioCtx = new Ctor();
+  }
+
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
+  }
+}
 
 function loadAlertSettings() {
   try {
@@ -385,6 +395,7 @@ function clearAlertHistory() {
 // ===============================
 // ALERT SETTINGS UI
 // ===============================
+
 function initAlertSettingsUI() {
   loadAlertSettings();
   loadAlertHistory();
@@ -398,7 +409,7 @@ function initAlertSettingsUI() {
   const cooldownEl         = document.getElementById("alertCooldown");
   const wallboardModeEl    = document.getElementById("wallboardMode");
   const testBtn            = document.getElementById("alertTestButton");
-  const clearHistoryBtn = document.getElementById("clearAlertHistoryButton");
+  const clearHistoryBtn = document.getElementById("clearAlertHistory");
   const settingsToggle     = document.getElementById("alertSettingsToggle");
   const settingsPanel      = document.getElementById("alertSettingsPanel");
   const historyToggle      = document.getElementById("alertHistoryToggle");
@@ -406,19 +417,22 @@ function initAlertSettingsUI() {
   const exitWallboardBtn   = document.getElementById("exitWallboardButton");
 
   if (enableQueueAlertsEl) {
-    enableQueueAlertsEl.checked = alertSettings.enableQueueAlerts;
-    enableQueueAlertsEl.addEventListener("change", () => {
-      alertSettings.enableQueueAlerts = enableQueueAlertsEl.checked;
-      saveAlertSettings();
-    });
+enableQueueAlertsEl.addEventListener("change", () => {
+  unlockAudio();
+  alertSettings.enableQueueAlerts = enableQueueAlertsEl.checked;
+  saveAlertSettings();
+});
+
   }
 
   if (enableVoiceAlertsEl) {
     enableVoiceAlertsEl.checked = alertSettings.enableVoiceAlerts;
     enableVoiceAlertsEl.addEventListener("change", () => {
-      alertSettings.enableVoiceAlerts = enableVoiceAlertsEl.checked;
-      saveAlertSettings();
-    });
+  unlockAudio();
+  alertSettings.enableVoiceAlerts = enableVoiceAlertsEl.checked;
+  saveAlertSettings();
+});
+
   }
 
   if (enablePopupAlertsEl) {
@@ -483,13 +497,14 @@ function initAlertSettingsUI() {
 
   if (testBtn) {
     testBtn.addEventListener("click", () => {
-      triggerQueueAlert({
-        totalCalls: lastQueueSnapshot.totalCalls || 3,
-        totalAgents: lastQueueSnapshot.totalAgents || 0,
-        queueNames: ["Test Queue"],
-        isTest: true
-      });
-    });
+  unlockAudio();
+  triggerQueueAlert({
+    totalCalls: lastQueueSnapshot.totalCalls || 3,
+    totalAgents: lastQueueSnapshot.totalAgents || 0,
+    queueNames: ["Test Queue"],
+    isTest: true
+  });
+});
   }
 if (clearHistoryBtn) {
   clearHistoryBtn.addEventListener("click", () => {

@@ -998,45 +998,47 @@ body.dark-mode .data-table td.availability-cell.status-unknown {
   color: #ffffff !important;
 }
 /* ============================================================
-   CURRENT QUEUE STATUS — CALL COUNT COLOR LOGIC
+   CURRENT QUEUE STATUS – CALLS SEVERITY COLORS
+   0 = green, 1 = yellow, 2+ = red
+   Works in both light and dark mode
    ============================================================ */
 
-/* Base style for Calls cell */
-.queue-calls-cell {
+.queue-calls-green,
+.queue-calls-yellow,
+.queue-calls-red {
   font-weight: 700;
-  text-align: center;
-  transition: background-color 0.3s ease, color 0.3s ease;
   border-radius: 6px;
+  padding: 3px 10px;
 }
 
-/* 0 Calls → Green */
-.queue-calls-zero {
-  background-color: #16a34a; /* green */
+/* Light mode */
+.queue-calls-green {
+  background-color: #16a34a;  /* green */
   color: #ffffff;
 }
 
-/* 1 Call → Yellow */
-.queue-calls-one {
-  background-color: #facc15; /* yellow */
-  color: #1f2937;
+.queue-calls-yellow {
+  background-color: #eab308;  /* amber */
+  color: #111827;
 }
 
-/* 2+ Calls → Red */
-.queue-calls-many {
-  background-color: #dc2626; /* red */
+.queue-calls-red {
+  background-color: #b91c1c;  /* red */
   color: #ffffff;
 }
 
-/* Dark mode tune-up */
-body.dark-mode .queue-calls-zero {
-  background-color: #2ecc71;
+/* Dark mode overrides */
+body.dark-mode .queue-calls-green {
+  background-color: #16a34a;
+  color: #ecfdf5;            /* very light green-ish text */
 }
 
-body.dark-mode .queue-calls-one {
-  background-color: #f1c40f;
-  color: #020617;
+body.dark-mode .queue-calls-yellow {
+  background-color: #ca8a04;
+  color: #fffbeb;            /* pale yellow text */
 }
 
-body.dark-mode .queue-calls-many {
-  background-color: #e74c3c;
+body.dark-mode .queue-calls-red {
+  background-color: #dc2626;
+  color: #fef2f2;            /* pale red/white text */
 }

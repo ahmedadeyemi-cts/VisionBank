@@ -1064,3 +1064,48 @@ body.dark-mode .queue-calls-red {
   color: #fef2f2;            /* pale red/white text */
 }
 
+/* ===============================
+   QUEUE CALLS BADGE (FINAL SAFE)
+   =============================== */
+
+.queue-calls-badge {
+  display: inline-block;
+  min-width: 28px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Light mode */
+.queue-calls-green {
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+.queue-calls-yellow {
+  background-color: #eab308;
+  color: #111827;
+}
+
+.queue-calls-red {
+  background-color: #b91c1c;
+  color: #ffffff;
+}
+
+/* Dark mode */
+body.dark-mode .queue-calls-green {
+  background-color: #16a34a;
+  color: #ecfdf5;
+}
+
+body.dark-mode .queue-calls-yellow {
+  background-color: #ca8a04;
+  color: #fffbeb;
+}
+
+body.dark-mode .queue-calls-red {
+  background-color: #dc2626;
+  color: #fef2f2;
+}

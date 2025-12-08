@@ -668,23 +668,80 @@ async function loadQueueStatus() {
     // ==========================================
     // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
     // ==========================================
-const callsCell = document.querySelector("#queueCallsCell");
-if (callsCell) {
-  const callsValue = totalCalls;
+// ===============================
+// QUEUE STATUS (MULTI-QUEUE)
+// ===============================
+async function loadQueueStatus() {
+  const body = document.getElementById("queue-body");
+  const panel = document.getElementById("queue-panel");
+  if (!body) return;
 
-  callsCell.classList.add("queue-calls-cell");
-  callsCell.classList.remove(
-    "queue-calls-zero",
-    "queue-calls-one",
-    "queue-calls-many"
-  );
+  body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
 
-  if (callsValue === 0) {
-    callsCell.classList.add("queue-calls-zero");
-  } else if (callsValue === 1) {
-    callsCell.classList.add("queue-calls-one");
-  } else {
-    callsCell.classList.add("queue-calls-many");
+  try {
+    const data = await fetchApi("/status/queues");
+
+    if (!data || !data.QueueStatus || data.QueueStatus.length === 0) {
+      body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+      if (panel) panel.classList.remove("queue-alert-active");
+      return;
+    }
+
+    const queues = data.QueueStatus;
+    let anyHot = false;
+    let totalCalls = 0;
+    let totalAgents = 0;
+    let activeQueues = [];
+
+    const rowsHtml = queues.map(q => {
+      const calls = Number(q.TotalCalls ?? 0);
+      const agents = Number(q.TotalLoggedAgents ?? 0);
+      const maxWait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+      const avgWait = q.AvgWaitInterval ?? 0;
+
+      totalCalls += calls;
+      totalAgents += agents;
+
+      if (calls > 0) {
+        anyHot = true;
+        activeQueues.push(q.QueueName);
+      }
+
+      // ✅ CALLS COLOR LOGIC — DONE CORRECTLY
+      let callsClass = "queue-calls-green";     // 0
+      if (calls === 1) callsClass = "queue-calls-yellow";
+      else if (calls >= 2) callsClass = "queue-calls-red";
+
+      return `
+        <tr>
+          <td>${safe(q.QueueName, "Unknown")}</td>
+          <td class="numeric ${callsClass}">${calls}</td>
+          <td class="numeric">${agents}</td>
+          <td class="numeric">${formatTime(maxWait)}</td>
+          <td class="numeric">${formatTime(avgWait)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    body.innerHTML = rowsHtml;
+
+    lastQueueSnapshot = { totalCalls, totalAgents };
+
+    if (panel) panel.classList.toggle("queue-alert-active", anyHot);
+
+    // ✅ Alerts still trigger when 2+
+    if (anyHot && totalCalls >= 2) {
+      triggerQueueAlert({
+        totalCalls,
+        totalAgents,
+        queueNames: activeQueues
+      });
+    }
+
+    updateQueueToneOverrides(queues);
+  } catch (err) {
+    console.error("Queue load error:", err);
+    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
   }
 }
     // ==========================================
@@ -704,7 +761,9 @@ if (callsCell) {
     body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
   }
 }
-
+// ===============================
+// END QUEUE STATUS (MULTI-QUEUE)
+// ===============================
 // ===============================
 // GLOBAL STATS
 // ===============================

@@ -769,6 +769,11 @@ body,
 /* ===============================
    LIGHT MODE (MATCHES SCREENSHOT)
    =============================== */
+/* On Break */
+.data-table td.availability-cell.status-break {
+  background-color: #facc15;   /* yellow */
+  color: #111827;
+}
 
 /* Available */
 .data-table td.availability-cell.status-available {
@@ -800,6 +805,11 @@ body,
 /* ===============================
    DARK MODE (HIGH CONTRAST, VISIBLE)
    =============================== */
+/* On Break */
+body.dark-mode .data-table td.availability-cell.status-break {
+  background-color: #facc15 !important;
+  color: #111827 !important;
+}
 
 body.dark-mode .data-table td.availability-cell {
   color: #ffffff !important;

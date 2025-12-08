@@ -1042,7 +1042,10 @@ body.dark-mode .queue-calls-green {
   background-color: #16a34a;
   color: #ecfdf5;            /* very light green-ish text */
 }
-
+body.dark-mode .status-lunch {
+  background-color: #facc15;
+  color: #111827;
+}
 body.dark-mode .queue-calls-yellow {
   background-color: #ca8a04;
   color: #fffbeb;            /* pale yellow text */
@@ -1052,11 +1055,7 @@ body.dark-mode .queue-calls-red {
   background-color: #dc2626;
   color: #fef2f2;            /* pale red/white text */
 }
-.status-lunch {
-  background-color: #2563eb; /* blue */
-  color: #ffffff;
-  font-weight: 600;
-}
+
 /* ===============================
    DARK MODE – LUNCH STATUS
    =============================== */

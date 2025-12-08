@@ -368,6 +368,19 @@ function renderAlertHistory() {
     })
     .join("");
 }
+// ===============================
+// CLEAR ALERT HISTORY
+// ===============================
+function clearAlertHistory() {
+  // Clear in-memory array
+  alertHistory.length = 0;
+
+  // Remove stored history
+  localStorage.removeItem(ALERT_HISTORY_KEY);
+
+  // Update UI
+  renderAlertHistory();
+}
 
 // ===============================
 // ALERT SETTINGS UI
@@ -385,6 +398,7 @@ function initAlertSettingsUI() {
   const cooldownEl         = document.getElementById("alertCooldown");
   const wallboardModeEl    = document.getElementById("wallboardMode");
   const testBtn            = document.getElementById("alertTestButton");
+  const clearHistoryBtn = document.getElementById("clearAlertHistoryButton");
   const settingsToggle     = document.getElementById("alertSettingsToggle");
   const settingsPanel      = document.getElementById("alertSettingsPanel");
   const historyToggle      = document.getElementById("alertHistoryToggle");
@@ -477,6 +491,11 @@ function initAlertSettingsUI() {
       });
     });
   }
+if (clearHistoryBtn) {
+  clearHistoryBtn.addEventListener("click", () => {
+    clearAlertHistory();
+  });
+}
 
   // Toggle panels
   if (settingsToggle && settingsPanel) {

@@ -753,85 +753,89 @@ body,
 .data-table tbody tr:hover {
   background: #ffffff;
 }
-
-/* =====================================================
-   AVAILABILITY – FINAL, CLEAN, SINGLE SOURCE OF TRUTH
-   ===================================================== */
-
-/* ====== AVAILABILITY COLORS ====== */
-.status-available {
-    background: #2ecc71;
-    color: white;
-}
-.status-oncall {
-    background: #e74c3c;
-    color: white;
-}
-.status-busy {
-    background: #f1c40f;
-    color: black;
-}
-.status-ringing {
-    background: #e67e22;
-    color: white;
-}
-/* NEW — Wrap-Up */
-.status-wrapup {
-    background: #ff8c42;
-    color: white;
-}
-
 /* ============================================================
-   GLASSMORPHISM DARK MODE — Global Behavior
+   AVAILABILITY — FINAL, CLEAN, CONFLICT-FREE
    ============================================================ */
 
-body.dark-mode {
-    background: #0c0c0c !important;
-    color: #f5f5f5 !important;
-    backdrop-filter: blur(8px);
+/* Base behavior: full table cell */
+.data-table td.availability-cell {
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  padding: 12px 10px;
 }
 
-/* Universal dark text theme EXCEPT availability cells */
-body.dark-mode *:not(.availability-cell)
-               :not(.status-available)
-               :not(.status-oncall)
-               :not(.status-busy)
-               :not(.status-ringing)
-               :not(.status-wrapup) {
-    color: #efefef !important;
+/* ===============================
+   LIGHT MODE (MATCHES SCREENSHOT)
+   =============================== */
+
+/* Available */
+.data-table td.availability-cell.status-available {
+  background-color: #34c759;   /* vivid green */
+  color: #ffffff;
 }
 
-/* ============================================================
-   PRESERVE AVAILABILITY COLORS (unchanged)
-   ============================================================ */
-
-body.dark-mode .status-available {
-    background: #2ecc71 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+/* On Call */
+.data-table td.availability-cell.status-oncall {
+  background-color: #e53935;   /* strong red */
+  color: #ffffff;
 }
 
-body.dark-mode .status-oncall {
-    background: #e74c3c !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+/* Accept Internal Calls / Busy / Wrap */
+.data-table td.availability-cell.status-orange,
+.data-table td.availability-cell.status-wrap,
+.data-table td.availability-cell.status-busy {
+  background-color: #e67214;   /* orange */
+  color: #ffffff;
 }
 
-body.dark-mode .status-busy {
-    background: #f1c40f !important;
-    color: #000 !important;
-    box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
+/* Idle / Unknown */
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #9ca3af;   /* neutral gray */
+  color: #ffffff;
 }
 
-body.dark-mode .status-ringing {
-    background: #e67e22 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+/* ===============================
+   DARK MODE (HIGH CONTRAST, VISIBLE)
+   =============================== */
+
+body.dark-mode .data-table td.availability-cell {
+  color: #ffffff !important;
 }
 
-body.dark-mode .status-wrapup {
-    background: #ff8c42 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(255, 140, 66, 0.6);
+/* Available */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #2ecc71;
 }
 
+/* On Call */
+body.dark-mode .data-table td.availability-cell.status-oncall {
+  background-color: #e74c3c;
+}
+
+/* Accept Internal Calls / Busy / Wrap */
+body.dark-mode .data-table td.availability-cell.status-orange,
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-busy {
+  background-color: #f39c12;
+}
+
+/* Idle / Unknown */
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #6b7280;
+}
+
+/* ===============================
+   GUARANTEE TEXT VISIBILITY
+   =============================== */
+
+.data-table td.availability-cell,
+.data-table td.availability-cell * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}

@@ -663,35 +663,44 @@ async function loadQueueStatus() {
     let activeQueues = [];
 
     const rowsHtml = queues
-      .map(q => {
-        const calls = Number(q.TotalCalls ?? 0);
-        const agents = Number(q.TotalLoggedAgents ?? 0);
-        const maxWait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
-        const avgWait = q.AvgWaitInterval ?? 0;
+  .map(q => {
+    const calls = Number(q.TotalCalls ?? 0);
+    const agents = Number(q.TotalLoggedAgents ?? 0);
+    const maxWait = q.MaxWaitingTime ?? q.OldestWaitTime ?? 0;
+    const avgWait = q.AvgWaitInterval ?? 0;
 
-        totalCalls += calls;
-        totalAgents += agents;
+    totalCalls += calls;
+    totalAgents += agents;
 
-        const isHot = calls > 0;
-        if (isHot) {
-          anyHot = true;
-          activeQueues.push(q.QueueName);
-        }
+    const isHot = calls > 0;
+    if (isHot) {
+      anyHot = true;
+      activeQueues.push(q.QueueName);
+    }
 
-        const rowClass = isHot ? "queue-hot" : "";
+    // ✅ Row highlight (hot queue)
+    const rowClass = isHot ? "queue-hot" : "";
 
-        return `
-          <tr class="${rowClass}">
-            <td>${safe(q.QueueName, "Unknown")}</td>
-            <!-- ✔ INSERTED REQUIRED ID FOR RED BOX LOGIC -->
-            <td id="queueCallsCell" class="numeric">${calls}</td>
-            <td class="numeric">${agents}</td>
-            <td class="numeric">${formatTime(maxWait)}</td>
-            <td class="numeric">${formatTime(avgWait)}</td>
-          </tr>
-        `;
-      })
-      .join("");
+    // ✅ Calls severity color
+    let callsClass = "queue-calls-green";
+    if (calls === 1) {
+      callsClass = "queue-calls-yellow";
+    } else if (calls >= 2) {
+      callsClass = "queue-calls-red";
+    }
+
+    return `
+      <tr class="${rowClass}">
+        <td>${safe(q.QueueName, "Unknown")}</td>
+        <td class="numeric ${callsClass}">${calls}</td>
+        <td class="numeric">${agents}</td>
+        <td class="numeric">${formatTime(maxWait)}</td>
+        <td class="numeric">${formatTime(avgWait)}</td>
+      </tr>
+    `;
+  })
+  .join("");
+
 
     body.innerHTML = rowsHtml;
 
@@ -702,14 +711,14 @@ async function loadQueueStatus() {
     // ==========================================
     // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
     // ==========================================
-const callsCell = document.querySelector("#queueCallsCell");
-    if (callsCell) {
-      if (totalCalls > 1) {
-        callsCell.classList.add("queue-alert-red");
-      } else {
-        callsCell.classList.remove("queue-alert-red");
-      }
-    }
+//const callsCell = document.querySelector("#queueCallsCell");
+  //  if (callsCell) {
+  //    if (totalCalls > 1) {
+  //      callsCell.classList.add("queue-alert-red");
+  //    } else {
+    //    callsCell.classList.remove("queue-alert-red");
+    //  }
+  // }
     // ==========================================
 
     // Trigger alert when totalCalls ≥ 2

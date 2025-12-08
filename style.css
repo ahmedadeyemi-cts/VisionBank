@@ -754,82 +754,82 @@ body,
   background: #ffffff;
 }
 
-/* ============================================================
- /* ====== AVAILABILITY COLORS ====== */
-   ============================================================ */
+/* =====================================================
+   AVAILABILITY – FINAL, CLEAN, SINGLE SOURCE OF TRUTH
+   ===================================================== */
 
-.status-available {
-    background: #2ecc71;
-    color: white;
-}
-.status-oncall {
-    background: #e74c3c;
-    color: white;
-}
-.status-busy {
-    background: #f1c40f;
-    color: black;
-}
-.status-ringing {
-    background: #e67e22;
-    color: white;
-}
-/* NEW — Wrap-Up */
-.status-wrapup {
-    background: #ff8c42;
-    color: white;
+/* Base availability cell */
+.data-table td.availability-cell {
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 0;
 }
 
-/* ============================================================
-   GLASSMORPHISM DARK MODE — Global Behavior
-   ============================================================ */
+/* ========== LIGHT MODE ========== */
 
-body.dark-mode {
-    background: #0c0c0c !important;
-    color: #f5f5f5 !important;
-    backdrop-filter: blur(8px);
+/* Available */
+.data-table td.availability-cell.status-available {
+  background-color: #16a34a;
+  color: #ffffff;
 }
 
-/* Universal dark text theme EXCEPT availability cells */
-body.dark-mode *:not(.availability-cell)
-               :not(.status-available)
-               :not(.status-oncall)
-               :not(.status-busy)
-               :not(.status-ringing)
-               :not(.status-wrapup) {
-    color: #efefef !important;
+/* On Call / Dial Out */
+.data-table td.availability-cell.status-oncall,
+.data-table td.availability-cell.status-dialout {
+  background-color: #dc2626;
+  color: #ffffff;
 }
 
-/* ============================================================
-   PRESERVE AVAILABILITY COLORS (unchanged)
-   ============================================================ */
-
-body.dark-mode .status-available {
-    background: #2ecc71 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+/* Break */
+.data-table td.availability-cell.status-break {
+  background-color: #b91c1c;
+  color: #ffffff;
 }
 
-body.dark-mode .status-oncall {
-    background: #e74c3c !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(231, 76, 60, 0.6);
+/* Wrap / Lunch / Orange */
+.data-table td.availability-cell.status-wrap,
+.data-table td.availability-cell.status-lunch,
+.data-table td.availability-cell.status-orange {
+  background-color: #d97706;
+  color: #ffffff;
 }
 
-body.dark-mode .status-busy {
-    background: #f1c40f !important;
-    color: #000 !important;
-    box-shadow: 0 0 8px rgba(241, 196, 15, 0.6);
+/* Idle / Unknown */
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #6b7280;
+  color: #ffffff;
 }
 
-body.dark-mode .status-ringing {
-    background: #e67e22 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(230, 126, 34, 0.6);
+/* ========== DARK MODE ========== */
+
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #166534;
+  color: #dcfce7;
 }
 
-body.dark-mode .status-wrapup {
-    background: #ff8c42 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 8px rgba(255, 140, 66, 0.6);
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-dialout {
+  background-color: #7f1d1d;
+  color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-break {
+  background-color: #991b1b;
+  color: #fee2e2;
+}
+
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-lunch,
+body.dark-mode .data-table td.availability-cell.status-orange {
+  background-color: #7c2d12;
+  color: #ffedd5;
+}
+
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #334155;
+  color: #e5e7eb;
 }

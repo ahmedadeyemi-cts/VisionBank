@@ -495,17 +495,19 @@ enableQueueAlertsEl.addEventListener("change", () => {
     });
   }
 
-  if (testBtn) {
-    testBtn.addEventListener("click", () => {
-  unlockAudio();
-  triggerQueueAlert({
-    totalCalls: lastQueueSnapshot.totalCalls || 3,
-    totalAgents: lastQueueSnapshot.totalAgents || 0,
-    queueNames: ["Test Queue"],
-    isTest: true
+if (testBtn) {
+  testBtn.addEventListener("click", () => {
+    unlockAudio();
+totalCalls = Number.isFinite(totalCalls) ? totalCalls : 0;
+totalAgents = Number.isFinite(totalAgents) ? totalAgents : 0;
+    triggerQueueAlert({
+      totalCalls: lastQueueSnapshot.totalCalls ?? 0,
+      totalAgents: lastQueueSnapshot.totalAgents ?? 0,
+      queueNames: ["Test Queue"],
+      isTest: true
+    });
   });
-});
-  }
+}
 if (clearHistoryBtn) {
   clearHistoryBtn.addEventListener("click", () => {
     clearAlertHistory();

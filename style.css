@@ -839,3 +839,30 @@ body.dark-mode .data-table td.availability-cell.status-unknown {
   filter: none !important;
   mix-blend-mode: normal !important;
 }
+/* ============================================================
+   DARK MODE — TABLE TEXT VISIBILITY FIX
+   Ensures ALL non-availability table text is readable
+   ============================================================ */
+
+body.dark-mode .data-table td:not(.availability-cell),
+body.dark-mode .data-table th {
+  color: #f9fafb !important; /* near-white */
+}
+
+/* Agent names, numbers, time values */
+body.dark-mode .data-table td {
+  opacity: 1 !important;
+}
+
+/* Prevent inherited pastel/blue colors */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* Keep borders visible */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}

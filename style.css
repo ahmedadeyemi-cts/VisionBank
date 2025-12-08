@@ -997,3 +997,46 @@ body.dark-mode .data-table td.availability-cell.status-unknown {
   background-color: #6b7280 !important;
   color: #ffffff !important;
 }
+/* ============================================================
+   CURRENT QUEUE STATUS — CALL COUNT COLOR LOGIC
+   ============================================================ */
+
+/* Base style for Calls cell */
+.queue-calls-cell {
+  font-weight: 700;
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  border-radius: 6px;
+}
+
+/* 0 Calls → Green */
+.queue-calls-zero {
+  background-color: #16a34a; /* green */
+  color: #ffffff;
+}
+
+/* 1 Call → Yellow */
+.queue-calls-one {
+  background-color: #facc15; /* yellow */
+  color: #1f2937;
+}
+
+/* 2+ Calls → Red */
+.queue-calls-many {
+  background-color: #dc2626; /* red */
+  color: #ffffff;
+}
+
+/* Dark mode tune-up */
+body.dark-mode .queue-calls-zero {
+  background-color: #2ecc71;
+}
+
+body.dark-mode .queue-calls-one {
+  background-color: #f1c40f;
+  color: #020617;
+}
+
+body.dark-mode .queue-calls-many {
+  background-color: #e74c3c;
+}

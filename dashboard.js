@@ -711,14 +711,7 @@ async function loadQueueStatus() {
     // ==========================================
     // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
     // ==========================================
-//const callsCell = document.querySelector("#queueCallsCell");
-  //  if (callsCell) {
-  //    if (totalCalls > 1) {
-  //      callsCell.classList.add("queue-alert-red");
-  //    } else {
-    //    callsCell.classList.remove("queue-alert-red");
-    //  }
-  // }
+
     // ==========================================
 
     // Trigger alert when totalCalls ≥ 2

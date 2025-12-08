@@ -1078,3 +1078,9 @@ body.dark-mode .queue-calls-red {
   background-color: #dc2626;
   color: #fef2f2;
 }
+.stat-card {
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+body.dark-mode .stat-card {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+}

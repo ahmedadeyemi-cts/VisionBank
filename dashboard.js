@@ -702,7 +702,31 @@ async function loadQueueStatus() {
     // ==========================================
     // ✔ INSERTED NEW LOGIC EXACTLY AS REQUESTED
     // ==========================================
+const callsCell = document.querySelector("#queueCallsCell");
+    if (callsCell) {
+      if (totalCalls > 1) {
+        callsCell.classList.add("queue-alert-red");
+      } else {
+        callsCell.classList.remove("queue-alert-red");
+      }
+    }
+    // ==========================================
 
+    // Trigger alert when totalCalls ≥ 2
+    if (anyHot && totalCalls >= 2) {
+      triggerQueueAlert({
+        totalCalls,
+        totalAgents,
+        queueNames: activeQueues
+      });
+    }
+
+    updateQueueToneOverrides(queues);
+  } catch (err) {
+    console.error("Queue load error:", err);
+    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+  }
+}
 // ===============================
 // GLOBAL STATS
 // ===============================

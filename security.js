@@ -124,7 +124,11 @@ loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     loginMsg.textContent = "";
 
-    const username = document.getElementById("login-username").value.trim();
+    const username = document
+  .getElementById("login-username")
+  .value
+  .trim()
+  .toLowerCase();
     const password = document.getElementById("login-pin").value.trim(); // Worker expects "password"
     const totp = loginTotpWrapper.classList.contains("hidden")
         ? ""
@@ -286,60 +290,142 @@ async function showAdminView() {
     await loadIpRulesUI();
     await loadAuditLog();
 
-   setTimeout(() => applyRolePermissions(), 50);
+    if (ROLE_RULES[ACTIVE_ROLE]?.audit) {
+        startAuditLogAutoRefresh();
+    }
+
+    setTimeout(() => applyRolePermissions(), 50);
 
 }
-
 /* =============================================================
-   ROLE-BASED PERMISSIONS
+   ROLE-BASED PERMISSIONS (SINGLE SOURCE OF TRUTH)
    ============================================================= */
 
 function applyRolePermissions() {
-    const role = ACTIVE_ROLE || "view";
+  if (!ACTIVE_ROLE) return;
+
+  const role = ACTIVE_ROLE;
+  const rules = ROLE_RULES[role];
+
+  // Section visibility
+  toggleSection("admin-audit-section", rules.audit);
+  toggleSection("user-management", rules.userMgmt);
+  toggleSection("cidr-ip-tester", rules.cidr);
+  toggleSection("cidr-range-tester", rules.cidr);
+
+  // Edit permissions
+  setReadOnly("admin-hours-section", rules.editHours);
+  setReadOnly("ip-manager", rules.editIp);
+
+  // Full lock for view-only role
+  if (rules.readOnly) {
+    lockAllActions();
+  }
+
+  // View role execution safety
+  if (role === "view") {
+    window.addRule = () => showStatus("View-only access.", "error");
+    window.autoSaveRules = () => {};
+    window.isIpInCidr = () => false;
+    window.testCidrRange = () => ({
+      text: "View-only access.",
+      type: "fail"
+    });
+
+    // Post-DOM CIDR hardening
+    setTimeout(() => {
+      document
+        .querySelectorAll("#cidr-ip-tester button, #cidr-range-tester button")
+        .forEach(btn => btn.disabled = true);
+    }, 250);
+  }
+
+  // Superadmin-only features
+  if (role === "superadmin") {
+    safeInitUserManagement();
+  }
+
+  // Analyst restrictions
+  if (role === "analyst") {
+    toggleSection("admin-audit-section", false);
+  }
+}
+ 
    // MFA reset — ONLY superadmin
-const canResetMfa = role === "superadmin";
 
-const resetMfaBtn = document.getElementById("user-reset-mfa-btn");
-if (resetMfaBtn) {
-    resetMfaBtn.disabled = !canResetMfa;
-}
    // CIDR Tester — viewer cannot access
-const canUseCidrTester = role !== "view";
-const cidrSection = document.getElementById("cidr-tester-section");
+const ROLE_RULES = {
+  superadmin: {
+    userMgmt: true,
+    audit: true,
+    editHours: true,
+    editIp: true,
+    cidr: true,
+    readOnly: false
+  },
+  admin: {
+    userMgmt: true,
+    audit: true,
+    editHours: true,
+    editIp: true,
+    cidr: true,
+    readOnly: false
+  },
+  analyst: {
+    userMgmt: false,
+    audit: false,
+    editHours: true,
+    editIp: true,
+    cidr: true,
+    readOnly: false
+  },
+  auditor: {
+    userMgmt: false,
+    audit: true,
+    editHours: false,
+    editIp: false,
+    cidr: false,
+    readOnly: false
+  },
+  view: {
+    userMgmt: false,
+    audit: false,
+    editHours: false,
+    editIp: false,
+    cidr: false,
+    readOnly: true
+  }
+};
 
-if (cidrSection) {
-    cidrSection.style.display = canUseCidrTester ? "" : "none";
+function toggleSection(id, show) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = show ? "" : "none";
 }
 
-applyRolePermissions()
+function setReadOnly(sectionId, allowed) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
 
-    // Business Hours: superadmin, admin, analyst can edit
-    const canEditHours = role === "superadmin" || role === "admin" || role === "analyst";
-    hoursStart.disabled = !canEditHours;
-    hoursEnd.disabled = !canEditHours;
-    hoursDayChecks.forEach(cb => cb.disabled = !canEditHours);
-    const hoursButtons = hoursForm ? hoursForm.querySelectorAll("button, input[type='submit']") : [];
-    hoursButtons.forEach(el => el.disabled = !canEditHours);
+  section.querySelectorAll("input, textarea, select, button").forEach(el => {
+    if (el.classList.contains("collapse-toggle")) return;
+    el.disabled = !allowed;
+  });
 
-  // NEW IP RULE MANAGER — only superadmin/admin can edit
-const canEditIp = role === "superadmin" || role === "admin";
-
-document.getElementById("ip-add-input").disabled = !canEditIp;
-document.getElementById("ip-add-btn").disabled = !canEditIp;
-document.getElementById("ip-save-btn").disabled = !canEditIp;
-
-document.querySelectorAll(".ip-remove-btn").forEach(btn => {
-    btn.disabled = !canEditIp;
-});
-
-
-    // Logs: superadmin, admin, auditor can view.
-    // Logs: superadmin, admin, auditor can view.
-const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
-if (!canViewLogs) {
-    auditLogBox.textContent = "You do not have permission to view logs.";
-    auditLogBox.classList.add("disabled-section");
 }
+
+function lockAllActions() {
+  document.querySelectorAll("button:not(.collapse-toggle)").forEach(btn => {
+    if (btn.id !== "logout-btn" && btn.id !== "expand-all-btn" && btn.id !== "collapse-all-btn") {
+      btn.disabled = true;
+    }
+  });
+
+  document.querySelectorAll("input, textarea, select").forEach(el => {
+    el.disabled = true;
+    el.readOnly = true;
+  });
+}
+
 
     // User Management: only superadmin
  // User Management: only superadmin
@@ -347,26 +433,21 @@ if (!canViewLogs) {
    SAFE USER MGMT INITIALIZER (GLOBAL SCOPE)
    ============================================================ */
 function safeInitUserManagement() {
+    if (ACTIVE_ROLE !== "superadmin") return;
+
     const audit = document.getElementById("admin-audit-section");
 
-    // DOM not yet ready → retry a moment later
     if (!audit) {
         return setTimeout(safeInitUserManagement, 150);
     }
 
-    // DOM is ready → load the panel
     initUserManagement();
-}
-// User Management: only superadmin
-if (role === "superadmin") {
-    safeInitUserManagement();
-}
 }
 /* ============================================================
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */
 function startAuditLogAutoRefresh() {
-    if (ACTIVE_ROLE === "analyst" || ACTIVE_ROLE === "view") return;
+if (!ROLE_RULES[ACTIVE_ROLE]?.audit) return;
 
     loadAuditLog();
 
@@ -374,8 +455,6 @@ function startAuditLogAutoRefresh() {
         loadAuditLog();
     }, 5000);
 }
-
-document.addEventListener("DOMContentLoaded", startAuditLogAutoRefresh);
 
 /* =============================================================
    5.  BUSINESS HOURS
@@ -511,7 +590,13 @@ async function addRule() {
   autoSaveRules();
 }
 
-document.getElementById("ip-add-btn").onclick = addRule;
+document.getElementById("ip-add-btn").onclick = () => {
+  if (ACTIVE_ROLE === "view") {
+    return showStatus("View-only access.", "error");
+  }
+  addRule();
+};
+
 
 async function autoSaveRules() {
   if (saving) return; 
@@ -537,16 +622,16 @@ async function loadIpRulesUI() {
   const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
   const data = await res.json();
 
-  IP_RULES = data.rules || [];
+  IP_RULES = Array.isArray(data.rules) ? data.rules : [];
   renderIpList();
+
+  // ✅ Populate CIDR tester textarea here (single source of truth)
+  const rulesTextarea = document.getElementById("ip-rules-textarea");
+  if (rulesTextarea) {
+    rulesTextarea.value = IP_RULES.join("\n");
+  }
 }
 
-loadIpRulesUI().then(() => {
-    const rulesTextarea = document.getElementById("ip-rules-textarea");
-    if (rulesTextarea) {
-        rulesTextarea.value = IP_RULES.join("\n");   // <-- populates tester
-    }
-});
 /* =============================================================
    End of the IP Allow List
    ============================================================= */
@@ -1090,15 +1175,6 @@ document.addEventListener("DOMContentLoaded", () => {
         cidrResult.classList.add("cidr-visible");
     }
 
-});
-// Ensure CIDR tester auto-loads updated rules
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-        const rulesTextarea = document.getElementById("ip-rules-textarea");
-        if (rulesTextarea && Array.isArray(IP_RULES)) {
-            rulesTextarea.value = IP_RULES.join("\n");
-        }
-    }, 400); // small delay for UI to build
 });
 /* =============================================================
    End of Section 10

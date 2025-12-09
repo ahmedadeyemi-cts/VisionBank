@@ -316,6 +316,12 @@ function applyRolePermissions() {
   // Edit permissions
   setReadOnly("admin-hours-section", rules.editHours);
   setReadOnly("ip-manager", rules.editIp);
+   
+  // Viewer can see config but not edit
+  if (role === "view") {
+    toggleSection("admin-hours-section", true);
+    toggleSection("ip-manager", true);
+  }
 
   // Full lock for view-only role
   if (rules.readOnly) {
@@ -323,16 +329,14 @@ function applyRolePermissions() {
   }
 
   // View role execution safety
-  if (role === "view") {
-    window.addRule = () => showStatus("View-only access.", "error");
+  // Read-only execution lock (viewer + auditor)
+  if (role === "view" || role === "auditor") {
+    window.addRule = () => showStatus("Read-only access.", "error");
     window.autoSaveRules = () => {};
-    window.isIpInCidr = () => false;
-    window.testCidrRange = () => ({
-      text: "View-only access.",
-      type: "fail"
-    });
+  }
 
-    // Post-DOM CIDR hardening
+  // Disable CIDR buttons for viewer only
+  if (role === "view") {
     setTimeout(() => {
       document
         .querySelectorAll("#cidr-ip-tester button, #cidr-range-tester button")
@@ -351,9 +355,6 @@ function applyRolePermissions() {
   }
 }
  
-   // MFA reset — ONLY superadmin
-
-   // CIDR Tester — viewer cannot access
 const ROLE_RULES = {
   superadmin: {
     userMgmt: true,
@@ -373,7 +374,7 @@ const ROLE_RULES = {
   },
   analyst: {
     userMgmt: false,
-    audit: false,
+    audit: false,      // ✅ cannot see audit logs
     editHours: true,
     editIp: true,
     cidr: true,
@@ -381,18 +382,18 @@ const ROLE_RULES = {
   },
   auditor: {
     userMgmt: false,
-    audit: true,
+    audit: true,       // ✅ audit-only
     editHours: false,
     editIp: false,
-    cidr: false,
-    readOnly: false
+    cidr: true,        // ✅ CIDR test allowed
+    readOnly: true     // ✅ no edits
   },
   view: {
     userMgmt: false,
     audit: false,
     editHours: false,
     editIp: false,
-    cidr: false,
+    cidr: true,        // ✅ can SEE CIDR
     readOnly: true
   }
 };

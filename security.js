@@ -296,6 +296,22 @@ async function showAdminView() {
 
 function applyRolePermissions() {
     const role = ACTIVE_ROLE || "view";
+   // MFA reset — ONLY superadmin
+const canResetMfa = role === "superadmin";
+
+const resetMfaBtn = document.getElementById("user-reset-mfa-btn");
+if (resetMfaBtn) {
+    resetMfaBtn.disabled = !canResetMfa;
+}
+   // CIDR Tester — viewer cannot access
+const canUseCidrTester = role !== "view";
+const cidrSection = document.getElementById("cidr-tester-section");
+
+if (cidrSection) {
+    cidrSection.style.display = canUseCidrTester ? "" : "none";
+}
+
+applyRolePermissions()
 
     // Business Hours: superadmin, admin, analyst can edit
     const canEditHours = role === "superadmin" || role === "admin" || role === "analyst";
@@ -318,10 +334,12 @@ document.querySelectorAll(".ip-remove-btn").forEach(btn => {
 
 
     // Logs: superadmin, admin, auditor can view.
-    const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
-    if (!canViewLogs) {
-        auditLogBox.textContent = "You do not have permission to view logs.";
-    }
+    // Logs: superadmin, admin, auditor can view.
+const canViewLogs = role === "superadmin" || role === "admin" || role === "auditor";
+if (!canViewLogs) {
+    auditLogBox.textContent = "You do not have permission to view logs.";
+    auditLogBox.classList.add("disabled-section");
+}
 
     // User Management: only superadmin
  // User Management: only superadmin
@@ -348,10 +366,12 @@ if (role === "superadmin") {
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */
 function startAuditLogAutoRefresh() {
-    loadAuditLog();  // ✅ correct function name
+    if (ACTIVE_ROLE === "analyst" || ACTIVE_ROLE === "view") return;
+
+    loadAuditLog();
 
     setInterval(() => {
-        loadAuditLog();  // ✅ correct function name
+        loadAuditLog();
     }, 5000);
 }
 

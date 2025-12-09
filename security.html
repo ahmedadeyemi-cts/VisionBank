@@ -206,64 +206,69 @@
             </div>
         </section>
 
-        <!-- CIDR / IP TESTER -->
-        <section id="cidr-ip-tester" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>CIDR / IP Tester</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
+      <!-- CIDR TOOLS (ROLE-CONTROLLED) -->
+<section id="cidr-tester-section">
+
+    <!-- CIDR / IP TESTER -->
+    <section id="cidr-ip-tester" class="admin-section collapsed">
+        <div class="collapsible-header">
+            <h3>CIDR / IP Tester</h3>
+            <button class="collapse-toggle" aria-expanded="false">
+                <span>▸</span> Expand
+            </button>
+        </div>
+        <div class="collapsible-content">
+            <p class="section-help">
+                Test whether an IPv4 or IPv6 address matches any allowlist rule.
+            </p>
+
+            <label>IP Address to Test</label>
+            <input id="ip-test-input" type="text" class="input">
+
+            <label>Rules (auto-loaded)</label>
+            <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
+
+            <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
+                Run CIDR Test
+            </button>
+
+            <div id="ip-test-result" class="cidr-result-box"></div>
+        </div>
+    </section>
+
+    <!-- CIDR RANGE TESTER -->
+    <section id="cidr-range-tester" class="admin-section collapsed">
+        <div class="collapsible-header">
+            <h3>CIDR Tester</h3>
+            <button class="collapse-toggle" aria-expanded="false">
+                <span>▸</span> Expand
+            </button>
+        </div>
+        <div class="collapsible-content">
+            <p class="section-help">
+                Test whether an IP belongs to a CIDR range or whether one CIDR
+                is inside another.
+            </p>
+
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                <label>Test IP or CIDR A
+                    <input id="cidr-input-a" type="text">
+                </label>
+
+                <label>Against CIDR B
+                    <input id="cidr-input-b" type="text">
+                </label>
             </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Test whether an IPv4 or IPv6 address matches any allowlist rule.
-                </p>
 
-                <label>IP Address to Test</label>
-                <input id="ip-test-input" type="text" class="input">
+            <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
+                Run CIDR Test
+            </button>
 
-                <label>Rules (auto-loaded)</label>
-                <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
+            <div id="cidr-test-result" class="cidr-result-box"></div>
+        </div>
+    </section>
 
-                <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
-                    Run CIDR Test
-                </button>
-
-                <div id="ip-test-result" class="cidr-result-box"></div>
-            </div>
-        </section>
-
-        <!-- CIDR RANGE TESTER -->
-        <section id="cidr-range-tester" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>CIDR Tester</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
-            </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Test whether an IP belongs to a CIDR range or whether one CIDR
-                    is inside another.
-                </p>
-
-                <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-                    <label>Test IP or CIDR A
-                        <input id="cidr-input-a" type="text">
-                    </label>
-
-                    <label>Against CIDR B
-                        <input id="cidr-input-b" type="text">
-                    </label>
-                </div>
-
-                <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
-                    Run CIDR Test
-                </button>
-
-                <div id="cidr-test-result" class="cidr-result-box"></div>
-            </div>
-        </section>
+</section>
 
         <!-- USER MANAGEMENT (JS BUILDS CONTENT HERE) -->
 

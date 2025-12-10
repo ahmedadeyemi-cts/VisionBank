@@ -50,6 +50,8 @@ let statusTimer = null;
 let userPanelInitialized = false;
 let LAST_DELETED_USER = null;
 
+let auditInterval = null;
+
 /* =============================================================
    THEME TOGGLE
    ============================================================= */
@@ -324,15 +326,15 @@ function applyRolePermissions() {
   }
 
   // Full lock for view-only role
-  if (rules.readOnly) {
-    lockAllActions();
-  }
+ if (role === "view") {
+  lockAllActions();
+}
 
   // View role execution safety
   // Read-only execution lock (viewer + auditor)
-  if (role === "view" || role === "auditor") {
-    window.addRule = () => showStatus("Read-only access.", "error");
-    window.autoSaveRules = () => {};
+if (!ROLE_RULES[ACTIVE_ROLE].editIp) {
+  document.getElementById("ip-add-btn")?.setAttribute("disabled", "true");
+  document.getElementById("ip-save-btn")?.setAttribute("disabled", "true");
   }
 
   // Disable CIDR buttons for viewer only
@@ -386,14 +388,14 @@ const ROLE_RULES = {
     editHours: false,
     editIp: false,
     cidr: true,        // ✅ CIDR test allowed
-    readOnly: true     // ✅ no edits
+    readOnly: true   
   },
   view: {
     userMgmt: false,
     audit: false,
     editHours: false,
     editIp: false,
-    cidr: true,        // ✅ can SEE CIDR
+    cidr: false,        // ✅ can SEE CIDR
     readOnly: true
   }
 };
@@ -448,13 +450,11 @@ function safeInitUserManagement() {
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */
 function startAuditLogAutoRefresh() {
-if (!ROLE_RULES[ACTIVE_ROLE]?.audit) return;
+  if (!ROLE_RULES[ACTIVE_ROLE]?.audit) return;
+  if (auditInterval) return;
 
-    loadAuditLog();
-
-    setInterval(() => {
-        loadAuditLog();
-    }, 5000);
+  loadAuditLog();
+  auditInterval = setInterval(loadAuditLog, 5000);
 }
 
 /* =============================================================
@@ -481,7 +481,11 @@ async function loadBusinessHours() {
 
 hoursForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+  if (!ROLE_RULES[ACTIVE_ROLE]?.editHours) {
+    return showStatus("Read-only access.", "error");
+  }
 
+  // rest of code stays
     const start = hoursStart.value;
     const end = hoursEnd.value;
     const days = [...hoursDayChecks]
@@ -592,9 +596,9 @@ async function addRule() {
 }
 
 document.getElementById("ip-add-btn").onclick = () => {
-  if (ACTIVE_ROLE === "view") {
-    return showStatus("View-only access.", "error");
-  }
+ if (ACTIVE_ROLE !== "admin" && ACTIVE_ROLE !== "superadmin") {
+  return showStatus("View-only access.", "error");
+}
   addRule();
 };
 
@@ -684,6 +688,7 @@ function initUserManagement() {
             <div class="user-form">
                 <label>Username<br><input type="text" id="user-username" /></label><br>
                 <label>Password<br><input type="password" id="user-password" /></label><br>
+                <label>Email<br><input type="email" id="user-email" /></label><br>
 
                 <label>Role<br>
                     <select id="user-role">
@@ -715,7 +720,7 @@ function initUserManagement() {
 
                 <table id="user-table" border="1" cellpadding="4" cellspacing="0">
                     <thead>
-                        <tr><th>Username</th><th>Role</th><th>MFA</th></tr>
+                        <tr><th>Username</th><th>Email</th><th>Role</th><th>MFA</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -734,6 +739,7 @@ function initUserManagement() {
     const passwordInput = section.querySelector("#user-password");
     const roleSelect = section.querySelector("#user-role");
     const mfaCheckbox = section.querySelector("#user-mfa");
+   const emailInput = section.querySelector("#user-email");
 
     const saveBtn = section.querySelector("#user-save-btn");
     const deleteBtn = section.querySelector("#user-delete-btn");
@@ -755,7 +761,7 @@ function initUserManagement() {
     }
 
     saveBtn.addEventListener("click", async () => {
-        const username = usernameInput.value.trim();
+        const username = usernameInput.value.trim().toLowerCase();
         const password = passwordInput.value.trim();
         const role = roleSelect.value;
         const mfaEnabled = mfaCheckbox.checked;
@@ -767,10 +773,17 @@ function initUserManagement() {
 
         try {
             const res = await fetch(`${WORKER_BASE}/api/users/save`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password, role, mfaEnabled }),
-            });
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        username,
+        password,
+        role,
+        mfaEnabled,
+        email: emailInput.value.trim()
+    })
+});
+
             const data = await res.json();
 
             if (!res.ok || !data.success) {
@@ -780,6 +793,7 @@ function initUserManagement() {
 
             showToast("User saved successfully!", "success");
             passwordInput.value = "";
+           emailInput.value = "";
             await refreshUserList();
 
         } catch (err) {
@@ -789,7 +803,7 @@ function initUserManagement() {
     });
 
     deleteBtn.addEventListener("click", async () => {
-        const username = usernameInput.value.trim();
+        const username = usernameInput.value.trim().toLowerCase();
         if (!username) {
             showToast("Select a user to delete.", "error");
             return;
@@ -818,6 +832,8 @@ function initUserManagement() {
             usernameInput.value = "";
             passwordInput.value = "";
             mfaCheckbox.checked = false;
+           emailInput.value = "";
+
 
             await refreshUserList();
 
@@ -864,7 +880,7 @@ function initUserManagement() {
     });
 
     resetMfaBtn.addEventListener("click", async () => {
-        const username = usernameInput.value.trim();
+        const username = usernameInput.value.trim().toLowerCase();
         if (!username) {
             showToast("Select a user to reset MFA.", "error");
             return;
@@ -911,14 +927,17 @@ function initUserManagement() {
                 tr.style.opacity = "0";
                 tr.innerHTML = `
                     <td>${u.username}</td>
+                    <td>${u.email || "—"}</td>
                     <td>${u.role}</td>
                     <td>${u.mfaEnabled ? "Yes" : "No"}</td>
+                    
                 `;
                 tr.addEventListener("click", () => {
                     usernameInput.value = u.username;
                     roleSelect.value = u.role || "view";
                     mfaCheckbox.checked = !!u.mfaEnabled;
                     passwordInput.value = "";
+                    emailInput.value = u.email || "";
                 });
 
                 tbody.appendChild(tr);
@@ -1188,7 +1207,10 @@ logoutBtn.addEventListener("click", () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
-
+    if (auditInterval) {
+      clearInterval(auditInterval);
+      auditInterval = null;
+    }
     loginTotp.value = "";
     loginTotpWrapper.classList.add("hidden");
 

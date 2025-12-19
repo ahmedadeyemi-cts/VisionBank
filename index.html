@@ -20,6 +20,35 @@
           const overlay  = document.getElementById("access-denied-overlay");
           const msgEl    = document.getElementById("access-denied-message");
           const statusEl = document.getElementById("securityStatus");
+            function renderAccessDenied(data) {
+  const info = data?.info || {};
+  const ip = info.primaryIp || "Unknown";
+  const ipVersion = info.ipVersion || "Unknown";
+  const forwarded = info.forwardedFor;
+  const geo = info.geo || {};
+  const asn = info.asn ? `AS${info.asn}` : "Unknown";
+  const asOrg = info.asOrg || "Unknown";
+
+  const html =
+    "<strong>Access has been restricted.</strong><br><br>" +
+
+    "<strong>Primary IP:</strong> " + ip + " (" + ipVersion + ") " +
+    "<button class='copy-ip-btn' onclick=\"navigator.clipboard.writeText('" + ip + "')\">" +
+    "Copy IP</button><br>" +
+
+    (forwarded ? "<strong>Forwarded IP(s):</strong> " + forwarded + "<br>" : "") +
+
+    "<strong>Location:</strong> " +
+    (geo.city || "Unknown") + ", " +
+    (geo.region || "") + " " +
+    (geo.country || "") + "<br>" +
+
+    "<strong>Network:</strong> " + asOrg + " (" + asn + ")<br><br>" +
+
+    "Please provide this information to the VisionBank IT Team.";
+
+  showOverlay(html);
+}
 
           function showOverlay(text) {
             if (msgEl && text) msgEl.innerHTML = text.replace(/\n/g, "<br>");
@@ -49,27 +78,10 @@
             window.VB_SECURITY = data;
 
             if (!data.allowed) {
-              let text =
-                "Your access is currently unavailable. Please contact the VisionBank IT Team.";
-
-            if (data.reason === "ip-denied") {
-              const ip = data?.info?.ip || "Unknown";
-
-              text =
-                "Your access is being denied due to lack of permission.\n\n" +
-                "Please contact the VisionBank IT Team to enable your access.\n\n" +
-                "Your IP Address: " + ip + "\n\n" +
-                "Please provide this information to IT.";
-
-              } else if (data.reason === "hours-closed") {
-                text =
-                  "Your access is currently unavailable because this dashboard " +
-                  "is restricted to normal business hours.";
-              }
-
-              showOverlay(text);
+              renderAccessDenied(data);
               return;
             }
+
 
             // ✔ Access approved
             if (overlay) overlay.classList.add("hidden");
@@ -77,7 +89,7 @@
 
             // Footer banner with proper time fallback
             if (statusEl && data.info) {
-              const ip = data.info.ip || "Unknown IP";
+              const ip = data.info.primaryIp || "Unknown IP";
               let nowLabel = data.info.now;
 
               if (!nowLabel) {

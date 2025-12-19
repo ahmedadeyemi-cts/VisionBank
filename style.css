@@ -1084,3 +1084,16 @@ body.dark-mode .queue-calls-red {
 body.dark-mode .stat-card {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
 }
+.copy-ip-btn {
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #1c3d8f;
+  background: #f5f7fb;
+  cursor: pointer;
+}
+
+.copy-ip-btn:hover {
+  background: #e8ecf5;
+}

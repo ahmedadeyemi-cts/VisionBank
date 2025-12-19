@@ -88,9 +88,9 @@
             document.body.classList.add("security-approved");
 
             // Footer banner with proper time fallback
-            if (statusEl && data.info) {
-              const ip = data.info.primaryIp || "Unknown IP";
-              let nowLabel = data.info.now;
+              if (statusEl && data.info) {
+                  const ip = data.info.primaryIp || "Unknown IP";
+                  let nowLabel = data.info.nowCst?.label;
 
               if (!nowLabel) {
                 try {

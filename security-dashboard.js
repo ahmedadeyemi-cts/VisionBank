@@ -33,11 +33,16 @@ const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
         window.VB_SECURITY = data;
 
         // If not allowed, stop dashboard load
-        if (!data.allowed) {
-            if (data.reason === "ip-denied") {
-                showDeniedMessage(
-                    "Your access is being denied due to lack of permission. Please contact the IT Team to enable your access."
-                );
+      if (!data.allowed) {
+       if (data.reason === "ip-denied") {
+        const ip = data?.info?.ip || "unknown";
+
+        showDeniedMessage(
+            `Your access is being denied due to a lack of permission.<br><br>
+            Please contact the IT Team to enable your access.<br><br>
+            <strong>Your IP Address:</strong> ${ip}<br><br>
+            Please provide this information to IT.`
+        );
             } else if (data.reason === "hours-closed") {
                 showDeniedMessage(
                     "This dashboard is only available during approved business hours (CST)."

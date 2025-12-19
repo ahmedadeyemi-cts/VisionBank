@@ -52,10 +52,15 @@
               let text =
                 "Your access is currently unavailable. Please contact the VisionBank IT Team.";
 
-              if (data.reason === "ip-denied") {
-                text =
-                  "Your access is being denied due to lack of permission. " +
-                  "Please contact the VisionBank IT Team to enable your access.";
+            if (data.reason === "ip-denied") {
+              const ip = data?.info?.ip || "Unknown";
+
+              text =
+                "Your access is being denied due to lack of permission.\n\n" +
+                "Please contact the VisionBank IT Team to enable your access.\n\n" +
+                "Your IP Address: " + ip + "\n\n" +
+                "Please provide this information to IT.";
+
               } else if (data.reason === "hours-closed") {
                 text =
                   "Your access is currently unavailable because this dashboard " +

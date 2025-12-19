@@ -22,7 +22,7 @@
           const statusEl = document.getElementById("securityStatus");
 
           function showOverlay(text) {
-            if (msgEl && text) msgEl.textContent = text;
+            if (msgEl && text) msgEl.innerHTML = text.replace(/\n/g, "<br>");
             if (overlay) overlay.classList.remove("hidden");
             document.body.classList.remove("security-approved");
           }

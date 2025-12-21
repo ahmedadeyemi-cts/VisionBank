@@ -103,22 +103,31 @@ async function saveMotd(message, durationMinutes) {
   const expiresAt = Date.now() + durationMinutes * 60 * 1000;
 
   try {
-    await fetch(MOTD_API, {
+    const res = await fetch(MOTD_API, {
       method: "POST",
       mode: "cors",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        message,
-        expiresAt
-      })
+      body: JSON.stringify({ message, expiresAt })
     });
 
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error("MOTD not persisted");
+    }
+
+    // ✅ Only render after confirmed KV write
     motdState = { message, expiresAt };
     renderMotd();
-  } catch (e) {
-    console.warn("MOTD save failed:", e);
+
+  } catch (err) {
+    console.error("MOTD save failed:", err);
+    alert("Failed to save Message of the Day. It was NOT persisted.");
   }
 }
 

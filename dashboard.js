@@ -22,6 +22,7 @@ let motdState = {
   message: "",
   expiresAt: null
 };
+let motdInterval = null;
 // ===============================
 // CC API WRAPPER
 // ===============================
@@ -67,7 +68,15 @@ function safe(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return value;
 }
+function formatCountdown(ms) {
+  if (ms <= 0) return "expired";
 
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
 
 // ===============================
 // MOTD (Message of the Day)
@@ -153,21 +162,38 @@ function renderMotd() {
   const banner = document.getElementById("motdBanner");
   if (!banner) return;
 
+  // Clear any existing countdown timer
+  if (motdInterval) {
+    clearInterval(motdInterval);
+    motdInterval = null;
+  }
+
   if (!motdState.message || !motdState.expiresAt) {
     banner.classList.add("hidden");
     banner.textContent = "";
     return;
   }
 
-  if (Date.now() > motdState.expiresAt) {
-    clearMotd();
-    return;
-  }
+  const update = () => {
+    const remaining = motdState.expiresAt - Date.now();
 
-  banner.textContent = motdState.message;
-  banner.classList.remove("hidden");
+    if (remaining <= 0) {
+      clearMotd();
+      return;
+    }
+
+    banner.textContent =
+      `${motdState.message} (expires in ${formatCountdown(remaining)})`;
+
+    banner.classList.remove("hidden");
+  };
+
+  // Run immediately
+  update();
+
+  // Update countdown every second
+  motdInterval = setInterval(update, 1000);
 }
-
 
 function formatTime(sec) {
   sec = Number(sec);

@@ -13,7 +13,15 @@ const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
+// ===============================
+// MOTD (Message of the Day)
+// ===============================
+const MOTD_STORAGE_KEY = "visionbankMotdV1";
 
+let motdState = {
+  message: "",
+  expiresAt: null
+};
 // ===============================
 // CC API WRAPPER
 // ===============================
@@ -59,6 +67,67 @@ function safe(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return value;
 }
+
+
+// ===============================
+// MOTD (Message of the Day)
+// ===============================
+function loadMotd() {
+  try {
+    const raw = localStorage.getItem(MOTD_STORAGE_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed.message || !parsed.expiresAt) return;
+
+   motdState = {
+  message: parsed.message,
+  expiresAt: Number(parsed.expiresAt)
+};
+
+renderMotd();
+  } catch (e) {
+    console.warn("MOTD load failed:", e);
+  }
+}
+
+function saveMotd(message, durationMinutes) {
+  const expiresAt = Date.now() + durationMinutes * 60 * 1000;
+
+  motdState = {
+    message,
+    expiresAt
+  };
+
+  localStorage.setItem(MOTD_STORAGE_KEY, JSON.stringify(motdState));
+  renderMotd();
+}
+
+function clearMotd() {
+  motdState = { message: "", expiresAt: null };
+  localStorage.removeItem(MOTD_STORAGE_KEY);
+  renderMotd();
+}
+
+function renderMotd() {
+  const banner = document.getElementById("motdBanner");
+  if (!banner) return;
+
+  if (!motdState.message || !motdState.expiresAt) {
+    banner.classList.add("hidden");
+    banner.textContent = "";
+    return;
+  }
+
+  if (Date.now() > motdState.expiresAt) {
+    clearMotd();
+    return;
+  }
+
+  banner.textContent = motdState.message;
+  banner.classList.remove("hidden");
+}
+
 
 function formatTime(sec) {
   sec = Number(sec);
@@ -425,6 +494,11 @@ function initAlertSettingsUI() {
   const historyToggle      = document.getElementById("alertHistoryToggle");
   const historyPanel       = document.getElementById("alertHistoryPanel");
   const exitWallboardBtn   = document.getElementById("exitWallboardButton");
+  const motdTextEl     = document.getElementById("motdText");
+  const motdDurationEl = document.getElementById("motdDuration");
+  const motdSaveBtn    = document.getElementById("motdSaveButton");
+  const motdClearBtn   = document.getElementById("motdClearButton");
+
 
   if (enableQueueAlertsEl) {
 enableQueueAlertsEl.addEventListener("change", () => {
@@ -521,7 +595,26 @@ if (clearHistoryBtn) {
     clearAlertHistory();
   });
 }
+// ===============================
+// MOTD UI HANDLERS
+// ===============================
+if (motdSaveBtn && motdTextEl && motdDurationEl) {
+  motdSaveBtn.addEventListener("click", () => {
+    const msg = motdTextEl.value.trim();
+    const mins = Number(motdDurationEl.value) || 60;
 
+    if (!msg) return;
+
+    saveMotd(msg, Math.max(1, mins));
+  });
+}
+
+if (motdClearBtn) {
+  motdClearBtn.addEventListener("click", () => {
+    clearMotd();
+    if (motdTextEl) motdTextEl.value = "";
+  });
+}
   // Toggle panels
   if (settingsToggle && settingsPanel) {
     settingsToggle.onclick = (e) => {
@@ -858,6 +951,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initDarkMode();
   initAlertSettingsUI();
+  loadMotd();                 // loads + renders
+  setInterval(renderMotd, 60000);
+
+
 
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

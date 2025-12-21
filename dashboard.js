@@ -16,7 +16,7 @@ const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
 // ===============================
 // MOTD (Message of the Day)
 // ===============================
-const MOTD_STORAGE_KEY = "visionbankMotdV1";
+const MOTD_API = `${SECURITY_BASE}/motd`;
 
 let motdState = {
   message: "",
@@ -72,40 +72,71 @@ function safe(value, fallback = "--") {
 // ===============================
 // MOTD (Message of the Day)
 // ===============================
-function loadMotd() {
+async function loadMotd() {
   try {
-    const raw = localStorage.getItem(MOTD_STORAGE_KEY);
-    if (!raw) return;
+    const res = await fetch(MOTD_API, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit"
+    });
 
-    const parsed = JSON.parse(raw);
-    if (!parsed.message || !parsed.expiresAt) return;
+    if (!res.ok) return;
 
-   motdState = {
-  message: parsed.message,
-  expiresAt: Number(parsed.expiresAt)
-};
+    const data = await res.json();
+    if (!data.message || !data.expiresAt) {
+      motdState = { message: "", expiresAt: null };
+      renderMotd();
+      return;
+    }
 
-renderMotd();
+    motdState = {
+      message: data.message,
+      expiresAt: Number(data.expiresAt)
+    };
+
+    renderMotd();
   } catch (e) {
-    console.warn("MOTD load failed:", e);
+    console.warn("MOTD fetch failed:", e);
+  }
+}
+async function saveMotd(message, durationMinutes) {
+  const expiresAt = Date.now() + durationMinutes * 60 * 1000;
+
+  try {
+    await fetch(MOTD_API, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message,
+        expiresAt
+      })
+    });
+
+    motdState = { message, expiresAt };
+    renderMotd();
+  } catch (e) {
+    console.warn("MOTD save failed:", e);
   }
 }
 
-function saveMotd(message, durationMinutes) {
-  const expiresAt = Date.now() + durationMinutes * 60 * 1000;
+async function clearMotd() {
+  try {
+    await fetch(MOTD_API, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+  } catch (e) {
+    console.warn("MOTD clear failed:", e);
+  }
 
-  motdState = {
-    message,
-    expiresAt
-  };
-
-  localStorage.setItem(MOTD_STORAGE_KEY, JSON.stringify(motdState));
-  renderMotd();
-}
-
-function clearMotd() {
   motdState = { message: "", expiresAt: null };
-  localStorage.removeItem(MOTD_STORAGE_KEY);
   renderMotd();
 }
 
@@ -952,7 +983,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDarkMode();
   initAlertSettingsUI();
   loadMotd();                 // loads + renders
-  setInterval(renderMotd, 60000);
+  setInterval(loadMotd, 60000);
 
 
 

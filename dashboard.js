@@ -507,12 +507,15 @@ enableQueueAlertsEl.addEventListener("change", () => {
 
 if (testBtn) {
   testBtn.addEventListener("click", () => {
+    console.log("✅ Test Alert button clicked");
     unlockAudio();
-totalCalls = Number.isFinite(totalCalls) ? totalCalls : 0;
-totalAgents = Number.isFinite(totalAgents) ? totalAgents : 0;
+
+    console.log("audioCtx exists:", !!audioCtx);
+    console.log("audioCtx state:", audioCtx?.state);
+
     triggerQueueAlert({
-      totalCalls: lastQueueSnapshot.totalCalls ?? 0,
-      totalAgents: lastQueueSnapshot.totalAgents ?? 0,
+      totalCalls: 5,
+      totalAgents: 2,
       queueNames: ["Test Queue"],
       isTest: true
     });

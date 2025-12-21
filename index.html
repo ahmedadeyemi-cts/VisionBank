@@ -150,6 +150,8 @@
     </button>
   </div>
 </header>
+<!-- MESSAGE OF THE DAY BANNER -->
+<div id="motdBanner" class="motd-banner hidden"></div>
 
 <!-- =============================== -->
 <!-- ALERT PANELS + POPUP -->
@@ -204,17 +206,54 @@
         <label for="alertCooldown">Alert cooldown (seconds)</label>
         <input type="number" id="alertCooldown" min="10" max="300" step="5" />
       </div>
+       <!-- =============================== -->
+<!-- MOTD Add -->
+<!-- =============================== -->
+         <hr class="alert-panel-divider" />
 
-      <div class="alert-row alert-wallboard-row">
-        <label>
-          <input type="checkbox" id="wallboardMode" />
-          Wallboard mode (full-screen dashboard)
-        </label>
-        <button id="exitWallboardButton" class="exit-wallboard-btn hidden">
-          Exit wallboard mode
-        </button>
-      </div>
+<h4>Message of the Day</h4>
 
+<div class="alert-row">
+  <label for="motdText">Message</label>
+  <textarea
+    id="motdText"
+    rows="3"
+    placeholder="Enter message for call center staff..."
+  ></textarea>
+</div>
+
+<div class="alert-row">
+  <label for="motdDuration">Display duration (minutes)</label>
+  <input
+    type="number"
+    id="motdDuration"
+    min="1"
+    max="1440"
+    step="5"
+    value="60"
+  />
+</div>
+
+<div class="alert-row">
+  <button id="motdSaveButton" class="btn-primary">
+    Save Message
+  </button>
+  <button id="motdClearButton" class="btn-secondary">
+    Clear Message
+  </button>
+</div>
+<!-- =============================== -->
+<!-- MOTD End -->
+<!-- =============================== -->
+<div class="alert-row alert-wallboard-row">
+  <label>
+    <input type="checkbox" id="wallboardMode" />
+    Wallboard mode (full-screen dashboard)
+  </label>
+  <button id="exitWallboardButton" class="exit-wallboard-btn hidden">
+    Exit wallboard mode
+  </button>
+</div>
       <p class="wallboard-hint">
         Press ESC to exit wallboard mode.
       </p>

@@ -507,15 +507,10 @@ enableQueueAlertsEl.addEventListener("change", () => {
 
 if (testBtn) {
   testBtn.addEventListener("click", () => {
-    console.log("✅ Test Alert button clicked");
     unlockAudio();
-
-    console.log("audioCtx exists:", !!audioCtx);
-    console.log("audioCtx state:", audioCtx?.state);
-
     triggerQueueAlert({
-      totalCalls: 5,
-      totalAgents: 2,
+      totalCalls: lastQueueSnapshot.totalCalls ?? 0,
+      totalAgents: lastQueueSnapshot.totalAgents ?? 0,
       queueNames: ["Test Queue"],
       isTest: true
     });
@@ -616,16 +611,19 @@ function triggerQueueAlert({ totalCalls, totalAgents, queueNames, isTest = false
   const now = Date.now();
   const cooldownMs = (alertSettings.cooldownSeconds || 30) * 1000;
 
-  if (!isTest) {
-    if (
-      !alertSettings.enableQueueAlerts &&
-      !alertSettings.enableVoiceAlerts &&
-      !alertSettings.enablePopupAlerts
-    ) return;
+if (!isTest) {
+  if (
+    !alertSettings.enableQueueAlerts &&
+    !alertSettings.enableVoiceAlerts &&
+    !alertSettings.enablePopupAlerts
+  ) return;
 
-    if (calls <= 1) return;
-    if (now - lastAlertTimestamp < cooldownMs) return;
-  }
+  if (calls <= 1) return;
+  if (now - lastAlertTimestamp < cooldownMs) return;
+} else {
+  // ✅ Test alerts always bypass suppression
+  lastAlertTimestamp = 0;
+}
 
   lastAlertTimestamp = now;
 

@@ -501,8 +501,6 @@ if (testBtn) {
 totalCalls = Number.isFinite(totalCalls) ? totalCalls : 0;
 totalAgents = Number.isFinite(totalAgents) ? totalAgents : 0;
     triggerQueueAlert({
-      totalCalls: lastQueueSnapshot.totalCalls ?? 0,
-      totalAgents: lastQueueSnapshot.totalAgents ?? 0,
       queueNames: ["Test Queue"],
       isTest: true
     });

@@ -454,10 +454,13 @@ body.dark-mode .motd-banner {
 
 /* Hint text */
 .wallboard-hint {
-  margin-top: 4px;
-  font-size: 11px;
-  color: #9ca3af;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #93c5fd; /* light blue, readable */
+  opacity: 0.95;
 }
+
 
 .alert-panel-divider {
   border: none;

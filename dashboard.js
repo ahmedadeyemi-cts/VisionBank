@@ -174,13 +174,21 @@ let lastQueueSnapshot = { totalCalls: 0, totalAgents: 0 };
 let audioCtx = null;
 let voiceAudio = null;
 function unlockAudio() {
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return;
+
   if (!audioCtx) {
-    const Ctor = window.AudioContext || window.webkitAudioContext;
-    if (Ctor) audioCtx = new Ctor();
+    audioCtx = new Ctor();
   }
 
-  if (audioCtx && audioCtx.state === "suspended") {
-    audioCtx.resume().catch(() => {});
+  if (audioCtx.state !== "running") {
+    audioCtx.resume().catch(err => {
+      console.warn("Audio resume failed:", err);
+    });
+  }
+
+  if (!voiceAudio) {
+    voiceAudio = new Audio("assets/ttsAlert.mp3");
   }
 }
 
@@ -216,6 +224,7 @@ function ensureAudio() {
 }
 
 function playTone(tone) {
+  unlockAudio();
   if (!alertSettings.enableQueueAlerts) return;
   ensureAudio();
   if (!audioCtx) return;
@@ -249,6 +258,7 @@ function playTone(tone) {
 }
 
 function playVoice() {
+  unlockAudio();
   if (!alertSettings.enableVoiceAlerts) return;
   ensureAudio();
   if (!voiceAudio) return;
@@ -501,6 +511,8 @@ if (testBtn) {
 totalCalls = Number.isFinite(totalCalls) ? totalCalls : 0;
 totalAgents = Number.isFinite(totalAgents) ? totalAgents : 0;
     triggerQueueAlert({
+      totalCalls: lastQueueSnapshot.totalCalls ?? 0,
+      totalAgents: lastQueueSnapshot.totalAgents ?? 0,
       queueNames: ["Test Queue"],
       isTest: true
     });

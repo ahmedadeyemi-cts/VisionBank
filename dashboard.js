@@ -1012,11 +1012,15 @@ let startDateDisplay;
 let showWarning = false;
 
 if (startDateMode === "reporting") {
+  // Reporting mode always shows today start, no warning
   startDateDisplay = formatReportingStart();
-  showWarning = rolledOver;
+  showWarning = false;
 } else {
+  // Session mode shows real session start
   startDateDisplay = formatDate(a.StartDateUtc);
+  showWarning = rolledOver;
 }
+
 
 tr.innerHTML = `
   <td>${safe(a.FullName)}</td>
@@ -1037,9 +1041,8 @@ tr.innerHTML = `
   <td class="numeric">${formatTime(avgHandleSeconds)}</td>
   <td>
   ${startDateDisplay}
-  ${showWarning ? '<span class="startdate-warning" title="Agent session started before today"> ⚠️</span>' : ""}
+  ${showWarning ? '<span class="startdate-warning" title="Agent session started before today">⚠️</span>' : ""}
   </td>
-
 `;
       body.appendChild(tr);
     });

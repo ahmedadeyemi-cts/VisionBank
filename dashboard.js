@@ -1012,14 +1012,28 @@ let startDateDisplay;
 let showWarning = false;
 
 if (startDateMode === "reporting") {
-  // Reporting mode always shows today start, no warning
-  startDateDisplay = formatReportingStart();
+  // Reporting mode:
+  // - If agent logged in today → show real login time
+  // - Else → show reporting day start
+  if (
+    sessionStart instanceof Date &&
+    !isNaN(sessionStart) &&
+    sessionStart >= todayStart
+  ) {
+    startDateDisplay = formatDate(a.StartDateUtc);
+  } else {
+    startDateDisplay = formatReportingStart();
+  }
+
+  // Never warn in reporting mode
   showWarning = false;
+
 } else {
-  // Session mode shows real session start
+  // Session mode shows real session start + warning if rolled over
   startDateDisplay = formatDate(a.StartDateUtc);
   showWarning = rolledOver;
 }
+
 
 
 tr.innerHTML = `

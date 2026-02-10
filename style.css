@@ -1178,3 +1178,9 @@ body.dark-mode .stat-card {
 .copy-ip-btn:hover {
   background: #e8ecf5;
 }
+.rollover-flag {
+  margin-left: 4px;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+

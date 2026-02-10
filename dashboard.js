@@ -1055,7 +1055,13 @@ tr.innerHTML = `
   <td class="numeric">${formatTime(avgHandleSeconds)}</td>
   <td>
   ${startDateDisplay}
-  ${showWarning ? '<span class="startdate-warning" title="Agent session started before today">⚠️</span>' : ""}
+  ${showWarning ? `
+  <span
+    class="startdate-warning"
+    title="You did not sign out on the previous day displated here, hence, your session started on that date. Please log out and back in if this is unintended."
+  >⚠️</span>
+` : ""}
+
   </td>
 `;
       body.appendChild(tr);

@@ -1183,4 +1183,13 @@ body.dark-mode .stat-card {
   font-size: 0.85em;
   opacity: 0.7;
 }
-
+.agent-start-toggle {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+.agent-start-toggle label {
+  cursor: pointer;
+}

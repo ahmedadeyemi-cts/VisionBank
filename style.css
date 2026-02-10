@@ -1199,3 +1199,6 @@ body.dark-mode .stat-card {
 .agent-startdate-toggle label {
   cursor: pointer;
 }
+.startdate-warning {
+  cursor: help;
+}

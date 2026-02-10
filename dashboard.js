@@ -77,6 +77,14 @@ function formatCountdown(ms) {
 
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
+function getTodayStartCST() {
+  const now = new Date();
+  const cst = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Chicago" })
+  );
+  cst.setHours(0, 0, 0, 0);
+  return cst;
+}
 
 // ===============================
 // MOTD (Message of the Day)
@@ -953,7 +961,8 @@ async function loadGlobalStats() {
 async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
-
+  const todayStart = getTodayStartCST();
+  
   body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
 
   try {
@@ -967,17 +976,28 @@ async function loadAgentStatus() {
     body.innerHTML = "";
 
     data.AgentStatus.forEach(a => {
-      const inbound = a.TotalCallsReceived ?? 0;
-      const missed = a.TotalCallsMissed ?? 0;
-      const transferred = a.TotalCallsTransferred ?? 0;
-      const outbound = a.DialoutCount ?? 0;
+      const sessionStart = a.StartDateUtc ? new Date(a.StartDateUtc) : null;
+      const rolledOver = sessionStart && sessionStart < todayStart;
+      const inbound = rolledOver ? 0 : (a.TotalCallsReceived ?? 0);
+      const missed = rolledOver ? 0 : (a.TotalCallsMissed ?? 0);
+      const transferred = rolledOver ? 0 : (a.TotalCallsTransferred ?? 0);
+      const outbound = rolledOver ? 0 : (a.DialoutCount ?? 0);
+
 
       const avgHandleSeconds =
         inbound > 0 ? Math.round((a.TotalSecondsOnCall || 0) / inbound) : 0;
 
       const availabilityClass = getAvailabilityClass(a.CallTransferStatusDesc);
 
-const durationSeconds = Number(a.SecondsInCurrentStatus) || 0;
+      let durationSeconds = Number(a.SecondsInCurrentStatus) || 0;
+
+          if (rolledOver && sessionStart) {
+            const secondsSinceMidnight =
+              Math.floor((Date.now() - todayStart.getTime()) / 1000);
+
+            durationSeconds = Math.max(0, secondsSinceMidnight);
+          }
+
 
 const tr = document.createElement("tr");
 tr.innerHTML = `
@@ -997,7 +1017,11 @@ tr.innerHTML = `
   <td class="numeric">${outbound}</td>
 
   <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-  <td>${formatDate(a.StartDateUtc)}</td>
+  <td>
+  ${formatDate(a.StartDateUtc)}
+  ${rolledOver ? `<span class="rollover-flag" title="Session started previous day">⚠️</span>` : ""}
+  </td>
+
 `;
       body.appendChild(tr);
     });

@@ -13,6 +13,11 @@ const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
+
+// Agent Start Date display mode: "session" | "reporting"
+let startDateMode =
+  localStorage.getItem("agentStartDateMode") || "session";
+
 // ===============================
 // MOTD (Message of the Day)
 // ===============================
@@ -1018,9 +1023,18 @@ tr.innerHTML = `
 
   <td class="numeric">${formatTime(avgHandleSeconds)}</td>
   <td>
-  ${formatDate(a.StartDateUtc)}
-  ${rolledOver ? `<span class="rollover-flag" title="Session started previous day">⚠️</span>` : ""}
-  </td>
+  ${
+    startDateMode === "reporting"
+      ? formatDate(todayStart.toISOString())
+      : formatDate(a.StartDateUtc)
+  }
+  ${
+    rolledOver && startDateMode === "session"
+      ? `<span class="rollover-flag" title="Session started previous day">⚠️</span>`
+      : ""
+  }
+</td>
+
 
 `;
       body.appendChild(tr);
@@ -1052,6 +1066,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadMotd();                 // loads + renders
   setInterval(loadMotd, 60000);
 
+// ===============================
+// Agent Start Date Toggle
+// ===============================
+document
+  .querySelectorAll('input[name="startDateMode"]')
+  .forEach(radio => {
+    radio.checked = radio.value === startDateMode;
+
+    radio.addEventListener("change", () => {
+      startDateMode = radio.value;
+      localStorage.setItem("agentStartDateMode", startDateMode);
+      loadAgentStatus(); // re-render agent table only
+    });
+  });
 
 
   window.addEventListener("keydown", (e) => {

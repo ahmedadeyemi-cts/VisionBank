@@ -13,6 +13,11 @@ const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
+
+// Agent Start Date display mode: "session" | "reporting"
+let startDateMode =
+  localStorage.getItem("agentStartDateMode") || "session";
+
 // ===============================
 // MOTD (Message of the Day)
 // ===============================
@@ -77,6 +82,19 @@ function formatCountdown(ms) {
 
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
+function getTodayStartCST() {
+  const now = new Date();
+  const cst = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/Chicago" })
+  );
+  cst.setHours(0, 0, 0, 0);
+  return cst;
+}
+function formatReportingStart() {
+  const d = getTodayStartCST();
+  return d.toLocaleString("en-US", { timeZone: "America/Chicago" });
+}
+
 
 // ===============================
 // MOTD (Message of the Day)
@@ -980,6 +998,26 @@ async function loadAgentStatus() {
 const durationSeconds = Number(a.SecondsInCurrentStatus) || 0;
 
 const tr = document.createElement("tr");
+      const sessionStart = new Date(a.StartDateUtc);
+const todayStart = getTodayStartCST();
+
+// Did the agent log in before today?
+const rolledOver =
+  sessionStart instanceof Date &&
+  !isNaN(sessionStart) &&
+  sessionStart < todayStart;
+
+// Decide what date to display
+let startDateDisplay;
+let showWarning = false;
+
+if (startDateMode === "reporting") {
+  startDateDisplay = formatReportingStart();
+  showWarning = rolledOver;
+} else {
+  startDateDisplay = formatDate(a.StartDateUtc);
+}
+
 tr.innerHTML = `
   <td>${safe(a.FullName)}</td>
   <td>${safe(a.TeamName)}</td>
@@ -997,7 +1035,11 @@ tr.innerHTML = `
   <td class="numeric">${outbound}</td>
 
   <td class="numeric">${formatTime(avgHandleSeconds)}</td>
-  <td>${formatDate(a.StartDateUtc)}</td>
+  <td>
+  ${startDateDisplay}
+  ${showWarning ? '<span class="startdate-warning" title="Agent session started before today"> ⚠️</span>' : ""}
+  </td>
+
 `;
       body.appendChild(tr);
     });
@@ -1028,6 +1070,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadMotd();                 // loads + renders
   setInterval(loadMotd, 60000);
 
+// ===============================
+// Agent Start Date Toggle
+// ===============================
+document
+  .querySelectorAll('input[name="startDateMode"]')
+  .forEach(radio => {
+    radio.checked = radio.value === startDateMode;
+
+    radio.addEventListener("change", () => {
+      startDateMode = radio.value;
+      localStorage.setItem("agentStartDateMode", startDateMode);
+      loadAgentStatus(); // re-render agent table only
+    });
+  });
 
 
   window.addEventListener("keydown", (e) => {

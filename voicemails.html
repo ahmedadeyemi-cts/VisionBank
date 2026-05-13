@@ -145,8 +145,70 @@
           <button id="sendDailyBtn" class="btn-secondary">
             Send Daily Email
           </button>
+
+          <button id="scheduleReportBtn" class="btn-secondary">
+            Schedule Report
+          </button>
+          <button id="testScheduleBtn" class="btn-secondary">
+            Send Test Report
+          </button>
         </div>
       </section>
+
+      <section id="schedulePanel" class="panel hidden">
+  <h2>Schedule Voicemail Report</h2>
+
+  <div class="controls-grid">
+    <label>
+      Enabled
+      <select id="scheduleEnabled">
+        <option value="true">Enabled</option>
+        <option value="false">Disabled</option>
+      </select>
+    </label>
+
+    <label>
+      Recipients
+      <input
+        id="scheduleRecipients"
+        type="text"
+        placeholder="email1@example.com, email2@example.com"
+      />
+    </label>
+
+    <label>
+      Frequency
+      <select id="scheduleFrequency">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly, Mondays</option>
+        <option value="monthly">Monthly, 1st day</option>
+      </select>
+    </label>
+
+    <label>
+      Report Range
+      <select id="scheduleRange">
+        <option value="today">Today</option>
+        <option value="this-week">This Week</option>
+        <option value="last-week">Last Week</option>
+        <option value="this-month">This Month</option>
+        <option value="last-month">Last Month</option>
+        <option value="ytd">Year to Date</option>
+      </select>
+    </label>
+
+    <label>
+      Send Time CST/CDT
+      <input id="scheduleSendTime" type="time" value="07:00" />
+    </label>
+
+    <button id="saveScheduleBtn" class="btn-primary">
+      Save Schedule
+    </button>
+  </div>
+
+  <p id="scheduleStatus" class="message"></p>
+</section>
 
       <!-- SUMMARY -->
       <section class="panel">

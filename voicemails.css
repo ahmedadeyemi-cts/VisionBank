@@ -490,25 +490,59 @@ body.theme-dark select {
 ===================================================== */
 
 @media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .login-shell,
   .vb-header,
   .controls-panel,
   .footer,
+  .header-actions,
   #logoutBtn,
-  #themeToggle {
+  #themeToggle,
+  #printPdfBtn,
+  #sendDailyBtn,
+  #export-csv-btn,
+  #refresh-report-btn {
     display: none !important;
   }
 
-  body {
-    background: #ffffff;
-    color: #000000;
-  }
-
-  .panel,
-  .kpi-card {
-    box-shadow: none;
+  #appView {
+    display: block !important;
   }
 
   .main {
-    max-width: none;
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .panel,
+  .kpi-card,
+  .daily-card,
+  .day-card {
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #cccccc !important;
+    break-inside: avoid;
+  }
+
+  .kpi-grid,
+  .daily-grid {
+    break-inside: avoid;
+  }
+
+  .data-table th,
+  .data-table td {
+    color: #000000 !important;
+    border: 1px solid #cccccc !important;
+  }
+
+  .data-table thead {
+    background: #eeeeee !important;
   }
 }

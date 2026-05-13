@@ -102,35 +102,49 @@ logoutBtn?.addEventListener("click", function () {
 // =====================================================
 // PRINT / SAVE PDF
 // =====================================================
-printPdfBtn?.addEventListener("click", function () {
-  window.print();
-});
+if (printPdfBtn) {
+  printPdfBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+
+    setTimeout(function () {
+      window.print();
+    }, 100);
+  });
+}
 
 // =====================================================
-// SEND DAILY EMAIL
+// SEND EMAIL REPORT
 // =====================================================
 sendDailyBtn?.addEventListener("click", async function () {
+  const range = reportRange.value;
+
   sendDailyBtn.disabled = true;
   sendDailyBtn.textContent = "Sending...";
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/voicemails/send-daily`, {
-      method: "POST"
-    });
+    const res = await fetch(
+      `${SECURITY_BASE}/api/voicemails/send-daily?range=${encodeURIComponent(range)}`,
+      {
+        method: "POST"
+      }
+    );
 
     const data = await res.json();
 
     if (!res.ok || !data.success) {
-      throw new Error(data.error || "Daily email failed.");
+      throw new Error(data.error || "Email failed.");
     }
 
-    alert(`Daily voicemail report sent to ${data.sentTo.length} recipient(s).`);
+    alert(
+      `Voicemail report sent for ${range}. Total voicemails: ${data.totalVoicemails}`
+    );
+
   } catch (err) {
     console.error(err);
-    alert("Daily email failed. Check Worker logs.");
+    alert("Email failed. Check Worker logs.");
   } finally {
     sendDailyBtn.disabled = false;
-    sendDailyBtn.textContent = "Send Daily Email";
+    sendDailyBtn.textContent = "Send Email";
   }
 });
 

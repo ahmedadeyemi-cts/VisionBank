@@ -546,3 +546,20 @@ body.theme-dark select {
     background: #eeeeee !important;
   }
 }
+/* =====================================================
+   SCHEDULE PANEL
+===================================================== */
+
+#schedulePanel .controls-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+#schedulePanel input,
+#schedulePanel select {
+  width: 100%;
+}
+
+#schedulePanel .btn-primary {
+  height: 42px;
+}

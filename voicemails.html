@@ -7,46 +7,99 @@
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
   <link rel="stylesheet" href="voicemails.css" />
 </head>
+
 <body class="theme-light">
+
+  <!-- LOGIN VIEW -->
   <div id="loginView" class="login-shell">
     <section class="login-card">
       <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="login-logo" />
+
       <h1>Voicemail Reports</h1>
-      <p>Sign in with your VisionBank credentials and Microsoft Authenticator code.</p>
+      <p>
+        Sign in with your VisionBank credentials and Microsoft Authenticator code.
+      </p>
 
       <form id="loginForm" class="form-grid">
-        <label>Username<input id="loginUsername" type="text" autocomplete="username" /></label>
-        <label>Password<input id="loginPassword" type="password" autocomplete="current-password" /></label>
-        <label id="totpWrapper" class="hidden">Microsoft Authenticator Code<input id="loginTotp" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" /></label>
+        <label>
+          Username
+          <input id="loginUsername" type="text" autocomplete="username" />
+        </label>
+
+        <label>
+          Password
+          <input id="loginPassword" type="password" autocomplete="current-password" />
+        </label>
+
+        <label id="totpWrapper" class="hidden">
+          Microsoft Authenticator Code
+          <input
+            id="loginTotp"
+            type="text"
+            maxlength="6"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+          />
+        </label>
+
         <button type="submit" class="btn-primary">Login</button>
       </form>
+
       <div id="loginMessage" class="message"></div>
     </section>
   </div>
 
+  <!-- MFA SETUP VIEW -->
   <div id="mfaView" class="login-shell hidden">
     <section class="login-card wide">
       <h1>Microsoft Authenticator Setup</h1>
-      <p>Scan the QR code, then enter the 6-digit code to finish setup.</p>
+      <p>
+        Scan the QR code, then enter the 6-digit code to finish setup.
+      </p>
+
       <div class="mfa-grid">
-        <div><img id="mfaQr" class="mfa-qr" alt="MFA QR Code" /></div>
+        <div>
+          <img id="mfaQr" class="mfa-qr" alt="MFA QR Code" />
+        </div>
+
         <div class="form-grid">
-          <label>Secret Key<input id="mfaSecret" type="text" readonly /></label>
-          <label>Authenticator Code<input id="mfaCode" type="text" maxlength="6" inputmode="numeric" /></label>
-          <button id="confirmMfaBtn" class="btn-primary" type="button">Confirm MFA</button>
-          <button id="cancelMfaBtn" class="btn-secondary" type="button">Cancel</button>
+          <label>
+            Secret Key
+            <input id="mfaSecret" type="text" readonly />
+          </label>
+
+          <label>
+            Authenticator Code
+            <input id="mfaCode" type="text" maxlength="6" inputmode="numeric" />
+          </label>
+
+          <button id="confirmMfaBtn" class="btn-primary" type="button">
+            Confirm MFA
+          </button>
+
+          <button id="cancelMfaBtn" class="btn-secondary" type="button">
+            Cancel
+          </button>
+
           <div id="mfaMessage" class="message"></div>
         </div>
       </div>
     </section>
   </div>
 
+  <!-- APP VIEW -->
   <div id="appView" class="hidden">
+
     <header class="vb-header">
       <div class="brand-block">
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo" />
-        <div><h1>Voicemail Reports</h1><span>VisionBank® Contact Center</span></div>
+
+        <div>
+          <h1>Voicemail Reports</h1>
+          <span>VisionBank® Contact Center</span>
+        </div>
       </div>
+
       <div class="header-actions">
         <button id="themeToggle" class="btn-secondary">Dark mode</button>
         <button id="logoutBtn" class="btn-secondary">Logout</button>
@@ -54,16 +107,21 @@
     </header>
 
     <main class="main">
+
+      <!-- REPORT FILTERS -->
       <section class="panel controls-panel">
         <div>
           <h2>Report Filters</h2>
-          <p>Run voicemail reports by date range. Weekly, monthly, and YTD reports are combined from daily voicemail API calls.</p>
+          <p>
+            Run voicemail reports by date range. Weekly, monthly, and YTD reports are combined from daily voicemail API calls.
+          </p>
         </div>
+
         <div class="controls-grid">
-          <label>Range
-            <select id="rangeSelect">
+          <label>
+            Range
+            <select id="report-range">
               <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
               <option value="this-week">This Week</option>
               <option value="last-week">Last Week</option>
               <option value="this-month">This Month</option>
@@ -71,38 +129,104 @@
               <option value="ytd">Year to Date</option>
             </select>
           </label>
-          <button id="runReportBtn" class="btn-primary">Run Report</button>
-          <button id="exportCsvBtn" class="btn-secondary">Export CSV</button>
-          <button id="printPdfBtn" class="btn-secondary">Print / Save PDF</button>
-          <button id="sendDailyBtn" class="btn-secondary">Send Daily Email</button>
+
+          <button id="refresh-report-btn" class="btn-primary">
+            Run Report
+          </button>
+
+          <button id="export-csv-btn" class="btn-secondary">
+            Export CSV
+          </button>
+
+          <button id="printPdfBtn" class="btn-secondary">
+            Print / Save PDF
+          </button>
+
+          <button id="sendDailyBtn" class="btn-secondary">
+            Send Daily Email
+          </button>
         </div>
       </section>
 
-      <section class="kpi-grid">
-        <div class="kpi-card"><div id="kpiTotal" class="kpi-value">--</div><div class="kpi-label">Total Voicemails</div></div>
-        <div class="kpi-card"><div id="kpiAvg" class="kpi-value">--</div><div class="kpi-label">Average Duration</div></div>
-        <div class="kpi-card"><div id="kpiLongest" class="kpi-value">--</div><div class="kpi-label">Longest Voicemail</div></div>
-        <div class="kpi-card"><div id="kpiDates" class="kpi-value">--</div><div class="kpi-label">Report Days</div></div>
+      <!-- SUMMARY -->
+      <section class="panel">
+        <h2>Report Summary</h2>
+        <div id="voicemail-summary">
+          No report loaded.
+        </div>
       </section>
 
+      <!-- KPI CARDS -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div id="kpiTotal" class="kpi-value">--</div>
+          <div class="kpi-label">Total Voicemails</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiAvg" class="kpi-value">--</div>
+          <div class="kpi-label">Average Duration</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiLongest" class="kpi-value">--</div>
+          <div class="kpi-label">Longest Voicemail</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiDates" class="kpi-value">--</div>
+          <div class="kpi-label">Report Days</div>
+        </div>
+      </section>
+
+      <!-- DAILY BREAKDOWN -->
       <section class="panel">
-        <div class="section-header"><h2>Voicemails by Date</h2><span id="reportMeta">No report loaded.</span></div>
+        <div class="section-header">
+          <h2>Voicemails by Date</h2>
+          <span id="reportMeta">No report loaded.</span>
+        </div>
+
         <div id="dailyBreakdown" class="daily-grid"></div>
       </section>
 
+      <!-- DETAILS TABLE -->
       <section class="panel">
         <h2>Voicemail Details</h2>
+
         <table class="data-table">
-          <thead><tr><th>Date/Time</th><th>Reference No.</th><th>Call ID</th><th>Queue ID</th><th>Duration</th><th>Mail ID</th></tr></thead>
-          <tbody id="voicemailBody"><tr><td colspan="6" class="loading">Run a report to load voicemail data.</td></tr></tbody>
+          <thead>
+            <tr>
+              <th>Voicemail ID</th>
+              <th>Call ID</th>
+              <th>Reference No.</th>
+              <th>Duration</th>
+              <th>Created UTC</th>
+            </tr>
+          </thead>
+
+          <tbody id="voicemail-report-body">
+            <tr>
+              <td colspan="5" class="loading">
+                Run a report to load voicemail data.
+              </td>
+            </tr>
+          </tbody>
         </table>
       </section>
+
     </main>
 
     <footer class="footer">
       <span id="securityStatus">Authenticated session active.</span>
-      <div><img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" /><span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span></div>
+
+      <div>
+        <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" />
+        <span>
+          Created and maintained by Ahmed Adeyemi, ©2025. US Signal
+        </span>
+      </div>
     </footer>
+
   </div>
 
   <script src="voicemails.js"></script>

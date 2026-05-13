@@ -102,19 +102,64 @@ logoutBtn?.addEventListener("click", function () {
 // PRINT / SAVE PDF
 // =====================================================
 if (printPdfBtn) {
+
+  console.log("printPdfBtn found successfully");
+
   printPdfBtn.addEventListener("click", function (e) {
+
+    console.log("======================================");
+    console.log("PRINT BUTTON CLICKED");
+    console.log("Timestamp:", new Date().toISOString());
+
     e.preventDefault();
     e.stopPropagation();
 
-    console.log("Print PDF button clicked");
+    console.log("preventDefault() applied");
+    console.log("stopPropagation() applied");
 
-    setTimeout(() => {
+    try {
+
+      console.log("Attempting window.focus()");
       window.focus();
-      window.print();
-    }, 250);
+
+      console.log("window.focus() completed");
+
+      setTimeout(() => {
+
+        console.log("setTimeout triggered");
+        console.log("Attempting window.print()");
+
+        try {
+
+          window.print();
+
+          console.log("window.print() executed");
+
+        } catch (printErr) {
+
+          console.error("window.print() FAILED");
+          console.error(printErr);
+
+        }
+
+      }, 250);
+
+      console.log("Print timeout scheduled");
+
+    } catch (err) {
+
+      console.error("PRINT BUTTON ERROR");
+      console.error(err);
+
+    }
+
   });
+
 } else {
-  console.error("printPdfBtn was not found. Check button ID in voicemails.html.");
+
+  console.error("printPdfBtn was NOT found.");
+  console.error("Check button ID in voicemails.html.");
+
 }
 // =====================================================
 // SEND EMAIL REPORT

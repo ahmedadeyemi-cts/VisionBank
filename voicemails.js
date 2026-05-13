@@ -13,6 +13,9 @@ const reportSummary = document.getElementById("voicemail-summary");
 const reportRange = document.getElementById("report-range");
 const refreshBtn = document.getElementById("refresh-report-btn");
 const exportBtn = document.getElementById("export-csv-btn");
+const printPdfBtn = document.getElementById("printPdfBtn");
+const sendDailyBtn = document.getElementById("sendDailyBtn");
+const themeToggle = document.getElementById("themeToggle");
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
 const loginForm = document.getElementById("loginForm");
@@ -95,6 +98,70 @@ logoutBtn?.addEventListener("click", function () {
   sessionStorage.removeItem("vb_voicemail_user");
   location.reload();
 });
+
+// =====================================================
+// PRINT / SAVE PDF
+// =====================================================
+printPdfBtn?.addEventListener("click", function () {
+  window.print();
+});
+
+// =====================================================
+// SEND DAILY EMAIL
+// =====================================================
+sendDailyBtn?.addEventListener("click", async function () {
+  sendDailyBtn.disabled = true;
+  sendDailyBtn.textContent = "Sending...";
+
+  try {
+    const res = await fetch(`${SECURITY_BASE}/api/voicemails/send-daily`, {
+      method: "POST"
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Daily email failed.");
+    }
+
+    alert(`Daily voicemail report sent to ${data.sentTo.length} recipient(s).`);
+  } catch (err) {
+    console.error(err);
+    alert("Daily email failed. Check Worker logs.");
+  } finally {
+    sendDailyBtn.disabled = false;
+    sendDailyBtn.textContent = "Send Daily Email";
+  }
+});
+
+// =====================================================
+// DARK MODE
+// =====================================================
+themeToggle?.addEventListener("click", function () {
+  document.body.classList.toggle("theme-dark");
+
+  const isDark = document.body.classList.contains("theme-dark");
+
+  document.body.classList.toggle("theme-light", !isDark);
+
+  themeToggle.textContent = isDark ? "Light mode" : "Dark mode";
+
+  localStorage.setItem("vb_voicemail_theme", isDark ? "dark" : "light");
+});
+
+// Load saved theme
+(function loadSavedTheme() {
+  const saved = localStorage.getItem("vb_voicemail_theme");
+
+  if (saved === "dark") {
+    document.body.classList.add("theme-dark");
+    document.body.classList.remove("theme-light");
+
+    if (themeToggle) {
+      themeToggle.textContent = "Light mode";
+    }
+  }
+})();
 // =====================================================
 // SECURITY CHECK
 // =====================================================

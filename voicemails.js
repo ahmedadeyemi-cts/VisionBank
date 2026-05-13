@@ -13,7 +13,88 @@ const reportSummary = document.getElementById("voicemail-summary");
 const reportRange = document.getElementById("report-range");
 const refreshBtn = document.getElementById("refresh-report-btn");
 const exportBtn = document.getElementById("export-csv-btn");
+const loginView = document.getElementById("loginView");
+const appView = document.getElementById("appView");
+const loginForm = document.getElementById("loginForm");
+const loginUsername = document.getElementById("loginUsername");
+const loginPassword = document.getElementById("loginPassword");
+const loginTotp = document.getElementById("loginTotp");
+const totpWrapper = document.getElementById("totpWrapper");
+const loginMessage = document.getElementById("loginMessage");
+const logoutBtn = document.getElementById("logoutBtn");
 
+let pendingUsername = "";
+let pendingPassword = "";
+
+loginForm?.addEventListener("submit", async function (e) {
+  e.preventDefault();
+
+  const username = loginUsername.value.trim();
+  const password = loginPassword.value;
+  const totp = loginTotp.value.trim();
+
+  pendingUsername = username;
+  pendingPassword = password;
+
+  loginMessage.textContent = "Signing in...";
+
+  try {
+    const body = {
+      username,
+      password
+    };
+
+    if (!totpWrapper.classList.contains("hidden")) {
+      body.totp = totp;
+    }
+
+    const res = await fetch(`${SECURITY_BASE}/api/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    if (data.requireTotp) {
+      totpWrapper.classList.remove("hidden");
+      loginMessage.textContent = "Enter your Microsoft Authenticator code.";
+      return;
+    }
+
+    if (data.requireMfaSetup) {
+      loginMessage.textContent = "MFA setup is required. Please use the Security Admin Console to complete MFA setup first.";
+      return;
+    }
+
+    if (!res.ok || !data.success) {
+      loginMessage.textContent = data.error || "Login failed.";
+      return;
+    }
+
+    sessionStorage.setItem("vb_voicemail_session", data.session);
+    sessionStorage.setItem("vb_voicemail_user", username);
+
+    loginView.classList.add("hidden");
+    appView.classList.remove("hidden");
+
+    loginMessage.textContent = "";
+
+    await loadReport();
+
+  } catch (err) {
+    console.error("Login error:", err);
+    loginMessage.textContent = "Login failed. Check console or Worker logs.";
+  }
+});
+
+logoutBtn?.addEventListener("click", function () {
+  sessionStorage.removeItem("vb_voicemail_session");
+  sessionStorage.removeItem("vb_voicemail_user");
+  location.reload();
+});
 // =====================================================
 // SECURITY CHECK
 // =====================================================
@@ -272,5 +353,11 @@ exportBtn?.addEventListener("click", exportCsv);
 
   if (!ok) return;
 
-  await loadReport();
+  const existingSession = sessionStorage.getItem("vb_voicemail_session");
+
+  if (existingSession) {
+    loginView.classList.add("hidden");
+    appView.classList.remove("hidden");
+    await loadReport();
+  }
 })();

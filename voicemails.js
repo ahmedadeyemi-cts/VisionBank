@@ -4,8 +4,9 @@
 // =====================================================
 
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
-const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3";
-const TOKEN = "REPLACE_WITH_TOKEN";
+//const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3";
+//const TOKEN = "REPLACE_WITH_TOKEN";
+const REPORT_API = `${SECURITY_BASE}/api/voicemails/report`;
 
 const reportBody = document.getElementById("voicemail-report-body");
 const reportSummary = document.getElementById("voicemail-summary");
@@ -144,18 +145,27 @@ async function loadReport() {
   `;
 
   const range = reportRange.value;
-  const { start, end } = getDateRange(range);
 
-  const dates = enumerateDates(start, end);
+  try {
+    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`);
 
-  let combined = [];
+    if (!res.ok) {
+      throw new Error(`Report failed: HTTP ${res.status}`);
+    }
 
-  for (const date of dates) {
-    const records = await fetchVoicemailsForDate(date);
-    combined = combined.concat(records);
+    const data = await res.json();
+
+    renderReport(data.records || [], range);
+
+  } catch (err) {
+    console.error(err);
+    reportBody.innerHTML = `
+      <tr>
+        <td colspan="5">Unable to load voicemail report.</td>
+      </tr>
+    `;
+    reportSummary.innerHTML = `Report failed. Check the Worker logs.`;
   }
-
-  renderReport(combined, range);
 }
 
 // =====================================================

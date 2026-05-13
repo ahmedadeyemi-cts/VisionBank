@@ -104,13 +104,18 @@ logoutBtn?.addEventListener("click", function () {
 if (printPdfBtn) {
   printPdfBtn.addEventListener("click", function (e) {
     e.preventDefault();
+    e.stopPropagation();
+
     console.log("Print PDF button clicked");
-    window.print();
+
+    setTimeout(() => {
+      window.focus();
+      window.print();
+    }, 250);
   });
 } else {
   console.error("printPdfBtn was not found. Check button ID in voicemails.html.");
 }
-
 // =====================================================
 // SEND EMAIL REPORT
 // =====================================================
@@ -260,39 +265,6 @@ function enumerateDates(start, end) {
   }
 
   return dates;
-}
-
-// =====================================================
-// FETCH VOICEMAILS
-// =====================================================
-async function fetchVoicemailsForDate(date) {
-  let page = 1;
-  let totalPages = 1;
-  let all = [];
-
-  while (page <= totalPages) {
-    const res = await fetch(`${API_BASE}/hist/voicemails/${date}`, {
-      headers: {
-        "Content-Type": "application/json",
-        token: TOKEN,
-        Page: String(page)
-      }
-    });
-
-    if (!res.ok) {
-      console.error(`Failed loading ${date} page ${page}`);
-      break;
-    }
-
-    totalPages = Number(res.headers.get("TotalPages") || 1);
-
-    const data = await res.json();
-    all = all.concat(data || []);
-
-    page++;
-  }
-
-  return all;
 }
 
 // =====================================================

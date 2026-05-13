@@ -98,18 +98,17 @@ logoutBtn?.addEventListener("click", function () {
   sessionStorage.removeItem("vb_voicemail_user");
   location.reload();
 });
-
 // =====================================================
 // PRINT / SAVE PDF
 // =====================================================
 if (printPdfBtn) {
   printPdfBtn.addEventListener("click", function (e) {
     e.preventDefault();
-
-    setTimeout(function () {
-      window.print();
-    }, 100);
+    console.log("Print PDF button clicked");
+    window.print();
   });
+} else {
+  console.error("printPdfBtn was not found. Check button ID in voicemails.html.");
 }
 
 // =====================================================

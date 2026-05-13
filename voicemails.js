@@ -243,19 +243,92 @@ async function runSecurityCheck() {
     const data = await res.json();
 
     if (!data.allowed) {
-      alert("Access denied.");
+      const info = data.info || {};
+      const geo = info.geo || {};
+      const nowCst = info.nowCst || {};
+
+      const primaryIp = info.primaryIp || "Unknown";
+      const ipVersion = info.ipVersion || "Unknown";
+      const city = geo.city || "Unknown";
+      const region = geo.region || "Unknown";
+      const country = geo.country || "Unknown";
+      const asOrg = info.asOrg || "Unknown";
+      const asn = info.asn || "Unknown";
+      const reason = data.reason || "access-denied";
+
       document.body.innerHTML = `
-        <div style="padding:40px;font-family:sans-serif;">
-          <h1>Access Restricted</h1>
-          <p>Your IP or access window is not authorized.</p>
+        <div class="access-denied-overlay">
+          <div class="access-denied-card">
+            <h1>Access Restricted</h1>
+
+            <p><strong>Access has been restricted.</strong></p>
+
+            <div class="access-denied-details">
+              <p>
+                <strong>Primary IP:</strong>
+                <span id="restrictedIp">${primaryIp}</span> (${ipVersion})
+                <button id="copyRestrictedIpBtn" class="copy-ip-btn">Copy IP</button>
+              </p>
+
+              <p>
+                <strong>Location:</strong>
+                ${city}, ${region} ${country}
+              </p>
+
+              <p>
+                <strong>Network:</strong>
+                ${asOrg} (AS${asn})
+              </p>
+
+              <p>
+                <strong>Reason:</strong>
+                ${reason}
+              </p>
+
+              <p>
+                <strong>Current CST/CDT:</strong>
+                ${nowCst.label || "Unknown"}
+              </p>
+            </div>
+
+            <p class="access-denied-note">
+              Please provide this information to the VisionBank IT Team.
+            </p>
+
+            <p class="access-denied-note muted">
+              If you believe this is in error, contact the VisionBank IT Team.
+            </p>
+          </div>
         </div>
       `;
+
+      document
+        .getElementById("copyRestrictedIpBtn")
+        ?.addEventListener("click", async function () {
+          await navigator.clipboard.writeText(primaryIp);
+          this.textContent = "Copied";
+        });
+
       return false;
     }
 
     return true;
+
   } catch (err) {
     console.error("Security check failed", err);
+
+    document.body.innerHTML = `
+      <div class="access-denied-overlay">
+        <div class="access-denied-card">
+          <h1>Access Restricted</h1>
+          <p>Unable to validate access at this time.</p>
+          <p class="access-denied-note">
+            Please contact the VisionBank IT Team.
+          </p>
+        </div>
+      </div>
+    `;
+
     return false;
   }
 }

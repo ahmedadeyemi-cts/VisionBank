@@ -25,6 +25,15 @@ const loginTotp = document.getElementById("loginTotp");
 const totpWrapper = document.getElementById("totpWrapper");
 const loginMessage = document.getElementById("loginMessage");
 const logoutBtn = document.getElementById("logoutBtn");
+const scheduleReportBtn = document.getElementById("scheduleReportBtn");
+const schedulePanel = document.getElementById("schedulePanel");
+const scheduleEnabled = document.getElementById("scheduleEnabled");
+const scheduleRecipients = document.getElementById("scheduleRecipients");
+const scheduleFrequency = document.getElementById("scheduleFrequency");
+const scheduleRange = document.getElementById("scheduleRange");
+const scheduleSendTime = document.getElementById("scheduleSendTime");
+const saveScheduleBtn = document.getElementById("saveScheduleBtn");
+const scheduleStatus = document.getElementById("scheduleStatus");
 
 let pendingUsername = "";
 let pendingPassword = "";
@@ -346,6 +355,72 @@ async function loadReport() {
   }
 }
 
+scheduleReportBtn?.addEventListener("click", async function () {
+  schedulePanel.classList.toggle("hidden");
+  await loadScheduleSettings();
+});
+
+async function loadScheduleSettings() {
+  try {
+    const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/get`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Unable to load schedule.");
+    }
+
+    const s = data.schedule;
+
+    scheduleEnabled.value = String(Boolean(s.enabled));
+    scheduleRecipients.value = (s.recipients || []).join(", ");
+    scheduleFrequency.value = s.frequency || "daily";
+    scheduleRange.value = s.range || "today";
+    scheduleSendTime.value = s.sendTime || "07:00";
+
+    scheduleStatus.textContent = s.enabled
+      ? `Schedule enabled. Last sent: ${s.lastSentAt || "Never"}`
+      : "Schedule is currently disabled.";
+
+  } catch (err) {
+    console.error(err);
+    scheduleStatus.textContent = "Unable to load schedule settings.";
+  }
+}
+
+saveScheduleBtn?.addEventListener("click", async function () {
+  scheduleStatus.textContent = "Saving schedule...";
+
+  try {
+    const payload = {
+      enabled: scheduleEnabled.value === "true",
+      recipients: scheduleRecipients.value,
+      frequency: scheduleFrequency.value,
+      range: scheduleRange.value,
+      sendTime: scheduleSendTime.value,
+      timezone: "America/Chicago"
+    };
+
+    const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Save failed.");
+    }
+
+    scheduleStatus.textContent = "Schedule saved successfully.";
+
+  } catch (err) {
+    console.error(err);
+    scheduleStatus.textContent = "Unable to save schedule.";
+  }
+});
 // =====================================================
 // RENDER REPORT
 // =====================================================

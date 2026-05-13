@@ -253,44 +253,165 @@ async function loadReport() {
 // RENDER REPORT
 // =====================================================
 function renderReport(records, range) {
+
+  // =====================================================
+  // NO RECORDS
+  // =====================================================
   if (!records.length) {
+
     reportBody.innerHTML = `
       <tr>
         <td colspan="5">No voicemails found.</td>
       </tr>
     `;
 
-    reportSummary.innerHTML = `No voicemail activity detected.`;
+    reportSummary.innerHTML = `
+      <div class="summary-card">
+        <h3>${range.toUpperCase()}</h3>
+        <p>No voicemail activity detected.</p>
+      </div>
+    `;
+
+    // KPI CARDS
+    document.getElementById("kpiTotal").textContent = "0";
+    document.getElementById("kpiAvg").textContent = "0s";
+    document.getElementById("kpiLongest").textContent = "0s";
+    document.getElementById("kpiDates").textContent = "0";
+
+    // DAILY BREAKDOWN
+    document.getElementById("dailyBreakdown").innerHTML = `
+      <div class="empty-state">
+        No voicemail activity found for this range.
+      </div>
+    `;
+
+    // REPORT META
+    document.getElementById("reportMeta").textContent =
+      "No report loaded.";
+
     return;
   }
 
+  // =====================================================
+  // TOTALS
+  // =====================================================
   let totalDuration = 0;
+  let longestDuration = 0;
 
+  const perDayCounts = {};
+
+  // =====================================================
+  // TABLE RENDER
+  // =====================================================
   reportBody.innerHTML = records.map(vm => {
-    totalDuration += vm.SecondsDuration || 0;
+
+    const duration = Number(vm.SecondsDuration || 0);
+
+    totalDuration += duration;
+
+    if (duration > longestDuration) {
+      longestDuration = duration;
+    }
+
+    // DAILY BREAKDOWN
+    const day = (vm.CreationDateUtc || "").split("T")[0];
+
+    if (day) {
+      perDayCounts[day] = (perDayCounts[day] || 0) + 1;
+    }
 
     return `
       <tr>
         <td>${vm.VoicemailId || "-"}</td>
         <td>${vm.CallId || "-"}</td>
         <td>${vm.ReferenceNo || "-"}</td>
-        <td>${vm.SecondsDuration || 0}s</td>
+        <td>${duration}s</td>
         <td>${vm.CreationDateUtc || "-"}</td>
       </tr>
     `;
+
   }).join("");
 
-  const avgDuration = Math.round(totalDuration / records.length);
+  // =====================================================
+  // METRICS
+  // =====================================================
+  const avgDuration =
+    Math.round(totalDuration / records.length);
 
+  const uniqueDates =
+    Object.keys(perDayCounts).length;
+
+  // =====================================================
+  // SUMMARY PANEL
+  // =====================================================
   reportSummary.innerHTML = `
     <div class="summary-card">
+
       <h3>${range.toUpperCase()}</h3>
-      <p><strong>Total Voicemails:</strong> ${records.length}</p>
-      <p><strong>Total Duration:</strong> ${totalDuration}s</p>
-      <p><strong>Average Duration:</strong> ${avgDuration}s</p>
+
+      <p>
+        <strong>Total Voicemails:</strong>
+        ${records.length}
+      </p>
+
+      <p>
+        <strong>Total Duration:</strong>
+        ${totalDuration}s
+      </p>
+
+      <p>
+        <strong>Average Duration:</strong>
+        ${avgDuration}s
+      </p>
+
     </div>
   `;
 
+  // =====================================================
+  // KPI CARDS
+  // =====================================================
+  document.getElementById("kpiTotal").textContent =
+    records.length;
+
+  document.getElementById("kpiAvg").textContent =
+    `${avgDuration}s`;
+
+  document.getElementById("kpiLongest").textContent =
+    `${longestDuration}s`;
+
+  document.getElementById("kpiDates").textContent =
+    uniqueDates;
+
+  // =====================================================
+  // DAILY BREAKDOWN
+  // =====================================================
+  const dailyHtml =
+    Object.entries(perDayCounts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => {
+
+        return `
+          <div class="daily-card">
+            <div class="daily-date">${date}</div>
+            <div class="daily-count">${count}</div>
+            <div class="daily-label">Voicemails</div>
+          </div>
+        `;
+
+      }).join("");
+
+  document.getElementById("dailyBreakdown").innerHTML =
+    dailyHtml;
+
+  // =====================================================
+  // REPORT META
+  // =====================================================
+  document.getElementById("reportMeta").textContent =
+    `${records.length} total voicemail(s) across ${uniqueDates} day(s)`;
+
+  // =====================================================
+  // STORE GLOBAL
+  // =====================================================
   window.currentVoicemailData = records;
 }
 

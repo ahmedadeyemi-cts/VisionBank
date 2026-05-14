@@ -149,66 +149,68 @@
           <button id="scheduleReportBtn" class="btn-secondary">
             Schedule Report
           </button>
+
           <button id="testScheduleBtn" class="btn-secondary">
             Send Test Report
           </button>
         </div>
       </section>
 
+      <!-- SCHEDULE PANEL -->
       <section id="schedulePanel" class="panel hidden">
-  <h2>Schedule Voicemail Report</h2>
+        <h2>Schedule Voicemail Report</h2>
 
-  <div class="controls-grid">
-    <label>
-      Enabled
-      <select id="scheduleEnabled">
-        <option value="true">Enabled</option>
-        <option value="false">Disabled</option>
-      </select>
-    </label>
+        <div class="controls-grid">
+          <label>
+            Enabled
+            <select id="scheduleEnabled">
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </label>
 
-    <label>
-      Recipients
-      <input
-        id="scheduleRecipients"
-        type="text"
-        placeholder="email1@example.com, email2@example.com"
-      />
-    </label>
+          <label>
+            Recipients
+            <input
+              id="scheduleRecipients"
+              type="text"
+              placeholder="email1@example.com, email2@example.com"
+            />
+          </label>
 
-    <label>
-      Frequency
-      <select id="scheduleFrequency">
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly, Mondays</option>
-        <option value="monthly">Monthly, 1st day</option>
-      </select>
-    </label>
+          <label>
+            Frequency
+            <select id="scheduleFrequency">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly, Mondays</option>
+              <option value="monthly">Monthly, 1st day</option>
+            </select>
+          </label>
 
-    <label>
-      Report Range
-      <select id="scheduleRange">
-        <option value="today">Today</option>
-        <option value="this-week">This Week</option>
-        <option value="last-week">Last Week</option>
-        <option value="this-month">This Month</option>
-        <option value="last-month">Last Month</option>
-        <option value="ytd">Year to Date</option>
-      </select>
-    </label>
+          <label>
+            Report Range
+            <select id="scheduleRange">
+              <option value="today">Today</option>
+              <option value="this-week">This Week</option>
+              <option value="last-week">Last Week</option>
+              <option value="this-month">This Month</option>
+              <option value="last-month">Last Month</option>
+              <option value="ytd">Year to Date</option>
+            </select>
+          </label>
 
-    <label>
-      Send Time CST/CDT
-      <input id="scheduleSendTime" type="time" value="07:00" />
-    </label>
+          <label>
+            Send Time CST/CDT
+            <input id="scheduleSendTime" type="time" value="07:00" />
+          </label>
 
-    <button id="saveScheduleBtn" class="btn-primary">
-      Save Schedule
-    </button>
-  </div>
+          <button id="saveScheduleBtn" class="btn-primary">
+            Save Schedule
+          </button>
+        </div>
 
-  <p id="scheduleStatus" class="message"></p>
-</section>
+        <p id="scheduleStatus" class="message"></p>
+      </section>
 
       <!-- SUMMARY -->
       <section class="panel">
@@ -253,7 +255,12 @@
 
       <!-- DETAILS TABLE -->
       <section class="panel">
-        <h2>Voicemail Details</h2>
+        <div class="section-header">
+          <h2>Voicemail Details</h2>
+          <span>
+            Click "View Details" to load full incoming call information.
+          </span>
+        </div>
 
         <table class="data-table">
           <thead>
@@ -263,12 +270,13 @@
               <th>Reference No.</th>
               <th>Duration</th>
               <th>Created UTC</th>
+              <th>Actions</th>
             </tr>
           </thead>
 
           <tbody id="voicemail-report-body">
             <tr>
-              <td colspan="5" class="loading">
+              <td colspan="6" class="loading">
                 Run a report to load voicemail data.
               </td>
             </tr>
@@ -289,6 +297,31 @@
       </div>
     </footer>
 
+  </div>
+
+  <!-- VOICEMAIL DETAIL MODAL -->
+  <div id="callDetailModal" class="modal hidden">
+    <div class="modal-content large-modal">
+
+      <div class="modal-header">
+        <h2>Incoming Call Details</h2>
+
+        <button
+          id="closeCallDetailModal"
+          class="btn-secondary"
+          type="button"
+        >
+          Close
+        </button>
+      </div>
+
+      <div id="callDetailContent">
+        <div class="loading">
+          Loading call details...
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <script src="voicemails.js"></script>

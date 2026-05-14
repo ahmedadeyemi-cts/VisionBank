@@ -400,7 +400,7 @@ function enumerateDates(start, end) {
 async function loadReport() {
   reportBody.innerHTML = `
     <tr>
-      <td colspan="5">Loading voicemail report...</td>
+      <td colspan="10">Loading voicemail report...</td>
     </tr>
   `;
 

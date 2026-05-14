@@ -501,7 +501,7 @@ function renderReport(records, range) {
   if (!records.length) {
     reportBody.innerHTML = `
       <tr>
-        <td colspan="8">No voicemails found.</td>
+        <td colspan="6">No voicemails found.</td>
       </tr>
     `;
 
@@ -549,17 +549,23 @@ function renderReport(records, range) {
     }
 
     return `
-      <tr>
-        <td>${vm.CreationDateUtc || "-"}</td>
-        <td>${vm.CallerNumber || "-"}</td>
-        <td>${vm.CallerName || "-"}</td>
-        <td>${vm.ReferenceNo || "-"}</td>
-        <td>${vm.CallId || "-"}</td>
-        <td>${vm.EntryQueueId ?? "-"}</td>
-        <td>${duration}s</td>
-        <td>${vm.MailId || "-"}</td>
-      </tr>
-    `;
+  <tr>
+    <td>${vm.VoicemailId || "-"}</td>
+    <td>${vm.CallId || "-"}</td>
+    <td>${vm.ReferenceNo || "-"}</td>
+    <td>${duration}s</td>
+    <td>${vm.CreationDateUtc || "-"}</td>
+    <td>
+      <button
+        class="btn-secondary"
+        type="button"
+        onclick="showCallDetails('${vm.CallId}')"
+      >
+        View Details
+      </button>
+    </td>
+  </tr>
+`;
   }).join("");
 
   const avgDuration = Math.round(totalDuration / records.length);

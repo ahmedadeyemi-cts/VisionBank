@@ -498,15 +498,10 @@ saveScheduleBtn?.addEventListener("click", async function () {
 // RENDER REPORT
 // =====================================================
 function renderReport(records, range) {
-
-  // =====================================================
-  // NO RECORDS
-  // =====================================================
   if (!records.length) {
-
     reportBody.innerHTML = `
       <tr>
-        <td colspan="5">No voicemails found.</td>
+        <td colspan="8">No voicemails found.</td>
       </tr>
     `;
 
@@ -517,39 +512,28 @@ function renderReport(records, range) {
       </div>
     `;
 
-    // KPI CARDS
     document.getElementById("kpiTotal").textContent = "0";
     document.getElementById("kpiAvg").textContent = "0s";
     document.getElementById("kpiLongest").textContent = "0s";
     document.getElementById("kpiDates").textContent = "0";
 
-    // DAILY BREAKDOWN
     document.getElementById("dailyBreakdown").innerHTML = `
       <div class="empty-state">
         No voicemail activity found for this range.
       </div>
     `;
 
-    // REPORT META
-    document.getElementById("reportMeta").textContent =
-      "No report loaded.";
+    document.getElementById("reportMeta").textContent = "No report loaded.";
+    window.currentVoicemailData = [];
 
     return;
   }
 
-  // =====================================================
-  // TOTALS
-  // =====================================================
   let totalDuration = 0;
   let longestDuration = 0;
-
   const perDayCounts = {};
 
-  // =====================================================
-  // TABLE RENDER
-  // =====================================================
   reportBody.innerHTML = records.map(vm => {
-
     const duration = Number(vm.SecondsDuration || 0);
 
     totalDuration += duration;
@@ -558,7 +542,6 @@ function renderReport(records, range) {
       longestDuration = duration;
     }
 
-    // DAILY BREAKDOWN
     const day = (vm.CreationDateUtc || "").split("T")[0];
 
     if (day) {
@@ -567,99 +550,59 @@ function renderReport(records, range) {
 
     return `
       <tr>
-        <td>${vm.VoicemailId || "-"}</td>
-        <td>${vm.CallId || "-"}</td>
-        <td>${vm.ReferenceNo || "-"}</td>
-        <td>${duration}s</td>
         <td>${vm.CreationDateUtc || "-"}</td>
+        <td>${vm.CallerNumber || "-"}</td>
+        <td>${vm.CallerName || "-"}</td>
+        <td>${vm.ReferenceNo || "-"}</td>
+        <td>${vm.CallId || "-"}</td>
+        <td>${vm.EntryQueueId ?? "-"}</td>
+        <td>${duration}s</td>
+        <td>${vm.MailId || "-"}</td>
       </tr>
     `;
-
   }).join("");
 
-  // =====================================================
-  // METRICS
-  // =====================================================
-  const avgDuration =
-    Math.round(totalDuration / records.length);
+  const avgDuration = Math.round(totalDuration / records.length);
+  const uniqueDates = Object.keys(perDayCounts).length;
 
-  const uniqueDates =
-    Object.keys(perDayCounts).length;
-
-  // =====================================================
-  // SUMMARY PANEL
-  // =====================================================
   reportSummary.innerHTML = `
     <div class="summary-card">
-
       <h3>${range.toUpperCase()}</h3>
-
-      <p>
-        <strong>Total Voicemails:</strong>
-        ${records.length}
-      </p>
-
-      <p>
-        <strong>Total Duration:</strong>
-        ${totalDuration}s
-      </p>
-
-      <p>
-        <strong>Average Duration:</strong>
-        ${avgDuration}s
-      </p>
-
+      <p><strong>Total Voicemails:</strong> ${records.length}</p>
+      <p><strong>Total Duration:</strong> ${totalDuration}s</p>
+      <p><strong>Average Duration:</strong> ${avgDuration}s</p>
     </div>
   `;
 
-  // =====================================================
-  // KPI CARDS
-  // =====================================================
-  document.getElementById("kpiTotal").textContent =
-    records.length;
-
-  document.getElementById("kpiAvg").textContent =
-    `${avgDuration}s`;
-
-  document.getElementById("kpiLongest").textContent =
-    `${longestDuration}s`;
-
-  document.getElementById("kpiDates").textContent =
-    uniqueDates;
-
-  // =====================================================
-  // DAILY BREAKDOWN
-  // =====================================================
-  const dailyHtml =
-    Object.entries(perDayCounts)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, count]) => {
-
-        return `
-          <div class="daily-card">
-            <div class="daily-date">${date}</div>
-            <div class="daily-count">${count}</div>
-            <div class="daily-label">Voicemails</div>
-          </div>
-        `;
-
-      }).join("");
+  document.getElementById("kpiTotal").textContent = records.length;
+  document.getElementById("kpiAvg").textContent = `${avgDuration}s`;
+  document.getElementById("kpiLongest").textContent = `${longestDuration}s`;
+  document.getElementById("kpiDates").textContent = uniqueDates;
 
   document.getElementById("dailyBreakdown").innerHTML =
-    dailyHtml;
+    Object.entries(perDayCounts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => `
+        <div class="daily-card">
+          <div class="daily-date">${date}</div>
+          <div class="daily-count">${count}</div>
+          <div class="daily-label">Voicemails</div>
+        </div>
+      `).join("");
 
-  // =====================================================
-  // REPORT META
-  // =====================================================
   document.getElementById("reportMeta").textContent =
     `${records.length} total voicemail(s) across ${uniqueDates} day(s)`;
 
-  // =====================================================
-  // STORE GLOBAL
-  // =====================================================
   window.currentVoicemailData = records;
 }
 
+function safeCsv(value) {
+  if (value === null || value === undefined) return "";
+
+  const text = String(value).replace(/"/g, '""');
+
+  return `"${text}"`;
+}
 // =====================================================
 // CSV EXPORT
 // =====================================================
@@ -673,21 +616,27 @@ function exportCsv() {
 
   const csv = [
     [
-      "VoicemailId",
-      "CallId",
+      "CreationDateUtc",
+      "CallerNumber",
+      "CallerName",
       "ReferenceNo",
+      "CallId",
+      "EntryQueueId",
       "SecondsDuration",
-      "CreationDateUtc"
+      "MailId"
     ].join(",")
   ];
 
   rows.forEach(r => {
     csv.push([
-      r.VoicemailId,
-      r.CallId,
-      r.ReferenceNo,
-      r.SecondsDuration,
-      r.CreationDateUtc
+      safeCsv(r.CreationDateUtc),
+      safeCsv(r.CallerNumber),
+      safeCsv(r.CallerName),
+      safeCsv(r.ReferenceNo),
+      safeCsv(r.CallId),
+      safeCsv(r.EntryQueueId),
+      safeCsv(r.SecondsDuration),
+      safeCsv(r.MailId)
     ].join(","));
   });
 

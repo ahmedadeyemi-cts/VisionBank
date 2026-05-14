@@ -665,7 +665,101 @@ function exportCsv() {
 // =====================================================
 refreshBtn?.addEventListener("click", loadReport);
 exportBtn?.addEventListener("click", exportCsv);
+// =====================================================
+// CALL DETAILS MODAL
+// =====================================================
+async function showCallDetails(callId) {
+  const modal = document.getElementById("callDetailModal");
+  const content = document.getElementById("callDetailContent");
 
+  if (!modal || !content) {
+    alert("Call details modal is missing from voicemails.html.");
+    return;
+  }
+
+  if (!callId) {
+    alert("Call ID was not found.");
+    return;
+  }
+
+  modal.classList.remove("hidden");
+
+  content.innerHTML = `
+    <div class="loading">
+      Loading incoming call details...
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${SECURITY_BASE}/api/voicecall/details/${encodeURIComponent(callId)}`);
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Unable to load call details.");
+    }
+
+    const d = data.details || {};
+    const general = d.GeneralInfo || {};
+    const callback = d.CallbackRequest || {};
+    const voicemail = d.Voicemail || {};
+    const disposition = d.Disposition || {};
+
+    content.innerHTML = `
+      <div class="detail-grid">
+
+        <div class="detail-card">
+          <h3>Caller Information</h3>
+          <div class="detail-item"><strong>Caller Number:</strong> ${general.OrgNumber || callback.DestPhoneNumber || "-"}</div>
+          <div class="detail-item"><strong>Caller Name:</strong> ${general.OrgName || callback.DestContactName || "-"}</div>
+          <div class="detail-item"><strong>Destination Number:</strong> ${general.DstNumber || "-"}</div>
+          <div class="detail-item"><strong>Destination Name:</strong> ${general.DstName || "-"}</div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Voicemail</h3>
+          <div class="detail-item"><strong>Voicemail ID:</strong> ${voicemail.Id || "-"}</div>
+          <div class="detail-item"><strong>Reference No.:</strong> ${voicemail.ReferenceNo || "-"}</div>
+          <div class="detail-item"><strong>Duration:</strong> ${voicemail.SecondsDuration || 0}s</div>
+          <div class="detail-item"><strong>Created UTC:</strong> ${voicemail.CreationDateUtc || "-"}</div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Call Information</h3>
+          <div class="detail-item"><strong>Call ID:</strong> ${general.CallId || callId}</div>
+          <div class="detail-item"><strong>Start UTC:</strong> ${general.StartDateUtc || "-"}</div>
+          <div class="detail-item"><strong>End UTC:</strong> ${general.EndDateUtc || "-"}</div>
+          <div class="detail-item"><strong>Direction:</strong> ${general.Direction || "-"}</div>
+          <div class="detail-item"><strong>Label:</strong> ${general.Label || "-"}</div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Disposition</h3>
+          <div class="detail-item"><strong>Client Type:</strong> ${disposition.ClientType || "-"}</div>
+          <div class="detail-item"><strong>Main Subject:</strong> ${disposition.MainSubject || "-"}</div>
+          <div class="detail-item"><strong>Subsubject:</strong> ${disposition.Subsubject || "-"}</div>
+          <div class="detail-item"><strong>Resolution:</strong> ${disposition.Resolution || "-"}</div>
+          <div class="detail-item"><strong>Notes:</strong> ${disposition.Notes || "-"}</div>
+        </div>
+
+      </div>
+    `;
+  } catch (err) {
+    console.error(err);
+
+    content.innerHTML = `
+      <div class="message">
+        Unable to load call details. Check the Worker route and console logs.
+      </div>
+    `;
+  }
+}
+
+window.showCallDetails = showCallDetails;
+
+document.getElementById("closeCallDetailModal")?.addEventListener("click", function () {
+  document.getElementById("callDetailModal")?.classList.add("hidden");
+});
 // =====================================================
 // INIT
 // =====================================================

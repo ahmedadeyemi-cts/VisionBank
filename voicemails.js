@@ -497,6 +497,37 @@ saveScheduleBtn?.addEventListener("click", async function () {
 // =====================================================
 // RENDER REPORT
 // =====================================================
+// =====================================================
+// RECORDING / TRANSCRIPTION HELPERS
+// =====================================================
+function getRecordingDurationSeconds(r) {
+  return Number(
+    r.RecLength ||
+    r.EstimatedSecsDuration ||
+    r.SecondsDuration ||
+    0
+  );
+}
+
+function getSentimentLabel(value) {
+  const v = Number(value);
+
+  if (v === 1) return "Positive";
+  if (v === 2) return "Negative";
+  if (v === 3) return "Neutral";
+  if (v === 4) return "Mixed";
+
+  return "Unknown";
+}
+
+function safeCsv(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+// =====================================================
+// REPORT RENDER
+// =====================================================
 function renderReport(records, range) {
 
   // =====================================================
@@ -506,60 +537,51 @@ function renderReport(records, range) {
 
     reportBody.innerHTML = `
       <tr>
-        <td colspan="5">No voicemails found.</td>
+        <td colspan="10">No voice recordings found.</td>
       </tr>
     `;
 
     reportSummary.innerHTML = `
       <div class="summary-card">
         <h3>${range.toUpperCase()}</h3>
-        <p>No voicemail activity detected.</p>
+        <p>No voice recording or transcription activity detected.</p>
       </div>
     `;
 
-    // KPI CARDS
     document.getElementById("kpiTotal").textContent = "0";
     document.getElementById("kpiAvg").textContent = "0s";
     document.getElementById("kpiLongest").textContent = "0s";
     document.getElementById("kpiDates").textContent = "0";
 
-    // DAILY BREAKDOWN
     document.getElementById("dailyBreakdown").innerHTML = `
       <div class="empty-state">
-        No voicemail activity found for this range.
+        No voice recording activity found for this range.
       </div>
     `;
 
-    // REPORT META
     document.getElementById("reportMeta").textContent =
       "No report loaded.";
 
+    window.currentVoicemailData = [];
     return;
   }
 
-  // =====================================================
-  // TOTALS
-  // =====================================================
   let totalDuration = 0;
   let longestDuration = 0;
-
   const perDayCounts = {};
 
-  // =====================================================
-  // TABLE RENDER
-  // =====================================================
-  reportBody.innerHTML = records.map(vm => {
+  reportBody.innerHTML = records.map((r, index) => {
 
-    const duration = Number(vm.SecondsDuration || 0);
+    const duration = getRecordingDurationSeconds(r);
 
     totalDuration += duration;
+    longestDuration = Math.max(longestDuration, duration);
 
-    if (duration > longestDuration) {
-      longestDuration = duration;
-    }
-
-    // DAILY BREAKDOWN
-    const day = (vm.CreationDateUtc || "").split("T")[0];
+    const day = String(
+      r.CallDateUtc ||
+      r.CreationDateUtc ||
+      ""
+    ).split("T")[0];
 
     if (day) {
       perDayCounts[day] = (perDayCounts[day] || 0) + 1;
@@ -567,35 +589,37 @@ function renderReport(records, range) {
 
     return `
       <tr>
-        <td>${vm.VoicemailId || "-"}</td>
-        <td>${vm.CallId || "-"}</td>
-        <td>${vm.ReferenceNo || "-"}</td>
+        <td>${r.CallDateUtc || "-"}</td>
+        <td>${r.FromNumber || "-"}</td>
+        <td>${r.FromName || "-"}</td>
+        <td>${r.ToNumber || "-"}</td>
+        <td>${r.QueueName || "-"}</td>
+        <td>${r.AgentName || "-"}</td>
         <td>${duration}s</td>
-        <td>${vm.CreationDateUtc || "-"}</td>
+        <td>${getSentimentLabel(r.Sentiment)}</td>
+        <td>${r.IsRestricted === true ? "Yes" : "No"}</td>
+        <td>
+          <button class="btn-secondary detail-btn" onclick="showRecordingDetails(${index})">
+            View
+          </button>
+        </td>
       </tr>
     `;
 
   }).join("");
 
-  // =====================================================
-  // METRICS
-  // =====================================================
   const avgDuration =
     Math.round(totalDuration / records.length);
 
   const uniqueDates =
     Object.keys(perDayCounts).length;
 
-  // =====================================================
-  // SUMMARY PANEL
-  // =====================================================
   reportSummary.innerHTML = `
     <div class="summary-card">
-
       <h3>${range.toUpperCase()}</h3>
 
       <p>
-        <strong>Total Voicemails:</strong>
+        <strong>Total Recordings:</strong>
         ${records.length}
       </p>
 
@@ -608,13 +632,9 @@ function renderReport(records, range) {
         <strong>Average Duration:</strong>
         ${avgDuration}s
       </p>
-
     </div>
   `;
 
-  // =====================================================
-  // KPI CARDS
-  // =====================================================
   document.getElementById("kpiTotal").textContent =
     records.length;
 
@@ -627,38 +647,76 @@ function renderReport(records, range) {
   document.getElementById("kpiDates").textContent =
     uniqueDates;
 
-  // =====================================================
-  // DAILY BREAKDOWN
-  // =====================================================
-  const dailyHtml =
+  document.getElementById("dailyBreakdown").innerHTML =
     Object.entries(perDayCounts)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, count]) => {
+      .map(([date, count]) => `
+        <div class="daily-card">
+          <div class="daily-date">${date}</div>
+          <div class="daily-count">${count}</div>
+          <div class="daily-label">Recordings</div>
+        </div>
+      `).join("");
 
-        return `
-          <div class="daily-card">
-            <div class="daily-date">${date}</div>
-            <div class="daily-count">${count}</div>
-            <div class="daily-label">Voicemails</div>
-          </div>
-        `;
-
-      }).join("");
-
-  document.getElementById("dailyBreakdown").innerHTML =
-    dailyHtml;
-
-  // =====================================================
-  // REPORT META
-  // =====================================================
   document.getElementById("reportMeta").textContent =
-    `${records.length} total voicemail(s) across ${uniqueDates} day(s)`;
+    `${records.length} total recording(s) across ${uniqueDates} day(s)`;
 
-  // =====================================================
-  // STORE GLOBAL
-  // =====================================================
   window.currentVoicemailData = records;
 }
+
+// =====================================================
+// RECORDING DETAILS POPUP
+// =====================================================
+window.showRecordingDetails = function (index) {
+  const records = window.currentVoicemailData || [];
+  const r = records[index];
+
+  if (!r) {
+    alert("Recording details were not found.");
+    return;
+  }
+
+  alert(
+`Recording Details
+
+Call ID: ${r.CallId || "-"}
+Call Type: ${r.CallTypeId || "-"}
+Call Date UTC: ${r.CallDateUtc || "-"}
+From: ${r.FromNumber || "-"} ${r.FromName || ""}
+To: ${r.ToNumber || "-"} ${r.ToName || ""}
+Queue: ${r.QueueName || "-"}
+Agent: ${r.AgentName || "-"}
+Agent ID: ${r.AgentId || "-"}
+Phone Ext: ${r.PhoneExt || "-"}
+Duration: ${getRecordingDurationSeconds(r)}s
+Restricted: ${r.IsRestricted === true ? "Yes" : "No"}
+
+Disposition
+Client Type: ${r.ClientType || "-"}
+Client Type Ref 1: ${r.ClientTypeRef1 || "-"}
+Client Type Ref 2: ${r.ClientTypeRef2 || "-"}
+Client Type Ref 3: ${r.ClientTypeRef3 || "-"}
+Main Subject: ${r.MainSubject || "-"}
+Subsubject: ${r.Subsubject || "-"}
+Subsubject Details: ${r.SubsubjectDetails || "-"}
+Resolution: ${r.Resolution || "-"}
+Flagged: ${Number(r.IsFlagged || 0) === 1 ? "Yes" : "No"}
+Flagging Reason: ${r.FlagingReason || "-"}
+Notes: ${r.Notes || "-"}
+
+Transcript / Sentiment
+Transcript ID: ${r.AudioTranscriptId || "-"}
+Sentiment: ${getSentimentLabel(r.Sentiment)}
+Positive: ${r.PositiveSentimentScorePercent || 0}%
+Negative: ${r.NegativeSentimentScorePercent || 0}%
+Neutral: ${r.NeutralSentimentScorePercent || 0}%
+Mixed: ${r.MixedSentimentScorePercent || 0}%
+
+Classification
+Creation Date UTC: ${r.CreationDateUtc || "-"}
+Created By: ${r.CreatedBy || "-"}`
+  );
+};
 
 // =====================================================
 // CSV EXPORT
@@ -673,21 +731,77 @@ function exportCsv() {
 
   const csv = [
     [
-      "VoicemailId",
+      "CallDateUtc",
+      "FromNumber",
+      "FromName",
+      "ToNumber",
+      "ToName",
+      "QueueName",
+      "AgentId",
+      "AgentName",
+      "PhoneExt",
+      "DurationSeconds",
+      "RecLength",
+      "EstimatedSecsDuration",
+      "Sentiment",
+      "PositiveSentimentScorePercent",
+      "NegativeSentimentScorePercent",
+      "NeutralSentimentScorePercent",
+      "MixedSentimentScorePercent",
+      "IsRestricted",
       "CallId",
-      "ReferenceNo",
-      "SecondsDuration",
-      "CreationDateUtc"
+      "AudioTranscriptId",
+      "ClientType",
+      "ClientTypeRef1",
+      "ClientTypeRef2",
+      "ClientTypeRef3",
+      "MainSubject",
+      "Subsubject",
+      "SubsubjectDetails",
+      "Resolution",
+      "IsFlagged",
+      "FlagingReason",
+      "Notes",
+      "CreationDateUtc",
+      "CreatedBy"
     ].join(",")
   ];
 
   rows.forEach(r => {
     csv.push([
-      r.VoicemailId,
-      r.CallId,
-      r.ReferenceNo,
-      r.SecondsDuration,
-      r.CreationDateUtc
+      safeCsv(r.CallDateUtc),
+      safeCsv(r.FromNumber),
+      safeCsv(r.FromName),
+      safeCsv(r.ToNumber),
+      safeCsv(r.ToName),
+      safeCsv(r.QueueName),
+      safeCsv(r.AgentId),
+      safeCsv(r.AgentName),
+      safeCsv(r.PhoneExt),
+      safeCsv(getRecordingDurationSeconds(r)),
+      safeCsv(r.RecLength),
+      safeCsv(r.EstimatedSecsDuration),
+      safeCsv(getSentimentLabel(r.Sentiment)),
+      safeCsv(r.PositiveSentimentScorePercent),
+      safeCsv(r.NegativeSentimentScorePercent),
+      safeCsv(r.NeutralSentimentScorePercent),
+      safeCsv(r.MixedSentimentScorePercent),
+      safeCsv(r.IsRestricted === true ? "Yes" : "No"),
+      safeCsv(r.CallId),
+      safeCsv(r.AudioTranscriptId),
+      safeCsv(r.ClientType),
+      safeCsv(r.ClientTypeRef1),
+      safeCsv(r.ClientTypeRef2),
+      safeCsv(r.ClientTypeRef3),
+      safeCsv(r.MainSubject),
+      safeCsv(r.Subsubject),
+      safeCsv(r.SubsubjectDetails),
+      safeCsv(r.Resolution),
+      safeCsv(r.IsFlagged),
+      safeCsv(r.FlagingReason),
+      safeCsv(r.Notes),
+      safeCsv(r.CreationDateUtc),
+      safeCsv(r.CreatedBy)
     ].join(","));
   });
 
@@ -699,12 +813,11 @@ function exportCsv() {
   const a = document.createElement("a");
 
   a.href = url;
-  a.download = `visionbank-voicemails-${Date.now()}.csv`;
+  a.download = `visionbank-voice-recordings-${Date.now()}.csv`;
   a.click();
 
   URL.revokeObjectURL(url);
 }
-
 // =====================================================
 // EVENTS
 // =====================================================

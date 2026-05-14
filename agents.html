@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionBank® | Agent Controls</title>
+  <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
+  <link rel="stylesheet" href="agents.css" />
+</head>
+
+<body class="theme-light">
+
+  <div id="loginView" class="login-shell">
+    <section class="login-card">
+      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="login-logo" />
+
+      <h1>Agent Controls</h1>
+      <p>Sign in with your VisionBank credentials and Microsoft Authenticator code.</p>
+
+      <form id="loginForm" class="form-grid">
+        <label>
+          Username
+          <input id="loginUsername" type="text" autocomplete="username" />
+        </label>
+
+        <label>
+          Password
+          <input id="loginPassword" type="password" autocomplete="current-password" />
+        </label>
+
+        <label id="totpWrapper" class="hidden">
+          Microsoft Authenticator Code
+          <input id="loginTotp" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+        </label>
+
+        <button type="submit" class="btn-primary">Login</button>
+      </form>
+
+      <div id="loginMessage" class="message"></div>
+    </section>
+  </div>
+
+  <div id="appView" class="hidden">
+
+    <header class="vb-header">
+      <div class="brand-block">
+        <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo" />
+        <div>
+          <h1>Agent Controls</h1>
+          <span>VisionBank® Contact Center</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="themeToggle" class="btn-secondary">Dark mode</button>
+        <button id="logoutBtn" class="btn-secondary">Logout</button>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Agent Signout Reminder Settings</h2>
+            <p>
+              Configure the reminder email sent to agents who are still logged in near the end of the day.
+            </p>
+          </div>
+          <span id="settingsStatus">Not loaded.</span>
+        </div>
+
+        <div class="settings-grid">
+          <label>
+            Reminder Enabled
+            <select id="reminderEnabled">
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </label>
+
+          <label>
+            Reminder Time CST/CDT
+            <input id="reminderTime" type="time" value="16:55" />
+          </label>
+
+          <label class="wide">
+            CC Recipients
+            <textarea id="ccRecipients" rows="3" placeholder="rhonda.whitney@visionbank.com, david.vanbruggen@visionbank.com"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Future Auto-Logout Settings</h2>
+            <p>
+              These settings are saved now and will be used when the auto-logout process is safely completed.
+            </p>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <label>
+            Auto-Logout Enabled
+            <select id="autoLogoutEnabled">
+              <option value="false">Disabled</option>
+              <option value="true">Enabled</option>
+            </select>
+          </label>
+
+          <label>
+            Weekday Logout Time CST/CDT
+            <input id="weekdayLogoutTime" type="time" value="17:30" />
+          </label>
+
+          <label>
+            Saturday Logout Time CST/CDT
+            <input id="saturdayLogoutTime" type="time" value="12:30" />
+          </label>
+        </div>
+
+        <div class="warning-box">
+          Auto-logout is not active yet. This page currently saves the configuration and supports reminder emails.
+        </div>
+      </section>
+
+      <section class="actions-row">
+        <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>
+        <button id="refreshAgentsBtn" class="btn-secondary">Refresh Logged-In Agents</button>
+        <button id="sendTestReminderBtn" class="btn-secondary">Send Test Reminder</button>
+      </section>
+
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div id="kpiLoggedIn" class="kpi-value">--</div>
+          <div class="kpi-label">Logged-In Agents</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiWithEmail" class="kpi-value">--</div>
+          <div class="kpi-label">Agents With Email</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiMissingEmail" class="kpi-value">--</div>
+          <div class="kpi-label">Missing Email</div>
+        </div>
+
+        <div class="kpi-card">
+          <div id="kpiReminderTime" class="kpi-value">--</div>
+          <div class="kpi-label">Reminder Time</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <h2>Currently Logged-In Agents</h2>
+          <span id="agentMeta">No data loaded.</span>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Email</th>
+              <th>Team</th>
+              <th>Number</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Inbound</th>
+              <th>Missed</th>
+              <th>Transferred</th>
+              <th>Outbound</th>
+              <th>Start Date</th>
+            </tr>
+          </thead>
+
+          <tbody id="agentsBody">
+            <tr>
+              <td colspan="11" class="loading">Click Refresh Logged-In Agents to load data.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <span id="securityStatus">Authenticated session active.</span>
+
+      <div>
+        <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-logo" />
+        <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="agents.js"></script>
+</body>
+</html>

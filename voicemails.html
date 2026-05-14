@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VisionBank® | Voice Recording & Transcription Reports</title>
+  <title>VisionBank® | Voicemail Reports</title>
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
   <link rel="stylesheet" href="voicemails.css" />
 </head>
@@ -15,7 +15,7 @@
     <section class="login-card">
       <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="login-logo" />
 
-      <h1>Voice Recording & Transcription Reports</h1>
+      <h1>Voicemail Reports</h1>
       <p>
         Sign in with your VisionBank credentials and Microsoft Authenticator code.
       </p>
@@ -95,7 +95,7 @@
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo" />
 
         <div>
-          <h1>Voice Recording & Transcription Reports</h1>
+          <h1>Voicemail Reports</h1>
           <span>VisionBank® Contact Center</span>
         </div>
       </div>
@@ -113,7 +113,7 @@
         <div>
           <h2>Report Filters</h2>
           <p>
-            Run voice recording and transcription reports by date range. Weekly, monthly, and YTD reports are combined from daily transcription API calls.
+            Run voicemail reports by date range. Weekly, monthly, and YTD reports are combined from daily voicemail API calls.
           </p>
         </div>
 
@@ -156,7 +156,7 @@
       </section>
 
       <section id="schedulePanel" class="panel hidden">
-  <h2>Schedule Recording Report</h2>
+  <h2>Schedule Voicemail Report</h2>
 
   <div class="controls-grid">
     <label>
@@ -222,7 +222,7 @@
       <section class="kpi-grid">
         <div class="kpi-card">
           <div id="kpiTotal" class="kpi-value">--</div>
-          <div class="kpi-label">Total Recordings</div>
+          <div class="kpi-label">Total Voicemails</div>
         </div>
 
         <div class="kpi-card">
@@ -232,7 +232,7 @@
 
         <div class="kpi-card">
           <div id="kpiLongest" class="kpi-value">--</div>
-          <div class="kpi-label">Longest Recording</div>
+          <div class="kpi-label">Longest Voicemail</div>
         </div>
 
         <div class="kpi-card">
@@ -244,42 +244,37 @@
       <!-- DAILY BREAKDOWN -->
       <section class="panel">
         <div class="section-header">
-          <h2>Recordings by Date</h2>
+          <h2>Voicemails by Date</h2>
           <span id="reportMeta">No report loaded.</span>
         </div>
 
         <div id="dailyBreakdown" class="daily-grid"></div>
       </section>
 
-    <!-- DETAILS TABLE -->
-<section class="panel">
-  <h2>Recording Details</h2>
+      <!-- DETAILS TABLE -->
+      <section class="panel">
+        <h2>Voicemail Details</h2>
 
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Call Date</th>
-        <th>From Number</th>
-        <th>From Name</th>
-        <th>To Number</th>
-        <th>Queue</th>
-        <th>Agent</th>
-        <th>Duration</th>
-        <th>Sentiment</th>
-        <th>Restricted</th>
-        <th>Details</th>
-      </tr>
-    </thead>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Voicemail ID</th>
+              <th>Call ID</th>
+              <th>Reference No.</th>
+              <th>Duration</th>
+              <th>Created UTC</th>
+            </tr>
+          </thead>
 
-    <tbody id="voicemail-report-body">
-      <tr>
-        <td colspan="10" class="loading">
-          Run a report to load voice recording data.
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</section>
+          <tbody id="voicemail-report-body">
+            <tr>
+              <td colspan="5" class="loading">
+                Run a report to load voicemail data.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
     </main>
 

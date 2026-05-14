@@ -494,6 +494,9 @@ saveScheduleBtn?.addEventListener("click", async function () {
     scheduleStatus.textContent = "Unable to save schedule.";
   }
 });
+function getDispositionValue(r, key) {
+  return r[key] || r.Disposition?.[key] || "";
+}
 // =====================================================
 // RENDER REPORT
 // =====================================================
@@ -663,7 +666,6 @@ function renderReport(records, range) {
 
   window.currentVoicemailData = records;
 }
-
 // =====================================================
 // RECORDING DETAILS POPUP
 // =====================================================
@@ -692,17 +694,17 @@ Duration: ${getRecordingDurationSeconds(r)}s
 Restricted: ${r.IsRestricted === true ? "Yes" : "No"}
 
 Disposition
-Client Type: ${r.ClientType || "-"}
-Client Type Ref 1: ${r.ClientTypeRef1 || "-"}
-Client Type Ref 2: ${r.ClientTypeRef2 || "-"}
-Client Type Ref 3: ${r.ClientTypeRef3 || "-"}
-Main Subject: ${r.MainSubject || "-"}
-Subsubject: ${r.Subsubject || "-"}
-Subsubject Details: ${r.SubsubjectDetails || "-"}
-Resolution: ${r.Resolution || "-"}
-Flagged: ${Number(r.IsFlagged || 0) === 1 ? "Yes" : "No"}
-Flagging Reason: ${r.FlagingReason || "-"}
-Notes: ${r.Notes || "-"}
+Client Type: ${getDispositionValue(r, "ClientType") || "-"}
+Client Type Ref 1: ${getDispositionValue(r, "ClientTypeRef1") || "-"}
+Client Type Ref 2: ${getDispositionValue(r, "ClientTypeRef2") || "-"}
+Client Type Ref 3: ${getDispositionValue(r, "ClientTypeRef3") || "-"}
+Main Subject: ${getDispositionValue(r, "MainSubject") || "-"}
+Subsubject: ${getDispositionValue(r, "Subsubject") || "-"}
+Subsubject Details: ${getDispositionValue(r, "SubsubjectDetails") || "-"}
+Resolution: ${getDispositionValue(r, "Resolution") || "-"}
+Flagged: ${Number(getDispositionValue(r, "IsFlagged") || 0) === 1 ? "Yes" : "No"}
+Flagging Reason: ${getDispositionValue(r, "FlagingReason") || "-"}
+Notes: ${getDispositionValue(r, "Notes") || "-"}
 
 Transcript / Sentiment
 Transcript ID: ${r.AudioTranscriptId || "-"}
@@ -713,8 +715,8 @@ Neutral: ${r.NeutralSentimentScorePercent || 0}%
 Mixed: ${r.MixedSentimentScorePercent || 0}%
 
 Classification
-Creation Date UTC: ${r.CreationDateUtc || "-"}
-Created By: ${r.CreatedBy || "-"}`
+Creation Date UTC: ${getDispositionValue(r, "CreationDateUtc") || "-"}
+Created By: ${getDispositionValue(r, "CreatedBy") || "-"}`
   );
 };
 
@@ -789,19 +791,19 @@ function exportCsv() {
       safeCsv(r.IsRestricted === true ? "Yes" : "No"),
       safeCsv(r.CallId),
       safeCsv(r.AudioTranscriptId),
-      safeCsv(r.ClientType),
-      safeCsv(r.ClientTypeRef1),
-      safeCsv(r.ClientTypeRef2),
-      safeCsv(r.ClientTypeRef3),
-      safeCsv(r.MainSubject),
-      safeCsv(r.Subsubject),
-      safeCsv(r.SubsubjectDetails),
-      safeCsv(r.Resolution),
-      safeCsv(r.IsFlagged),
-      safeCsv(r.FlagingReason),
-      safeCsv(r.Notes),
-      safeCsv(r.CreationDateUtc),
-      safeCsv(r.CreatedBy)
+      safeCsv(getDispositionValue(r, "ClientType")),
+      safeCsv(getDispositionValue(r, "ClientTypeRef1")),
+      safeCsv(getDispositionValue(r, "ClientTypeRef2")),
+      safeCsv(getDispositionValue(r, "ClientTypeRef3")),
+      safeCsv(getDispositionValue(r, "MainSubject")),
+      safeCsv(getDispositionValue(r, "Subsubject")),
+      safeCsv(getDispositionValue(r, "SubsubjectDetails")),
+      safeCsv(getDispositionValue(r, "Resolution")),
+      safeCsv(getDispositionValue(r, "IsFlagged")),
+      safeCsv(getDispositionValue(r, "FlagingReason")),
+      safeCsv(getDispositionValue(r, "Notes")),
+      safeCsv(getDispositionValue(r, "CreationDateUtc")),
+      safeCsv(getDispositionValue(r, "CreatedBy"))
     ].join(","));
   });
 

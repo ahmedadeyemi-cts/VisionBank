@@ -1,0 +1,13 @@
+{
+  "name": "visionbank-agent-logout",
+  "version": "1.0.0",
+  "description": "VisionBank agent logout automation using Playwright",
+  "main": "logout-agents.js",
+  "scripts": {
+    "logout": "node logout-agents.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "playwright": "^1.49.1"
+  }
+}

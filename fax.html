@@ -116,11 +116,43 @@
           </label>
 
           <label>
-            Send Time CST/CDT
-            <input id="scheduleSendTime" type="time" value="17:00" />
-          </label>
+  Send Time CST/CDT
+  <input id="scheduleSendTime" type="time" value="17:00" />
+</label>
 
-          <button id="saveScheduleBtn" class="btn-primary">Save Schedule</button>
+<label>
+  Monthly Send Rule
+  <select id="scheduleMonthlyRule">
+    <option value="last-day">Last day of month</option>
+    <option value="last-friday">Last Friday of month</option>
+    <option value="last-saturday">Last Saturday of month</option>
+    <option value="specific-day">Specific day of month</option>
+  </select>
+</label>
+
+<label>
+  Specific Day of Month
+  <input
+    id="scheduleMonthlyDay"
+    type="number"
+    min="1"
+    max="31"
+    value="1"
+  />
+</label>
+
+<label>
+  Attachment Type
+  <select id="scheduleAttachmentType">
+    <option value="pdf">PDF</option>
+    <option value="csv">Excel/CSV</option>
+    <option value="both">PDF and CSV</option>
+  </select>
+</label>
+
+<button id="saveScheduleBtn" class="btn-primary">
+  Save Schedule
+</button>
         </div>
 
         <p id="scheduleStatus" class="message"></p>

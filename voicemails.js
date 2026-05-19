@@ -468,8 +468,8 @@ async function loadScheduleSettings() {
     scheduleSendTime.value = s.sendTime || "07:00";
 
     scheduleStatus.textContent = s.enabled
-      ? `Schedule enabled. Last sent: ${s.lastSentAt || "Never"}`
-      : "Schedule is currently disabled.";
+  ? `Schedule enabled. Last sent: ${s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never"}`
+  : "Schedule is currently disabled.";
 
   } catch (err) {
     console.error(err);

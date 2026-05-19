@@ -34,6 +34,14 @@ const scheduleRange = document.getElementById("scheduleRange");
 const scheduleSendTime = document.getElementById("scheduleSendTime");
 const saveScheduleBtn = document.getElementById("saveScheduleBtn");
 const scheduleStatus = document.getElementById("scheduleStatus");
+const scheduleMonthlyRule =
+  document.getElementById("scheduleMonthlyRule");
+
+const scheduleMonthlyDay =
+  document.getElementById("scheduleMonthlyDay");
+
+const scheduleAttachmentType =
+  document.getElementById("scheduleAttachmentType");
 
 let pendingUsername = "";
 let pendingPassword = "";
@@ -466,6 +474,9 @@ async function loadScheduleSettings() {
     scheduleFrequency.value = s.frequency || "daily";
     scheduleRange.value = s.range || "today";
     scheduleSendTime.value = s.sendTime || "07:00";
+    scheduleMonthlyRule.value = s.monthlyRule || "last-day";
+    scheduleMonthlyDay.value = s.monthlyDay || 1;
+    scheduleAttachmentType.value = s.attachmentType || "pdf";
 
     scheduleStatus.textContent = s.enabled
   ? `Schedule enabled. Last sent: ${s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never"}`
@@ -482,13 +493,16 @@ saveScheduleBtn?.addEventListener("click", async function () {
 
   try {
     const payload = {
-      enabled: scheduleEnabled.value === "true",
-      recipients: scheduleRecipients.value,
-      frequency: scheduleFrequency.value,
-      range: scheduleRange.value,
-      sendTime: scheduleSendTime.value,
-      timezone: "America/Chicago"
-    };
+  enabled: scheduleEnabled.value === "true",
+  recipients: scheduleRecipients.value,
+  frequency: scheduleFrequency.value,
+  range: scheduleRange.value,
+  sendTime: scheduleSendTime.value,
+  timezone: "America/Chicago",
+  monthlyRule: scheduleMonthlyRule.value || "last-day",
+  monthlyDay: Number(scheduleMonthlyDay.value || 1),
+  attachmentType: scheduleAttachmentType.value || "pdf"
+};
 
     const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/save`, {
       method: "POST",

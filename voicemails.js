@@ -417,7 +417,7 @@ function enumerateDates(start, end) {
 async function loadReport() {
   reportBody.innerHTML = `
     <tr>
-      <td colspan="5">Loading voicemail report...</td>
+      <td colspan="9">Loading voicemail report...</td>
     </tr>
   `;
 
@@ -438,7 +438,7 @@ async function loadReport() {
     console.error(err);
     reportBody.innerHTML = `
       <tr>
-        <td colspan="5">Unable to load voicemail report.</td>
+        <td colspan="9">Unable to load voicemail report.</td>
       </tr>
     `;
     reportSummary.innerHTML = `Report failed. Check the Worker logs.`;
@@ -565,10 +565,13 @@ function renderReport(records, range) {
       perDayCounts[day] = (perDayCounts[day] || 0) + 1;
     }
 
-    return `
+   return `
   <tr>
     <td>${vm.VoicemailId || "-"}</td>
     <td>${vm.CallId || "-"}</td>
+    <td>${vm.CallerName || "-"}</td>
+    <td>${vm.CallerNumber || "-"}</td>
+    <td>${vm.DestinationNumber || vm.DestinationName || "-"}</td>
     <td>${vm.ReferenceNo || "-"}</td>
     <td>${duration}s</td>
     <td>${formatCentralTime(vm.CreationDateUtc)}</td>

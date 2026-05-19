@@ -31,6 +31,9 @@ const scheduleRecipients = document.getElementById("scheduleRecipients");
 const scheduleFrequency = document.getElementById("scheduleFrequency");
 const scheduleRange = document.getElementById("scheduleRange");
 const scheduleSendTime = document.getElementById("scheduleSendTime");
+const scheduleMonthlyRule = document.getElementById("scheduleMonthlyRule");
+const scheduleMonthlyDay = document.getElementById("scheduleMonthlyDay");
+const scheduleAttachmentType = document.getElementById("scheduleAttachmentType");
 const saveScheduleBtn = document.getElementById("saveScheduleBtn");
 const scheduleStatus = document.getElementById("scheduleStatus");
 
@@ -425,6 +428,7 @@ function renderTable(records) {
       <td>${row.callType || "-"}</td>
       <td>${row.callFlagType || "-"}</td>
       <td>${formatSeconds(getFaxDuration(row))}</td>
+      <td>${row.meanOpinionScoreAverage || "-"}</td>
     </tr>
   `).join("");
 }
@@ -533,7 +537,8 @@ async function loadSchedule() {
       throw new Error(data.error || "Unable to load schedule.");
     }
 
-    const schedule = data.schedule || {};
+    const schedules = data.schedules || [];
+    const schedule = schedules[0] || {};
 
     scheduleEnabled.value = String(Boolean(schedule.enabled));
     scheduleRecipients.value = Array.isArray(schedule.recipients)
@@ -542,6 +547,20 @@ async function loadSchedule() {
     scheduleFrequency.value = schedule.frequency || "daily";
     scheduleRange.value = schedule.range || "today";
     scheduleSendTime.value = schedule.sendTime || "17:00";
+    if (scheduleMonthlyRule) {
+  scheduleMonthlyRule.value =
+    schedule.monthlyRule || "last-day";
+}
+
+if (scheduleMonthlyDay) {
+  scheduleMonthlyDay.value =
+    schedule.monthlyDay || 1;
+}
+
+if (scheduleAttachmentType) {
+  scheduleAttachmentType.value =
+    schedule.attachmentType || "pdf";
+}
 
     const lastSent = schedule.lastSentAt
       ? formatDate(schedule.lastSentAt)
@@ -562,13 +581,22 @@ async function saveSchedule() {
 
   try {
     const payload = {
-      enabled: scheduleEnabled.value === "true",
-      recipients: scheduleRecipients.value,
-      frequency: scheduleFrequency.value || "daily",
-      range: scheduleRange.value || "today",
-      sendTime: scheduleSendTime.value || "17:00",
-      timezone: "America/Chicago"
-    };
+    enabled: scheduleEnabled.value === "true",
+    recipients: scheduleRecipients.value,
+    frequency: scheduleFrequency.value || "daily",
+    range: scheduleRange.value || "today",
+    sendTime: scheduleSendTime.value || "17:00",
+    timezone: "America/Chicago",
+
+  monthlyRule:
+    scheduleMonthlyRule?.value || "last-day",
+
+  monthlyDay:
+    Number(scheduleMonthlyDay?.value || 1),
+
+  attachmentType:
+    scheduleAttachmentType?.value || "pdf"
+};
 
     const res = await fetch(`${SECURITY_BASE}/api/fax/schedule/save`, {
       method: "POST",

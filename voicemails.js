@@ -332,7 +332,24 @@ async function runSecurityCheck() {
     return false;
   }
 }
+function formatCentralTime(utcDate) {
+  if (!utcDate) return "-";
 
+  const d = new Date(utcDate);
+
+  if (isNaN(d)) return utcDate;
+
+  return d.toLocaleString("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+}
 // =====================================================
 // DATE HELPERS
 // =====================================================
@@ -554,7 +571,7 @@ function renderReport(records, range) {
     <td>${vm.CallId || "-"}</td>
     <td>${vm.ReferenceNo || "-"}</td>
     <td>${duration}s</td>
-    <td>${vm.CreationDateUtc || "-"}</td>
+    <td>${formatCentralTime(vm.CreationDateUtc)}</td>
     <td>
       <button
         class="btn-secondary"
@@ -622,7 +639,7 @@ function exportCsv() {
 
   const csv = [
     [
-      "CreationDateUtc",
+      "CreationDateCentral",
       "CallerNumber",
       "CallerName",
       "ReferenceNo",
@@ -635,7 +652,7 @@ function exportCsv() {
 
   rows.forEach(r => {
     csv.push([
-      safeCsv(r.CreationDateUtc),
+      safeCsv(formatCentralTime(r.CreationDateUtc)),
       safeCsv(r.CallerNumber),
       safeCsv(r.CallerName),
       safeCsv(r.ReferenceNo),
@@ -721,14 +738,14 @@ async function showCallDetails(callId) {
           <div class="detail-item"><strong>Voicemail ID:</strong> ${voicemail.Id || "-"}</div>
           <div class="detail-item"><strong>Reference No.:</strong> ${voicemail.ReferenceNo || "-"}</div>
           <div class="detail-item"><strong>Duration:</strong> ${voicemail.SecondsDuration || 0}s</div>
-          <div class="detail-item"><strong>Created UTC:</strong> ${voicemail.CreationDateUtc || "-"}</div>
+          <div class="detail-item"><strong>Created CST/CDT:</strong> ${formatCentralTime(voicemail.CreationDateUtc)}</div>
         </div>
 
         <div class="detail-card">
           <h3>Call Information</h3>
           <div class="detail-item"><strong>Call ID:</strong> ${general.CallId || callId}</div>
-          <div class="detail-item"><strong>Start UTC:</strong> ${general.StartDateUtc || "-"}</div>
-          <div class="detail-item"><strong>End UTC:</strong> ${general.EndDateUtc || "-"}</div>
+          <div class="detail-item"><strong>Start CST/CDT:</strong> ${formatCentralTime(general.StartDateUtc)}</div>
+          <div class="detail-item"><strong>End CST/CDT:</strong> ${formatCentralTime(general.EndDateUtc)}</div>
           <div class="detail-item"><strong>Direction:</strong> ${general.Direction || "-"}</div>
           <div class="detail-item"><strong>Label:</strong> ${general.Label || "-"}</div>
         </div>

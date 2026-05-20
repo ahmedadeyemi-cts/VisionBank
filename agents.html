@@ -12,7 +12,7 @@
 
   <div id="loginView" class="login-shell">
     <section class="login-card">
-      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="login-logo" />
+      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="login-logo" /><h2>Future Auto-Logout Settings</h2>
 
       <h1>Agent Controls</h1>
       <p>Sign in with your VisionBank credentials and Microsoft Authenticator code.</p>
@@ -92,9 +92,61 @@
       </section>
 
       <section class="panel">
-        <div class="section-header">
-          <div>
-            <h2>Future Auto-Logout Settings</h2>
+  <div class="section-header">
+    <div>
+      <h2>Auto-Logout Settings</h2>
+      <p>
+        Configure the automated logout process used by Render. Times are CST/CDT.
+      </p>
+    </div>
+    <span id="logoutSettingsStatus">Not loaded.</span>
+  </div>
+
+  <div class="settings-grid">
+    <label>
+      Auto-Logout Enabled
+      <select id="autoLogoutEnabled">
+        <option value="false">Disabled</option>
+        <option value="true">Enabled</option>
+      </select>
+    </label>
+
+    <label>
+      Weekday Logout Time CST/CDT
+      <input id="weekdayLogoutTime" type="time" value="17:30" />
+    </label>
+
+    <label>
+      Saturday Logout Time CST/CDT
+      <input id="saturdayLogoutTime" type="time" value="12:30" />
+    </label>
+
+    <label>
+      Target Mode
+      <select id="logoutTargetMode">
+        <option value="all">All Agents</option>
+        <option value="specific">Specific Agent</option>
+      </select>
+    </label>
+
+    <label>
+      Specific Agent Name
+      <input id="logoutTargetAgentName" type="text" placeholder="Ahmed Adeyemi" />
+    </label>
+
+    <label>
+      Dry Run
+      <select id="logoutDryRun">
+        <option value="true">Enabled - Test Only</option>
+        <option value="false">Disabled - Live Logout</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="warning-box">
+    When enabled with Dry Run disabled, Render will automatically log out the selected agents at the configured times.
+  </div>
+</section>
             <p>
               These settings are saved now and will be used when the auto-logout process is safely completed.
             </p>

@@ -23,6 +23,7 @@ const ccRecipients = document.getElementById("ccRecipients");
 const autoLogoutEnabled = document.getElementById("autoLogoutEnabled");
 const weekdayLogoutTime = document.getElementById("weekdayLogoutTime");
 const saturdayLogoutTime = document.getElementById("saturdayLogoutTime");
+
 const logoutSettingsStatus = document.getElementById("logoutSettingsStatus");
 const logoutTargetMode = document.getElementById("logoutTargetMode");
 const logoutTargetAgentName = document.getElementById("logoutTargetAgentName");
@@ -213,31 +214,8 @@ async function loadAgentSettings() {
 // SAVE SETTINGS
 // =====================================================
 saveSettingsBtn?.addEventListener("click", async function () {
-  const logoutPayload = {
-  enabled: autoLogoutEnabled.value === "true",
-  weekdayTime: weekdayLogoutTime.value || "17:30",
-  saturdayTime: saturdayLogoutTime.value || "12:30",
-  targetMode: logoutTargetMode.value || "all",
-  targetAgentName: logoutTargetAgentName.value.trim(),
-  dryRun: logoutDryRun.value === "true"
-};
-
-const logoutRes = await fetch(`${SECURITY_BASE}/api/agents/logout/settings/save`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify(logoutPayload)
-});
-
-const logoutData = await logoutRes.json();
-
-if (!logoutRes.ok || !logoutData.success) {
-  throw new Error(logoutData.error || "Auto-logout settings save failed.");
-}
-
-logoutSettingsStatus.textContent = "Auto-logout settings saved successfully.";
   settingsStatus.textContent = "Saving settings...";
+  logoutSettingsStatus.textContent = "Saving auto-logout settings...";
   saveSettingsBtn.disabled = true;
 
   try {
@@ -252,9 +230,7 @@ logoutSettingsStatus.textContent = "Auto-logout settings saved successfully.";
 
     const res = await fetch(`${SECURITY_BASE}/api/agents/settings/save`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
@@ -264,17 +240,39 @@ logoutSettingsStatus.textContent = "Auto-logout settings saved successfully.";
       throw new Error(data.error || "Save failed.");
     }
 
+    const logoutPayload = {
+      enabled: autoLogoutEnabled.value === "true",
+      weekdayTime: weekdayLogoutTime.value || "17:30",
+      saturdayTime: saturdayLogoutTime.value || "12:30",
+      targetMode: logoutTargetMode.value || "all",
+      targetAgentName: logoutTargetAgentName.value.trim(),
+      dryRun: logoutDryRun.value === "true"
+    };
+
+    const logoutRes = await fetch(`${SECURITY_BASE}/api/agents/logout/settings/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(logoutPayload)
+    });
+
+    const logoutData = await logoutRes.json();
+
+    if (!logoutRes.ok || !logoutData.success) {
+      throw new Error(logoutData.error || "Auto-logout settings save failed.");
+    }
+
     settingsStatus.textContent = "Settings saved successfully.";
+    logoutSettingsStatus.textContent = "Auto-logout settings saved successfully.";
     kpiReminderTime.textContent = payload.reminderTime;
 
   } catch (err) {
     console.error(err);
     settingsStatus.textContent = "Unable to save settings.";
+    logoutSettingsStatus.textContent = "Unable to save auto-logout settings.";
   } finally {
     saveSettingsBtn.disabled = false;
   }
 });
-
 // =====================================================
 // LOAD CURRENT AGENTS
 // =====================================================

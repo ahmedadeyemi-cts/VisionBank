@@ -23,7 +23,10 @@ const ccRecipients = document.getElementById("ccRecipients");
 const autoLogoutEnabled = document.getElementById("autoLogoutEnabled");
 const weekdayLogoutTime = document.getElementById("weekdayLogoutTime");
 const saturdayLogoutTime = document.getElementById("saturdayLogoutTime");
-
+const logoutSettingsStatus = document.getElementById("logoutSettingsStatus");
+const logoutTargetMode = document.getElementById("logoutTargetMode");
+const logoutTargetAgentName = document.getElementById("logoutTargetAgentName");
+const logoutDryRun = document.getElementById("logoutDryRun");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 const refreshAgentsBtn = document.getElementById("refreshAgentsBtn");
 const sendTestReminderBtn = document.getElementById("sendTestReminderBtn");
@@ -199,7 +202,7 @@ async function loadAgentSettings() {
 
     settingsStatus.textContent = `Settings loaded. Last updated: ${s.updatedAt || "Never"}`;
     kpiReminderTime.textContent = reminderTime.value;
-
+    await loadLogoutSettings();
   } catch (err) {
     console.error(err);
     settingsStatus.textContent = "Unable to load settings.";
@@ -210,6 +213,30 @@ async function loadAgentSettings() {
 // SAVE SETTINGS
 // =====================================================
 saveSettingsBtn?.addEventListener("click", async function () {
+  const logoutPayload = {
+  enabled: autoLogoutEnabled.value === "true",
+  weekdayTime: weekdayLogoutTime.value || "17:30",
+  saturdayTime: saturdayLogoutTime.value || "12:30",
+  targetMode: logoutTargetMode.value || "all",
+  targetAgentName: logoutTargetAgentName.value.trim(),
+  dryRun: logoutDryRun.value === "true"
+};
+
+const logoutRes = await fetch(`${SECURITY_BASE}/api/agents/logout/settings/save`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(logoutPayload)
+});
+
+const logoutData = await logoutRes.json();
+
+if (!logoutRes.ok || !logoutData.success) {
+  throw new Error(logoutData.error || "Auto-logout settings save failed.");
+}
+
+logoutSettingsStatus.textContent = "Auto-logout settings saved successfully.";
   settingsStatus.textContent = "Saving settings...";
   saveSettingsBtn.disabled = true;
 
@@ -282,7 +309,31 @@ async function loadCurrentAgents() {
     agentMeta.textContent = "Agent load failed.";
   }
 }
+async function loadLogoutSettings() {
+  logoutSettingsStatus.textContent = "Loading auto-logout settings...";
 
+  try {
+    const res = await fetch(`${SECURITY_BASE}/api/agents/logout/settings`);
+    const settings = await res.json();
+
+    if (!res.ok) {
+      throw new Error(settings.error || "Unable to load logout settings.");
+    }
+
+    autoLogoutEnabled.value = String(Boolean(settings.enabled));
+    weekdayLogoutTime.value = settings.weekdayTime || "17:30";
+    saturdayLogoutTime.value = settings.saturdayTime || "12:30";
+    logoutTargetMode.value = settings.targetMode || "all";
+    logoutTargetAgentName.value = settings.targetAgentName || "";
+    logoutDryRun.value = String(settings.dryRun === true);
+
+    logoutSettingsStatus.textContent = `Auto-logout settings loaded. Last updated: ${settings.updatedAt || "Never"}`;
+
+  } catch (err) {
+    console.error(err);
+    logoutSettingsStatus.textContent = "Unable to load auto-logout settings.";
+  }
+}
 function renderAgents(agents) {
   if (!agents.length) {
     agentsBody.innerHTML = `

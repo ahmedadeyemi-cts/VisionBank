@@ -42,6 +42,12 @@ const scheduleMonthlyDay =
 
 const scheduleAttachmentType =
   document.getElementById("scheduleAttachmentType");
+const newScheduleBtn = document.getElementById("newScheduleBtn");
+const scheduleTableBody = document.getElementById("scheduleTableBody");
+const scheduleCount = document.getElementById("scheduleCount");
+
+let currentScheduleId = null;
+let savedSchedules = [];
 
 let pendingUsername = "";
 let pendingPassword = "";
@@ -460,49 +466,158 @@ scheduleReportBtn?.addEventListener("click", async function () {
 
 async function loadScheduleSettings() {
   try {
+    scheduleStatus.textContent = "Loading schedules...";
+
     const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/get`);
     const data = await res.json();
 
     if (!res.ok || !data.success) {
-      throw new Error(data.error || "Unable to load schedule.");
+      throw new Error(data.error || "Unable to load schedules.");
     }
 
-    const s = data.schedule;
+    savedSchedules = data.schedules || [];
 
-    scheduleEnabled.value = String(Boolean(s.enabled));
-    scheduleRecipients.value = (s.recipients || []).join(", ");
-    scheduleFrequency.value = s.frequency || "daily";
-    scheduleRange.value = s.range || "today";
-    scheduleSendTime.value = s.sendTime || "07:00";
-    scheduleMonthlyRule.value = s.monthlyRule || "last-day";
-    scheduleMonthlyDay.value = s.monthlyDay || 1;
-    scheduleAttachmentType.value = s.attachmentType || "pdf";
+    renderScheduleTable(savedSchedules);
 
-    scheduleStatus.textContent = s.enabled
-  ? `Schedule enabled. Last sent: ${s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never"}`
-  : "Schedule is currently disabled.";
+    if (savedSchedules.length) {
+      fillScheduleForm(savedSchedules[0]);
+      scheduleStatus.textContent =
+        `Schedules loaded. Total: ${savedSchedules.length}`;
+    } else {
+      resetScheduleForm();
+      scheduleStatus.textContent = "No schedules saved. Create a new schedule.";
+    }
 
   } catch (err) {
     console.error(err);
     scheduleStatus.textContent = "Unable to load schedule settings.";
   }
 }
+function fillScheduleForm(schedule) {
+  currentScheduleId = schedule.id || null;
 
-saveScheduleBtn?.addEventListener("click", async function () {
+  scheduleEnabled.value = String(Boolean(schedule.enabled));
+
+  scheduleRecipients.value = Array.isArray(schedule.recipients)
+    ? schedule.recipients.join(", ")
+    : "";
+
+  scheduleFrequency.value = schedule.frequency || "daily";
+  scheduleRange.value = schedule.range || "today";
+  scheduleSendTime.value = schedule.sendTime || "17:00";
+  scheduleMonthlyRule.value = schedule.monthlyRule || "last-day";
+  scheduleMonthlyDay.value = schedule.monthlyDay || 1;
+  scheduleAttachmentType.value = schedule.attachmentType || "pdf";
+}
+
+function resetScheduleForm() {
+  currentScheduleId = null;
+
+  scheduleEnabled.value = "true";
+  scheduleRecipients.value = "";
+  scheduleFrequency.value = "daily";
+  scheduleRange.value = "today";
+  scheduleSendTime.value = "17:00";
+  scheduleMonthlyRule.value = "last-day";
+  scheduleMonthlyDay.value = 1;
+  scheduleAttachmentType.value = "pdf";
+
+  scheduleStatus.textContent = "Creating a new voicemail schedule.";
+}
+
+function rangeLabel(value) {
+  const labels = {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "this-week": "This Week",
+    "last-week": "Last Week",
+    "this-month": "This Month",
+    "last-month": "Last Month",
+    "ytd": "Year to Date"
+  };
+
+  return labels[value] || value || "-";
+}
+
+function renderScheduleTable(schedules) {
+  if (!scheduleTableBody) return;
+
+  if (scheduleCount) {
+    scheduleCount.textContent = schedules.length
+      ? `${schedules.length} schedule(s) saved.`
+      : "No schedules saved.";
+  }
+
+  if (!schedules.length) {
+    scheduleTableBody.innerHTML = `
+      <tr>
+        <td colspan="9" class="loading">No schedules saved.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  scheduleTableBody.innerHTML = schedules.map(s => `
+    <tr>
+      <td>${s.name || "-"}</td>
+      <td>${s.enabled ? "Enabled" : "Disabled"}</td>
+      <td>${s.frequency || "-"}</td>
+      <td>${rangeLabel(s.range || "-")}</td>
+      <td>${s.sendTime || "-"}</td>
+      <td>${s.monthlyRule || "-"}</td>
+      <td>${s.attachmentType || "pdf"}</td>
+      <td>${s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never"}</td>
+      <td>
+        <button class="btn-secondary edit-schedule-btn" data-id="${s.id}" type="button">
+          Edit
+        </button>
+        <button class="btn-secondary delete-schedule-btn" data-id="${s.id}" type="button">
+          Delete
+        </button>
+      </td>
+    </tr>
+  `).join("");
+
+  document.querySelectorAll(".edit-schedule-btn").forEach(btn => {
+    btn.addEventListener("click", function () {
+      const id = this.dataset.id;
+      const schedule = savedSchedules.find(s => s.id === id);
+
+      if (schedule) {
+        fillScheduleForm(schedule);
+        scheduleStatus.textContent =
+          `Editing schedule: ${schedule.name || id}`;
+      }
+    });
+  });
+
+  document.querySelectorAll(".delete-schedule-btn").forEach(btn => {
+    btn.addEventListener("click", async function () {
+      await deleteSchedule(this.dataset.id);
+    });
+  });
+}
+saveScheduleBtn?.addEventListener("click", saveSchedule);
+
+newScheduleBtn?.addEventListener("click", resetScheduleForm);
+
+async function saveSchedule() {
   scheduleStatus.textContent = "Saving schedule...";
 
   try {
     const payload = {
-  enabled: scheduleEnabled.value === "true",
-  recipients: scheduleRecipients.value,
-  frequency: scheduleFrequency.value,
-  range: scheduleRange.value,
-  sendTime: scheduleSendTime.value,
-  timezone: "America/Chicago",
-  monthlyRule: scheduleMonthlyRule.value || "last-day",
-  monthlyDay: Number(scheduleMonthlyDay.value || 1),
-  attachmentType: scheduleAttachmentType.value || "pdf"
-};
+      id: currentScheduleId,
+      name: `${scheduleFrequency.value || "daily"} voicemail report - ${scheduleSendTime.value || "17:00"}`,
+      enabled: scheduleEnabled.value === "true",
+      recipients: scheduleRecipients.value,
+      frequency: scheduleFrequency.value || "daily",
+      range: scheduleRange.value || "today",
+      sendTime: scheduleSendTime.value || "17:00",
+      timezone: "America/Chicago",
+      monthlyRule: scheduleMonthlyRule.value || "last-day",
+      monthlyDay: Number(scheduleMonthlyDay.value || 1),
+      attachmentType: scheduleAttachmentType.value || "pdf"
+    };
 
     const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/save`, {
       method: "POST",
@@ -518,13 +633,57 @@ saveScheduleBtn?.addEventListener("click", async function () {
       throw new Error(data.error || "Save failed.");
     }
 
+    savedSchedules = data.schedules || [];
+    currentScheduleId = data.schedule?.id || null;
+
+    renderScheduleTable(savedSchedules);
+
+    if (data.schedule) {
+      fillScheduleForm(data.schedule);
+    }
+
     scheduleStatus.textContent = "Schedule saved successfully.";
 
   } catch (err) {
     console.error(err);
     scheduleStatus.textContent = "Unable to save schedule.";
   }
-});
+}
+
+async function deleteSchedule(id) {
+  if (!id) return;
+
+  const ok = confirm("Delete this voicemail schedule?");
+  if (!ok) return;
+
+  scheduleStatus.textContent = "Deleting schedule...";
+
+  try {
+    const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ id })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Delete failed.");
+    }
+
+    savedSchedules = data.schedules || [];
+    renderScheduleTable(savedSchedules);
+    resetScheduleForm();
+
+    scheduleStatus.textContent = "Schedule deleted.";
+
+  } catch (err) {
+    console.error(err);
+    scheduleStatus.textContent = "Unable to delete schedule.";
+  }
+}
 // =====================================================
 // RENDER REPORT
 // =====================================================
@@ -532,7 +691,7 @@ function renderReport(records, range) {
   if (!records.length) {
     reportBody.innerHTML = `
       <tr>
-        <td colspan="6">No voicemails found.</td>
+        <td colspan="9">No voicemails found.</td>
       </tr>
     `;
 

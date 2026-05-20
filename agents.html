@@ -91,13 +91,11 @@
         </div>
       </section>
 
-      <section class="panel">
+<section class="panel">
   <div class="section-header">
     <div>
       <h2>Auto-Logout Settings</h2>
-      <p>
-        Configure the automated logout process used by Render. Times are CST/CDT.
-      </p>
+      <p>Configure the automated logout process used by Render. Times are CST/CDT.</p>
     </div>
     <span id="logoutSettingsStatus">Not loaded.</span>
   </div>
@@ -146,33 +144,7 @@
   <div class="warning-box">
     When enabled with Dry Run disabled, Render will automatically log out the selected agents at the configured times.
   </div>
-          </div>
-        </div>
-
-        <div class="settings-grid">
-          <label>
-            Auto-Logout Enabled
-            <select id="autoLogoutEnabled">
-              <option value="false">Disabled</option>
-              <option value="true">Enabled</option>
-            </select>
-          </label>
-
-          <label>
-            Weekday Logout Time CST/CDT
-            <input id="weekdayLogoutTime" type="time" value="17:30" />
-          </label>
-
-          <label>
-            Saturday Logout Time CST/CDT
-            <input id="saturdayLogoutTime" type="time" value="12:30" />
-          </label>
-        </div>
-
-        <div class="warning-box">
-          Auto-logout is not active yet. This page currently saves the configuration and supports reminder emails.
-        </div>
-      </section>
+</section>
 
       <section class="actions-row">
         <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>

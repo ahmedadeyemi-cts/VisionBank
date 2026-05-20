@@ -154,7 +154,37 @@
   Save Schedule
 </button>
         </div>
+        <div class="schedule-actions-row">
+  <button id="newScheduleBtn" class="btn-secondary" type="button">
+    Add New Schedule
+  </button>
+</div>
 
+<div class="section-header">
+  <h3>Saved Schedules</h3>
+  <span id="scheduleCount">No schedules saved.</span>
+</div>
+
+<table class="data-table schedule-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Status</th>
+      <th>Frequency</th>
+      <th>Range</th>
+      <th>Send Time</th>
+      <th>Monthly Rule</th>
+      <th>Attachment</th>
+      <th>Last Sent</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="scheduleTableBody">
+    <tr>
+      <td colspan="9" class="loading">No schedules loaded.</td>
+    </tr>
+  </tbody>
+</table>
         <p id="scheduleStatus" class="message"></p>
       </section>
 

@@ -4,6 +4,8 @@
 // =====================================================
 
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+const VB_SESSION_KEY = "vb_session";
+const VB_USER_KEY = "vb_user";
 
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
@@ -87,8 +89,8 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    sessionStorage.setItem("vb_agents_session", data.session);
-    sessionStorage.setItem("vb_agents_user", username);
+    sessionStorage.setItem(VB_SESSION_KEY, data.session);
+    sessionStorage.setItem(VB_USER_KEY, username);
 
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
@@ -444,7 +446,7 @@ themeToggle?.addEventListener("click", function () {
 
   if (!ok) return;
 
-  const existingSession = sessionStorage.getItem("vb_agents_session");
+  const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
 
   if (existingSession) {
     loginView.classList.add("hidden");

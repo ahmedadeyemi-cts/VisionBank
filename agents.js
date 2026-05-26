@@ -110,9 +110,9 @@ loginForm?.addEventListener("submit", async function (e) {
 // LOGOUT
 // =====================================================
 logoutBtn?.addEventListener("click", function () {
-  sessionStorage.removeItem("vb_agents_session");
-  sessionStorage.removeItem("vb_agents_user");
-  location.reload();
+  sessionStorage.removeItem(VB_SESSION_KEY);
+  sessionStorage.removeItem(VB_USER_KEY);
+  location.href = "security.html";
 });
 
 // =====================================================

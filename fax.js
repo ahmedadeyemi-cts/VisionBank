@@ -93,8 +93,8 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    sessionStorage.setItem("vb_fax_session", data.session);
-    sessionStorage.setItem("vb_fax_user", username);
+    sessionStorage.setItem(VB_SESSION_KEY, data.session);
+    sessionStorage.setItem(VB_USER_KEY, username);
 
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
@@ -755,7 +755,7 @@ async function sendFaxReport(range) {
   const allowed = await runSecurityCheck();
   if (!allowed) return;
 
-  const existingSession = sessionStorage.getItem("vb_fax_session");
+  const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
 
   if (existingSession) {
     loginView.classList.add("hidden");

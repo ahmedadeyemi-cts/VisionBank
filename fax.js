@@ -749,22 +749,24 @@ async function sendFaxReport(range) {
     alert(`Unable to send fax report: ${err.message}`);
   }
 }
-
 // =====================================================
 // INIT
 // =====================================================
 (async function init() {
-  const allowed = await runSecurityCheck();
-  if (!allowed) return;
-
   const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
 
   if (existingSession) {
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
-    await loadReport();
   } else {
     loginView.classList.remove("hidden");
     appView.classList.add("hidden");
+  }
+
+  const allowed = await runSecurityCheck();
+  if (!allowed) return;
+
+  if (existingSession) {
+    await loadReport();
   }
 })();

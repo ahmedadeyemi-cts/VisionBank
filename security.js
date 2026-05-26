@@ -4,6 +4,9 @@
    ============================================================ */
 
 const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+const VB_SESSION_KEY = "vb_session";
+const VB_USER_KEY = "vb_user";
+const VB_ROLE_KEY = "vb_role";
 
 /* ---------- UI Elements ---------- */
 const loginView = document.getElementById("login-view");
@@ -169,7 +172,10 @@ loginForm.addEventListener("submit", async (e) => {
         if (data.success && data.session) {
             ACTIVE_SESSION = data.session;
             ACTIVE_ROLE = data.user?.role || "view";
-
+            sessionStorage.setItem(VB_SESSION_KEY, ACTIVE_SESSION);
+            sessionStorage.setItem(VB_USER_KEY, username);
+            sessionStorage.setItem(VB_ROLE_KEY, ACTIVE_ROLE);
+           
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
             showAdminView();
@@ -1207,6 +1213,9 @@ logoutBtn.addEventListener("click", () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
+       sessionStorage.removeItem(VB_SESSION_KEY);
+       sessionStorage.removeItem(VB_USER_KEY);
+       sessionStorage.removeItem(VB_ROLE_KEY);
     if (auditInterval) {
       clearInterval(auditInterval);
       auditInterval = null;
@@ -1272,3 +1281,15 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
         }
     });
 });
+(function restoreSharedSession() {
+  const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
+  const existingUser = sessionStorage.getItem(VB_USER_KEY);
+  const existingRole = sessionStorage.getItem(VB_ROLE_KEY);
+
+  if (existingSession) {
+    ACTIVE_SESSION = existingSession;
+    ACTIVE_USERNAME = existingUser || "";
+    ACTIVE_ROLE = existingRole || "view";
+    showAdminView();
+  }
+})();

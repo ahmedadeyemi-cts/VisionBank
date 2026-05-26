@@ -5,6 +5,8 @@
 
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const REPORT_API = `${SECURITY_BASE}/api/fax/cdrsearch`;
+const VB_SESSION_KEY = "vb_session";
+const VB_USER_KEY = "vb_user";
 
 const reportBody = document.getElementById("fax-report-body");
 const reportSummary = document.getElementById("fax-summary");

@@ -442,17 +442,20 @@ themeToggle?.addEventListener("click", function () {
 // INIT
 // =====================================================
 (async function init() {
-  const ok = await runSecurityCheck();
-
-  if (!ok) return;
-
   const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
 
   if (existingSession) {
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
+  } else {
+    loginView.classList.remove("hidden");
+    appView.classList.add("hidden");
+  }
 
-    await loadAgentSettings();
-    await loadCurrentAgents();
+  const ok = await runSecurityCheck();
+  if (!ok) return;
+
+  if (existingSession) {
+    await loadReport();
   }
 })();

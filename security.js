@@ -172,9 +172,9 @@ loginForm.addEventListener("submit", async (e) => {
         if (data.success && data.session) {
             ACTIVE_SESSION = data.session;
             ACTIVE_ROLE = data.user?.role || "view";
-            sessionStorage.setItem(VB_SESSION_KEY, ACTIVE_SESSION);
-            sessionStorage.setItem(VB_USER_KEY, username);
-            sessionStorage.setItem(VB_ROLE_KEY, ACTIVE_ROLE);
+            localStorage.setItem(VB_SESSION_KEY, ACTIVE_SESSION);
+            localStorage.setItem(VB_USER_KEY, username);
+            localStorage.setItem(VB_ROLE_KEY, ACTIVE_ROLE);
            
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
@@ -1213,9 +1213,9 @@ logoutBtn.addEventListener("click", () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
-       sessionStorage.removeItem(VB_SESSION_KEY);
-       sessionStorage.removeItem(VB_USER_KEY);
-       sessionStorage.removeItem(VB_ROLE_KEY);
+       localStorage.removeItem(VB_SESSION_KEY);
+       localStorage.removeItem(VB_USER_KEY);
+       localStorage.removeItem(VB_ROLE_KEY);
     if (auditInterval) {
       clearInterval(auditInterval);
       auditInterval = null;
@@ -1282,9 +1282,9 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
     });
 });
 (function restoreSharedSession() {
-  const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
-  const existingUser = sessionStorage.getItem(VB_USER_KEY);
-  const existingRole = sessionStorage.getItem(VB_ROLE_KEY);
+  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingUser = localStorage.getItem(VB_USER_KEY);
+  const existingRole = localStorage.getItem(VB_ROLE_KEY);
 
   if (existingSession) {
     ACTIVE_SESSION = existingSession;

@@ -95,8 +95,8 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    sessionStorage.setItem(VB_SESSION_KEY, data.session);
-    sessionStorage.setItem(VB_USER_KEY, username);
+    localStorage.setItem(VB_SESSION_KEY, data.session);
+    localStorage.setItem(VB_USER_KEY, username);
 
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
@@ -111,8 +111,8 @@ loginForm?.addEventListener("submit", async function (e) {
 });
 
 logoutBtn?.addEventListener("click", function () {
-  sessionStorage.removeItem(VB_SESSION_KEY);
-  sessionStorage.removeItem(VB_USER_KEY);
+  localStorage.removeItem(VB_SESSION_KEY);
+  localStorage.removeItem(VB_USER_KEY);
   location.href = "security.html";
 });
 
@@ -753,7 +753,7 @@ async function sendFaxReport(range) {
 // INIT
 // =====================================================
 (async function init() {
-  const existingSession = sessionStorage.getItem(VB_SESSION_KEY);
+  const existingSession = localStorage.getItem(VB_SESSION_KEY);
 
   if (existingSession) {
     loginView.classList.add("hidden");

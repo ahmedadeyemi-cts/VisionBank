@@ -364,3 +364,9 @@ body.dark .notice {
     width: 100%;
   }
 }
+.empty-cell {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+  font-style: italic;
+}

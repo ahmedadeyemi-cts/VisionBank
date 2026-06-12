@@ -83,6 +83,7 @@
             <button id="saveDirectoryBtn" class="btn-primary">Save Directory</button>
             <button id="downloadCsvBtn" class="btn-secondary">Download CSV</button>
             <button id="downloadXmlBtn" class="btn-secondary">Download XML</button>
+
             <label class="file-btn">
               Bulk Upload CSV
               <input id="uploadCsvInput" type="file" accept=".csv" />
@@ -95,22 +96,34 @@
           <strong>https://visionbank-security.ahmedadeyemi.workers.dev/directory.xml</strong>
         </div>
 
+        <div class="notice">
+          Supported CSV headers:
+          <strong>FirstName, LastName, Name, Extension, Phone, Email, Location, Notes</strong>
+          or phone-system export headers:
+          <strong>UserFirstName, UserLastName, Extension, CallerIdNumber, UserEmailAddress, Location</strong>
+        </div>
+
         <div id="directoryStatus" class="status-text"></div>
 
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Display Name</th>
                 <th>Internal Extension</th>
                 <th>Full 10 Digit Number</th>
-                <th>Department / Notes</th>
+                <th>Email</th>
+                <th>Location</th>
+                <th>Notes</th>
                 <th>Action</th>
               </tr>
             </thead>
+
             <tbody id="directoryTableBody">
               <tr>
-                <td colspan="5">Loading directory...</td>
+                <td colspan="9">Loading directory...</td>
               </tr>
             </tbody>
           </table>

@@ -391,3 +391,16 @@ body.dark .directory-filters select {
   color: #e5e7eb;
   border-color: #475569;
 }
+.directory-link {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.directory-link:hover {
+  text-decoration: underline;
+}
+
+body.dark .directory-link {
+  color: #93c5fd;
+}

@@ -179,23 +179,17 @@ function renderDirectory() {
   }
 
   directoryTableBody.innerHTML = contacts.map((contact, index) => `
-    <tr data-index="${index}">
-      <td>
-        <input class="cell-input contact-name" value="${escapeHtml(contact.name || "")}" placeholder="Contact Name" />
-      </td>
-      <td>
-        <input class="cell-input contact-extension" value="${escapeHtml(contact.extension || "")}" placeholder="5000" />
-      </td>
-      <td>
-        <input class="cell-input contact-phone" value="${escapeHtml(contact.phone || "")}" placeholder="5155551234" />
-      </td>
-      <td>
-        <input class="cell-input contact-notes" value="${escapeHtml(contact.notes || contact.department || "")}" placeholder="Optional" />
-      </td>
-      <td>
-        <button class="btn-danger" onclick="deleteContact(${index})">Delete</button>
-      </td>
-    </tr>
+   <tr data-index="${index}">
+  <td><input class="cell-input contact-firstName" value="${escapeHtml(contact.firstName || "")}" placeholder="First Name" /></td>
+  <td><input class="cell-input contact-lastName" value="${escapeHtml(contact.lastName || "")}" placeholder="Last Name" /></td>
+  <td><input class="cell-input contact-name" value="${escapeHtml(contact.name || "")}" placeholder="Display Name" /></td>
+  <td><input class="cell-input contact-extension" value="${escapeHtml(contact.extension || "")}" placeholder="5000" /></td>
+  <td><input class="cell-input contact-phone" value="${escapeHtml(contact.phone || "")}" placeholder="5155551234" /></td>
+  <td><input class="cell-input contact-email" value="${escapeHtml(contact.email || "")}" placeholder="user@visionbank.com" /></td>
+  <td><input class="cell-input contact-location" value="${escapeHtml(contact.location || "")}" placeholder="Location" /></td>
+  <td><input class="cell-input contact-notes" value="${escapeHtml(contact.notes || "")}" placeholder="Optional" /></td>
+  <td><button class="btn-danger" onclick="deleteContact(${index})">Delete</button></td>
+</tr>
   `).join("");
 
   updateKpis();
@@ -205,24 +199,35 @@ function collectContactsFromTable() {
   const rows = [...directoryTableBody.querySelectorAll("tr[data-index]")];
 
   contacts = rows.map(row => {
+    const firstName = row.querySelector(".contact-firstName")?.value.trim() || "";
+    const lastName = row.querySelector(".contact-lastName")?.value.trim() || "";
+    const displayName = row.querySelector(".contact-name")?.value.trim() || `${firstName} ${lastName}`.trim();
+
     return {
-      name: row.querySelector(".contact-name")?.value.trim() || "",
+      firstName,
+      lastName,
+      name: displayName,
       extension: onlyDigits(row.querySelector(".contact-extension")?.value || ""),
       phone: onlyDigits(row.querySelector(".contact-phone")?.value || ""),
+      email: row.querySelector(".contact-email")?.value.trim() || "",
+      location: row.querySelector(".contact-location")?.value.trim() || "",
       notes: row.querySelector(".contact-notes")?.value.trim() || ""
     };
   }).filter(c => c.name && (c.extension || c.phone));
 }
-
 function addContact() {
   collectContactsFromTable();
 
   contacts.push({
-    name: "",
-    extension: "",
-    phone: "",
-    notes: ""
-  });
+  firstName: "",
+  lastName: "",
+  name: "",
+  extension: "",
+  phone: "",
+  email: "",
+  location: "",
+  notes: ""
+});
 
   renderDirectory();
 }
@@ -242,14 +247,18 @@ window.deleteContact = deleteContact;
 function downloadCsv() {
   collectContactsFromTable();
 
-  const headers = ["Name", "Extension", "Phone", "Notes"];
+  const headers = ["FirstName", "LastName", "Name", "Extension", "Phone", "Email", "Location", "Notes"];
 
   const rows = contacts.map(c => [
-    c.name || "",
-    c.extension || "",
-    c.phone || "",
-    c.notes || ""
-  ]);
+  c.firstName || "",
+  c.lastName || "",
+  c.name || "",
+  c.extension || "",
+  c.phone || "",
+  c.email || "",
+  c.location || "",
+  c.notes || ""
+]);
 
   const csv = [headers, ...rows]
     .map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(","))
@@ -292,14 +301,30 @@ uploadCsvInput?.addEventListener("change", async event => {
   const text = await file.text();
   const imported = parseCsv(text);
 
-  contacts = imported
-    .map(row => ({
-      name: row.Name || row.name || row.Contact || row.contact || "",
+contacts = imported
+  .map(row => {
+    const firstName = row.FirstName || row.firstName || row.UserFirstName || "";
+    const lastName = row.LastName || row.lastName || row.UserLastName || "";
+
+    const name =
+      row.Name ||
+      row.name ||
+      row.DisplayName ||
+      row.displayName ||
+      `${firstName} ${lastName}`.trim();
+
+    return {
+      firstName,
+      lastName,
+      name,
       extension: onlyDigits(row.Extension || row.extension || row.Ext || row.ext || ""),
-      phone: onlyDigits(row.Phone || row.phone || row.Number || row.number || ""),
-      notes: row.Notes || row.notes || row.Department || row.department || ""
-    }))
-    .filter(c => c.name && (c.extension || c.phone));
+      phone: onlyDigits(row.Phone || row.phone || row.CallerIdNumber || row.callerIdNumber || row.Number || row.number || ""),
+      email: row.Email || row.email || row.UserEmailAddress || row.userEmailAddress || "",
+      location: row.Location || row.location || row.Department || row.department || "",
+      notes: row.Notes || row.notes || ""
+    };
+  })
+  .filter(c => c.name && (c.extension || c.phone));
 
   renderDirectory();
   directoryStatus.textContent = `Imported ${contacts.length} contacts. Click Save Directory to publish.`;

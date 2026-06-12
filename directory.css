@@ -258,6 +258,11 @@ button,
   overflow-x: auto;
 }
 
+.table-wrap table {
+  width: 100%;
+  min-width: 1600px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -358,7 +363,4 @@ body.dark .notice {
   .login-card {
     width: 100%;
   }
-}
-.table-wrap table {
-  min-width: 1400px;
 }

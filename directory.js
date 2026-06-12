@@ -170,10 +170,12 @@ async function saveDirectory() {
 function renderDirectory() {
   if (!contacts.length) {
     directoryTableBody.innerHTML = `
-      <tr>
-        <td colspan="5">No contacts found. Add a contact or bulk upload a CSV.</td>
-      </tr>
-    `;
+  <tr class="empty-row">
+    <td colspan="9" class="empty-cell">
+      No contacts found. Add a contact or bulk upload a CSV.
+    </td>
+  </tr>
+`;
     updateKpis();
     return;
   }

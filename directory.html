@@ -1,142 +1,221 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Directory Management Control Panel</title>
-  <link rel="stylesheet" href="directory.css" />
+  <link rel="stylesheet" href="directory.css">
 </head>
 
 <body>
-  <div id="loginView" class="login-shell hidden">
-    <div class="login-card">
-      <img src="assets/VisionBank-Logo.png" class="login-logo" alt="VisionBank Logo" />
-      <h1>Directory Management</h1>
-      <p>Sign in to manage the Yealink XML directory.</p>
 
-      <input id="usernameInput" type="text" placeholder="Username" />
-      <input id="passwordInput" type="password" placeholder="Password" />
-      <input id="totpInput" type="text" placeholder="MFA Code, if required" />
+<div id="loginView" class="login-shell hidden">
+  <div class="login-card">
+    <img src="assets/VisionBank-Logo.png" class="login-logo" alt="VisionBank Logo">
 
-      <button id="loginBtn" class="btn-primary">Sign In</button>
-      <div id="loginStatus" class="status-text"></div>
+    <h1>Directory Management</h1>
+
+    <p>Sign in to manage the Yealink XML directory.</p>
+
+    <input id="usernameInput" type="text" placeholder="Username">
+    <input id="passwordInput" type="password" placeholder="Password">
+    <input id="totpInput" type="text" placeholder="MFA Code, if required">
+
+    <button id="loginBtn" class="btn-primary">Sign In</button>
+
+    <div id="loginStatus" class="status-text"></div>
+  </div>
+</div>
+
+<div id="appView" class="app-shell hidden">
+
+  <header class="page-header">
+
+    <div class="header-brand">
+      <img src="assets/VisionBank-Logo.png" class="logo" alt="VisionBank Logo">
+
+      <div>
+        <h1>Directory Management Control Panel</h1>
+        <p>VisionBank® Yealink XML Phone Directory</p>
+      </div>
     </div>
-  </div>
 
-  <div id="appView" class="app-shell hidden">
-    <header class="page-header">
-      <div class="header-brand">
-        <img src="assets/VisionBank-Logo.png" class="logo" alt="VisionBank Logo" />
+    <div class="header-actions">
+
+      <nav class="portal-nav">
+        <a href="index.html">Dashboard</a>
+        <a href="security.html">Security</a>
+        <a href="agents.html">Agents</a>
+        <a href="fax.html">Fax</a>
+        <a href="voicemails.html">Voicemail</a>
+        <a href="directory.html">Directory</a>
+      </nav>
+
+      <button id="themeToggle" class="btn-secondary">
+        Dark mode
+      </button>
+
+      <button id="logoutBtn" class="btn-secondary">
+        Logout
+      </button>
+
+    </div>
+
+  </header>
+
+  <main class="container">
+
+    <!-- KPIs -->
+
+    <section class="summary-grid">
+
+      <div class="kpi">
+        <div id="totalContacts" class="kpi-value">0</div>
+        <div class="kpi-label">Total Contacts</div>
+      </div>
+
+      <div class="kpi">
+        <div id="totalExtensions" class="kpi-value">0</div>
+        <div class="kpi-label">Extensions</div>
+      </div>
+
+      <div class="kpi">
+        <div id="totalPhones" class="kpi-value">0</div>
+        <div class="kpi-label">Full Numbers</div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-value">XML</div>
+        <div class="kpi-label">Yealink Format</div>
+      </div>
+
+    </section>
+
+    <!-- DIRECTORY PANEL -->
+
+    <section class="panel">
+
+      <div class="panel-header">
+
         <div>
-          <h1>Directory Management Control Panel</h1>
-          <p>VisionBank® Yealink XML Phone Directory</p>
+          <h2>Directory Actions</h2>
+
+          <p>
+            Add, edit, bulk upload, bulk download, and publish contacts
+            to the XML directory.
+          </p>
         </div>
+
+        <div class="button-row">
+
+          <button id="addContactBtn" class="btn-primary">
+            Add Contact
+          </button>
+
+          <button id="saveDirectoryBtn" class="btn-primary">
+            Save Directory
+          </button>
+
+          <button id="downloadCsvBtn" class="btn-secondary">
+            Download CSV
+          </button>
+
+          <button id="downloadXmlBtn" class="btn-secondary">
+            Download XML
+          </button>
+
+          <label class="file-btn">
+            Bulk Upload CSV
+            <input
+              id="uploadCsvInput"
+              type="file"
+              accept=".csv">
+          </label>
+
+        </div>
+
       </div>
 
-      <div class="header-actions">
-        <nav class="portal-nav">
-          <a href="index">Dashboard</a>
-          <a href="security">Security</a>
-          <a href="agents">Agents</a>
-          <a href="fax">Fax</a>
-          <a href="voicemails">Voicemail</a>
-          <a href="directory">Directory</a>
-        </nav>
-
-        <button id="themeToggle" class="btn-secondary">Dark mode</button>
-        <button id="logoutBtn" class="btn-secondary">Logout</button>
+      <div class="notice">
+        XML URL for Yealink phones:
+        <strong>
+          https://visionbank-security.ahmedadeyemi.workers.dev/directory.xml
+        </strong>
       </div>
-    </header>
 
-    <main class="container">
-      <section class="summary-grid">
-        <div class="kpi">
-          <div id="totalContacts" class="kpi-value">0</div>
-          <div class="kpi-label">Total Contacts</div>
-        </div>
+      <div class="notice">
+        Supported CSV headers:
+        <strong>
+          FirstName, LastName, Name, Extension, Phone,
+          Email, Location, Notes
+        </strong>
+      </div>
 
-        <div class="kpi">
-          <div id="totalExtensions" class="kpi-value">0</div>
-          <div class="kpi-label">Extensions</div>
-        </div>
+      <div id="directoryStatus" class="status-text"></div>
 
-        <div class="kpi">
-          <div id="totalPhones" class="kpi-value">0</div>
-          <div class="kpi-label">Full Numbers</div>
-        </div>
+      <!-- SEARCH BAR -->
 
-        <div class="kpi">
-          <div class="kpi-value">XML</div>
-          <div class="kpi-label">Yealink Format</div>
-        </div>
-      </section>
+      <div class="directory-filters">
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>Directory Actions</h2>
-            <p>Add, edit, bulk upload, bulk download, and publish contacts to the XML directory.</p>
-          </div>
+        <input
+          id="searchName"
+          type="text"
+          placeholder="Search by name...">
 
-          <div class="button-row">
-            <button id="addContactBtn" class="btn-primary">Add Contact</button>
-            <button id="saveDirectoryBtn" class="btn-primary">Save Directory</button>
-            <button id="downloadCsvBtn" class="btn-secondary">Download CSV</button>
-            <button id="downloadXmlBtn" class="btn-secondary">Download XML</button>
+        <input
+          id="searchExtension"
+          type="text"
+          placeholder="Search by extension...">
 
-            <label class="file-btn">
-              Bulk Upload CSV
-              <input id="uploadCsvInput" type="file" accept=".csv" />
-            </label>
-          </div>
-        </div>
+        <select id="locationFilter">
+          <option value="">
+            All Locations
+          </option>
+        </select>
 
-        <div class="notice">
-          XML URL for Yealink phones:
-          <a
-  href="https://visionbank-dashboard.onrender.com/directory.xml"
-  target="_blank"
->
-  https://visionbank-dashboard.onrender.com/directory.xml
-</a>
-        </div>
+      </div>
 
-        <div class="notice">
-          Supported CSV headers:
-          <strong>FirstName, LastName, Name, Extension, Phone, Email, Location, Notes</strong>
-          or phone-system export headers:
-          <strong>UserFirstName, UserLastName, Extension, CallerIdNumber, UserEmailAddress, Location</strong>
-        </div>
+      <!-- DIRECTORY TABLE -->
 
-        <div id="directoryStatus" class="status-text"></div>
+      <div class="table-wrap">
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Display Name</th>
-                <th>Internal Extension</th>
-                <th>Full 10 Digit Number</th>
-                <th>Email</th>
-                <th>Location</th>
-                <th>Notes</th>
-                <th>Action</th>
-              </tr>
-            </thead>
+        <table>
 
-            <tbody id="directoryTableBody">
-              <tr>
-                <td colspan="9">Loading directory...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-  </div>
+          <thead>
+            <tr>
+              <th>First Name</th>
+              <th>Last Name</th>
+              <th>Display Name</th>
+              <th>Internal Extension</th>
+              <th>Full 10 Digit Number</th>
+              <th>Email</th>
+              <th>Location</th>
+              <th>Notes</th>
+              <th>Action</th>
+            </tr>
+          </thead>
 
-  <script src="directory.js"></script>
+          <tbody id="directoryTableBody">
+
+            <tr>
+              <td colspan="9">
+                Loading directory...
+              </td>
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+<script src="directory.js"></script>
+
 </body>
 </html>

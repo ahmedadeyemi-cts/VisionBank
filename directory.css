@@ -370,3 +370,24 @@ body.dark .notice {
   color: #64748b;
   font-style: italic;
 }
+.directory-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.directory-filters input,
+.directory-filters select {
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  min-width: 220px;
+}
+
+body.dark .directory-filters input,
+body.dark .directory-filters select {
+  background: #020617;
+  color: #e5e7eb;
+  border-color: #475569;
+}

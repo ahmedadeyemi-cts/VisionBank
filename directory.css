@@ -359,3 +359,6 @@ body.dark .notice {
     width: 100%;
   }
 }
+.table-wrap table {
+  min-width: 1400px;
+}

@@ -28,6 +28,9 @@ const uploadCsvInput = document.getElementById("uploadCsvInput");
 
 const directoryTableBody = document.getElementById("directoryTableBody");
 const directoryStatus = document.getElementById("directoryStatus");
+const searchName = document.getElementById("searchName");
+const searchExtension = document.getElementById("searchExtension");
+const locationFilter = document.getElementById("locationFilter");
 
 let contacts = [];
 
@@ -125,6 +128,7 @@ async function loadDirectory() {
     }
 
     contacts = Array.isArray(data.contacts) ? data.contacts : [];
+    populateLocationFilter();
     renderDirectory();
 
     directoryStatus.textContent = "Directory loaded.";
@@ -163,7 +167,27 @@ async function saveDirectory() {
     directoryStatus.textContent = "Unable to save directory.";
   }
 }
+function populateLocationFilter() {
+  if (!locationFilter) return;
 
+  const currentValue = locationFilter.value;
+
+  const locations = [
+    ...new Set(
+      contacts
+        .map(c => c.location || "")
+        .filter(Boolean)
+    )
+  ].sort();
+
+  locationFilter.innerHTML =
+    `<option value="">All Locations</option>` +
+    locations.map(location =>
+      `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`
+    ).join("");
+
+  locationFilter.value = currentValue;
+}
 // =====================================================
 // TABLE
 // =====================================================
@@ -328,8 +352,9 @@ contacts = imported
   })
   .filter(c => c.name && (c.extension || c.phone));
 
-  renderDirectory();
-  directoryStatus.textContent = `Imported ${contacts.length} contacts. Click Save Directory to publish.`;
+  populateLocationFilter();
+renderDirectory();
+directoryStatus.textContent = `Imported ${contacts.length} contacts. Click Save Directory to publish.`;
 
   uploadCsvInput.value = "";
 });
@@ -381,7 +406,57 @@ function splitCsvLine(line) {
   result.push(current);
   return result;
 }
+function filterDirectory() {
+  const nameValue = (searchName?.value || "").toLowerCase().trim();
+  const extensionValue = (searchExtension?.value || "").trim();
+  const locationValue = locationFilter?.value || "";
 
+  const rows = directoryTableBody.querySelectorAll("tr[data-index]");
+
+  rows.forEach(row => {
+    const firstName =
+      row.querySelector(".contact-firstName")?.value.toLowerCase() || "";
+
+    const lastName =
+      row.querySelector(".contact-lastName")?.value.toLowerCase() || "";
+
+    const displayName =
+      row.querySelector(".contact-name")?.value.toLowerCase() || "";
+
+    const extension =
+      row.querySelector(".contact-extension")?.value || "";
+
+    const phone =
+      row.querySelector(".contact-phone")?.value || "";
+
+    const email =
+      row.querySelector(".contact-email")?.value.toLowerCase() || "";
+
+    const location =
+      row.querySelector(".contact-location")?.value || "";
+
+    const nameMatch =
+      !nameValue ||
+      firstName.includes(nameValue) ||
+      lastName.includes(nameValue) ||
+      displayName.includes(nameValue) ||
+      email.includes(nameValue);
+
+    const extensionMatch =
+      !extensionValue ||
+      extension.includes(extensionValue) ||
+      phone.includes(extensionValue);
+
+    const locationMatch =
+      !locationValue ||
+      location === locationValue;
+
+    row.style.display =
+      nameMatch && extensionMatch && locationMatch
+        ? ""
+        : "none";
+  });
+}
 // =====================================================
 // HELPERS
 // =====================================================
@@ -449,6 +524,9 @@ addContactBtn?.addEventListener("click", addContact);
 saveDirectoryBtn?.addEventListener("click", saveDirectory);
 downloadCsvBtn?.addEventListener("click", downloadCsv);
 downloadXmlBtn?.addEventListener("click", downloadXml);
+searchName?.addEventListener("input", filterDirectory);
+searchExtension?.addEventListener("input", filterDirectory);
+locationFilter?.addEventListener("change", filterDirectory);
 
 // =====================================================
 // INIT

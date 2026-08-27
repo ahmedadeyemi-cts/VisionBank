@@ -6,8 +6,13 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
+const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
+const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
+const WEBEX_DASHBOARD_SETTINGS_SAVE_API = `${SECURITY_BASE}/api/webex/dashboard/settings/save`;
+
+console.info(`Webex Dashboard build ${WEBEX_DASHBOARD_BUILD}`);
 
 const ALERT_SETTINGS_KEY = "visionbankWebexAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankWebexAlertHistoryV1";
@@ -109,6 +114,15 @@ async function checkSecurityAccess() {
 function safe(value, fallback = "--") {
   if (value === undefined || value === null || value === "") return fallback;
   return value;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 function formatCountdown(ms) {
   if (ms <= 0) return "expired";
@@ -377,6 +391,244 @@ function initDarkMode() {
     const isDark = document.body.classList.toggle("dark-mode");
     btn.textContent = isDark ? "☀️ Light Mode" : "🌙 Dark mode";
     localStorage.setItem("dashboard-dark-mode", isDark ? "1" : "0");
+  });
+}
+
+// ===============================
+// GLOBAL WEBEX DASHBOARD SETTINGS
+// ===============================
+let dashboardSettingsDirty = false;
+let lastDashboardSettingsUpdatedAt = null;
+
+let currentDashboardQueueOptions = [];
+
+function markDashboardSettingsDirty(message = "Unsaved changes.") {
+  dashboardSettingsDirty = true;
+  const status = document.getElementById("dashboardSettingsStatus");
+  if (status) status.textContent = message;
+}
+
+function renderDashboardQueueSummary(queueOptions = []) {
+  const container = document.getElementById("dashboardQueueSummary");
+  if (!container) return;
+
+  currentDashboardQueueOptions = Array.isArray(queueOptions) ? queueOptions : [];
+
+  if (!currentDashboardQueueOptions.length) {
+    container.textContent = "No Webex queues detected.";
+    return;
+  }
+
+  container.innerHTML = currentDashboardQueueOptions.map(queue => `
+    <label class="dashboard-queue-summary-row dashboard-queue-toggle-row">
+      <span class="dashboard-queue-toggle-main">
+        <input
+          type="checkbox"
+          class="dashboard-queue-visibility-checkbox"
+          data-queue-id="${escapeHtml(queue.id || "")}"
+          data-queue-category="${escapeHtml(queue.category || "telephony")}"
+          ${queue.visible ? "checked" : ""}
+        />
+        <span class="dashboard-queue-toggle-name">
+          <strong>${escapeHtml(queue.displayName || queue.sourceName || "Unknown Queue")}</strong>
+          ${queue.displayName && queue.sourceName && queue.displayName !== queue.sourceName
+            ? `<small>Webex: ${escapeHtml(queue.sourceName)}</small>`
+            : ""}
+        </span>
+      </span>
+      <span class="dashboard-queue-category">${escapeHtml(queue.category || "telephony")}</span>
+    </label>
+  `).join("");
+
+  container.querySelectorAll(".dashboard-queue-visibility-checkbox").forEach(input => {
+    input.addEventListener("change", () => markDashboardSettingsDirty());
+  });
+}
+
+function applyDashboardSettingsToForm(settings = {}, queueOptions = []) {
+  if (dashboardSettingsDirty) return;
+
+  const telephony = document.getElementById("showTelephonyQueues");
+  const email = document.getElementById("showEmailQueues");
+  const outbound = document.getElementById("showOutboundQueue");
+  const chat = document.getElementById("showChatQueues");
+  const outboundName = document.getElementById("outboundQueueDisplayName");
+
+  if (telephony) telephony.checked = settings.showTelephonyQueues !== false;
+  if (email) email.checked = settings.showEmailQueues === true;
+  if (outbound) outbound.checked = settings.showOutboundQueue === true;
+  if (chat) chat.checked = settings.showChatQueues === true;
+  if (outboundName) outboundName.value = settings.outboundQueueDisplayName || "Outbound Calling Queue";
+
+  lastDashboardSettingsUpdatedAt = settings.updatedAt || null;
+  renderDashboardQueueSummary(queueOptions);
+}
+
+async function loadDashboardSettings(force = false) {
+  try {
+    if (!force) {
+      const dashboard = await fetchWebexDashboard();
+      if (dashboard?.settings) {
+        applyDashboardSettingsToForm(dashboard.settings, dashboard.queueOptions || []);
+        return dashboard.settings;
+      }
+    }
+
+    const res = await fetch(WEBEX_DASHBOARD_SETTINGS_API, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      headers: { "Accept": "application/json" }
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.success === false) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    applyDashboardSettingsToForm(data.settings || {}, data.queueOptions || []);
+    return data.settings || {};
+  } catch (err) {
+    console.error("Dashboard settings load error:", err);
+    const status = document.getElementById("dashboardSettingsStatus");
+    if (status) status.textContent = "Unable to load shared settings.";
+    return null;
+  }
+}
+
+async function saveDashboardSettings() {
+  const status = document.getElementById("dashboardSettingsStatus");
+  const saveBtn = document.getElementById("saveDashboardSettingsBtn");
+
+  const queueVisibility = {};
+  document.querySelectorAll(".dashboard-queue-visibility-checkbox").forEach(input => {
+    const id = String(input.dataset.queueId || "");
+    if (id) queueVisibility[id] = input.checked === true;
+  });
+
+  const payload = {
+    showTelephonyQueues: document.getElementById("showTelephonyQueues")?.checked !== false,
+    showEmailQueues: document.getElementById("showEmailQueues")?.checked === true,
+    showOutboundQueue: document.getElementById("showOutboundQueue")?.checked === true,
+    showChatQueues: document.getElementById("showChatQueues")?.checked === true,
+    outboundQueueDisplayName:
+      document.getElementById("outboundQueueDisplayName")?.value?.trim() ||
+      "Outbound Calling Queue",
+    queueVisibility
+  };
+
+  try {
+    if (saveBtn) saveBtn.disabled = true;
+    if (status) status.textContent = "Saving shared settings...";
+
+    const res = await fetch(WEBEX_DASHBOARD_SETTINGS_SAVE_API, {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.success === false) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    dashboardSettingsDirty = false;
+    lastDashboardSettingsUpdatedAt = data.settings?.updatedAt || null;
+    if (status) status.textContent = "Saved. All open dashboards will update within about 10 seconds.";
+
+    invalidateWebexDashboardCache();
+    await refreshAll();
+  } catch (err) {
+    console.error("Dashboard settings save error:", err);
+    if (status) status.textContent = `Save failed: ${err.message}`;
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function initDashboardSettingsUI() {
+  const toggle = document.getElementById("dashboardSettingsToggle");
+  const panel = document.getElementById("dashboardSettingsPanel");
+  const saveBtn = document.getElementById("saveDashboardSettingsBtn");
+  const alertPanel = document.getElementById("alertSettingsPanel");
+  const historyPanel = document.getElementById("alertHistoryPanel");
+
+  const inputs = [
+    document.getElementById("showTelephonyQueues"),
+    document.getElementById("showEmailQueues"),
+    document.getElementById("showOutboundQueue"),
+    document.getElementById("showChatQueues"),
+    document.getElementById("outboundQueueDisplayName")
+  ].filter(Boolean);
+
+  inputs.forEach(input => {
+    input.addEventListener("change", () => markDashboardSettingsDirty());
+
+    if (input.tagName === "INPUT" && input.type === "text") {
+      input.addEventListener("input", () => markDashboardSettingsDirty());
+    }
+  });
+
+  // Category switches are convenient bulk controls. Individual queue checkboxes
+  // remain authoritative when the settings are saved.
+  const categoryBindings = [
+    ["showTelephonyQueues", "telephony"],
+    ["showEmailQueues", "email"],
+    ["showOutboundQueue", "outbound"],
+    ["showChatQueues", "chat"]
+  ];
+
+  for (const [controlId, category] of categoryBindings) {
+    const control = document.getElementById(controlId);
+    if (!control) continue;
+
+    control.addEventListener("change", () => {
+      document.querySelectorAll(
+        `.dashboard-queue-visibility-checkbox[data-queue-category="${category}"]`
+      ).forEach(queueInput => {
+        queueInput.checked = control.checked;
+      });
+      markDashboardSettingsDirty();
+    });
+  }
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveDashboardSettings);
+  }
+
+  if (toggle && panel) {
+    toggle.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const opening = panel.classList.contains("hidden");
+      panel.classList.toggle("hidden");
+
+      if (alertPanel) alertPanel.classList.add("hidden");
+      if (historyPanel) historyPanel.classList.add("hidden");
+
+      if (opening) {
+        dashboardSettingsDirty = false;
+        await loadDashboardSettings(true);
+      }
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (
+      panel &&
+      !panel.classList.contains("hidden") &&
+      !panel.contains(e.target) &&
+      e.target !== toggle
+    ) {
+      panel.classList.add("hidden");
+      dashboardSettingsDirty = false;
+    }
   });
 }
 
@@ -912,6 +1164,9 @@ async function loadQueueStatus() {
 
   try {
     const data = await fetchWebexDashboard();
+    if (data?.settings && !dashboardSettingsDirty) {
+      applyDashboardSettingsToForm(data.settings, data.queueOptions || []);
+    }
     const queues = Array.isArray(data?.queues) ? data.queues : [];
 
     if (!queues.length) {
@@ -964,6 +1219,62 @@ async function loadQueueStatus() {
     body.innerHTML = `<tr><td colspan="5" class="error">Unable to load Webex queue status.</td></tr>`;
   }
 }
+function renderEntryPointStats(entryPoints) {
+  const value1 = document.getElementById("gs-entry-point-1");
+  const value2 = document.getElementById("gs-entry-point-2");
+  const label1 = document.getElementById("gs-entry-point-label-1");
+  const label2 = document.getElementById("gs-entry-point-label-2");
+
+  if (!value1 || !value2 || !label1 || !label2) return;
+
+  const entries = Array.isArray(entryPoints)
+    ? entryPoints.filter(e => e && e.name)
+    : [];
+
+  value1.classList.remove("entry-point-stat-list");
+  value2.classList.remove("entry-point-stat-list");
+
+  if (entries.length === 0) {
+    value1.textContent = "0";
+    value2.textContent = "0";
+    label1.textContent = "Calls by Entry Point - No data";
+    label2.textContent = "Calls by Entry Point - No data";
+    return;
+  }
+
+  if (entries.length <= 2) {
+    const first = entries[0];
+    value1.textContent = Number(first.calls || 0);
+    label1.textContent = `Entry Point: ${first.name}`;
+
+    if (entries[1]) {
+      value2.textContent = Number(entries[1].calls || 0);
+      label2.textContent = `Entry Point: ${entries[1].name}`;
+    } else {
+      value2.textContent = "0";
+      label2.textContent = "Additional Entry Points";
+    }
+    return;
+  }
+
+  const splitAt = Math.ceil(entries.length / 2);
+  const groups = [entries.slice(0, splitAt), entries.slice(splitAt)];
+
+  const renderList = group => group.map(entry => `
+    <div class="entry-point-stat-row" title="${escapeHtml(entry.name)}">
+      <span class="entry-point-stat-name">${escapeHtml(entry.name)}</span>
+      <span class="entry-point-stat-count">${Number(entry.calls || 0)}</span>
+    </div>
+  `).join("");
+
+  value1.classList.add("entry-point-stat-list");
+  value2.classList.add("entry-point-stat-list");
+  value1.innerHTML = renderList(groups[0]);
+  value2.innerHTML = renderList(groups[1]);
+  label1.textContent = "Calls by Entry Point";
+  label2.textContent = "Calls by Entry Point (cont.)";
+}
+
 // ===============================
 // GLOBAL STATS (WEBEX)
 // ===============================
@@ -990,6 +1301,7 @@ async function loadGlobalStats() {
     setText("gs-abandon-rate", Number(g.abandonRate || 0).toFixed(2) + "%");
     setText("gs-callbacks-registered", g.callbacksRegistered);
     setText("gs-callbacks-waiting", g.callbacksWaiting);
+    renderEntryPointStats(g.entryPoints || []);
   } catch (err) {
     console.error("Webex global stats error:", err);
     if (errorDiv) errorDiv.textContent = "Unable to load Webex global statistics.";
@@ -1076,6 +1388,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initDarkMode();
   initAlertSettingsUI();
+  initDashboardSettingsUI();
   loadMotd();                 // loads + renders
   setInterval(loadMotd, 60000);
 

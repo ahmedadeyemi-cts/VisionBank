@@ -4,11 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VisionBank® | Webex Dashboard</title>
+    <meta name="webex-dashboard-build" content="2026.08.27-v3" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
-    <link rel="stylesheet" href="webex.css" />
+    <link rel="stylesheet" href="webex.css?v=20260827-v4" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -143,6 +144,9 @@
   </div>
 
   <div class="header-right">
+    <button id="dashboardSettingsToggle" class="dashboard-settings-btn">
+      Dashboard Settings
+    </button>
     <button id="alertSettingsToggle" class="alert-settings-btn">
       Alert Settings
     </button>
@@ -158,6 +162,84 @@
 <!-- ALERT PANELS + POPUP -->
 <!-- =============================== -->
 <div class="alert-panels-wrapper">
+
+  <!-- GLOBAL WEBEX DASHBOARD SETTINGS PANEL -->
+  <div id="dashboardSettingsPanel" class="dashboard-settings-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Dashboard Settings</h3>
+    </div>
+    <div class="alert-panel-body">
+      <p class="dashboard-settings-intro">
+        These settings are shared globally. Changes automatically apply to every open Webex Dashboard on its next refresh (about 10 seconds).
+      </p>
+
+      <div class="dashboard-settings-group">
+        <h4>Visible Queue Types</h4>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showTelephonyQueues" />
+          <span>
+            <strong>Telephony Queues</strong>
+            <small>Shown by default.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showEmailQueues" />
+          <span>
+            <strong>Email Queues</strong>
+            <small>Includes queues identified as email.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showOutboundQueue" />
+          <span>
+            <strong>Outbound Calling Queue</strong>
+            <small>Controls the Webex Outdial Queue-1 display.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showChatQueues" />
+          <span>
+            <strong>Chat / Social Queues</strong>
+            <small>Includes Webex chat and social queues.</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="dashboard-settings-group">
+        <h4>Queue Display Name</h4>
+        <label class="dashboard-settings-field" for="outboundQueueDisplayName">
+          Outdial Queue-1 display name
+          <input
+            id="outboundQueueDisplayName"
+            type="text"
+            maxlength="80"
+            value="Outbound Calling Queue"
+          />
+        </label>
+      </div>
+
+      <div class="dashboard-settings-group">
+        <h4>Individual Queue Visibility</h4>
+        <p class="dashboard-settings-help">
+          Check a queue to show it on the dashboard or uncheck it to hide it. These choices are shared with every open dashboard.
+        </p>
+        <div id="dashboardQueueSummary" class="dashboard-queue-summary">
+          Loading queue configuration...
+        </div>
+      </div>
+
+      <div class="dashboard-settings-actions">
+        <button id="saveDashboardSettingsBtn" class="btn-primary">
+          Save Dashboard Settings
+        </button>
+        <span id="dashboardSettingsStatus" class="dashboard-settings-status"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- ALERT SETTINGS PANEL -->
   <div id="alertSettingsPanel" class="alert-settings-panel hidden">
@@ -429,6 +511,16 @@
         <div class="stat-value" id="gs-callbacks-waiting">--</div>
         <div class="stat-label">Callbacks Waiting</div>
       </div>
+
+      <div class="stat-card entry-point-stat-card">
+        <div class="stat-value" id="gs-entry-point-1">--</div>
+        <div class="stat-label" id="gs-entry-point-label-1">Calls by Entry Point</div>
+      </div>
+
+      <div class="stat-card entry-point-stat-card">
+        <div class="stat-value" id="gs-entry-point-2">--</div>
+        <div class="stat-label" id="gs-entry-point-label-2">Calls by Entry Point</div>
+      </div>
     </div>
   </section>
 
@@ -455,6 +547,6 @@
   </div>
 </footer>
 
-<script src="webex.js"></script>
+<script src="webex.js?v=20260827-v4"></script>
 </body>
 </html>

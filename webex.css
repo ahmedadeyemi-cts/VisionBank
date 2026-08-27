@@ -342,6 +342,7 @@ body.dark-mode .motd-banner {
 /* ===============================
    ALERT SETTINGS / HISTORY BUTTONS
    =============================== */
+.dashboard-settings-btn,
 .alert-settings-btn,
 .alert-history-btn {
   position: fixed;
@@ -359,6 +360,10 @@ body.dark-mode .motd-banner {
   gap: 6px;
 }
 
+.dashboard-settings-btn {
+  right: 270px;
+}
+
 .alert-settings-btn {
   right: 140px;
 }
@@ -367,6 +372,7 @@ body.dark-mode .motd-banner {
   right: 20px;
 }
 
+.dashboard-settings-btn:hover,
 .alert-settings-btn:hover,
 .alert-history-btn:hover {
   background: rgba(30, 64, 175, 0.96);
@@ -385,6 +391,7 @@ body.dark-mode .motd-banner {
   pointer-events: none; /* panels manage pointer-events themselves */
 }
 
+.dashboard-settings-panel,
 .alert-settings-panel,
 .alert-history-panel {
   width: 280px;
@@ -397,6 +404,148 @@ body.dark-mode .motd-banner {
   overflow-y: auto;              /* 🔑 scrolling enabled */
   overflow-x: hidden;
   pointer-events: auto;
+}
+
+.dashboard-settings-panel {
+  width: 390px;
+}
+
+.dashboard-settings-intro {
+  margin: 0 0 12px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.dashboard-settings-group {
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.dashboard-settings-group h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-setting-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.68);
+  cursor: pointer;
+}
+
+.dashboard-setting-option input {
+  margin-top: 2px;
+}
+
+.dashboard-setting-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dashboard-setting-option small {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.dashboard-settings-field {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-settings-field input[type="text"] {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: #020617;
+  color: #f8fafc;
+}
+
+.dashboard-queue-summary {
+  max-height: 160px;
+  overflow-y: auto;
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.dashboard-queue-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.dashboard-queue-category {
+  color: #93c5fd;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+
+.dashboard-settings-help {
+  margin: 0 0 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dashboard-queue-toggle-row {
+  cursor: pointer;
+}
+
+.dashboard-queue-toggle-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-queue-toggle-main input {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.dashboard-queue-toggle-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dashboard-queue-toggle-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue-toggle-name small {
+  color: #94a3b8;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.dashboard-settings-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dashboard-settings-status {
+  min-height: 16px;
+  font-size: 11px;
+  color: #bfdbfe;
 }
 
 .alert-panel-header {
@@ -732,6 +881,7 @@ body.wallboard-mode {
 
 body.wallboard-mode .header,
 body.wallboard-mode .footer,
+body.wallboard-mode .dashboard-settings-btn,
 body.wallboard-mode .alert-settings-btn,
 body.wallboard-mode .alert-history-btn {
   opacity: 0;
@@ -761,6 +911,7 @@ body.wallboard-mode .main {
     flex-direction: column;
     right: 8px;
   }
+  .dashboard-settings-panel,
   .alert-settings-panel,
   .alert-history-panel {
     width: 260px;
@@ -1201,4 +1352,41 @@ body.dark-mode .stat-card {
 }
 .startdate-warning {
   cursor: help;
+}
+
+/* ===============================
+   ENTRY POINT STATISTICS
+   =============================== */
+.entry-point-stat-card .stat-value {
+  width: 100%;
+}
+
+.entry-point-stat-list {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.entry-point-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.entry-point-stat-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.entry-point-stat-count {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
 }

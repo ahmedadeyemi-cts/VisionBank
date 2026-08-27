@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";
+const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;

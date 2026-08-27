@@ -1,0 +1,1204 @@
+/* ===============================
+   GLOBAL RESET / BASE
+   =============================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #ffffff;       /* Light mode = white */
+  color: #111827;
+  min-height: 100vh;
+}
+
+/* Security-approved state just removes overlay */
+body.security-approved {
+  overflow: auto;
+}
+
+/* Utility */
+.hidden {
+  display: none !important;
+}
+
+/* ===============================
+   ACCESS DENIED OVERLAY
+   =============================== */
+.access-denied-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at top, #1f2937 0%, #020617 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.access-denied-card {
+  background: rgba(15, 23, 42, 0.96);
+  border-radius: 16px;
+  padding: 28px 32px;
+  max-width: 520px;
+  width: 90%;
+  color: #e5e7eb;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  text-align: center;
+}
+
+.access-denied-card h1 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  color: #f9fafb;
+}
+
+.access-denied-card p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.access-denied-note {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* ===============================
+   LAYOUT
+   =============================== */
+.main {
+  max-width: 1400px;
+  margin: 0 auto 32px;
+  padding: 0 16px 24px;
+}
+
+/* ===============================
+   HEADER
+   =============================== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: linear-gradient(90deg, #0f172a, #1e293b);
+  color: #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  height: 40px;
+}
+
+.header-center {
+  text-align: center;
+  flex: 1;
+}
+
+.header-center h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.header-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.motd-banner {
+  position: sticky;
+  top: 68px;
+  z-index: 35;
+
+  margin: 10px auto;
+  padding: 10px 18px;
+  max-width: 95%;
+
+  background: linear-gradient(90deg, #2563eb, #1e40af);
+  color: #ffffff;
+
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(6px);
+
+  transition: all 0.25s ease;
+}
+body.dark-mode .motd-banner {
+  background: linear-gradient(90deg, #1e3a8a, #020617);
+  color: #e0e7ff;
+
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+}
+.motd-text {
+  margin-right: 8px;
+}
+
+.motd-countdown {
+  font-size: 0.85em;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.motd-warning {
+  border-color: #f59e0b !important;
+}
+
+.motd-critical {
+  border-color: #ef4444 !important;
+  animation: motdPulse 1.5s infinite;
+}
+
+@keyframes motdPulse {
+  0% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.35); }
+  100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+}
+/* ===============================
+   PANELS
+   =============================== */
+.panel {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 18px 20px 20px;
+  margin-top: 18px;
+  box-shadow:
+    0 18px 45px rgba(15, 23, 42, 0.06),
+    0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.panel > h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  text-align: center;       /* Center section titles */
+}
+
+/* ===============================
+   TABLES
+   =============================== */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  table-layout: fixed;
+}
+
+.data-table thead {
+  background: #f3f4f6;
+}
+
+.data-table th,
+.data-table td {
+  padding: 8px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  text-align: center;       /* Center all cells */
+  vertical-align: middle;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+.data-table th {
+  font-weight: 600;
+  color: #111827;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.data-table tbody tr:hover {
+  background: #eef2ff;
+}
+
+.data-table .loading {
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.data-table .error {
+  text-align: center;
+  color: #b91c1c;
+  padding: 16px 8px;
+}
+
+/* Numeric helper still centered */
+.numeric {
+  text-align: center;
+}
+
+
+/* Fix Global Statistics Centering */
+.stat-box {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.stat-label {
+    display: block;
+    margin-top: 3px;
+    opacity: 0.8;
+}
+
+/* ===============================
+   QUEUE PANEL FLASH
+   =============================== */
+#queue-panel.queue-alert-active {
+  box-shadow:
+    0 0 0 2px #f97316,
+    0 24px 60px rgba(248, 113, 22, 0.35);
+  animation: queuePulse 1.2s infinite;
+}
+
+@keyframes queuePulse {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(248, 113, 22, 0.6),
+      0 24px 60px rgba(15, 23, 42, 0.4);
+  }
+  70% {
+    box-shadow:
+      0 0 0 8px rgba(248, 113, 22, 0),
+      0 24px 60px rgba(15, 23, 42, 0.4);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(248, 113, 22, 0),
+      0 24px 60px rgba(15, 23, 42, 0.4);
+  }
+}
+
+/* ===============================
+   GLOBAL STATS GRID
+   =============================== */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+  width: 100%;              /* ✅ take full width */
+  align-items: stretch;     /* ✅ same height cards */
+}
+
+
+.stat-card {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;      /* Center inside card */
+  justify-content: center;
+  text-align: center;       /* Center text */
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 13px;
+  margin-top: 6px;
+  text-align: center;
+  opacity: 0.85;
+}
+
+/* ===============================
+   ALERT SETTINGS / HISTORY BUTTONS
+   =============================== */
+.alert-settings-btn,
+.alert-history-btn {
+  position: fixed;
+  top: 18px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.96);
+  color: #e5e7eb;
+  cursor: pointer;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alert-settings-btn {
+  right: 140px;
+}
+
+.alert-history-btn {
+  right: 20px;
+}
+
+.alert-settings-btn:hover,
+.alert-history-btn:hover {
+  background: rgba(30, 64, 175, 0.96);
+}
+
+/* ===============================
+   ALERT PANELS (SIDE-BY-SIDE)
+   =============================== */
+.alert-panels-wrapper {
+  position: fixed;
+  top: 52px;
+  right: 16px;
+  display: flex;
+  gap: 10px;
+  z-index: 55;
+  pointer-events: none; /* panels manage pointer-events themselves */
+}
+
+.alert-settings-panel,
+.alert-history-panel {
+  width: 280px;
+  max-height: calc(100vh - 140px); /* 🔑 allows growth */
+  background: #0b1120;
+  color: #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  overflow-y: auto;              /* 🔑 scrolling enabled */
+  overflow-x: hidden;
+  pointer-events: auto;
+}
+
+.alert-panel-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.5);
+  background: linear-gradient(90deg, #111827, #020617);
+}
+
+.alert-panel-header h3 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.alert-panel-body {
+  padding: 10px 12px 12px;
+  font-size: 12px;
+}
+
+.alert-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.alert-row label {
+  font-size: 12px;
+}
+
+.alert-row input[type="checkbox"] {
+  margin-right: 4px;
+}
+
+/* Wallboard row */
+.alert-wallboard-row {
+  align-items: center;
+}
+
+.exit-wallboard-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #f97316;
+  background: transparent;
+  color: #fed7aa;
+  cursor: pointer;
+}
+
+.exit-wallboard-btn:hover {
+  background: rgba(248, 113, 22, 0.17);
+}
+
+/* Hint text */
+.wallboard-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #93c5fd; /* light blue, readable */
+  opacity: 0.95;
+}
+
+
+.alert-panel-divider {
+  border: none;
+  border-top: 1px solid rgba(148, 163, 184, 0.5);
+  margin: 10px 0 8px;
+}
+
+/* Queue tone overrides */
+.alert-queue-overrides h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.queue-overrides-body {
+  max-height: 140px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  padding: 6px;
+}
+
+.queue-override-empty {
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.queue-override-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.queue-override-label {
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-override-select {
+  font-size: 11px;
+}
+
+/* History panel */
+.alert-history-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  padding-right: 4px;
+}
+
+.history-empty {
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.history-item {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.history-time {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* Alert buttons */
+.btn-primary,
+.btn-secondary {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #4f46e5;
+  color: #eef2ff;
+}
+
+.btn-primary:hover {
+  background: #4338ca;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.8);
+}
+
+.btn-secondary:hover {
+  background: rgba(148, 163, 184, 0.2);
+}
+/* ===============================
+   ALERT TEST BUTTON (PINNED VISUAL)
+   =============================== */
+
+.alert-test-row {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.test-alert-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.test-alert-btn:hover {
+  filter: brightness(1.1);
+}
+/* Toast popup */
+.queue-alert-popup {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0b1120;
+  color: #e5e7eb;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.8);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 70;
+}
+
+.queue-alert-popup.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(-6px);
+}
+
+/* ===============================
+   FOOTER
+   =============================== */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.footer-left,
+.footer-center,
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-center {
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+}
+
+.footer-right {
+  justify-content: flex-end;
+  min-width: 260px;
+}
+
+.footer-us-logo {
+  height: 22px;
+}
+
+.footer-text {
+  white-space: nowrap;
+}
+
+/* Dark-mode toggle button bottom-left */
+.dark-toggle {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: #ffffff;
+  color: #111827;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dark-toggle:hover {
+  background: #e5e7eb;
+}
+
+/* ===============================
+   DARK MODE
+   =============================== */
+body.dark-mode {
+  background: radial-gradient(circle at top, #020617 0%, #020617 60%, #020617 100%);
+  color: #e0e7ff;
+}
+
+body.dark-mode .panel {
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(75, 85, 99, 0.8);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+
+body.dark-mode .data-table thead {
+  background: #020617;
+}
+
+body.dark-mode .data-table th {
+  background: #020617;
+  color: #e5e7eb;
+  border-bottom: 1px solid #1e293b;
+}
+
+body.dark-mode .data-table td {
+  border-bottom: 1px solid #1f2937;
+}
+
+body.dark-mode .data-table tbody tr:nth-child(even) {
+  background: #020617;
+}
+
+body.dark-mode .data-table tbody tr:hover {
+  background: #111827;
+}
+
+body.dark-mode .stat-card {
+  background: #020617;
+  border-color: #1f2937;
+}
+
+body.dark-mode .stat-label {
+  color: #9ca3af;
+}
+
+body.dark-mode .stat-value {
+  color: #f9fafb;
+}
+
+
+body.dark-mode .footer {
+  border-top-color: #1f2937;
+}
+
+/* ===============================
+   WALLBOARD MODE
+   =============================== */
+body.wallboard-mode {
+  cursor: none;
+}
+
+body.wallboard-mode .header,
+body.wallboard-mode .footer,
+body.wallboard-mode .alert-settings-btn,
+body.wallboard-mode .alert-history-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.wallboard-mode .main {
+  margin-top: 10px;
+}
+
+/* ===============================
+   RESPONSIVE
+   =============================== */
+@media (max-width: 900px) {
+  .header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-center {
+    order: 3;
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  .alert-panels-wrapper {
+    flex-direction: column;
+    right: 8px;
+  }
+  .alert-settings-panel,
+  .alert-history-panel {
+    width: 260px;
+  }
+}
+/* Queue Calls > 1 = Red Alert Box */
+.queue-alert-red {
+    background: #d10000 !important;
+    color: white !important;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+.dark-mode .queue-alert-red {
+    background: #ff3b3b !important;
+    color: #ffffff !important;
+}
+/* Entire queue panel turns red when alert triggered */
+.queue-alert-red {
+    background-color: #b40000 !important;
+    color: #ffffff !important;
+    border-color: #7a0000 !important;
+}
+
+.queue-alert-red td,
+.queue-alert-red th {
+    color: #ffffff !important;
+}
+
+
+/* ============================================================
+  New Addition from Old Look GLASSMORPHISM DARK MODE — Global Behavior
+   ============================================================ */
+/* ============================================================
+   Smooth Animated Transitions
+   ============================================================ */
+
+body,
+.header,
+.footer,
+.panel,
+.data-table,
+.stat-card,
+.data-table td,
+.data-table th {
+    transition: background-color 0.45s ease,
+                color 0.45s ease,
+                border-color 0.45s ease,
+                box-shadow 0.45s ease,
+                backdrop-filter 0.45s ease;
+}
+
+
+/* even Newer Addition */
+/* =====================================================
+   TABLE MODE – Classic Grid (Matches Screenshot #2)
+   ===================================================== */
+
+/* Outer table border */
+.data-table {
+  border-collapse: collapse;
+  border: 1px solid #d1d5db;
+}
+
+/* Header cells */
+.data-table thead th {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  font-weight: 600;
+}
+
+/* Body cells */
+.data-table tbody td {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+/* Remove zebra striping */
+.data-table tbody tr:nth-child(even),
+.data-table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+/* Remove hover shading */
+.data-table tbody tr:hover {
+  background: #ffffff;
+}
+/* ============================================================
+   AVAILABILITY — FINAL, CLEAN, CONFLICT-FREE
+   ============================================================ */
+
+/* Base behavior: full table cell */
+.data-table td.availability-cell {
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  padding: 12px 10px;
+}
+
+/* ===============================
+   LIGHT MODE (MATCHES SCREENSHOT)
+   =============================== */
+/* On Break */
+.data-table td.availability-cell.status-break {
+  background-color: #facc15;   /* yellow */
+  color: #ffffff;              /* white text */
+}
+/* On Lunch */
+.data-table td.availability-cell.status-lunch {
+  background-color: #facc15;   /* yellow */
+  color: #ffffff;              /* white text */
+}
+
+
+/* Available */
+.data-table td.availability-cell.status-available {
+  background-color: #34c759;   /* vivid green */
+  color: #ffffff;
+}
+
+/* On Call */
+.data-table td.availability-cell.status-oncall {
+  background-color: #e53935;   /* strong red */
+  color: #ffffff;
+}
+
+/* Accept Internal Calls / Busy / Wrap */
+.data-table td.availability-cell.status-orange,
+.data-table td.availability-cell.status-wrap,
+.data-table td.availability-cell.status-busy {
+  background-color: #e67214;   /* orange */
+  color: #ffffff;
+}
+
+/* Idle / Unknown */
+.data-table td.availability-cell.status-idle,
+.data-table td.availability-cell.status-unknown {
+  background-color: #9ca3af;   /* neutral gray */
+  color: #ffffff;
+}
+
+/* ===============================
+   DARK MODE (HIGH CONTRAST, VISIBLE)
+   =============================== */
+/* On Break */
+body.dark-mode .data-table td.availability-cell.status-break {
+  background-color: #facc15 !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .data-table td.availability-cell {
+  color: #ffffff !important;
+}
+/* On Lunch*/
+body.dark-mode .data-table td.availability-cell.status-lunch {
+  background-color: #facc15 !important;
+  color: #ffffff !important;
+}
+
+/* Available */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #2ecc71;
+}
+
+/* On Call */
+body.dark-mode .data-table td.availability-cell.status-oncall {
+  background-color: #e74c3c;
+}
+
+/* Accept Internal Calls / Busy / Wrap */
+body.dark-mode .data-table td.availability-cell.status-orange,
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-busy {
+  background-color: #f39c12;
+}
+
+/* Idle / Unknown */
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #6b7280;
+}
+
+/* ===============================
+   GUARANTEE TEXT VISIBILITY
+   =============================== */
+
+.data-table td.availability-cell,
+.data-table td.availability-cell * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+/* ============================================================
+   DARK MODE — TABLE TEXT VISIBILITY FIX
+   Ensures ALL non-availability table text is readable
+   ============================================================ */
+
+body.dark-mode .data-table td:not(.availability-cell),
+body.dark-mode .data-table th {
+  color: #f9fafb !important; /* near-white */
+}
+
+/* Agent names, numbers, time values */
+body.dark-mode .data-table td {
+  opacity: 1 !important;
+}
+
+/* Prevent inherited pastel/blue colors */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* Keep borders visible */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+/* ============================================================
+   AVAILABILITY — TEXT WRAPPING & CONTAINMENT FIX
+   ============================================================ */
+
+/* Allow Availability text to wrap safely inside cell */
+.data-table td.availability-cell {
+  white-space: normal !important;      /* allow wrapping */
+  word-break: break-word !important;   /* break long words */
+  overflow-wrap: anywhere !important;  /* force containment */
+  line-height: 1.25;
+  max-width: 100%;
+  padding: 8px 10px;
+}
+
+/* Ensure inner elements also wrap correctly */
+.data-table td.availability-cell *,
+.data-table td.availability-cell span,
+.data-table td.availability-cell div {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Center wrapped text vertically & horizontally */
+.data-table td.availability-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+/* ============================================================
+   DARK MODE — DATA TABLE TEXT VISIBILITY FIX
+   (Does NOT affect availability styling)
+   ============================================================ */
+
+body.dark-mode .data-table td {
+  color: #e5e7eb !important;   /* light gray, high contrast */
+}
+
+body.dark-mode .data-table th {
+  color: #f9fafb !important;   /* brighter headers */
+}
+
+/* Names, links, spans, numbers inside cells */
+body.dark-mode .data-table td span,
+body.dark-mode .data-table td div,
+body.dark-mode .data-table td a {
+  color: #e5e7eb !important;
+  opacity: 1 !important;
+}
+
+/* Numeric columns (counts, durations, percentages) */
+body.dark-mode .numeric {
+  color: #e5e7eb !important;
+}
+
+/* Dates & timestamps */
+body.dark-mode .data-table td:last-child {
+  color: #d1d5db !important;
+}
+/* ============================================================
+   🔥 FINAL FIX — DARK MODE TABLE BACKGROUND OVERRIDE
+   Fixes light/washed-out data cells WITHOUT touching availability
+   ============================================================ */
+
+/* Force dark background back onto table cells */
+body.dark-mode .data-table tbody td {
+  background: #020617 !important;
+}
+
+/* Maintain alternating rows subtly (optional but readable) */
+body.dark-mode .data-table tbody tr:nth-child(even) td {
+  background: #020617 !important;
+}
+
+body.dark-mode .data-table tbody tr:nth-child(odd) td {
+  background: #020617 !important;
+}
+
+/* Keep hover visible but dark */
+body.dark-mode .data-table tbody tr:hover td {
+  background: #111827 !important;
+}
+
+/* Ensure ALL table text is readable */
+body.dark-mode .data-table td,
+body.dark-mode .data-table th {
+  color: #e5e7eb !important;
+}
+
+/* Headers slightly brighter */
+body.dark-mode .data-table th {
+  color: #f9fafb !important;
+}
+
+/* Guarantee nested content visibility */
+body.dark-mode .data-table td *,
+body.dark-mode .data-table th * {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+/* ============================================================
+   ✅ RESTORE AVAILABILITY COLORS IN DARK MODE (FINAL)
+   Overrides table-wide dark backgrounds ONLY for availability
+   ============================================================ */
+
+/* AVAILABLE */
+body.dark-mode .data-table td.availability-cell.status-available {
+  background-color: #2ecc71 !important;
+  color: #ffffff !important;
+}
+
+/* ON CALL / DIAL OUT */
+body.dark-mode .data-table td.availability-cell.status-oncall,
+body.dark-mode .data-table td.availability-cell.status-dialout {
+  background-color: #e74c3c !important;
+  color: #ffffff !important;
+}
+
+/* ACCEPT INTERNAL / BUSY / WRAP */
+body.dark-mode .data-table td.availability-cell.status-orange,
+body.dark-mode .data-table td.availability-cell.status-wrap,
+body.dark-mode .data-table td.availability-cell.status-busy {
+  background-color: #f39c12 !important;
+  color: #ffffff !important;
+}
+
+/* IDLE / UNKNOWN */
+body.dark-mode .data-table td.availability-cell.status-idle,
+body.dark-mode .data-table td.availability-cell.status-unknown {
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+/* ===============================
+   QUEUE CALLS BADGE (FINAL SAFE)
+   =============================== */
+
+.queue-calls-badge {
+  display: inline-block;
+  min-width: 28px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Light mode */
+.queue-calls-green {
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+.queue-calls-yellow {
+  background-color: #eab308;
+  color: #111827;
+}
+
+.queue-calls-red {
+  background-color: #b91c1c;
+  color: #ffffff;
+}
+
+/* Dark mode */
+body.dark-mode .queue-calls-green {
+  background-color: #16a34a;
+  color: #ecfdf5;
+}
+
+body.dark-mode .queue-calls-yellow {
+  background-color: #ca8a04;
+  color: #fffbeb;
+}
+
+body.dark-mode .queue-calls-red {
+  background-color: #dc2626;
+  color: #fef2f2;
+}
+.stat-card {
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+body.dark-mode .stat-card {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
+}
+.copy-ip-btn {
+  margin-left: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #1c3d8f;
+  background: #f5f7fb;
+  cursor: pointer;
+}
+
+.copy-ip-btn:hover {
+  background: #e8ecf5;
+}
+.rollover-flag {
+  margin-left: 4px;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+.agent-startdate-toggle {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.9rem;
+}
+
+.agent-startdate-toggle .toggle-label {
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.agent-startdate-toggle label {
+  cursor: pointer;
+}
+.startdate-warning {
+  cursor: help;
+}

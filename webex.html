@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisionBank® | Webex Dashboard</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
+
+    <link rel="stylesheet" href="webex.css" />
+
+    <!-- ======================================= -->
+    <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
+  <!--  Use this Link to check who has been denied: https://visionbank-security.ahmedadeyemi.workers.dev/security/check -->
+    <!-- ======================================= -->
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        (async function () {
+          const overlay  = document.getElementById("access-denied-overlay");
+          const msgEl    = document.getElementById("access-denied-message");
+          const statusEl = document.getElementById("securityStatus");
+            function renderAccessDenied(data) {
+  const info = data?.info || {};
+  const ip = info.primaryIp || "Unknown";
+  const ipVersion = info.ipVersion || "Unknown";
+  const forwarded = info.forwardedFor;
+  const geo = info.geo || {};
+  const asn = info.asn ? `AS${info.asn}` : "Unknown";
+  const asOrg = info.asOrg || "Unknown";
+
+  const html =
+    "<strong>Access has been restricted.</strong><br><br>" +
+
+    "<strong>Primary IP:</strong> " + ip + " (" + ipVersion + ") " +
+    "<button class='copy-ip-btn' onclick=\"navigator.clipboard.writeText('" + ip + "')\">" +
+    "Copy IP</button><br>" +
+
+    (forwarded ? "<strong>Forwarded IP(s):</strong> " + forwarded + "<br>" : "") +
+
+    "<strong>Location:</strong> " +
+    (geo.city || "Unknown") + ", " +
+    (geo.region || "") + " " +
+    (geo.country || "") + "<br>" +
+
+    "<strong>Network:</strong> " + asOrg + " (" + asn + ")<br><br>" +
+
+    "Please provide this information to the VisionBank IT Team.";
+
+  showOverlay(html);
+}
+
+          function showOverlay(text) {
+            if (msgEl && text) msgEl.innerHTML = text.replace(/\n/g, "<br>");
+            if (overlay) overlay.classList.remove("hidden");
+            document.body.classList.remove("security-approved");
+          }
+
+          try {
+            const res = await fetch(
+              "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
+              {
+                method: "GET",
+                mode: "cors",
+                credentials: "omit"
+              }
+            );
+
+            if (!res.ok) {
+              showOverlay(
+                "Unable to contact security service (HTTP " + res.status + ")."
+              );
+              return;
+            }
+
+            const data = await res.json();
+            // Expose for dashboard.js and footer banner
+            window.VB_SECURITY = data;
+
+            if (!data.allowed) {
+              renderAccessDenied(data);
+              return;
+            }
+
+
+            // ✔ Access approved
+            if (overlay) overlay.classList.add("hidden");
+            document.body.classList.add("security-approved");
+
+            // Footer banner with proper time fallback
+              if (statusEl && data.info) {
+                  const ip = data.info.primaryIp || "Unknown IP";
+                  let nowLabel = data.info.nowCst?.label;
+
+              if (!nowLabel) {
+                try {
+                  nowLabel = new Date().toLocaleString("en-US", {
+                    timeZone: "America/Chicago",
+                    timeZoneName: "short"
+                  });
+                } catch (e) {
+                  nowLabel = new Date().toLocaleString();
+                }
+              }
+
+              statusEl.textContent =
+                "Access approved from IP " + ip + " at " + nowLabel;
+            }
+
+          } catch (err) {
+            console.error("Security check failed:", err);
+            showOverlay("Unable to contact security service.");
+          }
+        })();
+      });
+    </script>
+</head>
+
+<body>
+
+<!-- ACCESS DENIED OVERLAY (visible until Cloudflare approves) -->
+<div id="access-denied-overlay" class="access-denied-overlay">
+  <div class="access-denied-card">
+    <h1>Access Restricted</h1>
+    <p id="access-denied-message">
+      Your access is currently unavailable. Please contact the IT Team for assistance.
+    </p>
+    <p class="access-denied-note">
+      If you believe this is in error, contact the VisionBank IT Team.
+    </p>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
+  </div>
+
+  <div class="header-center">
+    <h1>Webex Dashboard</h1>
+    <div class="header-subtitle">VisionBank® Webex Contact Center</div>
+  </div>
+
+  <div class="header-right">
+    <button id="alertSettingsToggle" class="alert-settings-btn">
+      Alert Settings
+    </button>
+    <button id="alertHistoryToggle" class="alert-history-btn">
+      Alert History
+    </button>
+  </div>
+</header>
+<!-- MESSAGE OF THE DAY BANNER -->
+<div id="motdBanner" class="motd-banner hidden"></div>
+
+<!-- =============================== -->
+<!-- ALERT PANELS + POPUP -->
+<!-- =============================== -->
+<div class="alert-panels-wrapper">
+
+  <!-- ALERT SETTINGS PANEL -->
+  <div id="alertSettingsPanel" class="alert-settings-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert Settings</h3>
+    </div>
+    <div class="alert-panel-body">
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableQueueAlerts" />
+          Enable queue audio alerts
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableVoiceAlerts" />
+          Enable voice message
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enablePopupAlerts" />
+          Enable popup toast
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertToneSelect">Alert tone</label>
+        <select id="alertToneSelect">
+          <option value="soft">Soft chime</option>
+          <option value="bright">Bright bell</option>
+          <option value="pulse">Pulse beep</option>
+          <option value="ping">Ping tone</option>
+          <option value="alarm">Alarm tone</option>
+        </select>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertVolume">Volume</label>
+        <input type="range" id="alertVolume" min="0" max="100" step="5" />
+      </div>
+
+      <div class="alert-row">
+        <label for="alertCooldown">Alert cooldown (seconds)</label>
+        <input type="number" id="alertCooldown" min="10" max="300" step="5" />
+      </div>
+       <!-- =============================== -->
+<!-- MOTD Add -->
+<!-- =============================== -->
+         <hr class="alert-panel-divider" />
+
+<h4>Message of the Day</h4>
+
+<div class="alert-row">
+  <label for="motdText">Message</label>
+  <textarea
+    id="motdText"
+    rows="3"
+    placeholder="Enter message for call center staff..."
+  ></textarea>
+</div>
+
+<div class="alert-row">
+  <label for="motdDuration">Display duration (minutes)</label>
+  <input
+    type="number"
+    id="motdDuration"
+    min="1"
+    max="1440"
+    step="5"
+    value="60"
+  />
+</div>
+
+<div class="alert-row">
+  <button id="motdSaveButton" class="btn-primary">
+    Save Message
+  </button>
+  <button id="motdClearButton" class="btn-secondary">
+    Clear Message
+  </button>
+</div>
+<!-- =============================== -->
+<!-- MOTD End -->
+<!-- =============================== -->
+<div class="alert-row alert-wallboard-row">
+  <label>
+    <input type="checkbox" id="wallboardMode" />
+    Wallboard mode (full-screen dashboard)
+  </label>
+  <button id="exitWallboardButton" class="exit-wallboard-btn hidden">
+    Exit wallboard mode
+  </button>
+</div>
+      <p class="wallboard-hint">
+        Press ESC to exit wallboard mode.
+      </p>
+
+<div class="alert-row alert-test-row">
+  <button
+    id="alertTestButton"
+    class="test-alert-btn"
+  >
+    🔊 Test Alert Audio
+  </button>
+</div>
+
+      <hr class="alert-panel-divider" />
+
+      <div class="alert-queue-overrides">
+        <h4>Per-queue tone overrides</h4>
+        <div id="queueToneOverrides" class="queue-overrides-body">
+          <div class="queue-override-empty">
+            No queues loaded yet.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERT HISTORY PANEL -->
+  <div id="alertHistoryPanel" class="alert-history-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert History</h3>
+    </div>
+    <div class="alert-panel-body">
+      <div id="alertHistoryList" class="alert-history-list">
+        <div class="history-empty">No alerts yet.</div>
+      </div>
+      <button id="clearAlertHistory" class="btn-secondary">
+        Clear history
+      </button>
+    </div>
+  </div>
+
+  <!-- QUEUE ALERT POPUP (BOTTOM CENTER) -->
+  <div id="queueAlertPopup" class="queue-alert-popup">
+    You have calls waiting
+  </div>
+</div>
+
+<main class="main">
+
+  <!-- CURRENT QUEUE STATUS (TOP) -->
+  <section class="panel" id="queue-panel">
+    <h2>Current Queue Status</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Queue</th>
+          <th>Calls</th>
+          <th>Agents</th>
+          <th>Max Wait</th>
+          <th>Avg Wait</th>
+        </tr>
+      </thead>
+      <tbody id="queue-body">
+        <tr>
+          <td colspan="5" class="loading">Loading queue status…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- AGENT PERFORMANCE (MIDDLE) -->
+  <section class="panel">
+    <h2>Agent Performance</h2>
+      <div class="agent-startdate-toggle">
+  <span class="toggle-label">Start Date:</span>
+
+  <label class="toggle-option">
+    <input
+      type="radio"
+      name="startDateMode"
+      value="session"
+    />
+    Session Start
+  </label>
+
+  <label class="toggle-option">
+    <input
+      type="radio"
+      name="startDateMode"
+      value="reporting"
+    />
+    Reporting Start
+  </label>
+</div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Webex Agent</th>
+          <th>Team</th>
+          <th>Number</th>
+          <th>Availability</th>
+          <th>Duration</th>  
+          <th>Inbound</th>
+          <th>Missed</th>
+          <th>Transferred</th>
+          <th>Outbound</th>
+          <th>Avg Handle</th>
+          <th>Start Date</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body">
+        <tr>
+          <td colspan="11" class="loading">Loading agent data…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- REALTIME GLOBAL STATISTICS (BOTTOM) -->
+  <section class="panel">
+    <h2>Realtime Global Statistics</h2>
+    <div id="global-error" class="error"></div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-queued">--</div>
+        <div class="stat-label">Total Calls Queued</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-transferred">--</div>
+        <div class="stat-label">Total Calls Answered</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-abandoned">--</div>
+        <div class="stat-label">Total Calls Abandoned</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-max-wait">--</div>
+        <div class="stat-label">Maximum Queue Wait Time</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-service-level">--%</div>
+        <div class="stat-label">Service Level</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-received">--</div>
+        <div class="stat-label">Total Calls Received</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-answer-rate">--%</div>
+        <div class="stat-label">Answer Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-abandon-rate">--%</div>
+        <div class="stat-label">Abandon Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-registered">--</div>
+        <div class="stat-label">Callbacks Registered</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-waiting">--</div>
+        <div class="stat-label">Callbacks Waiting</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-left">
+    <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">
+      🌙 Dark mode
+    </button>
+  </div>
+
+  <div class="footer-center">
+    <span id="securityStatus" class="security-status">
+      Running security checks…
+    </span>
+  </div>
+
+  <div class="footer-right">
+    <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-us-logo" />
+    <span class="footer-text">
+      Created and maintained by Ahmed Adeyemi, ©2025. US Signal
+    </span>
+  </div>
+</footer>
+
+<script src="webex.js"></script>
+</body>
+</html>

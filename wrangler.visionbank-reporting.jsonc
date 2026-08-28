@@ -7,6 +7,12 @@
   // `triggers` is intentionally omitted. Current Cloudflare Wrangler behavior
   // leaves already-deployed Cron Triggers in place when triggers/crons are
   // undefined. Do NOT set crons: [] here; that would remove scheduled work.
+  //
+  // Secret preservation:
+  // `secrets.required` is intentionally omitted. The active production version
+  // is validated by deploy-visionbank-reporting.sh to contain all eight required
+  // secret_text bindings before any upload. Cloudflare deployments preserve
+  // existing encrypted secrets unless they are explicitly changed/deleted.
 
   "name": "visionbank-security",
   "account_id": "8e3117e5e935059805f98211f6868c9c",
@@ -31,19 +37,6 @@
     { "binding": "VOICEMAIL_KV", "id": "b4d13046bc0948adbb74b94f04b0a6b4" },
     { "binding": "WEBEX_AUTH_KV", "id": "b83e9d406ade40f6a50cff897cdf5c07" }
   ],
-
-  "secrets": {
-    "required": [
-      "ALIANZA_PASSWORD",
-      "BREVO_API_KEY",
-      "CC_API_TOKEN",
-      "CCM_PASSWORD",
-      "PDFSHIFT_API_KEY",
-      "WEBEX_ACCESS_TOKEN",
-      "WEBEX_CLIENT_SECRET",
-      "WEBEX_REFRESH_TOKEN"
-    ]
-  },
 
   "vars": {
     "ALERT_CC": "ahmed.adeyemi@ussignal.com",

@@ -1,0 +1,54 @@
+{
+  // VisionBank Security Worker - Webex daily reporting release candidate
+  // IMPORTANT: Use this config for the reporting deployment candidate.
+  // It targets the generated integrated Worker, NOT repo worker.js.
+
+  "name": "visionbank-security",
+  "main": "visionbank-worker-webex-dashboard-reporting.js",
+  "compatibility_date": "2025-12-03",
+  "workers_dev": true,
+  "keep_vars": true,
+
+  "kv_namespaces": [
+    { "binding": "ADMIN", "id": "1a94dac8f8f5486bb3ed32baac6e5336" },
+    { "binding": "AGENT_SETTINGS_KV", "id": "893d9439b1af44f88c838878f869ab98" },
+    { "binding": "BUSINESS", "id": "21e7c7de37214d15ada05089e0a1e3ea" },
+    { "binding": "DIRECTORY_KV", "id": "5301b1f37a4c4cf7bc8d8a950fbef313" },
+    { "binding": "IP_ALLOWLIST", "id": "0a15331659954fd8a2ded6fa3e642259" },
+    { "binding": "LOGOUT_CONFIG", "id": "18a7634978d44c90bb228f8fa30dd411" },
+    { "binding": "LOGS", "id": "568ecb6e1f274436b0c234798a05a4be" },
+    { "binding": "MFA", "id": "ea9adcdf20384ab89e06742a2a8d0584" },
+    { "binding": "MOTD_KV", "id": "158e1c7cb7c54809a8c5ceb62858ba33" },
+    { "binding": "SECURITY_DIGEST", "id": "f5a682ffcc5d4919966c6612a27b7d99" },
+    { "binding": "SESSIONS", "id": "4a0c2b5bbd7f47e0b2ea365f38f2e714" },
+    { "binding": "VISIONBANK_SECURITY", "id": "37706795973a42b5abefd3783353e1ba" },
+    { "binding": "VOICEMAIL_KV", "id": "b4d13046bc0948adbb74b94f04b0a6b4" },
+    { "binding": "WEBEX_AUTH_KV", "id": "b83e9d406ade40f6a50cff897cdf5c07" }
+  ],
+
+  "secrets": {
+    "required": [
+      "ALIANZA_PASSWORD",
+      "BREVO_API_KEY",
+      "CC_API_TOKEN",
+      "CCM_PASSWORD",
+      "PDFSHIFT_API_KEY",
+      "WEBEX_ACCESS_TOKEN",
+      "WEBEX_CLIENT_SECRET",
+      "WEBEX_REFRESH_TOKEN"
+    ]
+  },
+
+  "vars": {
+    "ALERT_CC": "ahmed.adeyemi@ussignal.com",
+    "ALERT_TO": "ahmed.adeyemi@ussignal.com",
+    "ALIANZA_ACCOUNT_ID": "kpHQbSrKTeee9701DKagnQ",
+    "ALIANZA_PARTITION_ID": "mGZ3tPTNRZiP31ChRh8qFg",
+    "ALIANZA_USERNAME": "ahmed.adeyemi@oneneck.com",
+    "CCM_URL": "https://pop1-apps.mycontactcenter.net/admin/ccm.aspx",
+    "CCM_USERNAME": "ahmed.adeyemi+02@ussignal.com",
+    "KV_SECURITY": "VISIONBANK_SECURITY",
+    "WEBEX_CLIENT_ID": "C9aa129ad01877a64452eb9afc41fa1842502e504edc4b33f2817a32253c208fe",
+    "WEBEX_ORG_ID": "6f124f56-d8db-4adf-a591-912c02363806"
+  }
+}

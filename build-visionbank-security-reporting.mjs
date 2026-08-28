@@ -71,9 +71,22 @@ for (const anchor of requiredPatchAnchors) {
   if (!patch.includes(anchor)) fail(`Reporting patch anchor missing: ${anchor}`);
 }
 
+// The patch artifact ends with a documentation-only ROUTE ADDITION example.
+// The builder inserts the real route above, so that trailing example must not be
+// copied into the deployable Worker or counted as a second live route.
+const routeDocumentationMarker = "/*******************************************************************************************\n * ROUTE ADDITION";
+const routeDocumentationIndex = patch.indexOf(routeDocumentationMarker);
+const executablePatch = routeDocumentationIndex >= 0
+  ? patch.slice(0, routeDocumentationIndex).trimEnd()
+  : patch.trimEnd();
+
+if (executablePatch.includes('if (path === "/api/webex/daily-reports" && method === "GET")')) {
+  fail("Executable reporting patch unexpectedly contains a daily-report route; refusing duplicate integration.");
+}
+
 let integrated = source.replace(routeAnchor, routeAddition);
 
-integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING EXTENSION\n   Source: ${path.basename(patchPath)}\n   Baseline: combined VisionBank Security v5 Worker\n   Integrated by build-visionbank-security-reporting.mjs\n   ============================================================ */\n\n${patch.trim()}\n\n/* END WEBEX DAILY REPORTING EXTENSION */\n`;
+integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING EXTENSION\n   Source: ${path.basename(patchPath)}\n   Baseline: combined VisionBank Security v5 Worker\n   Integrated by build-visionbank-security-reporting.mjs\n   ============================================================ */\n\n${executablePatch}\n\n/* END WEBEX DAILY REPORTING EXTENSION */\n`;
 
 const exactCountChecks = [
   ['async function handleWebexDailyReports(', 1],

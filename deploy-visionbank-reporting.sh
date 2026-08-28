@@ -9,25 +9,17 @@ CONFIG="${VISIONBANK_REPORT_CONFIG:-wrangler.visionbank-reporting.jsonc}"
 WORKER_NAME="visionbank-security"
 EXPECTED_ACCOUNT_ID="8e3117e5e935059805f98211f6868c9c"
 
-# Force every Wrangler command in this release to the verified VisionBank Cloudflare account.
 export CLOUDFLARE_ACCOUNT_ID="$EXPECTED_ACCOUNT_ID"
 
 case "$MODE" in
   --check|--deploy) ;;
-  *)
-    echo "Usage: $0 [--check|--deploy]" >&2
-    exit 2
-    ;;
+  *) echo "Usage: $0 [--check|--deploy]" >&2; exit 2 ;;
 esac
 
 for file in "$SOURCE" "$PATCH" "$CONFIG" "build-visionbank-security-reporting.mjs"; do
-  if [[ ! -f "$file" ]]; then
-    echo "ERROR: required file not found: $file" >&2
-    exit 1
-  fi
+  [[ -f "$file" ]] || { echo "ERROR: required file not found: $file" >&2; exit 1; }
 done
 
-# Fail closed if anyone points this release at the old v4 Worker.
 if grep -Fq 'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";' "$SOURCE"; then
   echo "ERROR: v4 VisionBank Worker detected. Refusing to continue because this would roll back Webex Agent controls." >&2
   exit 1
@@ -44,161 +36,87 @@ required_v5_anchors=(
   'const WEBEX_TOKEN_URL = "https://webexapis.com/v1/access_token";'
   'const WEBEX_REFRESH_EARLY_MS = 15 * 60 * 1000;'
 )
-
 for anchor in "${required_v5_anchors[@]}"; do
-  if ! grep -Fq "$anchor" "$SOURCE"; then
-    echo "ERROR: v5 production safety anchor missing: $anchor" >&2
-    exit 1
-  fi
+  grep -Fq "$anchor" "$SOURCE" || { echo "ERROR: v5 production safety anchor missing: $anchor" >&2; exit 1; }
 done
 
-# Confirm the deployment config cannot target another account or standalone webex-agent Worker.
 node - "$CONFIG" "$OUTPUT" "$EXPECTED_ACCOUNT_ID" <<'NODE'
 const fs = require('fs');
 const [configPath, expectedMain, expectedAccountId] = process.argv.slice(2);
-const raw = fs.readFileSync(configPath, 'utf8');
-const noComments = raw
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .replace(/^\s*\/\/.*$/gm, '');
-const config = JSON.parse(noComments);
-if (config.name !== 'visionbank-security') {
-  throw new Error(`Wrong Worker target: ${config.name}`);
-}
-if (config.account_id !== expectedAccountId) {
-  throw new Error(`Wrong Cloudflare account_id: ${config.account_id || '(missing)'}`);
-}
-if (config.main !== expectedMain) {
-  throw new Error(`Wrong Worker main: ${config.main}`);
-}
-if (config.keep_vars !== true) {
-  throw new Error('keep_vars must be true.');
-}
-if ('triggers' in config) {
-  throw new Error('Reporting config must leave triggers undefined so deployed cron triggers are preserved.');
-}
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+if (config.name !== 'visionbank-security') throw new Error(`Wrong Worker target: ${config.name}`);
+if (config.account_id !== expectedAccountId) throw new Error(`Wrong Cloudflare account_id: ${config.account_id || '(missing)'}`);
+if (config.main !== expectedMain) throw new Error(`Wrong Worker main: ${config.main}`);
+if (config.keep_vars !== true) throw new Error('keep_vars must be true.');
+if ('triggers' in config) throw new Error('Reporting config must leave triggers undefined so deployed cron triggers are preserved.');
 console.log(`Cloudflare account verified: ${config.account_id}`);
 console.log(`Config target verified: ${config.name}`);
 console.log(`Config main verified: ${config.main}`);
 NODE
 
-# Verify Cloudflare authentication and exact account before reading or writing Worker state.
 echo "Checking Cloudflare authentication/account..."
 npx wrangler whoami 2>&1 | tee /tmp/visionbank-wrangler-whoami.txt
-if ! grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt; then
-  echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2
-  exit 1
-fi
+grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt || { echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2; exit 1; }
 echo "Wrangler account check passed: ${EXPECTED_ACCOUNT_ID}."
 
-# Inspect the currently active deployment and recent Worker versions BEFORE any write.
 echo "Inspecting current ${WORKER_NAME} deployment..."
-npx wrangler deployments status --name "$WORKER_NAME" --json \
-  | tee /tmp/visionbank-deployment-status.json
+npx wrangler deployments status --name "$WORKER_NAME" --json | tee /tmp/visionbank-deployment-status.json
 
 echo "Inspecting recent ${WORKER_NAME} versions..."
-npx wrangler versions list --name "$WORKER_NAME" --json \
-  | tee /tmp/visionbank-versions-list.json
+npx wrangler versions list --name "$WORKER_NAME" --json | tee /tmp/visionbank-versions-list.json
 
-# Resolve the exact version receiving 100% of production traffic.
 node - <<'NODE'
 const fs = require('fs');
 const deployment = JSON.parse(fs.readFileSync('/tmp/visionbank-deployment-status.json', 'utf8'));
-const versions = Array.isArray(deployment?.versions) ? deployment.versions : [];
-const active = versions.filter(v => Number(v.percentage) === 100 && v.version_id);
-if (active.length !== 1) {
-  throw new Error(`Expected exactly one 100%-serving production version; found ${active.length}.`);
-}
+const active = (Array.isArray(deployment?.versions) ? deployment.versions : []).filter(v => Number(v.percentage) === 100 && v.version_id);
+if (active.length !== 1) throw new Error(`Expected exactly one 100%-serving production version; found ${active.length}.`);
 fs.writeFileSync('/tmp/visionbank-active-version-id.txt', active[0].version_id, 'utf8');
 console.log(`Active production version: ${active[0].version_id}`);
 NODE
 
 ACTIVE_VERSION_ID="$(cat /tmp/visionbank-active-version-id.txt)"
-
 echo "Inspecting active production version ${ACTIVE_VERSION_ID}..."
-npx wrangler versions view "$ACTIVE_VERSION_ID" --name "$WORKER_NAME" --json \
-  | tee /tmp/visionbank-active-version.json
+npx wrangler versions view "$ACTIVE_VERSION_ID" --name "$WORKER_NAME" --json | tee /tmp/visionbank-active-version.json
 
-# Validate the bindings on the ACTUAL 100%-serving production version.
-# This intentionally does not rely on `wrangler secret list`, because version metadata
-# is the authoritative evidence for the bindings attached to the serving version.
 node - "$CONFIG" <<'NODE'
 const fs = require('fs');
 const [configPath] = process.argv.slice(2);
-
-const configRaw = fs.readFileSync(configPath, 'utf8');
-const config = JSON.parse(
-  configRaw
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '')
-);
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
 const active = JSON.parse(fs.readFileSync('/tmp/visionbank-active-version.json', 'utf8'));
 const bindings = active?.resources?.bindings;
-if (!Array.isArray(bindings) || bindings.length === 0) {
-  throw new Error('Active production version returned no bindings.');
-}
-
+if (!Array.isArray(bindings) || bindings.length === 0) throw new Error('Active production version returned no bindings.');
 const byName = new Map(bindings.map(binding => [binding.name, binding]));
-const requiredSecrets = [
-  'ALIANZA_PASSWORD',
-  'BREVO_API_KEY',
-  'CC_API_TOKEN',
-  'CCM_PASSWORD',
-  'PDFSHIFT_API_KEY',
-  'WEBEX_ACCESS_TOKEN',
-  'WEBEX_CLIENT_SECRET',
-  'WEBEX_REFRESH_TOKEN'
-];
-
+const requiredSecrets = ['ALIANZA_PASSWORD','BREVO_API_KEY','CC_API_TOKEN','CCM_PASSWORD','PDFSHIFT_API_KEY','WEBEX_ACCESS_TOKEN','WEBEX_CLIENT_SECRET','WEBEX_REFRESH_TOKEN'];
 for (const name of requiredSecrets) {
   const binding = byName.get(name);
   if (!binding) throw new Error(`Active production secret binding is missing: ${name}`);
-  if (binding.type !== 'secret_text') {
-    throw new Error(`Active production binding ${name} must be secret_text, found ${binding.type}`);
-  }
+  if (binding.type !== 'secret_text') throw new Error(`Active production binding ${name} must be secret_text, found ${binding.type}`);
 }
-
 for (const expected of (config.kv_namespaces || [])) {
   const binding = byName.get(expected.binding);
   if (!binding) throw new Error(`Active production KV binding is missing: ${expected.binding}`);
-  if (binding.type !== 'kv_namespace') {
-    throw new Error(`Active production binding ${expected.binding} must be kv_namespace, found ${binding.type}`);
-  }
-  if (binding.namespace_id !== expected.id) {
-    throw new Error(`KV namespace mismatch for ${expected.binding}: ${binding.namespace_id} != ${expected.id}`);
-  }
+  if (binding.type !== 'kv_namespace') throw new Error(`Active production binding ${expected.binding} must be kv_namespace, found ${binding.type}`);
+  if (binding.namespace_id !== expected.id) throw new Error(`KV namespace mismatch for ${expected.binding}: ${binding.namespace_id} != ${expected.id}`);
 }
-
 for (const [name, expectedValue] of Object.entries(config.vars || {})) {
   const binding = byName.get(name);
   if (!binding) throw new Error(`Active production plain-text binding is missing: ${name}`);
-  if (binding.type !== 'plain_text') {
-    throw new Error(`Active production binding ${name} must be plain_text, found ${binding.type}`);
-  }
-  if (String(binding.text) !== String(expectedValue)) {
-    throw new Error(`Active production value mismatch for ${name}.`);
-  }
+  if (binding.type !== 'plain_text') throw new Error(`Active production binding ${name} must be plain_text, found ${binding.type}`);
+  if (String(binding.text) !== String(expectedValue)) throw new Error(`Active production value mismatch for ${name}.`);
 }
-
 const handlers = active?.resources?.script?.handlers || [];
-for (const handler of ['fetch', 'scheduled']) {
-  if (!handlers.includes(handler)) {
-    throw new Error(`Active production Worker is missing required handler: ${handler}`);
-  }
-}
-
+for (const handler of ['fetch', 'scheduled']) if (!handlers.includes(handler)) throw new Error(`Active production Worker is missing required handler: ${handler}`);
 console.log(`Active production binding validation passed (${bindings.length} total bindings).`);
 console.log(`Secret bindings verified: ${requiredSecrets.length}/${requiredSecrets.length}.`);
 console.log(`KV bindings verified: ${(config.kv_namespaces || []).length}/${(config.kv_namespaces || []).length}.`);
 console.log(`Plain-text vars verified: ${Object.keys(config.vars || {}).length}/${Object.keys(config.vars || {}).length}.`);
 NODE
 
-# Build from the combined v5 Worker only.
 echo "Building integrated VisionBank Security reporting Worker..."
 node --check build-visionbank-security-reporting.mjs
 node build-visionbank-security-reporting.mjs "$SOURCE" "$PATCH" "$OUTPUT"
 node --check "$OUTPUT"
 
-# Verify the generated output retained automatic sign-out, reminders, OAuth and the new report route.
 required_output_anchors=(
   'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";'
   'const WEBEX_AGENT_CONTROL_BUILD = "2026.08.27-v5";'
@@ -211,17 +129,13 @@ required_output_anchors=(
   'async function handleWebexDailyReports('
 )
 for anchor in "${required_output_anchors[@]}"; do
-  if ! grep -Fq "$anchor" "$OUTPUT"; then
-    echo "ERROR: generated Worker preservation check failed: $anchor" >&2
-    exit 1
-  fi
+  grep -Fq "$anchor" "$OUTPUT" || { echo "ERROR: generated Worker preservation check failed: $anchor" >&2; exit 1; }
 done
 
 echo "Running Wrangler dry-run against dedicated reporting config..."
 npx wrangler deploy --config "$CONFIG" --dry-run
 
 echo "All pre-deployment checks passed."
-
 if [[ "$MODE" != "--deploy" ]]; then
   echo "CHECK-ONLY MODE: no Cloudflare deployment performed."
   echo "To perform the controlled Worker-first deployment, run: $0 --deploy"
@@ -230,6 +144,5 @@ fi
 
 echo "Deploying ONLY ${WORKER_NAME} in account ${EXPECTED_ACCOUNT_ID} using ${CONFIG}..."
 npx wrangler deploy --config "$CONFIG"
-
 echo "Worker deployment command completed."
 echo "DO NOT publish the Webex report UI yet. Validate /api/webex/daily-reports first."

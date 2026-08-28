@@ -99,26 +99,46 @@ echo "Inspecting recent ${WORKER_NAME} versions..."
 npx wrangler versions list --name "$WORKER_NAME" --json \
   | tee /tmp/visionbank-versions-list.json
 
+# Resolve the exact version receiving 100% of production traffic.
 node - <<'NODE'
 const fs = require('fs');
-for (const [label, file] of [
-  ['deployment status', '/tmp/visionbank-deployment-status.json'],
-  ['versions list', '/tmp/visionbank-versions-list.json']
-]) {
-  const value = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (!value || (Array.isArray(value) && value.length === 0)) {
-    throw new Error(`Cloudflare ${label} returned no data for visionbank-security.`);
-  }
+const deployment = JSON.parse(fs.readFileSync('/tmp/visionbank-deployment-status.json', 'utf8'));
+const versions = Array.isArray(deployment?.versions) ? deployment.versions : [];
+const active = versions.filter(v => Number(v.percentage) === 100 && v.version_id);
+if (active.length !== 1) {
+  throw new Error(`Expected exactly one 100%-serving production version; found ${active.length}.`);
 }
-console.log('Live Worker deployment/version inspection passed.');
+fs.writeFileSync('/tmp/visionbank-active-version-id.txt', active[0].version_id, 'utf8');
+console.log(`Active production version: ${active[0].version_id}`);
 NODE
 
-# Verify required secret NAMES only. Secret values are never read or printed.
-echo "Checking required secret names on ${WORKER_NAME}..."
-npx wrangler secret list --name "$WORKER_NAME" --format json > /tmp/visionbank-secret-list.json
-node - <<'NODE'
+ACTIVE_VERSION_ID="$(cat /tmp/visionbank-active-version-id.txt)"
+
+echo "Inspecting active production version ${ACTIVE_VERSION_ID}..."
+npx wrangler versions view "$ACTIVE_VERSION_ID" --name "$WORKER_NAME" --json \
+  | tee /tmp/visionbank-active-version.json
+
+# Validate the bindings on the ACTUAL 100%-serving production version.
+# This intentionally does not rely on `wrangler secret list`, because version metadata
+# is the authoritative evidence for the bindings attached to the serving version.
+node - "$CONFIG" <<'NODE'
 const fs = require('fs');
-const required = [
+const [configPath] = process.argv.slice(2);
+
+const configRaw = fs.readFileSync(configPath, 'utf8');
+const config = JSON.parse(
+  configRaw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+);
+const active = JSON.parse(fs.readFileSync('/tmp/visionbank-active-version.json', 'utf8'));
+const bindings = active?.resources?.bindings;
+if (!Array.isArray(bindings) || bindings.length === 0) {
+  throw new Error('Active production version returned no bindings.');
+}
+
+const byName = new Map(bindings.map(binding => [binding.name, binding]));
+const requiredSecrets = [
   'ALIANZA_PASSWORD',
   'BREVO_API_KEY',
   'CC_API_TOKEN',
@@ -128,12 +148,48 @@ const required = [
   'WEBEX_CLIENT_SECRET',
   'WEBEX_REFRESH_TOKEN'
 ];
-const raw = JSON.parse(fs.readFileSync('/tmp/visionbank-secret-list.json', 'utf8'));
-const list = Array.isArray(raw) ? raw : (raw.secrets || raw.result || []);
-const names = new Set(list.map(x => typeof x === 'string' ? x : (x.name || x.binding || x.key)).filter(Boolean));
-const missing = required.filter(name => !names.has(name));
-if (missing.length) throw new Error(`Missing required Cloudflare secret name(s): ${missing.join(', ')}`);
-console.log(`Required secret-name check passed (${required.length}/${required.length}).`);
+
+for (const name of requiredSecrets) {
+  const binding = byName.get(name);
+  if (!binding) throw new Error(`Active production secret binding is missing: ${name}`);
+  if (binding.type !== 'secret_text') {
+    throw new Error(`Active production binding ${name} must be secret_text, found ${binding.type}`);
+  }
+}
+
+for (const expected of (config.kv_namespaces || [])) {
+  const binding = byName.get(expected.binding);
+  if (!binding) throw new Error(`Active production KV binding is missing: ${expected.binding}`);
+  if (binding.type !== 'kv_namespace') {
+    throw new Error(`Active production binding ${expected.binding} must be kv_namespace, found ${binding.type}`);
+  }
+  if (binding.namespace_id !== expected.id) {
+    throw new Error(`KV namespace mismatch for ${expected.binding}: ${binding.namespace_id} != ${expected.id}`);
+  }
+}
+
+for (const [name, expectedValue] of Object.entries(config.vars || {})) {
+  const binding = byName.get(name);
+  if (!binding) throw new Error(`Active production plain-text binding is missing: ${name}`);
+  if (binding.type !== 'plain_text') {
+    throw new Error(`Active production binding ${name} must be plain_text, found ${binding.type}`);
+  }
+  if (String(binding.text) !== String(expectedValue)) {
+    throw new Error(`Active production value mismatch for ${name}.`);
+  }
+}
+
+const handlers = active?.resources?.script?.handlers || [];
+for (const handler of ['fetch', 'scheduled']) {
+  if (!handlers.includes(handler)) {
+    throw new Error(`Active production Worker is missing required handler: ${handler}`);
+  }
+}
+
+console.log(`Active production binding validation passed (${bindings.length} total bindings).`);
+console.log(`Secret bindings verified: ${requiredSecrets.length}/${requiredSecrets.length}.`);
+console.log(`KV bindings verified: ${(config.kv_namespaces || []).length}/${(config.kv_namespaces || []).length}.`);
+console.log(`Plain-text vars verified: ${Object.keys(config.vars || {}).length}/${Object.keys(config.vars || {}).length}.`);
 NODE
 
 # Build from the combined v5 Worker only.

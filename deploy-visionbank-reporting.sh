@@ -49,9 +49,11 @@ if (config.account_id !== expectedAccountId) throw new Error(`Wrong Cloudflare a
 if (config.main !== expectedMain) throw new Error(`Wrong Worker main: ${config.main}`);
 if (config.keep_vars !== true) throw new Error('keep_vars must be true.');
 if ('triggers' in config) throw new Error('Reporting config must leave triggers undefined so deployed cron triggers are preserved.');
+if ('secrets' in config) throw new Error('Reporting config must not declare secrets.required; active-version binding validation is used instead.');
 console.log(`Cloudflare account verified: ${config.account_id}`);
 console.log(`Config target verified: ${config.name}`);
 console.log(`Config main verified: ${config.main}`);
+console.log('Secret preservation mode verified: no secrets.required declaration.');
 NODE
 
 echo "Checking Cloudflare authentication/account..."
@@ -59,58 +61,71 @@ npx wrangler whoami 2>&1 | tee /tmp/visionbank-wrangler-whoami.txt
 grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt || { echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2; exit 1; }
 echo "Wrangler account check passed: ${EXPECTED_ACCOUNT_ID}."
 
+get_active_version_id() {
+  local status_file="$1"
+  npx wrangler deployments status --name "$WORKER_NAME" --json > "$status_file"
+  node - "$status_file" <<'NODE'
+const fs = require('fs');
+const [file] = process.argv.slice(2);
+const deployment = JSON.parse(fs.readFileSync(file, 'utf8'));
+const active = (Array.isArray(deployment?.versions) ? deployment.versions : []).filter(v => Number(v.percentage) === 100 && v.version_id);
+if (active.length !== 1) throw new Error(`Expected exactly one 100%-serving version; found ${active.length}.`);
+process.stdout.write(active[0].version_id);
+NODE
+}
+
+validate_version_bindings() {
+  local version_id="$1"
+  local label="$2"
+  local outfile="$3"
+
+  echo "Inspecting ${label} version ${version_id}..."
+  npx wrangler versions view "$version_id" --name "$WORKER_NAME" --json | tee "$outfile"
+
+  node - "$CONFIG" "$outfile" "$label" <<'NODE'
+const fs = require('fs');
+const [configPath, versionPath, label] = process.argv.slice(2);
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+const version = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+const bindings = version?.resources?.bindings;
+if (!Array.isArray(bindings) || bindings.length === 0) throw new Error(`${label} version returned no bindings.`);
+const byName = new Map(bindings.map(binding => [binding.name, binding]));
+const requiredSecrets = ['ALIANZA_PASSWORD','BREVO_API_KEY','CC_API_TOKEN','CCM_PASSWORD','PDFSHIFT_API_KEY','WEBEX_ACCESS_TOKEN','WEBEX_CLIENT_SECRET','WEBEX_REFRESH_TOKEN'];
+for (const name of requiredSecrets) {
+  const binding = byName.get(name);
+  if (!binding) throw new Error(`${label} secret binding is missing: ${name}`);
+  if (binding.type !== 'secret_text') throw new Error(`${label} binding ${name} must be secret_text, found ${binding.type}`);
+}
+for (const expected of (config.kv_namespaces || [])) {
+  const binding = byName.get(expected.binding);
+  if (!binding) throw new Error(`${label} KV binding is missing: ${expected.binding}`);
+  if (binding.type !== 'kv_namespace') throw new Error(`${label} binding ${expected.binding} must be kv_namespace, found ${binding.type}`);
+  if (binding.namespace_id !== expected.id) throw new Error(`${label} KV namespace mismatch for ${expected.binding}: ${binding.namespace_id} != ${expected.id}`);
+}
+for (const [name, expectedValue] of Object.entries(config.vars || {})) {
+  const binding = byName.get(name);
+  if (!binding) throw new Error(`${label} plain-text binding is missing: ${name}`);
+  if (binding.type !== 'plain_text') throw new Error(`${label} binding ${name} must be plain_text, found ${binding.type}`);
+  if (String(binding.text) !== String(expectedValue)) throw new Error(`${label} value mismatch for ${name}.`);
+}
+const handlers = version?.resources?.script?.handlers || [];
+for (const handler of ['fetch', 'scheduled']) if (!handlers.includes(handler)) throw new Error(`${label} Worker is missing required handler: ${handler}`);
+console.log(`${label} binding validation passed (${bindings.length} total bindings).`);
+console.log(`Secret bindings verified: ${requiredSecrets.length}/${requiredSecrets.length}.`);
+console.log(`KV bindings verified: ${(config.kv_namespaces || []).length}/${(config.kv_namespaces || []).length}.`);
+console.log(`Plain-text vars verified: ${Object.keys(config.vars || {}).length}/${Object.keys(config.vars || {}).length}.`);
+NODE
+}
+
 echo "Inspecting current ${WORKER_NAME} deployment..."
 npx wrangler deployments status --name "$WORKER_NAME" --json | tee /tmp/visionbank-deployment-status.json
 
 echo "Inspecting recent ${WORKER_NAME} versions..."
 npx wrangler versions list --name "$WORKER_NAME" --json | tee /tmp/visionbank-versions-list.json
 
-node - <<'NODE'
-const fs = require('fs');
-const deployment = JSON.parse(fs.readFileSync('/tmp/visionbank-deployment-status.json', 'utf8'));
-const active = (Array.isArray(deployment?.versions) ? deployment.versions : []).filter(v => Number(v.percentage) === 100 && v.version_id);
-if (active.length !== 1) throw new Error(`Expected exactly one 100%-serving production version; found ${active.length}.`);
-fs.writeFileSync('/tmp/visionbank-active-version-id.txt', active[0].version_id, 'utf8');
-console.log(`Active production version: ${active[0].version_id}`);
-NODE
-
-ACTIVE_VERSION_ID="$(cat /tmp/visionbank-active-version-id.txt)"
-echo "Inspecting active production version ${ACTIVE_VERSION_ID}..."
-npx wrangler versions view "$ACTIVE_VERSION_ID" --name "$WORKER_NAME" --json | tee /tmp/visionbank-active-version.json
-
-node - "$CONFIG" <<'NODE'
-const fs = require('fs');
-const [configPath] = process.argv.slice(2);
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
-const active = JSON.parse(fs.readFileSync('/tmp/visionbank-active-version.json', 'utf8'));
-const bindings = active?.resources?.bindings;
-if (!Array.isArray(bindings) || bindings.length === 0) throw new Error('Active production version returned no bindings.');
-const byName = new Map(bindings.map(binding => [binding.name, binding]));
-const requiredSecrets = ['ALIANZA_PASSWORD','BREVO_API_KEY','CC_API_TOKEN','CCM_PASSWORD','PDFSHIFT_API_KEY','WEBEX_ACCESS_TOKEN','WEBEX_CLIENT_SECRET','WEBEX_REFRESH_TOKEN'];
-for (const name of requiredSecrets) {
-  const binding = byName.get(name);
-  if (!binding) throw new Error(`Active production secret binding is missing: ${name}`);
-  if (binding.type !== 'secret_text') throw new Error(`Active production binding ${name} must be secret_text, found ${binding.type}`);
-}
-for (const expected of (config.kv_namespaces || [])) {
-  const binding = byName.get(expected.binding);
-  if (!binding) throw new Error(`Active production KV binding is missing: ${expected.binding}`);
-  if (binding.type !== 'kv_namespace') throw new Error(`Active production binding ${expected.binding} must be kv_namespace, found ${binding.type}`);
-  if (binding.namespace_id !== expected.id) throw new Error(`KV namespace mismatch for ${expected.binding}: ${binding.namespace_id} != ${expected.id}`);
-}
-for (const [name, expectedValue] of Object.entries(config.vars || {})) {
-  const binding = byName.get(name);
-  if (!binding) throw new Error(`Active production plain-text binding is missing: ${name}`);
-  if (binding.type !== 'plain_text') throw new Error(`Active production binding ${name} must be plain_text, found ${binding.type}`);
-  if (String(binding.text) !== String(expectedValue)) throw new Error(`Active production value mismatch for ${name}.`);
-}
-const handlers = active?.resources?.script?.handlers || [];
-for (const handler of ['fetch', 'scheduled']) if (!handlers.includes(handler)) throw new Error(`Active production Worker is missing required handler: ${handler}`);
-console.log(`Active production binding validation passed (${bindings.length} total bindings).`);
-console.log(`Secret bindings verified: ${requiredSecrets.length}/${requiredSecrets.length}.`);
-console.log(`KV bindings verified: ${(config.kv_namespaces || []).length}/${(config.kv_namespaces || []).length}.`);
-console.log(`Plain-text vars verified: ${Object.keys(config.vars || {}).length}/${Object.keys(config.vars || {}).length}.`);
-NODE
+ACTIVE_VERSION_ID="$(get_active_version_id /tmp/visionbank-deployment-status-current.json)"
+echo "Active production version: ${ACTIVE_VERSION_ID}"
+validate_version_bindings "$ACTIVE_VERSION_ID" "Active production" /tmp/visionbank-active-version.json
 
 echo "Building integrated VisionBank Security reporting Worker..."
 node --check build-visionbank-security-reporting.mjs
@@ -142,7 +157,37 @@ if [[ "$MODE" != "--deploy" ]]; then
   exit 0
 fi
 
+ROLLBACK_VERSION_ID="$ACTIVE_VERSION_ID"
 echo "Deploying ONLY ${WORKER_NAME} in account ${EXPECTED_ACCOUNT_ID} using ${CONFIG}..."
 npx wrangler deploy --config "$CONFIG"
-echo "Worker deployment command completed."
+
+echo "Deployment command completed. Verifying new 100%-serving version..."
+NEW_VERSION_ID="$(get_active_version_id /tmp/visionbank-deployment-status-after.json)"
+echo "New active version: ${NEW_VERSION_ID}"
+if [[ "$NEW_VERSION_ID" == "$ROLLBACK_VERSION_ID" ]]; then
+  echo "ERROR: deployment completed but active version did not change." >&2
+  exit 1
+fi
+
+set +e
+validate_version_bindings "$NEW_VERSION_ID" "Post-deploy" /tmp/visionbank-post-deploy-version.json
+POST_DEPLOY_RC=$?
+set -e
+
+if [[ $POST_DEPLOY_RC -ne 0 ]]; then
+  echo "ERROR: post-deploy binding validation failed. Rolling back to ${ROLLBACK_VERSION_ID} at 100%." >&2
+  npx wrangler versions deploy "${ROLLBACK_VERSION_ID}@100%" --name "$WORKER_NAME" -y
+  echo "Rollback command completed. Confirming rollback deployment..."
+  ROLLED_BACK_VERSION_ID="$(get_active_version_id /tmp/visionbank-deployment-status-rollback.json)"
+  if [[ "$ROLLED_BACK_VERSION_ID" != "$ROLLBACK_VERSION_ID" ]]; then
+    echo "CRITICAL: rollback verification failed. Expected ${ROLLBACK_VERSION_ID}, found ${ROLLED_BACK_VERSION_ID}." >&2
+    exit 1
+  fi
+  echo "Rollback verified: ${ROLLBACK_VERSION_ID} is serving 100%." >&2
+  exit 1
+fi
+
+echo "Worker deployment and post-deploy binding validation passed."
+echo "Previous rollback version: ${ROLLBACK_VERSION_ID}"
+echo "New active version: ${NEW_VERSION_ID}"
 echo "DO NOT publish the Webex report UI yet. Validate /api/webex/daily-reports first."

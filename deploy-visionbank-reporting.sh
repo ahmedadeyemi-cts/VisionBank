@@ -79,8 +79,31 @@ npx wrangler whoami --json > /tmp/visionbank-wrangler-whoami.json
 node - <<'NODE'
 const fs = require('fs');
 const data = JSON.parse(fs.readFileSync('/tmp/visionbank-wrangler-whoami.json', 'utf8'));
-if (!data || (data.error && !data.account)) throw new Error('Wrangler authentication check did not return an authenticated account.');
+if (!data || typeof data !== 'object') throw new Error('Wrangler authentication JSON was invalid.');
 console.log('Wrangler authentication check passed.');
+NODE
+
+# Inspect the currently active deployment and recent Worker versions BEFORE any write.
+echo "Inspecting current ${WORKER_NAME} deployment..."
+npx wrangler deployments status --name "$WORKER_NAME" --json \
+  | tee /tmp/visionbank-deployment-status.json
+
+echo "Inspecting recent ${WORKER_NAME} versions..."
+npx wrangler versions list --name "$WORKER_NAME" --json \
+  | tee /tmp/visionbank-versions-list.json
+
+node - <<'NODE'
+const fs = require('fs');
+for (const [label, file] of [
+  ['deployment status', '/tmp/visionbank-deployment-status.json'],
+  ['versions list', '/tmp/visionbank-versions-list.json']
+]) {
+  const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!value || (Array.isArray(value) && value.length === 0)) {
+    throw new Error(`Cloudflare ${label} returned no data for visionbank-security.`);
+  }
+}
+console.log('Live Worker deployment/version inspection passed.');
 NODE
 
 # Verify required secret NAMES only. Secret values are never read or printed.

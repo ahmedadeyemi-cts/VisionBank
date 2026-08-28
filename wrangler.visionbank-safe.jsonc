@@ -12,6 +12,7 @@
   //   and verify the expected secret names are still present.
 
   "name": "visionbank-security",
+  "account_id": "8e3117e5e935059805f98211f6868c9c",
   "main": "worker.js",
   "compatibility_date": "2025-12-03",
   "workers_dev": true,

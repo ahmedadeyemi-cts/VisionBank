@@ -9,10 +9,11 @@
   // undefined. Do NOT set crons: [] here; that would remove scheduled work.
   //
   // Secret preservation:
-  // `secrets.required` is intentionally omitted. The active production version
-  // is validated by deploy-visionbank-reporting.sh to contain all eight required
-  // secret_text bindings before any upload. Cloudflare deployments preserve
-  // existing encrypted secrets unless they are explicitly changed/deleted.
+  // `secrets.required` is intentionally omitted. deploy-visionbank-reporting.sh
+  // validates the active 100%-serving version, then uses Cloudflare's Version
+  // Upload API to create explicit `inherit` bindings for all eight encrypted
+  // secrets, pinned to that exact active production version ID. Candidate
+  // bindings are validated before any production traffic is promoted.
 
   "name": "visionbank-security",
   "account_id": "8e3117e5e935059805f98211f6868c9c",

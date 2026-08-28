@@ -92,10 +92,14 @@ function webexReportIsConnectedActivity(activity) {
   });
 }
 
-function webexReportHasAnswerSignal(task, taskLegs = []) {
+function webexReportHasAnswerSignal(task, taskLegs = [], carActivities = []) {
   if (task?.isContactHandled === true) return true;
   if (webexReportNumber(task?.connectedCount) > 0) return true;
   if (webexReportNumber(task?.connectedDuration) > 0) return true;
+
+  if ((Array.isArray(carActivities) ? carActivities : []).some(webexReportIsConnectedActivity)) {
+    return true;
+  }
 
   if (webexReportActivities(task).some(webexReportIsConnectedActivity)) return true;
 
@@ -118,14 +122,15 @@ function webexReportHasAbandonSignal(task, taskLegs = []) {
   );
 }
 
-function webexReportConnectedActivityDurationMs(task) {
-  const activities = webexReportActivities(task).filter(webexReportIsConnectedActivity);
-  if (!activities.length) return 0;
+function webexReportConnectedActivityDurationMs(activities = []) {
+  const connectedActivities = (Array.isArray(activities) ? activities : [])
+    .filter(webexReportIsConnectedActivity);
+  if (!connectedActivities.length) return 0;
 
-  const withAgent = activities.filter(activity =>
+  const withAgent = connectedActivities.filter(activity =>
     webexReportText(activity?.agentName) || webexReportText(activity?.agentId)
   );
-  const candidates = withAgent.length ? withAgent : activities;
+  const candidates = withAgent.length ? withAgent : connectedActivities;
 
   const segments = candidates
     .map(activity => {
@@ -158,11 +163,16 @@ function webexReportConnectedActivityDurationMs(task) {
   return total;
 }
 
-function webexReportFindAnswerContext(task, taskLegs = []) {
-  const activities = webexReportActivities(task)
+function webexReportFindAnswerContext(task, taskLegs = [], carActivities = []) {
+  const dedicatedCarActivities = (Array.isArray(carActivities) ? [...carActivities] : [])
     .filter(activity => webexReportEpoch(activity?.createdTime) > 0)
     .sort((a, b) => webexReportEpoch(a.createdTime) - webexReportEpoch(b.createdTime));
 
+  const fallbackActivities = webexReportActivities(task)
+    .filter(activity => webexReportEpoch(activity?.createdTime) > 0)
+    .sort((a, b) => webexReportEpoch(a.createdTime) - webexReportEpoch(b.createdTime));
+
+  const activities = dedicatedCarActivities.length ? dedicatedCarActivities : fallbackActivities;
   const answerActivity = activities.find(webexReportIsConnectedActivity);
   const connectedAgentActivity = activities.find(activity =>
     webexReportIsConnectedActivity(activity) &&
@@ -179,7 +189,7 @@ function webexReportFindAnswerContext(task, taskLegs = []) {
         webexReportText(agentActivity?.agentName) ||
         webexReportText(task?.lastAgent?.name) ||
         "-",
-      source: "customer-activity-record"
+      source: dedicatedCarActivities.length ? "customer-activity-record-dedicated" : "customer-activity-record"
     };
   }
 
@@ -216,7 +226,7 @@ function webexReportFindAnswerContext(task, taskLegs = []) {
   };
 }
 
-function webexReportTransferSignal(task, taskLegs = []) {
+function webexReportTransferSignal(task, taskLegs = [], carActivities = []) {
   const taskCounts = [
     task?.transferCount,
     task?.blindTransferCount,
@@ -231,13 +241,18 @@ function webexReportTransferSignal(task, taskLegs = []) {
 
   if (taskCounts.some(value => webexReportNumber(value) > 0)) return true;
   if (webexReportText(task?.transferEpDN)) return true;
+  if (webexReportLower(task?.status).includes("transfer")) return true;
 
   if (taskLegs.some(leg =>
     webexReportNumber(leg?.transferCount) > 0 ||
     webexReportNumber(leg?.blindTransferCount) > 0
   )) return true;
 
-  return webexReportActivities(task).some(activity => {
+  const activities = (Array.isArray(carActivities) && carActivities.length)
+    ? carActivities
+    : webexReportActivities(task);
+
+  return activities.some(activity => {
     const transferType = webexReportText(activity?.transferType);
     const activityText = [
       activity?.activityType,
@@ -249,11 +264,15 @@ function webexReportTransferSignal(task, taskLegs = []) {
   });
 }
 
-function webexReportTransferDestination(task, taskLegs = []) {
+function webexReportTransferDestination(task, taskLegs = [], carActivities = []) {
   const transferEpDn = webexReportText(task?.transferEpDN);
   if (transferEpDn) return transferEpDn;
 
-  const transferActivities = webexReportActivities(task)
+  const activities = (Array.isArray(carActivities) && carActivities.length)
+    ? [...carActivities]
+    : webexReportActivities(task);
+
+  const transferActivities = activities
     .filter(activity =>
       webexReportText(activity?.transferType) ||
       webexReportText(activity?.destinationAgentPhoneNumber) ||
@@ -319,7 +338,7 @@ function webexReportAbandonmentStage(task, taskLegs = []) {
   return "Abandoned Before Queue";
 }
 
-function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStartEpoch = 0) {
+function buildWebexDailyReportPayload(tasks, taskLegs, carTasks, now = Date.now(), dayStartEpoch = 0) {
   const reportDayStart = dayStartEpoch || getCentralDayStartEpochMs(now);
   const inboundTasks = (Array.isArray(tasks) ? tasks : [])
     .filter(webexReportIsInboundTelephony)
@@ -336,20 +355,38 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
     legsByTaskId.get(taskId).push(leg);
   }
 
+  const carActivitiesByTaskId = new Map();
+  let carActivityRows = 0;
+  let carTasksWithActivities = 0;
+  let carInnerTruncatedTasks = 0;
+
+  for (const carTask of (Array.isArray(carTasks) ? carTasks : [])) {
+    const taskId = webexReportText(carTask?.id);
+    if (!taskId) continue;
+    const activities = webexReportActivities(carTask);
+    if (activities.length) carTasksWithActivities += 1;
+    carActivityRows += activities.length;
+    if (carTask?.activities?.pageInfo?.hasNextPage) carInnerTruncatedTasks += 1;
+
+    if (!carActivitiesByTaskId.has(taskId)) carActivitiesByTaskId.set(taskId, []);
+    carActivitiesByTaskId.get(taskId).push(...activities);
+  }
+
   const answeredCalls = [];
   const abandonedCalls = [];
 
   for (const task of inboundTasks) {
     const contactId = webexReportText(task?.id);
     const legs = contactId ? (legsByTaskId.get(contactId) || []) : [];
-    const answered = webexReportHasAnswerSignal(task, legs);
+    const carActivities = contactId ? (carActivitiesByTaskId.get(contactId) || []) : [];
+    const answered = webexReportHasAnswerSignal(task, legs, carActivities);
     const abandoned = !answered && webexReportHasAbandonSignal(task, legs);
 
     if (answered) {
       const startEpoch = webexReportEpoch(task?.createdTime);
       const endEpoch = webexReportEpoch(task?.endedTime) || webexReportEpoch(task?.lastActivityTime) || now;
       const totalDurationMs = webexReportTaskDurationMs(task, now);
-      const answerContext = webexReportFindAnswerContext(task, legs);
+      const answerContext = webexReportFindAnswerContext(task, legs, carActivities);
       const measuredPreAnswerMs = answerContext.answerEpoch > startEpoch
         ? answerContext.answerEpoch - startEpoch
         : 0;
@@ -359,14 +396,17 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
         webexReportNumber(task?.ringingDuration);
       const ivrQueueMs = webexReportClampDuration(measuredPreAnswerMs || fallbackPreAnswerMs, totalDurationMs);
       const legConnectedMs = legs.reduce((sum, leg) => sum + webexReportNumber(leg?.connectedDuration), 0);
+      const activityDurationMs = webexReportConnectedActivityDurationMs(
+        carActivities.length ? carActivities : webexReportActivities(task)
+      );
       const talkMs = webexReportClampDuration(
         webexReportNumber(task?.connectedDuration) ||
         legConnectedMs ||
-        webexReportConnectedActivityDurationMs(task),
+        activityDurationMs,
         totalDurationMs
       );
-      const transferred = webexReportTransferSignal(task, legs);
-      const transferredTo = transferred ? webexReportTransferDestination(task, legs) : null;
+      const transferred = webexReportTransferSignal(task, legs, carActivities);
+      const transferredTo = transferred ? webexReportTransferDestination(task, legs, carActivities) : null;
 
       answeredCalls.push({
         contactId,
@@ -429,9 +469,11 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
   const totalCallsReceived = inboundTasks.length;
   const answeredCount = answeredCalls.length;
   const abandonedCount = abandonedCalls.length;
-  const carAnswerSignalRows = inboundTasks.filter(task =>
-    webexReportActivities(task).some(webexReportIsConnectedActivity)
-  ).length;
+  const carAnswerSignalRows = inboundTasks.filter(task => {
+    const taskId = webexReportText(task?.id);
+    const activities = taskId ? (carActivitiesByTaskId.get(taskId) || []) : [];
+    return activities.some(webexReportIsConnectedActivity);
+  }).length;
 
   return {
     success: true,
@@ -452,11 +494,15 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
     diagnostics: {
       inboundTelephonyContactsToday: totalCallsReceived,
       taskLegsCorrelated: (Array.isArray(taskLegs) ? taskLegs : []).filter(leg => legsByTaskId.has(webexReportText(leg?.taskId))).length,
+      carTasksReturned: Array.isArray(carTasks) ? carTasks.length : 0,
+      carTasksWithActivities,
+      carActivityRows,
+      carInnerTruncatedTasks,
       carAnswerSignalRows,
       answeredRows: answeredCount,
       abandonedRows: abandonedCount,
       unresolvedRows: Math.max(0, totalCallsReceived - answeredCount - abandonedCount),
-      correlationKey: "task.id = taskLeg.taskId"
+      correlationKey: "task.id = taskLeg.taskId = carTask.id"
     }
   };
 }
@@ -510,6 +556,29 @@ async function fetchWebexDailyReportTasks(env, from, to) {
             firstQueueName
             lastQueue { id name duration }
             lastAgent { id name signInId sessionId phoneNumber }
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `,
+    "taskDetails",
+    "tasks"
+  );
+}
+
+async function fetchWebexDailyReportCarTasks(env, from, to) {
+  return webexSearchPaged(
+    env,
+    cursor => `
+      {
+        taskDetails(
+          from: ${from}
+          to: ${to}
+          ${paginationArgument(cursor)}
+        ) {
+          tasks {
+            id
+            channelType
             activities(first: 100) {
               totalCount
               nodes {
@@ -631,12 +700,13 @@ async function buildWebexDailyReportData(env, force = false) {
   }
 
   webexDailyReportCache.promise = (async () => {
-    const [tasks, taskLegs] = await Promise.all([
+    const [tasks, taskLegs, carTasks] = await Promise.all([
       fetchWebexDailyReportTasks(env, dayStartEpoch, now),
-      fetchWebexDailyReportLegs(env, dayStartEpoch, now)
+      fetchWebexDailyReportLegs(env, dayStartEpoch, now),
+      fetchWebexDailyReportCarTasks(env, dayStartEpoch, now)
     ]);
 
-    const data = buildWebexDailyReportPayload(tasks, taskLegs, now, dayStartEpoch);
+    const data = buildWebexDailyReportPayload(tasks, taskLegs, carTasks, now, dayStartEpoch);
 
     webexDailyReportCache = {
       dayStartEpoch,

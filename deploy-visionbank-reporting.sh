@@ -8,7 +8,7 @@ OUTPUT="${VISIONBANK_REPORT_OUTPUT:-visionbank-worker-webex-dashboard-reporting.
 CONFIG="${VISIONBANK_REPORT_CONFIG:-wrangler.visionbank-reporting.jsonc}"
 WORKER_NAME="visionbank-security"
 EXPECTED_ACCOUNT_ID="8e3117e5e935059805f98211f6868c9c"
-VERSION_METADATA_FILE="/tmp/visionbank-reporting-version-metadata.json"
+VERSION_CREATE_FILE="/tmp/visionbank-reporting-version-create.json"
 VERSION_RESPONSE_FILE="/tmp/visionbank-reporting-version-response.json"
 
 export CLOUDFLARE_ACCOUNT_ID="$EXPECTED_ACCOUNT_ID"
@@ -59,7 +59,7 @@ if ('secrets' in config) throw new Error('Reporting config must not declare secr
 console.log(`Cloudflare account verified: ${config.account_id}`);
 console.log(`Config target verified: ${config.name}`);
 console.log(`Config main verified: ${config.main}`);
-console.log('Secret preservation mode verified: explicit version-bound inheritance.');
+console.log('Secret preservation mode verified: beta-version explicit inheritance.');
 NODE
 
 echo "Checking Cloudflare authentication/account..."
@@ -157,9 +157,9 @@ for anchor in "${required_output_anchors[@]}"; do
 done
 
 CANDIDATE_TAG="webex-daily-reports-$(date -u +%Y%m%dT%H%M%SZ)"
-node - "$CONFIG" "$ACTIVE_VERSION_ID" "$CANDIDATE_TAG" "$VERSION_METADATA_FILE" <<'NODE'
+node - "$CONFIG" "$OUTPUT" "$ACTIVE_VERSION_ID" "$CANDIDATE_TAG" "$VERSION_CREATE_FILE" <<'NODE'
 const fs = require('fs');
-const [configPath, activeVersionId, candidateTag, outputPath] = process.argv.slice(2);
+const [configPath, modulePath, activeVersionId, candidateTag, outputPath] = process.argv.slice(2);
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
 const requiredSecrets = ['ALIANZA_PASSWORD','BREVO_API_KEY','CC_API_TOKEN','CCM_PASSWORD','PDFSHIFT_API_KEY','WEBEX_ACCESS_TOKEN','WEBEX_CLIENT_SECRET','WEBEX_REFRESH_TOKEN'];
 const bindings = [
@@ -167,21 +167,29 @@ const bindings = [
   ...Object.entries(config.vars || {}).map(([name, value]) => ({ name, type: 'plain_text', text: String(value) })),
   ...requiredSecrets.map(name => ({ name, type: 'inherit', version_id: activeVersionId }))
 ];
-const metadata = {
+const body = {
   main_module: config.main,
   compatibility_date: config.compatibility_date,
+  usage_model: 'standard',
   bindings,
+  modules: [{
+    name: config.main,
+    content_type: 'application/javascript+module',
+    content_base64: fs.readFileSync(modulePath).toString('base64')
+  }],
   annotations: {
     'workers/message': 'Webex daily reports candidate',
     'workers/tag': candidateTag
   }
 };
-fs.writeFileSync(outputPath, JSON.stringify(metadata), { mode: 0o600 });
+fs.writeFileSync(outputPath, JSON.stringify(body), { mode: 0o600 });
 const inherited = bindings.filter(b => b.type === 'inherit');
-if (inherited.length !== requiredSecrets.length) throw new Error('Explicit secret inheritance metadata is incomplete.');
+if (bindings.length !== 32) throw new Error(`Expected 32 candidate bindings, found ${bindings.length}.`);
+if (inherited.length !== requiredSecrets.length) throw new Error('Explicit secret inheritance body is incomplete.');
 if (inherited.some(b => b.version_id !== activeVersionId)) throw new Error('A secret inherit binding is not pinned to the active production version.');
-console.log(`Version metadata prepared: ${bindings.length} bindings.`);
+console.log(`Beta version request prepared: ${bindings.length} bindings.`);
 console.log(`Explicit secret inheritance pinned to: ${activeVersionId}`);
+console.log(`Module bytes: ${fs.statSync(modulePath).size}`);
 NODE
 
 echo "Running Wrangler module dry-run..."
@@ -190,26 +198,47 @@ echo "All pre-deployment checks passed."
 
 if [[ "$MODE" != "--deploy" ]]; then
   echo "CHECK-ONLY MODE: no Cloudflare version was uploaded or deployed."
-  echo "To perform the controlled API upload/validate/promote release, run: bash $0 --deploy"
+  echo "To perform the controlled beta-version create/validate/promote release, run: bash $0 --deploy"
   exit 0
 fi
 
 [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || {
-  echo "ERROR: CLOUDFLARE_API_TOKEN is not set. Refusing direct Version Upload API call." >&2
+  echo "ERROR: CLOUDFLARE_API_TOKEN is not set. Refusing direct Workers Versions API call." >&2
   exit 1
 }
 
 ROLLBACK_VERSION_ID="$ACTIVE_VERSION_ID"
-UPLOAD_URL="https://api.cloudflare.com/client/v4/accounts/${EXPECTED_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/versions?bindings_inherit=strict"
+BETA_VERSION_URL="https://api.cloudflare.com/client/v4/accounts/${EXPECTED_ACCOUNT_ID}/workers/workers/${WORKER_NAME}/versions?deploy=false"
 
-echo "Uploading candidate version with zero production traffic via Cloudflare Version Upload API..."
-echo "Candidate tag: ${CANDIDATE_TAG}"
-curl --fail-with-body --silent --show-error \
-  -X POST "$UPLOAD_URL" \
+echo "Verifying active production version is visible through the Workers Versions API..."
+ACTIVE_BETA_RESPONSE="/tmp/visionbank-beta-active-version.json"
+HTTP_CODE="$(curl --silent --show-error \
+  -o "$ACTIVE_BETA_RESPONSE" \
+  -w '%{http_code}' \
   -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-  -F "metadata=@${VERSION_METADATA_FILE};type=application/json" \
-  -F "${OUTPUT}=@${OUTPUT};type=application/javascript+module" \
-  > "$VERSION_RESPONSE_FILE"
+  "https://api.cloudflare.com/client/v4/accounts/${EXPECTED_ACCOUNT_ID}/workers/workers/${WORKER_NAME}/versions/${ACTIVE_VERSION_ID}")"
+if [[ "$HTTP_CODE" != "200" ]]; then
+  echo "ERROR: Workers Versions API could not read active version ${ACTIVE_VERSION_ID} (HTTP ${HTTP_CODE})." >&2
+  cat "$ACTIVE_BETA_RESPONSE" >&2 || true
+  exit 1
+fi
+
+echo "Creating zero-traffic candidate through Workers Versions API..."
+echo "Candidate tag: ${CANDIDATE_TAG}"
+HTTP_CODE="$(curl --silent --show-error \
+  -o "$VERSION_RESPONSE_FILE" \
+  -w '%{http_code}' \
+  -X POST "$BETA_VERSION_URL" \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  --data-binary "@${VERSION_CREATE_FILE}")"
+if [[ "$HTTP_CODE" != "200" ]]; then
+  echo "ERROR: Workers Versions API candidate creation failed (HTTP ${HTTP_CODE})." >&2
+  cat "$VERSION_RESPONSE_FILE" >&2 || true
+  echo >&2
+  echo "Production remains on ${ROLLBACK_VERSION_ID} at 100%." >&2
+  exit 1
+fi
 
 CANDIDATE_VERSION_ID="$(node - "$VERSION_RESPONSE_FILE" <<'NODE'
 const fs = require('fs');
@@ -217,15 +246,15 @@ const [responsePath] = process.argv.slice(2);
 const payload = JSON.parse(fs.readFileSync(responsePath, 'utf8'));
 if (payload?.success !== true) {
   const errors = Array.isArray(payload?.errors) ? payload.errors.map(e => e.message || e.code).join(' | ') : 'unknown error';
-  throw new Error(`Cloudflare Version Upload API failed: ${errors}`);
+  throw new Error(`Cloudflare Workers Versions API failed: ${errors}`);
 }
 const id = payload?.result?.id;
-if (!id) throw new Error('Cloudflare Version Upload API succeeded but returned no result.id.');
+if (!id) throw new Error('Cloudflare Workers Versions API succeeded but returned no result.id.');
 process.stdout.write(id);
 NODE
 )"
 
-echo "Candidate version uploaded: ${CANDIDATE_VERSION_ID}"
+echo "Candidate version created with zero production traffic: ${CANDIDATE_VERSION_ID}"
 echo "Validating candidate bindings BEFORE promotion..."
 set +e
 validate_version_bindings "$CANDIDATE_VERSION_ID" "Candidate" /tmp/visionbank-candidate-version.json
@@ -270,7 +299,7 @@ if [[ $POST_PROMOTION_RC -ne 0 ]]; then
   exit 1
 fi
 
-echo "Worker candidate upload, pre-promotion validation, promotion, and post-promotion validation passed."
+echo "Worker candidate creation, pre-promotion validation, promotion, and post-promotion validation passed."
 echo "Previous rollback version: ${ROLLBACK_VERSION_ID}"
 echo "New active version: ${NEW_VERSION_ID}"
 echo "DO NOT publish the Webex report UI yet. Validate /api/webex/daily-reports first."

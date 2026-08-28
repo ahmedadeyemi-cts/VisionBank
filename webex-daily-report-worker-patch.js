@@ -182,19 +182,19 @@ function webexReportTransferSignal(task, taskLegs = []) {
 
   if (taskLegs.some(leg =>
     webexReportNumber(leg?.transferCount) > 0 ||
-    webexReportNumber(leg?.blindTransferCount) > 0 ||
-    webexReportText(leg?.nextDestination?.agent?.phoneNumber) ||
-    webexReportText(leg?.nextDestination?.agent?.name) ||
-    webexReportText(leg?.nextDestination?.queue?.name)
+    webexReportNumber(leg?.blindTransferCount) > 0
   )) return true;
 
-  return webexReportActivities(task).some(activity =>
-    webexReportText(activity?.transferType) ||
-    webexReportText(activity?.destinationAgentPhoneNumber) ||
-    webexReportText(activity?.destinationAgentName) ||
-    webexReportText(activity?.destinationQueueName) ||
-    webexReportText(activity?.consultEpName)
-  );
+  return webexReportActivities(task).some(activity => {
+    const transferType = webexReportText(activity?.transferType);
+    const activityText = [
+      activity?.activityType,
+      activity?.activityName,
+      activity?.eventName
+    ].map(webexReportLower).join(" ");
+
+    return Boolean(transferType) || activityText.includes("transfer");
+  });
 }
 
 function webexReportTransferDestination(task, taskLegs = []) {

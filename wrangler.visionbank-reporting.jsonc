@@ -2,6 +2,11 @@
   // VisionBank Security Worker - Webex daily reporting release candidate
   // IMPORTANT: Use this config for the reporting deployment candidate.
   // It targets the generated integrated Worker, NOT repo worker.js.
+  //
+  // Cron preservation:
+  // `triggers` is intentionally omitted. Current Cloudflare Wrangler behavior
+  // leaves already-deployed Cron Triggers in place when triggers/crons are
+  // undefined. Do NOT set crons: [] here; that would remove scheduled work.
 
   "name": "visionbank-security",
   "main": "visionbank-worker-webex-dashboard-reporting.js",

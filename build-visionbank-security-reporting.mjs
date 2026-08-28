@@ -7,6 +7,7 @@ import path from "node:path";
 const sourcePath = process.argv[2] || "visionbank-worker-webex-agent-v5.js";
 const patchPath = process.argv[3] || "webex-daily-report-worker-patch.js";
 const outputPath = process.argv[4] || "visionbank-worker-webex-dashboard-reporting.js";
+const aarOverridePath = process.argv[5] || "webex-daily-report-aar-override.js";
 
 function fail(message) {
   console.error(`ERROR: ${message}`);
@@ -15,9 +16,11 @@ function fail(message) {
 
 if (!fs.existsSync(sourcePath)) fail(`Production v5 Worker source not found: ${sourcePath}`);
 if (!fs.existsSync(patchPath)) fail(`Reporting patch not found: ${patchPath}`);
+if (!fs.existsSync(aarOverridePath)) fail(`AAR reporting adapter not found: ${aarOverridePath}`);
 
 const source = fs.readFileSync(sourcePath, "utf8");
 const patch = fs.readFileSync(patchPath, "utf8");
+const aarOverride = fs.readFileSync(aarOverridePath, "utf8");
 
 const requiredSourceAnchors = [
   'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";',
@@ -64,11 +67,25 @@ const requiredPatchAnchors = [
   "buildWebexDailyReportPayload",
   "fetchWebexDailyReportTasks",
   "fetchWebexDailyReportLegs",
+  "fetchWebexDailyReportCarTasks",
   "WEBEX_DAILY_REPORT_CACHE_MS"
 ];
 
 for (const anchor of requiredPatchAnchors) {
   if (!patch.includes(anchor)) fail(`Reporting patch anchor missing: ${anchor}`);
+}
+
+const requiredAarAnchors = [
+  "fetchWebexDailyReportAgentSessions",
+  "buildWebexDailyAarIndex",
+  "enrichWebexCarTasksWithAar",
+  'webexReportLower(activity?.state) === "connected"',
+  'correlationKey: "task.id = taskLeg.taskId = carTask.id = aar.taskId"',
+  "buildWebexDailyReportData = async function buildWebexDailyReportDataWithAar"
+];
+
+for (const anchor of requiredAarAnchors) {
+  if (!aarOverride.includes(anchor)) fail(`AAR adapter anchor missing: ${anchor}`);
 }
 
 // The patch artifact ends with a documentation-only ROUTE ADDITION example.
@@ -88,13 +105,18 @@ let integrated = source.replace(routeAnchor, routeAddition);
 
 integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING EXTENSION\n   Source: ${path.basename(patchPath)}\n   Baseline: combined VisionBank Security v5 Worker\n   Integrated by build-visionbank-security-reporting.mjs\n   ============================================================ */\n\n${executablePatch}\n\n/* END WEBEX DAILY REPORTING EXTENSION */\n`;
 
+integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING AAR ADAPTER\n   Source: ${path.basename(aarOverridePath)}\n   Purpose: authoritative agent Connected/taskId enrichment\n   ============================================================ */\n\n${aarOverride.trimEnd()}\n\n/* END WEBEX DAILY REPORTING AAR ADAPTER */\n`;
+
 const exactCountChecks = [
   ['async function handleWebexDailyReports(', 1],
   ['const WEBEX_DAILY_REPORT_CACHE_MS', 1],
   ['const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";', 1],
   ['const WEBEX_AGENT_CONTROL_BUILD = "2026.08.27-v5";', 1],
   ['async function runWebexAutoLogoutSchedule(', 1],
-  ['async function runWebexAgentReminderSchedule(', 1]
+  ['async function runWebexAgentReminderSchedule(', 1],
+  ['async function fetchWebexDailyReportAgentSessions(', 1],
+  ['function buildWebexDailyAarIndex(', 1],
+  ['function enrichWebexCarTasksWithAar(', 1]
 ];
 
 for (const [needle, expected] of exactCountChecks) {
@@ -114,7 +136,9 @@ const requiredPreservationChecks = [
   'runWebexAutoLogoutSchedule',
   'runWebexAgentReminderSchedule',
   '/security/check',
-  '/api/login'
+  '/api/login',
+  'aarConnectedRows',
+  'task.id = taskLeg.taskId = carTask.id = aar.taskId'
 ];
 
 for (const needle of requiredPreservationChecks) {
@@ -126,7 +150,9 @@ fs.writeFileSync(outputPath, integrated, "utf8");
 console.log("VisionBank Security v5 reporting candidate created successfully.");
 console.log(`Source: ${sourcePath}`);
 console.log(`Patch:  ${patchPath}`);
+console.log(`AAR:    ${aarOverridePath}`);
 console.log(`Output: ${outputPath}`);
 console.log(`Bytes:  ${Buffer.byteLength(integrated, "utf8")}`);
 console.log("Preserved: Webex OAuth rotation, Webex Agent controls, reminder scheduler, automatic sign-out scheduler.");
+console.log("Reporting: CSR + CLR + CAR + AAR taskId correlation enabled.");
 console.log("No Cloudflare deployment was performed by this script.");

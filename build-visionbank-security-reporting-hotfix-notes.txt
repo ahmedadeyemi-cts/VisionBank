@@ -1,0 +1,1 @@
+Security route hotfix staging marker. The builder update injects GET /security/check using existing checkAccess() and json() before the Webex statistics route and validates exactly one live route in generated output.

@@ -62,10 +62,42 @@ function webexReportIsInboundTelephony(task) {
     webexReportLower(task?.direction) === "inbound";
 }
 
+function webexReportActivities(task) {
+  const nodes = task?.activities?.nodes;
+  return Array.isArray(nodes) ? [...nodes] : [];
+}
+
+function webexReportIsConnectedActivity(activity) {
+  const values = [
+    activity?.eventName,
+    activity?.previousState,
+    activity?.nextState,
+    activity?.activityType,
+    activity?.activityName
+  ].map(webexReportLower);
+
+  return values.some(value => {
+    if (!value || value.includes("disconnect")) return false;
+    return (
+      value === "connected" ||
+      value === "connect" ||
+      value === "ctq-accepted" ||
+      value.includes("ctq-accepted") ||
+      value.includes("ctq accepted") ||
+      value.includes("agent-connected") ||
+      value.includes("agent connected") ||
+      value.includes("agent-connect") ||
+      value.includes("connected-to-agent")
+    );
+  });
+}
+
 function webexReportHasAnswerSignal(task, taskLegs = []) {
   if (task?.isContactHandled === true) return true;
   if (webexReportNumber(task?.connectedCount) > 0) return true;
   if (webexReportNumber(task?.connectedDuration) > 0) return true;
+
+  if (webexReportActivities(task).some(webexReportIsConnectedActivity)) return true;
 
   return taskLegs.some(leg =>
     leg?.isTaskLegHandled === true ||
@@ -86,31 +118,44 @@ function webexReportHasAbandonSignal(task, taskLegs = []) {
   );
 }
 
-function webexReportActivities(task) {
-  const nodes = task?.activities?.nodes;
-  return Array.isArray(nodes) ? [...nodes] : [];
-}
+function webexReportConnectedActivityDurationMs(task) {
+  const activities = webexReportActivities(task).filter(webexReportIsConnectedActivity);
+  if (!activities.length) return 0;
 
-function webexReportIsConnectedActivity(activity) {
-  const values = [
-    activity?.eventName,
-    activity?.previousState,
-    activity?.nextState,
-    activity?.activityType,
-    activity?.activityName
-  ].map(webexReportLower);
+  const withAgent = activities.filter(activity =>
+    webexReportText(activity?.agentName) || webexReportText(activity?.agentId)
+  );
+  const candidates = withAgent.length ? withAgent : activities;
 
-  return values.some(value => {
-    if (!value || value.includes("disconnect")) return false;
-    return (
-      value === "connected" ||
-      value === "connect" ||
-      value.includes("agent-connected") ||
-      value.includes("agent connected") ||
-      value.includes("agent-connect") ||
-      value.includes("connected-to-agent")
-    );
-  });
+  const segments = candidates
+    .map(activity => {
+      const start = webexReportEpoch(activity?.createdTime);
+      const explicitEnd = webexReportEpoch(activity?.endedTime) || webexReportEpoch(activity?.lastActivityTime);
+      const duration = webexReportNumber(activity?.duration);
+      const end = explicitEnd > start
+        ? explicitEnd
+        : (start > 0 && duration > 0 ? start + duration : 0);
+      return start > 0 && end > start ? { start, end } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start);
+
+  if (!segments.length) {
+    return candidates.reduce((sum, activity) => sum + webexReportNumber(activity?.duration), 0);
+  }
+
+  let total = 0;
+  let current = { ...segments[0] };
+  for (const segment of segments.slice(1)) {
+    if (segment.start <= current.end) {
+      current.end = Math.max(current.end, segment.end);
+    } else {
+      total += current.end - current.start;
+      current = { ...segment };
+    }
+  }
+  total += current.end - current.start;
+  return total;
 }
 
 function webexReportFindAnswerContext(task, taskLegs = []) {
@@ -118,15 +163,22 @@ function webexReportFindAnswerContext(task, taskLegs = []) {
     .filter(activity => webexReportEpoch(activity?.createdTime) > 0)
     .sort((a, b) => webexReportEpoch(a.createdTime) - webexReportEpoch(b.createdTime));
 
-  const connectedActivity = activities.find(activity =>
+  const answerActivity = activities.find(webexReportIsConnectedActivity);
+  const connectedAgentActivity = activities.find(activity =>
     webexReportIsConnectedActivity(activity) &&
     (webexReportText(activity?.agentName) || webexReportText(activity?.agentId))
   );
 
-  if (connectedActivity) {
+  if (answerActivity) {
+    const agentActivity = connectedAgentActivity ||
+      activities.find(activity => webexReportText(activity?.agentName) || webexReportText(activity?.agentId));
+
     return {
-      answerEpoch: webexReportEpoch(connectedActivity.createdTime),
-      agentName: webexReportText(connectedActivity.agentName) || "-",
+      answerEpoch: webexReportEpoch(answerActivity.createdTime),
+      agentName:
+        webexReportText(agentActivity?.agentName) ||
+        webexReportText(task?.lastAgent?.name) ||
+        "-",
       source: "customer-activity-record"
     };
   }
@@ -306,7 +358,13 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
         webexReportNumber(task?.queueDuration) +
         webexReportNumber(task?.ringingDuration);
       const ivrQueueMs = webexReportClampDuration(measuredPreAnswerMs || fallbackPreAnswerMs, totalDurationMs);
-      const talkMs = webexReportClampDuration(task?.connectedDuration, totalDurationMs);
+      const legConnectedMs = legs.reduce((sum, leg) => sum + webexReportNumber(leg?.connectedDuration), 0);
+      const talkMs = webexReportClampDuration(
+        webexReportNumber(task?.connectedDuration) ||
+        legConnectedMs ||
+        webexReportConnectedActivityDurationMs(task),
+        totalDurationMs
+      );
       const transferred = webexReportTransferSignal(task, legs);
       const transferredTo = transferred ? webexReportTransferDestination(task, legs) : null;
 
@@ -371,6 +429,9 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
   const totalCallsReceived = inboundTasks.length;
   const answeredCount = answeredCalls.length;
   const abandonedCount = abandonedCalls.length;
+  const carAnswerSignalRows = inboundTasks.filter(task =>
+    webexReportActivities(task).some(webexReportIsConnectedActivity)
+  ).length;
 
   return {
     success: true,
@@ -391,6 +452,7 @@ function buildWebexDailyReportPayload(tasks, taskLegs, now = Date.now(), dayStar
     diagnostics: {
       inboundTelephonyContactsToday: totalCallsReceived,
       taskLegsCorrelated: (Array.isArray(taskLegs) ? taskLegs : []).filter(leg => legsByTaskId.has(webexReportText(leg?.taskId))).length,
+      carAnswerSignalRows,
       answeredRows: answeredCount,
       abandonedRows: abandonedCount,
       unresolvedRows: Math.max(0, totalCallsReceived - answeredCount - abandonedCount),

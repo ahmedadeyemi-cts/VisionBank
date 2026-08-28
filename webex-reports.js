@@ -55,6 +55,67 @@
     return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0.0%";
   }
 
+  function ensureTransitionUi() {
+    const totalCard = byId("dailyTotalReceived")?.closest(".stat-card");
+    const summary = totalCard?.parentElement;
+
+    if (summary && !byId("dailyTransferredOut")) {
+      const card = document.createElement("div");
+      card.className = "stat-card";
+      card.id = "dailyTransferredOutCard";
+      card.innerHTML = `
+        <div class="stat-value" id="dailyTransferredOut">--</div>
+        <div class="stat-label">Transferred Out Today</div>
+      `;
+
+      const abandonedCard = byId("dailyAbandoned")?.closest(".stat-card");
+      if (abandonedCard?.nextSibling) {
+        summary.insertBefore(card, abandonedCard.nextSibling);
+      } else {
+        summary.appendChild(card);
+      }
+    }
+
+    const answerRate = byId("dailyAnswerRate");
+    const answerRateLabel = answerRate?.closest(".stat-card")?.querySelector(".stat-label");
+    if (answerRateLabel) answerRateLabel.textContent = "Agent Answer Rate";
+
+    if (summary && !byId("dailyOperatingModeNotice")) {
+      const notice = document.createElement("div");
+      notice.id = "dailyOperatingModeNotice";
+      notice.setAttribute("role", "status");
+      notice.style.display = "none";
+      notice.style.margin = "-6px 0 18px";
+      notice.style.padding = "10px 12px";
+      notice.style.border = "1px solid #cbd5e1";
+      notice.style.borderRadius = "8px";
+      notice.style.background = "rgba(59, 130, 246, 0.08)";
+      notice.style.fontSize = "12px";
+      notice.style.lineHeight = "1.45";
+      notice.style.color = "inherit";
+      summary.insertAdjacentElement("afterend", notice);
+    }
+  }
+
+  function renderOperatingMode(payload = {}) {
+    ensureTransitionUi();
+    const notice = byId("dailyOperatingModeNotice");
+    if (!notice) return;
+
+    const transferredOut = Number(payload?.summary?.transferredOutCalls || 0);
+    const transitionMode = payload?.operatingMode === "flow-blind-transfer-transition";
+
+    if (transitionMode || transferredOut > 0) {
+      const message = payload?.operatingModeMessage ||
+        `${transferredOut.toLocaleString()} call${transferredOut === 1 ? "" : "s"} transferred out by Webex Contact Center Flow.`;
+      notice.innerHTML = `<strong>Current call-routing mode:</strong> ${html(message)} When agents begin taking calls inside Webex Contact Center, answered-agent metrics will populate automatically.`;
+      notice.style.display = "block";
+    } else {
+      notice.textContent = "";
+      notice.style.display = "none";
+    }
+  }
+
   function compareValues(a, b, key) {
     const av = a?.[key];
     const bv = b?.[key];
@@ -165,7 +226,12 @@
     const colspan = kind === "answered" ? 10 : 8;
 
     if (!pageRows.length) {
-      const empty = kind === "answered" ? "No answered calls today." : "No abandoned calls today.";
+      let empty;
+      if (kind === "answered" && lastPayload?.summary?.agentAnswerRateApplicable === false) {
+        empty = "No calls were answered by Webex agents today. Calls are currently being blind-transferred out by Flow.";
+      } else {
+        empty = kind === "answered" ? "No answered calls today." : "No abandoned calls today.";
+      }
       body.innerHTML = `<tr><td colspan="${colspan}" class="report-empty">${empty}</td></tr>`;
     } else {
       body.innerHTML = pageRows
@@ -186,17 +252,27 @@
   }
 
   function renderSummary(summary = {}) {
+    ensureTransitionUi();
     setText("dailyTotalReceived", Number(summary.totalCallsReceived || 0).toLocaleString());
     setText("dailyAnswered", Number(summary.answeredCalls || 0).toLocaleString());
     setText("dailyAbandoned", Number(summary.abandonedCalls || 0).toLocaleString());
-    setText("dailyAnswerRate", formatRate(summary.answerRate));
+    setText("dailyTransferredOut", Number(summary.transferredOutCalls || 0).toLocaleString());
+    setText("dailyAnswerRate", summary.agentAnswerRateApplicable === false ? "N/A" : formatRate(summary.answerRate));
     setText("dailyAbandonRate", formatRate(summary.abandonRate));
+
+    const transferCard = byId("dailyTransferredOutCard");
+    if (transferCard) {
+      transferCard.title = `Transferred out rate: ${formatRate(summary.transferredOutRate)}`;
+    }
   }
 
   function setReportMeta(payload) {
     const label = payload?.generatedAtCentral || "-";
-    setText("answeredCallsMeta", `America/Chicago business day • Updated ${label}`);
-    setText("abandonedCallsMeta", `America/Chicago business day • Updated ${label}`);
+    const modeSuffix = payload?.operatingMode === "flow-blind-transfer-transition"
+      ? " • Flow blind-transfer transition mode"
+      : "";
+    setText("answeredCallsMeta", `America/Chicago business day • Updated ${label}${modeSuffix}`);
+    setText("abandonedCallsMeta", `America/Chicago business day • Updated ${label}${modeSuffix}`);
   }
 
   function setLoading(kind, message) {
@@ -236,6 +312,7 @@
         states.abandoned.rows = Array.isArray(data.abandonedCalls) ? data.abandonedCalls : [];
 
         renderSummary(data.summary || {});
+        renderOperatingMode(data);
         setReportMeta(data);
         renderTable("answered");
         renderTable("abandoned");
@@ -587,6 +664,7 @@
   function initialize() {
     if (!byId("answeredCallsBody") || !byId("abandonedCallsBody")) return;
 
+    ensureTransitionUi();
     bindSearch("answered");
     bindSearch("abandoned");
     bindPagination("answered");
@@ -614,7 +692,9 @@
     createStoredZip,
     crc32,
     states,
-    applyFilterSort
+    applyFilterSort,
+    ensureTransitionUi,
+    renderOperatingMode
   };
 
   if (document.readyState === "loading") {

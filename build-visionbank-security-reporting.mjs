@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const sourcePath = process.argv[2] || "visionbank-worker-webex-dashboard.js";
+// IMPORTANT: the reporting release must be integrated into the combined v5
+// visionbank-security Worker. v4 predates the Webex Agent controls and scheduled
+// automatic sign-out work and must never be used as a deployment baseline.
+const sourcePath = process.argv[2] || "visionbank-worker-webex-agent-v5.js";
 const patchPath = process.argv[3] || "webex-daily-report-worker-patch.js";
 const outputPath = process.argv[4] || "visionbank-worker-webex-dashboard-reporting.js";
 
@@ -10,14 +13,20 @@ function fail(message) {
   process.exit(1);
 }
 
-if (!fs.existsSync(sourcePath)) fail(`Production Worker source not found: ${sourcePath}`);
+if (!fs.existsSync(sourcePath)) fail(`Production v5 Worker source not found: ${sourcePath}`);
 if (!fs.existsSync(patchPath)) fail(`Reporting patch not found: ${patchPath}`);
 
 const source = fs.readFileSync(sourcePath, "utf8");
 const patch = fs.readFileSync(patchPath, "utf8");
 
 const requiredSourceAnchors = [
-  'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";',
+  'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";',
+  'const WEBEX_AGENT_CONTROL_BUILD = "2026.08.27-v5";',
+  'if (path === "/api/webex/agent/auto-logout/run" && method === "POST")',
+  'async function runWebexAutoLogoutSchedule(',
+  'async function runWebexAgentReminderSchedule(',
+  '["webex-agent-auto-logout", () => runWebexAutoLogoutSchedule(env)]',
+  '["webex-agent-reminder", () => runWebexAgentReminderSchedule(env)]',
   'const WEBEX_CENTRAL_TIMEZONE = "America/Chicago";',
   'async function webexSearchPaged(',
   'function paginationArgument(',
@@ -30,54 +39,81 @@ const requiredSourceAnchors = [
 
 for (const anchor of requiredSourceAnchors) {
   if (!source.includes(anchor)) {
-    fail(`Expected production anchor missing: ${anchor}`);
+    fail(`Expected v5 production anchor missing: ${anchor}`);
   }
 }
 
+if (source.includes('const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";')) {
+  fail("v4 Worker detected. Refusing to build because this would roll back Webex Agent controls.");
+}
+
 if (source.includes('/api/webex/daily-reports')) {
-  fail("Production Worker already contains /api/webex/daily-reports; refusing duplicate integration.");
+  fail("Source Worker already contains /api/webex/daily-reports; refusing duplicate integration.");
 }
 
 const routeAnchor = `if (path === "/api/webex/statistics" && method === "GET") {\n  return handleWebexStatistics(request, env, cors);\n}`;
 
 if (!source.includes(routeAnchor)) {
-  fail("Could not find the exact Webex statistics route anchor. No file was changed.");
+  fail("Could not find the exact Webex statistics route anchor. No output was written.");
 }
 
 const routeAddition = `${routeAnchor}\n\n/** WEBEX DAILY CALL REPORTS - READ ONLY **/\nif (path === "/api/webex/daily-reports" && method === "GET") {\n  return handleWebexDailyReports(request, env, cors);\n}`;
 
-if (!patch.includes("async function handleWebexDailyReports(")) {
-  fail("Reporting patch does not contain handleWebexDailyReports().");
-}
+const requiredPatchAnchors = [
+  "async function handleWebexDailyReports(",
+  "buildWebexDailyReportPayload",
+  "fetchWebexDailyReportTasks",
+  "fetchWebexDailyReportLegs",
+  "WEBEX_DAILY_REPORT_CACHE_MS"
+];
 
-if (!patch.includes("buildWebexDailyReportPayload")) {
-  fail("Reporting patch does not contain the expected report builder.");
+for (const anchor of requiredPatchAnchors) {
+  if (!patch.includes(anchor)) fail(`Reporting patch anchor missing: ${anchor}`);
 }
 
 let integrated = source.replace(routeAnchor, routeAddition);
 
-integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING EXTENSION\n   Source: ${path.basename(patchPath)}\n   Integrated by build-visionbank-security-reporting.mjs\n   ============================================================ */\n\n${patch.trim()}\n\n/* END WEBEX DAILY REPORTING EXTENSION */\n`;
+integrated += `\n\n/* ============================================================\n   BEGIN WEBEX DAILY REPORTING EXTENSION\n   Source: ${path.basename(patchPath)}\n   Baseline: combined VisionBank Security v5 Worker\n   Integrated by build-visionbank-security-reporting.mjs\n   ============================================================ */\n\n${patch.trim()}\n\n/* END WEBEX DAILY REPORTING EXTENSION */\n`;
 
-const safetyChecks = [
-  ['/api/webex/daily-reports', 2], // one live route + one patch documentation reference
+const exactCountChecks = [
   ['async function handleWebexDailyReports(', 1],
   ['const WEBEX_DAILY_REPORT_CACHE_MS', 1],
-  ['WEBEX_TOKEN_URL', 1],
-  ['WEBEX_REFRESH_EARLY_MS', 1]
+  ['const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";', 1],
+  ['const WEBEX_AGENT_CONTROL_BUILD = "2026.08.27-v5";', 1],
+  ['async function runWebexAutoLogoutSchedule(', 1],
+  ['async function runWebexAgentReminderSchedule(', 1]
 ];
 
-for (const [needle, expectedMinimum] of safetyChecks) {
+for (const [needle, expected] of exactCountChecks) {
   const count = integrated.split(needle).length - 1;
-  if (count < expectedMinimum) {
-    fail(`Integrated output failed safety check for '${needle}'. Found ${count}.`);
-  }
+  if (count !== expected) fail(`Integrated output expected ${expected} occurrence(s) of '${needle}', found ${count}.`);
+}
+
+const routeCount = integrated.split('if (path === "/api/webex/daily-reports" && method === "GET")').length - 1;
+if (routeCount !== 1) fail(`Expected exactly one live daily-report route, found ${routeCount}.`);
+
+const requiredPreservationChecks = [
+  'WEBEX_TOKEN_URL',
+  'WEBEX_REFRESH_EARLY_MS',
+  '/api/webex/agent/settings',
+  '/api/webex/agent/logout',
+  '/api/webex/agent/auto-logout/run',
+  'runWebexAutoLogoutSchedule',
+  'runWebexAgentReminderSchedule',
+  '/security/check',
+  '/api/login'
+];
+
+for (const needle of requiredPreservationChecks) {
+  if (!integrated.includes(needle)) fail(`Preservation check failed: ${needle}`);
 }
 
 fs.writeFileSync(outputPath, integrated, "utf8");
 
-console.log("VisionBank Security reporting candidate created successfully.");
+console.log("VisionBank Security v5 reporting candidate created successfully.");
 console.log(`Source: ${sourcePath}`);
 console.log(`Patch:  ${patchPath}`);
 console.log(`Output: ${outputPath}`);
 console.log(`Bytes:  ${Buffer.byteLength(integrated, "utf8")}`);
+console.log("Preserved: Webex OAuth rotation, Webex Agent controls, reminder scheduler, automatic sign-out scheduler.");
 console.log("No Cloudflare deployment was performed by this script.");

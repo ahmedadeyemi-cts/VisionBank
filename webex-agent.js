@@ -4,9 +4,10 @@
 // =====================================================
 
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+const WEBEX_AGENT_BASE = "https://visionbank-webex-agent.ahmedadeyemi.workers.dev";
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
-const WEBEX_AGENT_BUILD = "2026.08.27-v5";
+const WEBEX_AGENT_BUILD = "2026.08.27-standalone-v1";
 
 console.info(`Webex Agent Controls build ${WEBEX_AGENT_BUILD}`);
 
@@ -68,7 +69,7 @@ function authHeaders(extra = {}) {
 }
 
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${SECURITY_BASE}${path}`, {
+  const res = await fetch(`${WEBEX_AGENT_BASE}${path}`, {
     ...options,
     mode: "cors",
     credentials: "omit",
@@ -473,27 +474,12 @@ runAutoLogoutNowBtn?.addEventListener("click", async function () {
 // TEST REMINDER
 // =====================================================
 sendTestReminderBtn?.addEventListener("click", async function () {
-  sendTestReminderBtn.disabled = true;
-  sendTestReminderBtn.textContent = "Sending...";
-
-  try {
-    const { res, data } = await apiFetch("/api/webex/agent/reminder/test", { method: "POST" });
-    if (!res.ok || !data.success) throw new Error(data.error || "Test reminder failed.");
-
-    showActionMessage(`Webex reminder test completed: ${data.sent} email(s) sent, ${data.skippedNoEmail} skipped without email.`);
-    await loadHistory();
-  } catch (err) {
-    console.error(err);
-    showActionMessage(err.message || "Webex reminder test failed.", "error");
-  } finally {
-    sendTestReminderBtn.disabled = false;
-    sendTestReminderBtn.textContent = "Send Test Reminder";
-  }
+  showActionMessage(
+    "Webex automatic signout is handled by the standalone Worker. Email reminders remain on the existing Legacy Agent Controls service so the stable VisionBank Security Worker does not need to be modified.",
+    "success"
+  );
 });
 
-// =====================================================
-// HISTORY
-// =====================================================
 refreshHistoryBtn?.addEventListener("click", loadHistory);
 
 async function loadHistory() {

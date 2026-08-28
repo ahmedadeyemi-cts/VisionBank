@@ -1,0 +1,40 @@
+{
+  "name": "visionbank-webex-agent",
+  "main": "worker.js",
+  "compatibility_date": "2025-12-03",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "AGENT_SETTINGS_KV",
+      "id": "893d9439b1af44f88c838878f869ab98"
+    },
+    {
+      "binding": "BUSINESS",
+      "id": "21e7c7de37214d15ada05089e0a1e3ea"
+    },
+    {
+      "binding": "IP_ALLOWLIST",
+      "id": "0a15331659954fd8a2ded6fa3e642259"
+    },
+    {
+      "binding": "LOGOUT_CONFIG",
+      "id": "18a7634978d44c90bb228f8fa30dd411"
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "4a0c2b5bbd7f47e0b2ea365f38f2e714"
+    },
+    {
+      "binding": "WEBEX_AUTH_KV",
+      "id": "b83e9d406ade40f6a50cff897cdf5c07"
+    }
+  ],
+  "vars": {
+    "WEBEX_ORG_ID": "6f124f56-d8db-4adf-a591-912c02363806"
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
+}

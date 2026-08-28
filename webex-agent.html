@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VisionBank® | Webex Agent Controls</title>
-  <meta name="webex-agent-build" content="2026.08.27-v5" />
+  <meta name="webex-agent-build" content="2026.08.27-standalone-v1" />
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
-  <link rel="stylesheet" href="webex-agent.css?v=20260827-v5" />
+  <link rel="stylesheet" href="webex-agent.css?v=20260827-standalone-v1" />
 </head>
 
 <body class="theme-light">
@@ -65,7 +65,7 @@
         <div class="section-header">
           <div>
             <h2>Webex Agent Signout Reminder Settings</h2>
-            <p>Send an email reminder to Webex agents who remain signed in near the end of the day.</p>
+            <p>Email reminders remain managed by the existing Legacy Agent Controls service. This page now controls Webex automatic signout without modifying the stable VisionBank Security Worker.</p>
           </div>
           <span id="settingsStatus">Not loaded.</span>
         </div>
@@ -73,7 +73,7 @@
         <div class="settings-grid">
           <label>
             Reminder Enabled
-            <select id="reminderEnabled">
+            <select id="reminderEnabled" disabled>
               <option value="true">Enabled</option>
               <option value="false">Disabled</option>
             </select>
@@ -81,12 +81,12 @@
 
           <label>
             Reminder Time CST/CDT
-            <input id="reminderTime" type="time" value="16:55" />
+            <input id="reminderTime" type="time" value="16:55" disabled />
           </label>
 
           <label class="wide">
             CC Recipients
-            <textarea id="ccRecipients" rows="3" placeholder="name@example.com, manager@example.com"></textarea>
+            <textarea id="ccRecipients" rows="3" placeholder="Managed by Legacy Agent Controls" disabled></textarea>
           </label>
         </div>
       </section>
@@ -158,7 +158,7 @@
         <button id="saveSettingsBtn" class="btn-primary">Save Settings</button>
         <button id="refreshAgentsBtn" class="btn-secondary">Refresh Logged-In Agents</button>
         <button id="runAutoLogoutNowBtn" class="btn-secondary">Run Auto-Signout Now</button>
-        <button id="sendTestReminderBtn" class="btn-secondary">Send Test Reminder</button>
+        <button id="sendTestReminderBtn" class="btn-secondary">Reminder Info</button>
       </section>
 
       <div id="actionMessage" class="action-message hidden"></div>
@@ -255,6 +255,6 @@
     </footer>
   </div>
 
-  <script src="webex-agent.js?v=20260827-v5"></script>
+  <script src="webex-agent.js?v=20260827-standalone-v1"></script>
 </body>
 </html>

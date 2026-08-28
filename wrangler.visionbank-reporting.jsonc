@@ -9,6 +9,7 @@
   // undefined. Do NOT set crons: [] here; that would remove scheduled work.
 
   "name": "visionbank-security",
+  "account_id": "8e3117e5e935059805f98211f6868c9c",
   "main": "visionbank-worker-webex-dashboard-reporting.js",
   "compatibility_date": "2025-12-03",
   "workers_dev": true,

@@ -8,7 +8,8 @@ OUTPUT="${VISIONBANK_REPORT_OUTPUT:-visionbank-worker-webex-dashboard-reporting.
 CONFIG="${VISIONBANK_REPORT_CONFIG:-wrangler.visionbank-reporting.jsonc}"
 WORKER_NAME="visionbank-security"
 EXPECTED_ACCOUNT_ID="8e3117e5e935059805f98211f6868c9c"
-INHERIT_SECRETS_FILE="/tmp/visionbank-inherit-secrets.json"
+VERSION_METADATA_FILE="/tmp/visionbank-reporting-version-metadata.json"
+VERSION_RESPONSE_FILE="/tmp/visionbank-reporting-version-response.json"
 
 export CLOUDFLARE_ACCOUNT_ID="$EXPECTED_ACCOUNT_ID"
 
@@ -19,6 +20,10 @@ esac
 
 for file in "$SOURCE" "$PATCH" "$CONFIG" "build-visionbank-security-reporting.mjs"; do
   [[ -f "$file" ]] || { echo "ERROR: required file not found: $file" >&2; exit 1; }
+done
+
+for command_name in node npx curl; do
+  command -v "$command_name" >/dev/null 2>&1 || { echo "ERROR: $command_name is required." >&2; exit 1; }
 done
 
 if grep -Fq 'const WEBEX_DASHBOARD_BUILD = "2026.08.27-v4";' "$SOURCE"; then
@@ -50,16 +55,19 @@ if (config.account_id !== expectedAccountId) throw new Error(`Wrong Cloudflare a
 if (config.main !== expectedMain) throw new Error(`Wrong Worker main: ${config.main}`);
 if (config.keep_vars !== true) throw new Error('keep_vars must be true.');
 if ('triggers' in config) throw new Error('Reporting config must leave triggers undefined so deployed cron triggers are preserved.');
-if ('secrets' in config) throw new Error('Reporting config must not declare secrets.required; version binding validation is used instead.');
+if ('secrets' in config) throw new Error('Reporting config must not declare secrets.required; explicit version-bound inheritance is used instead.');
 console.log(`Cloudflare account verified: ${config.account_id}`);
 console.log(`Config target verified: ${config.name}`);
 console.log(`Config main verified: ${config.main}`);
-console.log('Secret preservation mode verified: no secrets.required declaration.');
+console.log('Secret preservation mode verified: explicit version-bound inheritance.');
 NODE
 
 echo "Checking Cloudflare authentication/account..."
 npx wrangler whoami 2>&1 | tee /tmp/visionbank-wrangler-whoami.txt
-grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt || { echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2; exit 1; }
+grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt || {
+  echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2
+  exit 1
+}
 echo "Wrangler account check passed: ${EXPECTED_ACCOUNT_ID}."
 
 get_active_version_id() {
@@ -148,48 +156,72 @@ for anchor in "${required_output_anchors[@]}"; do
   grep -Fq "$anchor" "$OUTPUT" || { echo "ERROR: generated Worker preservation check failed: $anchor" >&2; exit 1; }
 done
 
-# Passing an empty secrets file makes Wrangler use additive secret inheritance.
-printf '{}\n' > "$INHERIT_SECRETS_FILE"
+CANDIDATE_TAG="webex-daily-reports-$(date -u +%Y%m%dT%H%M%SZ)"
+node - "$CONFIG" "$ACTIVE_VERSION_ID" "$CANDIDATE_TAG" "$VERSION_METADATA_FILE" <<'NODE'
+const fs = require('fs');
+const [configPath, activeVersionId, candidateTag, outputPath] = process.argv.slice(2);
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+const requiredSecrets = ['ALIANZA_PASSWORD','BREVO_API_KEY','CC_API_TOKEN','CCM_PASSWORD','PDFSHIFT_API_KEY','WEBEX_ACCESS_TOKEN','WEBEX_CLIENT_SECRET','WEBEX_REFRESH_TOKEN'];
+const bindings = [
+  ...(config.kv_namespaces || []).map(item => ({ name: item.binding, type: 'kv_namespace', namespace_id: item.id })),
+  ...Object.entries(config.vars || {}).map(([name, value]) => ({ name, type: 'plain_text', text: String(value) })),
+  ...requiredSecrets.map(name => ({ name, type: 'inherit', version_id: activeVersionId }))
+];
+const metadata = {
+  main_module: config.main,
+  compatibility_date: config.compatibility_date,
+  bindings,
+  annotations: {
+    'workers/message': 'Webex daily reports candidate',
+    'workers/tag': candidateTag
+  }
+};
+fs.writeFileSync(outputPath, JSON.stringify(metadata), { mode: 0o600 });
+const inherited = bindings.filter(b => b.type === 'inherit');
+if (inherited.length !== requiredSecrets.length) throw new Error('Explicit secret inheritance metadata is incomplete.');
+if (inherited.some(b => b.version_id !== activeVersionId)) throw new Error('A secret inherit binding is not pinned to the active production version.');
+console.log(`Version metadata prepared: ${bindings.length} bindings.`);
+console.log(`Explicit secret inheritance pinned to: ${activeVersionId}`);
+NODE
 
-echo "Running candidate-upload dry-run against dedicated reporting config..."
-npx wrangler versions upload --config "$CONFIG" --secrets-file "$INHERIT_SECRETS_FILE" --keep-vars --dry-run
-
+echo "Running Wrangler module dry-run..."
+npx wrangler versions upload --config "$CONFIG" --keep-vars --dry-run
 echo "All pre-deployment checks passed."
+
 if [[ "$MODE" != "--deploy" ]]; then
   echo "CHECK-ONLY MODE: no Cloudflare version was uploaded or deployed."
-  echo "To perform the controlled upload/validate/promote release, run: bash $0 --deploy"
+  echo "To perform the controlled API upload/validate/promote release, run: bash $0 --deploy"
   exit 0
 fi
 
-ROLLBACK_VERSION_ID="$ACTIVE_VERSION_ID"
-BEFORE_VERSIONS_FILE="/tmp/visionbank-versions-before-candidate.json"
-AFTER_VERSIONS_FILE="/tmp/visionbank-versions-after-candidate.json"
-npx wrangler versions list --name "$WORKER_NAME" --json > "$BEFORE_VERSIONS_FILE"
-
-CANDIDATE_TAG="webex-daily-reports-$(date -u +%Y%m%dT%H%M%SZ)"
-echo "Uploading candidate version with zero production traffic..."
-echo "Candidate tag: ${CANDIDATE_TAG}"
-npx wrangler versions upload --config "$CONFIG" \
-  --secrets-file "$INHERIT_SECRETS_FILE" \
-  --keep-vars \
-  --tag "$CANDIDATE_TAG" \
-  --message "Webex daily reports candidate"
-
-npx wrangler versions list --name "$WORKER_NAME" --json > "$AFTER_VERSIONS_FILE"
-CANDIDATE_VERSION_ID="$(node - "$BEFORE_VERSIONS_FILE" "$AFTER_VERSIONS_FILE" "$CANDIDATE_TAG" <<'NODE'
-const fs = require('fs');
-const [beforePath, afterPath, tag] = process.argv.slice(2);
-const before = JSON.parse(fs.readFileSync(beforePath, 'utf8'));
-const after = JSON.parse(fs.readFileSync(afterPath, 'utf8'));
-const beforeIds = new Set((Array.isArray(before) ? before : []).map(v => v.id));
-const candidates = (Array.isArray(after) ? after : []).filter(v => {
-  const ann = v.annotations || {};
-  return !beforeIds.has(v.id) && (!ann['workers/tag'] || ann['workers/tag'] === tag);
-});
-if (candidates.length !== 1) {
-  throw new Error(`Expected exactly one newly uploaded candidate version; found ${candidates.length}.`);
+[[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || {
+  echo "ERROR: CLOUDFLARE_API_TOKEN is not set. Refusing direct Version Upload API call." >&2
+  exit 1
 }
-process.stdout.write(candidates[0].id);
+
+ROLLBACK_VERSION_ID="$ACTIVE_VERSION_ID"
+UPLOAD_URL="https://api.cloudflare.com/client/v4/accounts/${EXPECTED_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/versions?bindings_inherit=strict"
+
+echo "Uploading candidate version with zero production traffic via Cloudflare Version Upload API..."
+echo "Candidate tag: ${CANDIDATE_TAG}"
+curl --fail-with-body --silent --show-error \
+  -X POST "$UPLOAD_URL" \
+  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+  -F "metadata=@${VERSION_METADATA_FILE};type=application/json" \
+  -F "${OUTPUT}=@${OUTPUT};type=application/javascript+module" \
+  > "$VERSION_RESPONSE_FILE"
+
+CANDIDATE_VERSION_ID="$(node - "$VERSION_RESPONSE_FILE" <<'NODE'
+const fs = require('fs');
+const [responsePath] = process.argv.slice(2);
+const payload = JSON.parse(fs.readFileSync(responsePath, 'utf8'));
+if (payload?.success !== true) {
+  const errors = Array.isArray(payload?.errors) ? payload.errors.map(e => e.message || e.code).join(' | ') : 'unknown error';
+  throw new Error(`Cloudflare Version Upload API failed: ${errors}`);
+}
+const id = payload?.result?.id;
+if (!id) throw new Error('Cloudflare Version Upload API succeeded but returned no result.id.');
+process.stdout.write(id);
 NODE
 )"
 
@@ -202,6 +234,13 @@ set -e
 if [[ $CANDIDATE_VALIDATION_RC -ne 0 ]]; then
   echo "ERROR: candidate binding validation failed. Candidate will NOT receive production traffic." >&2
   echo "Production remains on ${ROLLBACK_VERSION_ID} at 100%." >&2
+  exit 1
+fi
+
+STILL_ACTIVE_VERSION_ID="$(get_active_version_id /tmp/visionbank-deployment-status-before-promotion.json)"
+if [[ "$STILL_ACTIVE_VERSION_ID" != "$ROLLBACK_VERSION_ID" ]]; then
+  echo "ERROR: production active version changed unexpectedly before promotion. Refusing to promote candidate." >&2
+  echo "Expected ${ROLLBACK_VERSION_ID}, found ${STILL_ACTIVE_VERSION_ID}." >&2
   exit 1
 fi
 

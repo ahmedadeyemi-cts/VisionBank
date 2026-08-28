@@ -7,6 +7,10 @@ PATCH="${VISIONBANK_REPORT_PATCH:-webex-daily-report-worker-patch.js}"
 OUTPUT="${VISIONBANK_REPORT_OUTPUT:-visionbank-worker-webex-dashboard-reporting.js}"
 CONFIG="${VISIONBANK_REPORT_CONFIG:-wrangler.visionbank-reporting.jsonc}"
 WORKER_NAME="visionbank-security"
+EXPECTED_ACCOUNT_ID="8e3117e5e935059805f98211f6868c9c"
+
+# Force every Wrangler command in this release to the verified VisionBank Cloudflare account.
+export CLOUDFLARE_ACCOUNT_ID="$EXPECTED_ACCOUNT_ID"
 
 case "$MODE" in
   --check|--deploy) ;;
@@ -48,10 +52,10 @@ for anchor in "${required_v5_anchors[@]}"; do
   fi
 done
 
-# Confirm the deployment config cannot target the standalone webex-agent Worker.
-node - "$CONFIG" "$OUTPUT" <<'NODE'
+# Confirm the deployment config cannot target another account or standalone webex-agent Worker.
+node - "$CONFIG" "$OUTPUT" "$EXPECTED_ACCOUNT_ID" <<'NODE'
 const fs = require('fs');
-const [configPath, expectedMain] = process.argv.slice(2);
+const [configPath, expectedMain, expectedAccountId] = process.argv.slice(2);
 const raw = fs.readFileSync(configPath, 'utf8');
 const noComments = raw
   .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -59,6 +63,9 @@ const noComments = raw
 const config = JSON.parse(noComments);
 if (config.name !== 'visionbank-security') {
   throw new Error(`Wrong Worker target: ${config.name}`);
+}
+if (config.account_id !== expectedAccountId) {
+  throw new Error(`Wrong Cloudflare account_id: ${config.account_id || '(missing)'}`);
 }
 if (config.main !== expectedMain) {
   throw new Error(`Wrong Worker main: ${config.main}`);
@@ -69,19 +76,19 @@ if (config.keep_vars !== true) {
 if ('triggers' in config) {
   throw new Error('Reporting config must leave triggers undefined so deployed cron triggers are preserved.');
 }
+console.log(`Cloudflare account verified: ${config.account_id}`);
 console.log(`Config target verified: ${config.name}`);
 console.log(`Config main verified: ${config.main}`);
 NODE
 
-# Verify Cloudflare authentication before reading or writing Worker state.
-echo "Checking Cloudflare authentication..."
-npx wrangler whoami --json > /tmp/visionbank-wrangler-whoami.json
-node - <<'NODE'
-const fs = require('fs');
-const data = JSON.parse(fs.readFileSync('/tmp/visionbank-wrangler-whoami.json', 'utf8'));
-if (!data || typeof data !== 'object') throw new Error('Wrangler authentication JSON was invalid.');
-console.log('Wrangler authentication check passed.');
-NODE
+# Verify Cloudflare authentication and exact account before reading or writing Worker state.
+echo "Checking Cloudflare authentication/account..."
+npx wrangler whoami 2>&1 | tee /tmp/visionbank-wrangler-whoami.txt
+if ! grep -Fq "$EXPECTED_ACCOUNT_ID" /tmp/visionbank-wrangler-whoami.txt; then
+  echo "ERROR: Wrangler is not authenticated to expected Cloudflare account ${EXPECTED_ACCOUNT_ID}." >&2
+  exit 1
+fi
+echo "Wrangler account check passed: ${EXPECTED_ACCOUNT_ID}."
 
 # Inspect the currently active deployment and recent Worker versions BEFORE any write.
 echo "Inspecting current ${WORKER_NAME} deployment..."
@@ -165,7 +172,7 @@ if [[ "$MODE" != "--deploy" ]]; then
   exit 0
 fi
 
-echo "Deploying ONLY ${WORKER_NAME} using ${CONFIG}..."
+echo "Deploying ONLY ${WORKER_NAME} in account ${EXPECTED_ACCOUNT_ID} using ${CONFIG}..."
 npx wrangler deploy --config "$CONFIG"
 
 echo "Worker deployment command completed."

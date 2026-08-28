@@ -456,6 +456,7 @@ themeToggle?.addEventListener("click", function () {
   if (!ok) return;
 
   if (existingSession) {
-    await loadReport();
+    await loadAgentSettings();
+    await loadCurrentAgents();
   }
 })();

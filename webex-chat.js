@@ -7,6 +7,57 @@
   const SECURITY_WAIT_MS = 20000;
   const SECURITY_POLL_MS = 250;
 
+  function looksLikeCiscoChatFrame(frame) {
+    if (!(frame instanceof HTMLIFrameElement) || frame.id === "tls_al_frm") return false;
+
+    const src = String(frame.getAttribute("src") || "").toLowerCase();
+    const id = String(frame.id || "").toLowerCase();
+    const name = String(frame.getAttribute("name") || "").toLowerCase();
+
+    return src.includes("ciscoccservice.com") ||
+      src.includes("imi.chat") ||
+      src.includes("imiengage") ||
+      src.includes("imichat") ||
+      id.includes("imichat") ||
+      name.includes("imichat");
+  }
+
+  function decorateCiscoChatFrame(frame) {
+    if (!looksLikeCiscoChatFrame(frame)) return;
+
+    frame.classList.add("visionbank-cisco-chat-frame");
+    if (!frame.title) frame.title = "VisionBank Live Support";
+  }
+
+  function decorateCiscoChatFrames(root = document) {
+    if (root instanceof HTMLIFrameElement) {
+      decorateCiscoChatFrame(root);
+      return;
+    }
+
+    if (root?.querySelectorAll) {
+      root.querySelectorAll("iframe").forEach(decorateCiscoChatFrame);
+    }
+  }
+
+  function observeCiscoChatFrames() {
+    decorateCiscoChatFrames();
+
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          decorateCiscoChatFrames(node);
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+  }
+
   function securityApproved() {
     return window.VB_SECURITY?.allowed === true ||
       document.body?.classList.contains("security-approved");
@@ -65,6 +116,7 @@
 
     script.addEventListener("load", () => {
       document.body.classList.add("visionbank-livechat-loaded");
+      decorateCiscoChatFrames();
       console.info("[VisionBank Live Chat] Cisco Webex Connect widget loaded.");
     });
 
@@ -77,6 +129,7 @@
   }
 
   function init() {
+    observeCiscoChatFrames();
     const startedAt = Date.now();
 
     const timer = window.setInterval(() => {

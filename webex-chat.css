@@ -1,0 +1,43 @@
+/* VisionBank Webex Connect Live Chat - webex.html only */
+
+:root {
+  --vb-chat-green: #0a785f;
+  --vb-chat-green-dark: #075d4b;
+  --vb-chat-soft: #f3f4f5;
+  --vb-chat-border: #d6dadd;
+}
+
+#divicw {
+  position: relative;
+  z-index: 70;
+}
+
+#tls_al_frm {
+  right: 28px !important;
+  bottom: 28px !important;
+  max-width: calc(100vw - 32px) !important;
+}
+
+body.visionbank-livechat-enabled .footer {
+  padding-right: 92px;
+}
+
+@media (max-width: 760px) {
+  body.visionbank-livechat-enabled .footer {
+    padding-right: 16px;
+    padding-bottom: 92px;
+  }
+
+  #tls_al_frm {
+    right: 16px !important;
+    bottom: 16px !important;
+    width: calc(100vw - 32px) !important;
+  }
+}
+
+/*
+  The Cisco chat conversation window is rendered by Cisco/Webex Engage.
+  Its internal header, background, launcher and New Conversation styling
+  should be configured in Webex Engage so the supported widget remains
+  upgrade-safe. This stylesheet only manages page-level spacing/fallback.
+*/

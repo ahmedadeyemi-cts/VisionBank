@@ -1322,7 +1322,7 @@ async function loadAgentStatus() {
     const agents = Array.isArray(data?.agents) ? data.agents : [];
 
     if (!agents.length) {
-      body.innerHTML = `<tr><td colspan="11" class="loading">No Webex agents are currently logged in.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="11" class="loading">No current agent-session data returned. This does not confirm sign-out; Chat history is shown below.</td></tr>`;
       return;
     }
 
@@ -1339,6 +1339,7 @@ async function loadAgentStatus() {
       const showWarning = startDateMode === "session" && a.sessionRolledOver;
 
       const tr = document.createElement("tr");
+      tr.dataset.vbAgentId = String(a.agentId || "");
       tr.innerHTML = `
         <td>${safe(a.name)}</td>
         <td>${safe(a.team)}</td>

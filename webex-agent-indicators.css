@@ -1,0 +1,17 @@
+/* One bright palette for both Webex agent views in both themes. Legacy index is unchanged. */
+:root,body.dark-mode,body.dark,[data-theme=dark] {--vb-green:#2ecc71;--vb-red:#d92d20;--vb-amber:#fb923c;--vb-idle:#facc15;--vb-gray:#6b7280;--vb-state-ink:#111827;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=available],[data-state=available]) {background:var(--vb-green)!important;color:var(--vb-state-ink)!important;font-weight:700;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=engaged],[data-state=engaged]) {background:var(--vb-red)!important;color:#fff!important;font-weight:700;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=wrapup],[data-state=wrapup]) {background:var(--vb-amber)!important;color:var(--vb-state-ink)!important;font-weight:700;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=idle],[data-state=idle]) {background:var(--vb-idle)!important;color:var(--vb-state-ink)!important;font-weight:700;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=unknown],[data-state=unknown]) {background:var(--vb-gray)!important;color:#fff!important;}
+:is(#agent-body,#chat-agents-body) td:is([data-vb-state=offered],[data-state=offered]) {background:#7dd3fc!important;color:var(--vb-state-ink)!important;font-weight:700;}
+.vb-login-notice {display:block;font-size:12px;font-weight:600;line-height:1.5;margin-top:4px;color:inherit!important;}
+/* Two slow outline pulses, four seconds total. The text and yellow fill never disappear. */
+.vb-login-cue {animation:vb-login-attention 2s ease-in-out 2;}
+@keyframes vb-login-attention {0%,100%{box-shadow:inset 0 0 0 1px rgba(113,63,18,.12);}50%{box-shadow:inset 0 0 0 4px rgba(113,63,18,.8);}}
+@media(prefers-reduced-motion:reduce){.vb-login-cue{animation:none!important;}}
+#agentIndicatorSettings .dashboard-settings-field {display:flex;flex-direction:column;gap:5px;margin-top:12px;}
+#agentIndicatorSettings input[type=number],#agentIndicatorSettings input[type=text] {font:inherit;padding:8px;border:1px solid #64748b;border-radius:6px;max-width:100%;box-sizing:border-box;background:#fff;color:#111827;}
+body.dark-mode #agentIndicatorSettings input[type=number],body.dark-mode #agentIndicatorSettings input[type=text] {background:#020617;color:#f9fafb;}
+#agentIndicatorSettings .dashboard-settings-help {line-height:1.5;}

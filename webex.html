@@ -118,6 +118,7 @@
       });
     </script>
     <link rel="stylesheet" href="webex-integrated-chat.css?v=20260924-3">
+<link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
 </head>
 
 <body>
@@ -236,6 +237,17 @@
         <div id="dashboardQueueSummary" class="dashboard-queue-summary">
           Loading queue configuration...
         </div>
+      </div>
+
+      <div class="dashboard-settings-group" id="agentIndicatorSettings">
+        <h4>Agent State Indicators</h4>
+        <p class="dashboard-settings-help">Shared across Webex dashboards. Every reported Idle reason is yellow automatically. These indicators never change an agent's Webex state.</p>
+        <label class="dashboard-setting-option"><input type="checkbox" id="agentLoginReminderEnabled" checked><span><strong>Show Logged In reminder</strong><small>Highlight agents still in the configured login Idle reason.</small></span></label>
+        <label class="dashboard-setting-option"><input type="checkbox" id="agentLoginReminderAnimate" checked><span><strong>Animate login reminders</strong><small>Two gentle outline pulses, four seconds total. Reduce Motion is always respected.</small></span></label>
+        <label class="dashboard-settings-field">Reminder after (seconds)<input id="agentLoginReminderGrace" type="number" min="15" max="900" step="1" value="60" required></label>
+        <label class="dashboard-settings-field">Login Idle reason name<input id="agentLoginReasonName" type="text" maxlength="80" value="Logged In" required></label>
+        <label class="dashboard-settings-field">Login Idle reason ID (optional)<input id="agentLoginReasonId" type="text" maxlength="128" autocomplete="off" placeholder="Blank: match the configured name exactly"></label>
+        <p class="dashboard-settings-help">A supplied reason ID takes priority over its name. Current Idle evidence is required; a signed-in session or old reason alone never triggers a reminder. The animation plays once per state transition on this browser.</p>
       </div>
 
       <div class="dashboard-settings-actions">
@@ -701,9 +713,10 @@
   data-guid="27064816-2e3e-42a9-add4-74f11f24fd74"
   aria-label="VisionBank live agent chat"
 ></div>
-<script src="webex.js?v=20260924-agent3"></script>
+<script src="webex.js?v=20260925-indicators4"></script>
 <script src="webex-reports.js?v=20260828-v1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
-<script src="webex-integrated-chat.js?v=20260924-3"></script>
+<script src="webex-agent-indicators.js?v=20260925-indicators4"></script>
+<script src="webex-integrated-chat.js?v=20260925-indicators4"></script>
 </body>
 </html>

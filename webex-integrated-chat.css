@@ -31,17 +31,12 @@ body.dark-mode .vb-ops,body.dark .vb-ops,[data-theme=dark] .vb-ops {--vo-bg:#020
 @media(max-width:1000px){.vb-ops-cards{grid-template-columns:repeat(2,minmax(0,1fr));}.vb-ops{padding:14px;}}
 @media(max-width:620px){.vb-ops-cards{grid-template-columns:1fr;}.vb-ops-tools{align-items:stretch;}.vb-ops-tools label{flex:1 1 100%;}.vb-ops-paging{justify-content:space-between;}}
 
-/* Activity is separate from routing availability; unknown values are neutral. */
+/* Identical state colors across Voice and Chat, with readable text. */
+:root {--vb-green:#15803d;--vb-red:#b91c1c;--vb-amber:#f59e0b;--vb-gray:#4b5563;}
+body.dark-mode {--vb-green:#166534;--vb-red:#991b1b;}
 .vb-agent-scroll {max-width:100%;overflow-x:auto;}
 .vb-agent-table {min-width:1150px;}
-.vb-ops .vb-agent-state[data-state=available] {background:#dcfce7;color:#14532d;font-weight:600;}
-.vb-ops .vb-agent-state[data-state=engaged],.vb-ops .vb-agent-state[data-state=wrapup] {background:#ffedd5;color:#7c2d12;font-weight:600;}
-.vb-ops .vb-agent-state[data-state=idle],.vb-ops .vb-agent-state[data-state=unknown] {color:var(--vo-muted);}
-body.dark-mode .vb-ops .vb-agent-state[data-state=available] {background:#14532d;color:#dcfce7;}
-body.dark-mode .vb-ops .vb-agent-state[data-state=engaged],body.dark-mode .vb-ops .vb-agent-state[data-state=wrapup] {background:#7c2d12;color:#ffedd5;}
-#agent-body td.vb-agent-activity[data-state=engaged],#agent-body td.vb-agent-activity[data-state=wrapup] {background:#ffedd5;color:#7c2d12;font-weight:600;}
-body.dark-mode #agent-body td.vb-agent-activity[data-state=engaged],body.dark-mode #agent-body td.vb-agent-activity[data-state=wrapup] {background:#7c2d12!important;color:#ffedd5!important;}
-
-/* Same readable Available colors in the retained and Chat agent tables. */
-.vb-agent-table #agent-body td.availability-cell.status-available {background:#dcfce7!important;color:#14532d!important;}
-body.dark-mode .vb-agent-table #agent-body td.availability-cell.status-available {background:#14532d!important;color:#dcfce7!important;}
+#agent-body td[data-vb-state=available],#agent-body td[data-state=available],#chat-agents-body td[data-state=available] {background:var(--vb-green)!important;color:#fff!important;font-weight:600;}
+#agent-body td[data-vb-state=engaged],#agent-body td[data-state=engaged],#chat-agents-body td[data-state=engaged] {background:var(--vb-red)!important;color:#fff!important;font-weight:600;}
+#agent-body td[data-vb-state=wrapup],#agent-body td[data-state=wrapup],#chat-agents-body td[data-state=wrapup] {background:var(--vb-amber)!important;color:#111827!important;font-weight:600;}
+#agent-body td[data-vb-state=idle],#agent-body td[data-vb-state=unknown],#agent-body td[data-state=unknown],#chat-agents-body td[data-state=idle],#chat-agents-body td[data-state=unknown] {background:var(--vb-gray)!important;color:#fff!important;}

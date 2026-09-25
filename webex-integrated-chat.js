@@ -89,6 +89,12 @@
       const row = get(a.agentId, a.name); if (!row) continue;
       row.sessionReported = sessionFresh; row.staleSession = !sessionFresh;
       row.rawRouting = sessionFresh ? text(a.chatChannel?.routingState) : '';
+      row.overall = sessionFresh && recent(a.agentStatus?.observedAt,45000) ? text(a.agentStatus.state) : '';
+      row.overallTone = sessionFresh && ['available','engaged','wrapup','idle','unknown'].includes(a.agentStatus?.tone) ? a.agentStatus.tone : 'unknown';
+      row.slotLimit = sessionFresh && Number.isInteger(a.chatChannel?.reportedSlotCount) ? a.chatChannel.reportedSlotCount : null;
+      row.slotActive = sessionFresh && Number.isInteger(a.chatChannel?.activeSlots) ? a.chatChannel.activeSlots : null;
+      row.slotWrapup = sessionFresh && Number.isInteger(a.chatChannel?.wrapupSlots) ? a.chatChannel.wrapupSlots : null;
+      row.slotNewer = sessionFresh && recent(a.chatChannel?.observedAt,45000) && a.chatChannel.observedAt >= (liveReport?.liveObservedAt || 0);
     }
     if (dailyFresh) for (const r of dailyReport.rows) {
       if (r.handled !== true) continue;
@@ -105,8 +111,8 @@
       unavailable:'Unavailable', wrapup:'Wrap-up', 'wrap-up':'Wrap-up', 'engagedother':'Engaged other'};
     const rows = [...agents.values()].map(row => {
       const current = row.sessionReported || row.liveRecord;
-      const active = ownershipKnown && current ? row.activeCount : null;
-      const wrapup = ownershipKnown && current ? row.wrapupCount : null;
+      const active = ownershipKnown && current ? row.activeCount : row.slotNewer && row.slotActive > 0 ? row.slotActive : null;
+      const wrapup = ownershipKnown && current ? row.wrapupCount : row.slotNewer && row.slotWrapup > 0 ? row.slotWrapup : null;
       const raw = row.rawRouting, key = raw.toLowerCase();
       const routingState = raw ? (reportedNames[key] || raw) : (row.staleSession && !row.liveRecord ? 'Stale data' : 'Not reported');
       const routingTone = !raw ? 'unknown' : key === 'available' ? 'available' :
@@ -124,8 +130,8 @@
     const header = table.querySelector('thead tr'); if (!header) return;
     const availability = header.children[3];
     if (availability) {
-      availability.textContent = 'Reported availability';
-      availability.title = 'Legacy reported routing state, not an overall activity indicator. Chat activity is shown separately.';
+      availability.textContent = 'Agent state';
+      availability.title = 'Overall agent activity from reported Voice and Chat slots, shared by both agent views. Specific Chat workload is separate.';
     }
     if (!header.querySelector('[data-vb-chat-activity]') && availability) {
       const th = document.createElement('th'); th.dataset.vbChatActivity = 'true';
@@ -143,6 +149,15 @@
       let cell = tr.querySelector('[data-vb-chat-activity]');
       if (!cell) { cell = document.createElement('td'); cell.dataset.vbChatActivity = 'true'; cell.className = 'vb-agent-activity'; routing.after(cell); }
       const a = byId.get(tr.dataset.vbAgentId);
+      const provider = base?.agents?.find(x=>String(x.agentId)===tr.dataset.vbAgentId);
+      const raw = fresh(base?.generatedAtEpoch,45000) ? String(provider?.status||'').trim() : '';
+      const key = raw.toLowerCase();
+      const busy = ['connected','engaged','hold','held','on-hold','consulting','conferencing'].includes(key);
+      const wrapup = ['wrapup','wrap-up'].includes(key);
+      routing.textContent = busy ? 'Engaged' : wrapup ? 'Wrap-up' : key==='available' ? 'Available' : raw||'Not reported';
+      routing.dataset.vbState = busy?'engaged':wrapup?'wrapup':key==='available'?'available':raw?'idle':'unknown';
+      routing.title = raw ? 'Reported Voice state: '+raw : 'Current Voice state was not reported.';
+      if(a?.overall){routing.textContent=a.overall;routing.dataset.vbState=a.overallTone;}
       cell.textContent = a?.activity || 'Not reported'; cell.dataset.state = a?.activityTone || 'unknown';
       cell.title = 'Activity is derived from reported current Chat assignments; it does not change routing availability or prove free capacity.';
     }
@@ -154,10 +169,10 @@
     const agent=appendPanel('vbChatAgents','Chat Agent Performance',agentPanel,true);
     table(agent,'chat-agents',[
       ['Agent',r=>r.name||r.agentId],['Current activity',r=>r.activity,null,r=>r.activityTone],
-      ['Chat availability (reported)',r=>r.routingState,null,r=>r.routingTone],
-      ['Active chats',r=>r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
+      ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
+      ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
-      ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource]
+      ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
     ]);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
@@ -178,22 +193,19 @@
   }
   function renderQueues() {
     const body=$('queue-body');if(!body||!Array.isArray(base?.queues))return;
-    const valid=approved()&&live?.liveStatus==='ready'&&fresh(live.liveObservedAt,45000)&&live.queueSnapshot?.unassigned===0;
-    const map=new Map((live?.queueSnapshot?.rows||[]).map(q=>[String(q.id),q]));
     const table=body.closest('table');if(!table)return;
+    const current=approved()&&fresh(base.generatedAtEpoch,45000);
     table.classList.add('vb-ops-queue');
     table.querySelector('thead tr').innerHTML=['Queue','Channel','Waiting','Offered','Active','Wrap-up','Agents (legacy count)','Max wait','Avg wait'].map(x=>`<th>${esc(x)}</th>`).join('');
     body.innerHTML=base.queues.map(q=>{
-      const chat=String(q.channelType||'').toLowerCase()==='chat', a=map.get(String(q.id)), ready=valid&&(!a||!a.unknown);
-      const n=k=>ready?(a?.[k]||0):'Unavailable';
-      const waiting=chat?n('waiting'):(q.calls??'Unavailable');
-      const max=chat?(waiting===0?'00:00:00':'Unavailable'):(q.maxWait||'Unavailable');
-      const avg=chat?(waiting===0?'00:00:00':'Unavailable'):(q.avgWait||'Unavailable');
-      return `<tr><td>${esc(q.name)}</td><td>${chat?'Chat':esc(q.channelType||'Voice')}</td><td>${esc(waiting)}</td><td>${chat?esc(n('offered')):'—'}</td><td>${chat?esc(n('active')):'—'}</td><td>${chat?esc(n('wrapup')):'—'}</td><td>${esc(q.agents??'Unavailable')}</td><td>${esc(max)}</td><td>${esc(avg)}</td></tr>`;
+      const known=current&&q.operationsRevision===3&&q.countStatus==='ready';
+      const n=k=>known&&Number.isInteger(q[k])&&q[k]>=0?q[k]:'Not reported';
+      const label=String(q.channelType).toLowerCase()==='chat'?'Chat':'Voice';
+      return `<tr><td>${esc(q.name)}</td><td>${label}</td><td>${esc(n('waiting'))}</td><td>${esc(n('offered'))}</td><td>${esc(n('active'))}</td><td>${esc(n('wrapup'))}</td><td>${esc(q.agents??'Not reported')}</td><td>${esc(known?q.maxWait:'Not reported')}</td><td>${esc(known?q.avgWait:'Not reported')}</td></tr>`;
     }).join('');
     let note=$('vb-queue-note');if(!note){note=document.createElement('p');note.id='vb-queue-note';note.className='vb-ops-meta';table.insertAdjacentElement('afterend',note);}
-    note.textContent=valid?`Chat snapshot: ${time(live.liveObservedAt)}. Connected chats are Active, not Waiting. Current wait timing is unavailable without a verified queue-entry event. Agent count is not free capacity.`:'Chat live state unavailable or stale. Voice values retain their existing source.';
-    if(valid){const hot=base.queues.some(q=>String(q.channelType||'').toLowerCase()==='chat'?(map.get(String(q.id))?.waiting||0)>0:Number(q.calls||0)>0);$('queue-panel')?.classList.toggle('queue-alert-active',hot);}
+    note.textContent=current?`Voice and Chat snapshot: ${time(base.generatedAtEpoch)}. Only Waiting contacts trigger queue alerts. Offered, Active and Wrap-up are separate. Timers require a current queue-entry event.`:'Current queue snapshot is stale or unavailable; no zero counts are inferred.';
+    $('queue-panel')?.classList.toggle('queue-alert-active',current&&base.queues.some(q=>q.operationsRevision===3&&q.countStatus==='ready'&&q.waiting>0));
   }
   function render() {
     if(!started)return;
@@ -210,7 +222,7 @@
     if($('chat-mean-note'))$('chat-mean-note').textContent=dailyOK?`Queue-duration mean: ${m?.sampleCount??'unknown'} ended, handled contacts started today; ${m?.activeContactsExcluded??'unknown'} active handled contact(s) excluded. Recorded zero is not an estimated wait to acceptance.`:'Historical queue-duration samples unavailable.';
     const presentation = buildChatAgentPresentation(base, live, daily);
     fill('chat-agents', presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh),
-      `Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Routing availability, workload and free capacity are different; free capacity is not reported.`);
+      `Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Agent state is shared across both views. Chat slot state and occupied slots are separate; a remaining slot does not guarantee routing eligibility.`);
     renderAgentActivity(presentation);
     const filter=tables.get('chat-handled')?.filter||'all';let handled=[],handledOK=false,note='';
     if(filter==='active'){handled=(live?.liveRows?.filter(r=>r.status==='Active')||[]).map(r=>({...r,connectedAt:daily?.rows?.find(d=>d.contactId===r.contactId)?.connectedAt??null}));handledOK=liveOK;note=`Currently connected contacts from the 30-day snapshot · ${time(live?.liveObservedAt)}`;}

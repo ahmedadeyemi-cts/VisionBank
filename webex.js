@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.08.27-v5";
+const WEBEX_DASHBOARD_BUILD = "2026.09.25-v6";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -40,18 +40,26 @@ let webexDashboardCacheAt = 0;
 let webexDashboardPromise = null;
 const WEBEX_CACHE_MS = 3000;
 
-async function fetchWebexDashboard(force = false) {
-  if (!force && webexDashboardCache && (Date.now() - webexDashboardCacheAt) < WEBEX_CACHE_MS) {
-    return webexDashboardCache;
-  }
+const WEBEX_FETCH_TIMEOUT_MS = 10000;
+const WEBEX_TRANSIENT_RETRY_MS = 750;
 
-  if (webexDashboardPromise) return webexDashboardPromise;
+function isTransientWebexFetchError(err) {
+  return err?.name === "AbortError" ||
+    err?.name === "TimeoutError" ||
+    err instanceof TypeError;
+}
 
-  webexDashboardPromise = (async () => {
+async function fetchWebexDashboardOnce() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WEBEX_FETCH_TIMEOUT_MS);
+
+  try {
     const res = await fetch(WEBEX_DASHBOARD_API, {
       method: "GET",
       mode: "cors",
       credentials: "omit",
+      cache: "no-store",
+      signal: controller.signal,
       headers: { "Accept": "application/json" }
     });
 
@@ -68,9 +76,38 @@ async function fetchWebexDashboard(force = false) {
       throw new Error(data.error || `HTTP ${res.status}`);
     }
 
-    webexDashboardCache = data;
-    webexDashboardCacheAt = Date.now();
     return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWebexDashboard(force = false) {
+  if (!force && webexDashboardCache && (Date.now() - webexDashboardCacheAt) < WEBEX_CACHE_MS) {
+    return webexDashboardCache;
+  }
+
+  if (webexDashboardPromise) return webexDashboardPromise;
+
+  webexDashboardPromise = (async () => {
+    let lastError;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const data = await fetchWebexDashboardOnce();
+        webexDashboardCache = data;
+        webexDashboardCacheAt = Date.now();
+        return data;
+      } catch (err) {
+        lastError = err;
+        if (!isTransientWebexFetchError(err) || attempt === 1 || document.hidden) {
+          throw err;
+        }
+        await new Promise(resolve => setTimeout(resolve, WEBEX_TRANSIENT_RETRY_MS));
+      }
+    }
+
+    throw lastError;
   })();
 
   try {
@@ -1163,7 +1200,10 @@ async function loadQueueStatus() {
   const panel = document.getElementById("queue-panel");
   if (!body) return;
 
-  body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
+  const initialLoad = !body.querySelector("tr") || Boolean(body.querySelector("td.loading, td.error"));
+  if (initialLoad) {
+    body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
+  }
 
   try {
     const data = await fetchWebexDashboard();
@@ -1199,7 +1239,7 @@ async function loadQueueStatus() {
       else if (calls >= 2) callsClass = "queue-calls-red";
 
       return `
-        <tr class="${calls > 0 ? "queue-hot" : ""}">
+        <tr data-vb-loaded="true" class="${calls > 0 ? "queue-hot" : ""}">
           <td>${safe(q.name, "Unknown")}</td>
           <td class="numeric"><span class="queue-calls-badge ${callsClass}">${calls}</span></td>
           <td class="numeric">${agents}</td>
@@ -1218,8 +1258,11 @@ async function loadQueueStatus() {
     // Existing tone override UI only needs a QueueName-like value.
     updateQueueToneOverrides(queues.map(q => ({ QueueName: q.name })));
   } catch (err) {
-    console.error("Webex queue load error:", err);
-    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load Webex queue status.</td></tr>`;
+    if (!isTransientWebexFetchError(err)) console.error("Webex queue load error:", err);
+    else console.debug("Webex queue refresh deferred after transient fetch error.");
+    if (initialLoad) {
+      body.innerHTML = `<tr><td colspan="5" class="error">Unable to load Webex queue status. Retrying automatically...</td></tr>`;
+    }
   }
 }
 function renderEntryPointStats(entryPoints) {
@@ -1306,8 +1349,11 @@ async function loadGlobalStats() {
     setText("gs-callbacks-waiting", g.callbacksWaiting);
     renderEntryPointStats(g.entryPoints || []);
   } catch (err) {
-    console.error("Webex global stats error:", err);
-    if (errorDiv) errorDiv.textContent = "Unable to load Webex global statistics.";
+    if (!isTransientWebexFetchError(err)) console.error("Webex global stats error:", err);
+    else console.debug("Webex global statistics refresh deferred after transient fetch error.");
+    if (errorDiv && !webexDashboardCache) {
+      errorDiv.textContent = "Unable to load Webex global statistics. Retrying automatically...";
+    }
   }
 }
 
@@ -1318,7 +1364,10 @@ async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
 
-  body.innerHTML = `<tr><td colspan="11" class="loading">Loading Webex agent data...</td></tr>`;
+  const initialLoad = !body.querySelector("tr") || Boolean(body.querySelector("td.loading, td.error"));
+  if (initialLoad) {
+    body.innerHTML = `<tr><td colspan="11" class="loading">Loading Webex agent data...</td></tr>`;
+  }
 
   try {
     const data = await fetchWebexDashboard();
@@ -1342,6 +1391,7 @@ async function loadAgentStatus() {
       const showWarning = startDateMode === "session" && a.sessionRolledOver;
 
       const tr = document.createElement("tr");
+      tr.dataset.vbLoaded = "true";
       tr.dataset.vbAgentId = String(a.agentId || "");
       tr.innerHTML = `
         <td>${safe(a.name)}</td>
@@ -1366,21 +1416,36 @@ async function loadAgentStatus() {
       body.appendChild(tr);
     });
   } catch (err) {
-    console.error("Webex agent load error:", err);
-    body.innerHTML = `<tr><td colspan="11" class="error">Unable to load Webex agent data.</td></tr>`;
+    if (!isTransientWebexFetchError(err)) console.error("Webex agent load error:", err);
+    else console.debug("Webex agent refresh deferred after transient fetch error.");
+    if (initialLoad) {
+      body.innerHTML = `<tr><td colspan="11" class="error">Unable to load Webex agent data. Retrying automatically...</td></tr>`;
+    }
   }
 }
 
 // ===============================
 // MAIN REFRESH LOOP
 // ===============================
+let webexRefreshPromise = null;
+
 async function refreshAll() {
-  invalidateWebexDashboardCache();
-  await Promise.all([
-    loadQueueStatus(),
-    loadAgentStatus(),
-    loadGlobalStats()
-  ]);
+  if (webexRefreshPromise) return webexRefreshPromise;
+
+  webexRefreshPromise = (async () => {
+    invalidateWebexDashboardCache();
+    await Promise.all([
+      loadQueueStatus(),
+      loadAgentStatus(),
+      loadGlobalStats()
+    ]);
+  })();
+
+  try {
+    return await webexRefreshPromise;
+  } finally {
+    webexRefreshPromise = null;
+  }
 }
 
 // ===============================
@@ -1426,4 +1491,7 @@ document
 
   refreshAll();
   setInterval(refreshAll, 10000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshAll();
+  });
 });

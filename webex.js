@@ -460,6 +460,7 @@ function applyDashboardSettingsToForm(settings = {}, queueOptions = []) {
   if (chat) chat.checked = settings.showChatQueues === true;
   if (outboundName) outboundName.value = settings.outboundQueueDisplayName || "Outbound Calling Queue";
 
+  window.VB_AGENT_INDICATORS?.applySettings(settings.agentStateIndicators);
   lastDashboardSettingsUpdatedAt = settings.updatedAt || null;
   renderDashboardQueueSummary(queueOptions);
 }
@@ -500,6 +501,7 @@ async function saveDashboardSettings() {
   const status = document.getElementById("dashboardSettingsStatus");
   const saveBtn = document.getElementById("saveDashboardSettingsBtn");
 
+  if (window.VB_AGENT_INDICATORS && !window.VB_AGENT_INDICATORS.validForm()) { if (status) status.textContent = "Check the Agent State Indicator settings."; return; }
   const queueVisibility = {};
   document.querySelectorAll(".dashboard-queue-visibility-checkbox").forEach(input => {
     const id = String(input.dataset.queueId || "");
@@ -514,7 +516,8 @@ async function saveDashboardSettings() {
     outboundQueueDisplayName:
       document.getElementById("outboundQueueDisplayName")?.value?.trim() ||
       "Outbound Calling Queue",
-    queueVisibility
+    queueVisibility,
+    agentStateIndicators: window.VB_AGENT_INDICATORS?.readSettings()
   };
 
   try {

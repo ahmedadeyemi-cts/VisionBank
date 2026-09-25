@@ -56,7 +56,7 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>'<tr>'+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';return `<td${attr}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';return `<td${attr}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     $(s.id+'-page').textContent=ready?`${rows.length} records · Page ${s.page} of ${pages}`:'Unavailable';
     $(s.id+'-prev').disabled=!ready||s.page<=1;$(s.id+'-next').disabled=!ready||s.page>=pages;
     $(s.id+'-export').disabled=!ready||!rows.length;
@@ -221,6 +221,12 @@
     const m=d.averageQueueWaitMs;
     if($('chat-mean-note'))$('chat-mean-note').textContent=dailyOK?`Queue-duration mean: ${m?.sampleCount??'unknown'} ended, handled contacts started today; ${m?.activeContactsExcluded??'unknown'} active handled contact(s) excluded. Recorded zero is not an estimated wait to acceptance.`:'Historical queue-duration samples unavailable.';
     const presentation = buildChatAgentPresentation(base, live, daily);
+    if (window.VB_AGENT_INDICATORS && approved()) for (const row of presentation.rows) {
+      if (!row.sessionReported) continue;
+      const agent=base?.agents?.find(a=>String(a.agentId)===String(row.agentId));
+      const indicator=window.VB_AGENT_INDICATORS.stateFor(agent,row,base,live);
+      row.overall=indicator.label;row.overallTone=indicator.category;
+    }
     fill('chat-agents', presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh),
       `Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Agent state is shared across both views. Chat slot state and occupied slots are separate; a remaining slot does not guarantee routing eligibility.`);
     renderAgentActivity(presentation);
@@ -232,6 +238,7 @@
     fill('chat-abandoned',daily?.completedRows?.filter(r=>r.status==='Abandoned')||[],completedOK,`Provider-marked abandonment before handling, contacts ENDING today · ${time(daily?.completedObservedAt)}. No browser-close inference.`);
     const cb=daily?.callbacks;fill('callback-history',cb?.rows||[],approved()&&cb?.status==='ready'&&fresh(cb.observedAt,150000),cb?.coverage||'Callback history unavailable; scheduled request inventory is not connected.');
     renderQueues();
+    window.VB_AGENT_INDICATORS?.decorate(presentation,approved()?base:null,approved()?live:null);
   }
   async function request(view) {
     if(!approved()||document.hidden)return;
@@ -264,7 +271,7 @@
   }
   if(typeof loadAgentStatus==='function') {
     const retained=loadAgentStatus;
-    loadAgentStatus=async function(...args){const result=await retained(...args);if(started)renderAgentActivity(buildChatAgentPresentation(base,live,daily));return result;};
+    loadAgentStatus=async function(...args){const result=await retained(...args);if(started){const p=buildChatAgentPresentation(base,live,daily);renderAgentActivity(p);window.VB_AGENT_INDICATORS?.decorate(p,approved()?base:null,approved()?live:null);}return result;};
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootstrap,{once:true});else bootstrap();
 })();

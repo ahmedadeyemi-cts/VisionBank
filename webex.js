@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.09.25-v6";
+const WEBEX_DASHBOARD_BUILD = "2026.09.28-v7";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -40,13 +40,29 @@ let webexDashboardCacheAt = 0;
 let webexDashboardPromise = null;
 const WEBEX_CACHE_MS = 3000;
 
-const WEBEX_FETCH_TIMEOUT_MS = 10000;
+const WEBEX_FETCH_TIMEOUT_MS = 45000;
 const WEBEX_TRANSIENT_RETRY_MS = 750;
+
+function showWebexReportingStatus(message) {
+  const panel=document.getElementById('queue-panel');
+  if(!panel)return;
+  let el=document.getElementById('webex-reporting-status');
+  if(!el){el=document.createElement('p');el.id='webex-reporting-status';
+    el.setAttribute('role','status');el.style.cssText='font-size:13px;margin:8px 0;';
+    const table=panel.querySelector('table');if(table)table.before(el);else panel.append(el);}
+  el.textContent=message;
+}
+function reportingRetryMs(value) {
+  const seconds=Number(value);
+  if(value&&Number.isFinite(seconds)&&seconds>=0)return Math.max(1000,Math.ceil(seconds*1000));
+  const at=Date.parse(value||'');return Number.isFinite(at)?Math.max(1000,at-Date.now()):0;
+}
+let webexRetryNotBefore=0;
 
 function isTransientWebexFetchError(err) {
   return err?.name === "AbortError" ||
     err?.name === "TimeoutError" ||
-    err instanceof TypeError;
+    err instanceof TypeError || [429,500,502,503,504].includes(err?.httpStatus);
 }
 
 async function fetchWebexDashboardOnce() {
@@ -73,9 +89,14 @@ async function fetchWebexDashboardOnce() {
     }
 
     if (!res.ok || data.success === false) {
-      throw new Error(data.error || `HTTP ${res.status}`);
+      const error=new Error(data.error || `HTTP ${res.status}`);
+      error.httpStatus=res.status;error.retryAfterMs=reportingRetryMs(res.headers.get('Retry-After'));
+      if(error.retryAfterMs)webexRetryNotBefore=Date.now()+error.retryAfterMs;
+      throw error;
     }
 
+    if(!Array.isArray(data.queues)||!Array.isArray(data.agents)||!data.statistics)
+      throw new Error('Webex reporting response is incomplete; no zero totals were substituted.');
     return data;
   } finally {
     clearTimeout(timer);
@@ -88,6 +109,10 @@ async function fetchWebexDashboard(force = false) {
   }
 
   if (webexDashboardPromise) return webexDashboardPromise;
+  if(Date.now()<webexRetryNotBefore){const e=new Error('Waiting for reporting service retry window.');e.httpStatus=503;throw e;}
+  showWebexReportingStatus(webexDashboardCache
+    ? `Refreshing reports. Last response: ${webexDashboardCache.generatedAtCentral || 'time unavailable'}.`
+    : 'Loading reporting data. Slow upstream responses may take up to 45 seconds.');
 
   webexDashboardPromise = (async () => {
     let lastError;
@@ -97,10 +122,14 @@ async function fetchWebexDashboard(force = false) {
         const data = await fetchWebexDashboardOnce();
         webexDashboardCache = data;
         webexDashboardCacheAt = Date.now();
+        showWebexReportingStatus(`Reporting snapshot: ${data.generatedAtCentral || 'time unavailable'}. Refreshes automatically.`);
         return data;
       } catch (err) {
         lastError = err;
-        if (!isTransientWebexFetchError(err) || attempt === 1 || document.hidden) {
+        showWebexReportingStatus(webexDashboardCache
+          ? `Reporting refresh delayed. Showing the last response from ${webexDashboardCache.generatedAtCentral || 'time unavailable'}, not a new live snapshot. Retrying automatically.`
+          : 'Reporting service is delayed. Retrying automatically; no zero totals have been substituted.');
+        if (!isTransientWebexFetchError(err) || err?.httpStatus || attempt === 1 || document.hidden) {
           throw err;
         }
         await new Promise(resolve => setTimeout(resolve, WEBEX_TRANSIENT_RETRY_MS));

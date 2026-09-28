@@ -217,7 +217,7 @@
       ['Chats waiting now',value(l.waiting)],['Offers awaiting acceptance',value(l.offeredNow)],['Active chats now',value(l.active)],['Chats in wrap-up',value(l.wrapup)],
       ['Handled chats completed today',completedOK?value(daily.summary.completedToday):'Unavailable'],['Average recorded queue duration — completed',duration(d.averageQueueWaitMs?.status==='ready'?d.averageQueueWaitMs.value:null)]];
     if($('chat-cards'))$('chat-cards').innerHTML=cards.map(([label,v])=>`<div class="vb-ops-card"><strong>${esc(v)}</strong><span>${esc(label)}</span></div>`).join('');
-    if($('chat-freshness'))$('chat-freshness').textContent=`Live: ${liveOK?time(live.liveObservedAt):'Unavailable / stale'} · Daily: ${dailyOK?time(daily.dailyObservedAt):'Unavailable / stale'}. Search data can lag. Live window: 30 days.`;
+    if($('chat-freshness'))$('chat-freshness').textContent=`Live: ${liveOK?time(live.liveObservedAt):'Unavailable / stale'} · Daily: ${dailyOK?time(daily.dailyObservedAt):'Unavailable / stale'}. Search data can lag. Live window: 30 days.${chatRefreshErrors.live||chatRefreshErrors.daily?' Refresh delayed; retrying automatically. Last valid snapshots expire normally.':''}`;
     const m=d.averageQueueWaitMs;
     if($('chat-mean-note'))$('chat-mean-note').textContent=dailyOK?`Queue-duration mean: ${m?.sampleCount??'unknown'} ended, handled contacts started today; ${m?.activeContactsExcluded??'unknown'} active handled contact(s) excluded. Recorded zero is not an estimated wait to acceptance.`:'Historical queue-duration samples unavailable.';
     const presentation = buildChatAgentPresentation(base, live, daily);
@@ -240,25 +240,38 @@
     renderQueues();
     window.VB_AGENT_INDICATORS?.decorate(presentation,approved()?base:null,approved()?live:null);
   }
+  const nextChatAttempt={live:0,daily:0};
+  const chatRefreshFailures={live:0,daily:0};
+  const chatRefreshErrors={live:false,daily:false};
   async function request(view) {
     if(!approved()||document.hidden)return;
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);
+    let retryMs=0,clear=false;
     try {
       const res=await fetch(endpoint+(view==='live'?'?view=live':''),{method:'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
-      if(!res.ok||!/^application\/(?:[a-z0-9.-]+\+)?json(?:;|$)/i.test(res.headers.get('content-type')||''))throw new Error('unavailable');
+      if(typeof reportingRetryMs==='function')retryMs=reportingRetryMs(res.headers.get('Retry-After'));
+      if([401,403].includes(res.status))clear=true;
+      if(!res.ok)throw new Error('unavailable');
+      if(!/^application\/(?:[a-z0-9.-]+\+)?json(?:;|$)/i.test(res.headers.get('content-type')||'')){clear=true;throw new Error('wrong-content-type');}
       const x=await res.json();if(!approved())return;
-      if(x?.schemaVersion!==2||x.build!==BUILD||x.success!==true||x.channel!=='chat'||x.timezone!=='America/Chicago')throw new Error('wrong-contract');
-      if(view==='live'){if(!Array.isArray(x.liveRows)||!x.queueSnapshot)throw new Error('invalid-live');live=x;}
-      else{if(!Array.isArray(x.rows)||!Array.isArray(x.completedRows)||!x.summary)throw new Error('invalid-daily');daily=x;}
-    }catch{if(view==='live')live=null;else daily=null;}finally{clearTimeout(timeout);render();}
+      if(x?.schemaVersion!==2||x.build!==BUILD||x.success!==true||x.channel!=='chat'||x.timezone!=='America/Chicago'){clear=true;throw new Error('wrong-contract');}
+      if(view==='live'){if(!Array.isArray(x.liveRows)||!x.queueSnapshot){clear=true;throw new Error('invalid-live');}live=x;}
+      else{if(!Array.isArray(x.rows)||!Array.isArray(x.completedRows)||!x.summary){clear=true;throw new Error('invalid-daily');}daily=x;}
+      chatRefreshFailures[view]=0;chatRefreshErrors[view]=false;
+      nextChatAttempt[view]=Date.now()+(view==='live'?15000:60000);
+    }catch{
+      if(clear){if(view==='live')live=null;else daily=null;}
+      // Last valid snapshots may remain only within the existing freshness limits.
+      chatRefreshErrors[view]=true;chatRefreshFailures[view]++;
+      nextChatAttempt[view]=Date.now()+Math.max(retryMs,Math.min(60000,5000*2**Math.min(4,chatRefreshFailures[view]-1)));
+    }finally{clearTimeout(timeout);render();}
   }
   function tick() {
     if(!approved()){live=null;daily=null;render();return;}
     if(document.hidden)return;
     const now=Date.now();
-    if(!inLive&&now-lastLiveAttempt>=15000){lastLiveAttempt=now;inLive=request('live').finally(()=>{inLive=null;});}
-    if(!inDaily&&now-lastDailyAttempt>=60000){lastDailyAttempt=now;inDaily=request('daily').finally(()=>{inDaily=null;});}
-    // Clear stale metrics even when a refresh is slow or failed.
+    if(!inLive&&now>=nextChatAttempt.live){lastLiveAttempt=now;inLive=request('live').finally(()=>{inLive=null;});}
+    if(!inDaily&&now>=nextChatAttempt.daily){lastDailyAttempt=now;inDaily=request('daily').finally(()=>{inDaily=null;});}
     render();
   }
   if(typeof fetchWebexDashboard==='function') {

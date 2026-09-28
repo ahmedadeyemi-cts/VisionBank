@@ -283,12 +283,15 @@
   }
 
   async function fetchDailyReports(force = false) {
-    if (requestInFlight && !force) return requestInFlight;
+    if (requestInFlight) return requestInFlight;
 
     requestInFlight = (async () => {
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),45000);
       try {
         const suffix = force ? "?refresh=1" : "";
         const res = await fetch(`${REPORTS_ENDPOINT}${suffix}`, {
+          signal: controller.signal,
           method: "GET",
           mode: "cors",
           credentials: "omit",
@@ -321,6 +324,7 @@
         setLoading("answered", `Unable to load answered-call report: ${err.message}`);
         setLoading("abandoned", `Unable to load abandoned-call report: ${err.message}`);
       } finally {
+        clearTimeout(timer);
         requestInFlight = null;
       }
     })();

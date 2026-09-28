@@ -31,15 +31,23 @@ let motdInterval = null;
 // ===============================
 // CC API WRAPPER
 // ===============================
+const legacyInFlight = new Map();
 async function fetchApi(path) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      token: TOKEN
-    }
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  if (legacyInFlight.has(path)) return legacyInFlight.get(path);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  const request = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        cache: "no-store", signal: controller.signal,
+        headers: { "Content-Type": "application/json", token: TOKEN }
+      });
+      if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.httpStatus=res.status; throw e; }
+      return await res.json();
+    } finally { clearTimeout(timer); legacyInFlight.delete(path); }
+  })();
+  legacyInFlight.set(path, request);
+  return request;
 }
 
 // ===============================
@@ -972,14 +980,20 @@ async function loadAgentStatus() {
   const body = document.getElementById("agent-body");
   if (!body) return;
 
-  body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
+  if (!body.querySelector('[data-vb-loaded="true"]')) body.innerHTML = `<tr><td colspan="11" class="loading">Loading agent data...</td></tr>`;
 
   try {
     const data = await fetchApi("/status/agents");
 
-    if (!data || !data.AgentStatus || data.AgentStatus.length === 0) {
-      body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
+    if (!Array.isArray(data?.AgentStatus)) {
+      throw new Error("Legacy agent response did not contain an AgentStatus array.");
+    }
+    if (data.AgentStatus.length === 0) {
+      body.innerHTML = `<tr data-vb-loaded="true"><td colspan="11" class="empty-state">No agents are currently reported by the legacy service. Refreshes automatically.</td></tr>`;
       return;
+    }
+    if (data.AgentStatus.some(a => !a || typeof a !== "object" || Array.isArray(a))) {
+      throw new Error("Legacy agent response contains an invalid record.");
     }
 
     body.innerHTML = "";
@@ -998,6 +1012,7 @@ async function loadAgentStatus() {
 const durationSeconds = Number(a.SecondsInCurrentStatus) || 0;
 
 const tr = document.createElement("tr");
+tr.dataset.vbLoaded = "true";
       const sessionStart = new Date(a.StartDateUtc);
 const todayStart = getTodayStartCST();
 
@@ -1068,7 +1083,8 @@ tr.innerHTML = `
     });
   } catch (err) {
     console.error("Agent load error:", err);
-    body.innerHTML = `<tr><td colspan="11" class="error">Unable to load agent data.</td></tr>`;
+    const reason = err?.httpStatus ? `HTTP ${err.httpStatus}` : err?.name === "AbortError" ? "request timed out" : "network or response error";
+    body.innerHTML = `<tr><td colspan="11" class="error">Legacy agent data unavailable (${reason}). Retrying automatically. This does not mean all agents are signed out.</td></tr>`;
   }
 }
 

@@ -1,0 +1,31 @@
+name: Portal regression
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  portal-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci --prefix tests/portal-safety --ignore-scripts --no-audit --no-fund
+      - name: Check both portal scripts
+        run: |
+          node --check dashboard.js
+          node --check webex.js
+          node --check webex-integrated-chat.js
+          node --check webex-reports.js
+      - name: Run request, roster, privacy and failure-isolation tests
+        env:
+          ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs
+        run: node --test tests/portal-safety/policy.test.mjs
+# No deployment, Cloudflare tokens, production requests, or repository writes.
+# The exact private production Worker/32-binding checks run in the guarded uploader.

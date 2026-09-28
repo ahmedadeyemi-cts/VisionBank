@@ -17,6 +17,33 @@
   const fresh=(stamp,age)=>Number.isFinite(stamp)&&Date.now()-stamp>=-5000&&Date.now()-stamp<age;
   let live=null,daily=null,base=null,started=false,lastLiveAttempt=0,lastDailyAttempt=0,inLive=null,inDaily=null;
   const tables=new Map();
+  const customerNames=new Map();let namesInFlight=null,nextNameAttempt=0,namesController=null;
+  const nameFor=r=>customerNames.get(r.contactId)?.name||'Not available';
+  async function requestCustomerNames() {
+    if(!approved()||document.hidden||namesInFlight||Date.now()<nextNameAttempt)return;
+    const now=Date.now(),records=[...(daily?.rows||[]),...(daily?.completedRows||[]),...(live?.liveRows||[])];
+    const ids=[...new Set(records.map(r=>r.contactId).filter(id=>typeof id==='string'&&/^[a-f0-9-]{36}$/i.test(id)))].filter(id=>!customerNames.has(id)||customerNames.get(id).expires<=now).sort().slice(0,50);
+    if(!ids.length)return;
+    const controller=new AbortController();namesController=controller;
+    const timer=setTimeout(()=>controller.abort(),6500);
+    namesInFlight=(async()=>{
+      try {
+        const res=await fetch(origin+'/api/webex/chat-customer-names?ids='+encodeURIComponent(ids.join(',')),{
+          method:'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+        if(!res.ok)throw new Error('optional-name-lookup');
+        const data=await res.json();if(!approved())return;
+        if(data.success!==true||data.schemaVersion!==1||!Array.isArray(data.rows)||data.rows.length!==ids.length)throw new Error('invalid-names');
+        const seen=new Set();
+        for(const row of data.rows){if(!ids.includes(row.contactId)||seen.has(row.contactId)||!(row.customerName===null||typeof row.customerName==='string'&&row.customerName.length<=160))throw new Error('invalid-name-row');seen.add(row.contactId);}
+        for(const row of data.rows)customerNames.set(row.contactId,{name:row.customerName,expires:Date.now()+300000});
+        while(customerNames.size>10000)customerNames.delete(customerNames.keys().next().value);
+        nextNameAttempt=Date.now()+5000;
+      } catch { nextNameAttempt=Date.now()+60000; }
+      finally {clearTimeout(timer);namesController=null;namesInFlight=null;render();}
+    })();
+    await namesInFlight;
+  }
+
   function appendPanel(id,title,anchor,inside=false) {
     if($(id))return $(id);
     if(!anchor)return null;
@@ -32,7 +59,7 @@
       <div class="vb-ops-tools"><label>Search <input type="search" id="${id}-search" aria-label="Search ${esc(panel.querySelector('h2').textContent)}" autocomplete="off"></label>
       ${choices.length?`<label>View <select id="${id}-filter">${choices.map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('')}</select></label>`:''}
       <button type="button" id="${id}-export" disabled>Export CSV</button></div>
-      <div class="vb-ops-scroll"><table><thead><tr>${columns.map((c,i)=>`<th scope="col"><button type="button" data-col="${i}">${esc(c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
+      <div class="vb-ops-scroll"><table><thead><tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}">${esc(c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
       <div class="vb-ops-tools vb-ops-paging"><button type="button" id="${id}-prev">Previous</button><span id="${id}-page">Unavailable</span><button type="button" id="${id}-next">Next</button></div>`;
     panel.append(container);
     const state={id,columns,rows:[],ready:false,page:1,sort:0,desc:false,filter:'all',filtered:[]};tables.set(id,state);
@@ -176,7 +203,7 @@
     ]);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
-    const fields=[['Contact ID',r=>r.contactId],['Queue',r=>r.queue||'Unavailable'],['Agent (reported)',r=>r.agent||'Unavailable'],
+    const fields=[['Customer Name',nameFor],['Contact ID',r=>r.contactId],['Queue',r=>r.queue||'Unavailable'],['Agent (reported)',r=>r.agent||'Unavailable'],
       ['Started (CST/CDT)',r=>time(r.startedAt),r=>r.startedAt||0],['First accepted (CST/CDT)',r=>time(r.connectedAt),r=>r.connectedAt||0],
       ['Ended (CST/CDT)',r=>time(r.endedAt),r=>r.endedAt||0],['Recorded queue duration',r=>duration(r.queueWaitMs),r=>r.queueWaitMs??-1],['Status',r=>r.status]];
     table(appendPanel('vbHandledChats',"Today's Handled Chats",$('answeredCallsPanel')),'chat-handled',fields,[['all','Handled contacts started today'],['active','Active now (30-day snapshot)'],['completed','Completed today (including earlier starts)']]);
@@ -267,11 +294,12 @@
     }finally{clearTimeout(timeout);render();}
   }
   function tick() {
-    if(!approved()){live=null;daily=null;render();return;}
+    if(!approved()){live=null;daily=null;customerNames.clear();namesController?.abort();render();return;}
     if(document.hidden)return;
     const now=Date.now();
     if(!inLive&&now>=nextChatAttempt.live){lastLiveAttempt=now;inLive=request('live').finally(()=>{inLive=null;});}
     if(!inDaily&&now>=nextChatAttempt.daily){lastDailyAttempt=now;inDaily=request('daily').finally(()=>{inDaily=null;});}
+    void requestCustomerNames();
     render();
   }
   if(typeof fetchWebexDashboard==='function') {

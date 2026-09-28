@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.09.28-v7";
+const WEBEX_DASHBOARD_BUILD = "2026.09.28-v8";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -68,6 +68,8 @@ function isTransientWebexFetchError(err) {
 async function fetchWebexDashboardOnce() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WEBEX_FETCH_TIMEOUT_MS);
+  const began=Date.now();
+  window.VB_REPORT_HEALTH={endpoint:'/api/webex/dashboard',state:'requesting',startedAt:began,httpStatus:null};
 
   try {
     const res = await fetch(WEBEX_DASHBOARD_API, {
@@ -79,6 +81,7 @@ async function fetchWebexDashboardOnce() {
       headers: { "Accept": "application/json" }
     });
 
+    window.VB_REPORT_HEALTH.httpStatus=res.status;
     const text = await res.text();
     let data = {};
 
@@ -97,8 +100,15 @@ async function fetchWebexDashboardOnce() {
 
     if(!Array.isArray(data.queues)||!Array.isArray(data.agents)||!data.statistics)
       throw new Error('Webex reporting response is incomplete; no zero totals were substituted.');
+    window.VB_REPORT_HEALTH.state='ready';
     return data;
+  } catch(err) {
+    window.VB_REPORT_HEALTH.state='unavailable';
+    window.VB_REPORT_HEALTH.failure=err?.name==='AbortError'?'timeout':err?.httpStatus?'HTTP '+err.httpStatus:'network-or-response-error';
+    throw err;
   } finally {
+    window.VB_REPORT_HEALTH.elapsedMs=Date.now()-began;
+    window.VB_REPORT_HEALTH.finishedAt=Date.now();
     clearTimeout(timer);
   }
 }
@@ -128,7 +138,7 @@ async function fetchWebexDashboard(force = false) {
         lastError = err;
         showWebexReportingStatus(webexDashboardCache
           ? `Reporting refresh delayed. Showing the last response from ${webexDashboardCache.generatedAtCentral || 'time unavailable'}, not a new live snapshot. Retrying automatically.`
-          : 'Reporting service is delayed. Retrying automatically; no zero totals have been substituted.');
+          : `Reporting unavailable (${window.VB_REPORT_HEALTH?.failure||'retry window'}). Retrying automatically; no zero totals have been substituted.`);
         if (!isTransientWebexFetchError(err) || err?.httpStatus || attempt === 1 || document.hidden) {
           throw err;
         }

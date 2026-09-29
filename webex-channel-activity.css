@@ -1,0 +1,28 @@
+/* Scoped to the two Webex agent tables; reuses their bright state palette. */
+:is(#agent-body,#chat-agents-body) td.vb-channel-cell {background:#fff!important;color:#111827!important;font-weight:400;text-align:left;padding:8px 12px!important;min-width:238px;max-width:300px;}
+.vb-channel-activity {display:flex;align-items:center;justify-content:flex-start;gap:14px;min-height:46px;font:12px/1.3 system-ui,sans-serif;}
+.vb-channel {display:inline-flex;align-items:center;gap:7px;flex:1 1 0;min-width:94px;}
+.vb-channel-copy {display:flex;flex-direction:column;gap:2px;min-width:0;}
+.vb-channel-name {font-size:12px;font-weight:650;}
+.vb-channel-label {font-size:11px;font-weight:500;}
+.vb-channel-slots {font:600 11px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums;}
+.vb-channel-icon {display:flex;align-items:center;justify-content:center;width:29px;height:29px;flex:0 0 29px;border-radius:50%;background:var(--channel-color);color:var(--channel-ink);box-shadow:inset 0 0 0 1px #0002;}
+.vb-channel-icon svg {width:17px;height:17px;}
+.vb-channel-dot {fill:var(--channel-color);}
+.vb-channel,.vb-channel-legend-item {--channel-color:var(--vb-gray,#6b7280);--channel-ink:#fff;}
+:is(.vb-channel,.vb-channel-legend-item)[data-tone=available] {--channel-color:var(--vb-green,#2ecc71);--channel-ink:#111827;}
+:is(.vb-channel,.vb-channel-legend-item)[data-tone=engaged] {--channel-color:var(--vb-red,#d92d20);--channel-ink:#fff;}
+:is(.vb-channel,.vb-channel-legend-item)[data-tone=idle] {--channel-color:var(--vb-idle,#facc15);--channel-ink:#111827;}
+:is(.vb-channel,.vb-channel-legend-item)[data-tone=wrapup] {--channel-color:var(--vb-amber,#fb923c);--channel-ink:#111827;}
+.vb-channel-legend {display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:14px;color:inherit;font:12px/1.4 system-ui,sans-serif;}
+.vb-channel-legend-item {display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.vb-channel-swatch {width:11px;height:11px;border-radius:50%;background:var(--channel-color);box-shadow:inset 0 0 0 1px #0002;}
+.vb-channel-legend small {flex-basis:100%;font:11px/1.5 system-ui,sans-serif;}
+.vb-channel-heading {white-space:nowrap;}
+@media(forced-colors:active){.vb-channel-icon,.vb-channel-swatch{border:1px solid CanvasText;background:Canvas;color:CanvasText}.vb-channel-dot{fill:Canvas}}
+
+/* The original main table uses fixed equal-width columns; give Channel activity its own bounded width. */
+.data-table.vb-agent-table {table-layout:auto!important;min-width:1250px;}
+.vb-agent-table .vb-channel-heading {width:238px;min-width:238px;}
+:is(body.dark-mode,body.dark,[data-theme=dark]) :is(#agent-body,#chat-agents-body) td.vb-channel-cell {background:#020617!important;color:#e5e7eb!important;}
+:is(#agent-body,#chat-agents-body) .vb-channel-icon {color:var(--channel-ink)!important;}

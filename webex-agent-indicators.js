@@ -53,7 +53,7 @@
     const agents=new Map((dashboard?.agents||[]).map(a=>[String(a.agentId),a]));
     for(const tr of root.document.querySelectorAll('#agent-body tr[data-vb-agent-id],#chat-agents-body tr[data-vb-agent-id]')) {
       const id=tr.dataset.vbAgentId,a=agents.get(id),p=byId.get(id);
-      const cell=tr.closest('tbody').id==='agent-body'?tr.querySelector('.availability-cell'):tr.children[2];if(!cell)continue;
+      const cell=tr.closest('tbody').id==='agent-body'?tr.querySelector('.availability-cell'):(tr.querySelector('[data-vb-overall-state]')||tr.children[2]);if(!cell)continue;
       const state=stateFor(a,p,dashboard,liveReport,now);
       cell.dataset.vbState=state.category;cell.dataset.state=state.category;cell.dataset.vbIndicator='true';
       cell.classList.remove('vb-login-cue');cell.style.removeProperty('animation-delay');cell.textContent=state.label;

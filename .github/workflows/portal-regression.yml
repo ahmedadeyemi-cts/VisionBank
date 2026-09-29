@@ -23,9 +23,11 @@ jobs:
           node --check webex.js
           node --check webex-integrated-chat.js
           node --check webex-reports.js
+          node --check webex-channel-activity.js
+          node --check webex-agent-indicators.js
       - name: Run request, roster, privacy and failure-isolation tests
         env:
           ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs
-        run: node --test tests/portal-safety/policy.test.mjs
+        run: node --test tests/portal-safety/policy.test.mjs tests/channel-activity/*.test.mjs tests/chat-agent-presentation.test.mjs tests/agent-indicators.test.mjs tests/agent-queue-state-r3.test.mjs
 # No deployment, Cloudflare tokens, production requests, or repository writes.
 # The exact private production Worker/32-binding checks run in the guarded uploader.

@@ -1,0 +1,26 @@
+.vb-cb-selection { margin: 12px 0; padding: 12px; border: 1px solid #536077; border-radius: 8px; }
+.vb-cb-buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vb-cb-buttons button, .vb-cb-plan-heading button { position: static; padding: 8px 12px; min-height: 36px; border-radius: 6px; border: 1px solid #6b7280; background: #185342; color: white; cursor: pointer; font: inherit; }
+.vb-cb-buttons button:disabled { opacity: .55; cursor: not-allowed; }
+.vb-cb-buttons button:focus-visible, .vb-cb-plan input:focus-visible { outline: 3px solid #3b82f6; outline-offset: 2px; }
+.vb-cb-selection p, .vb-cb-selection small { line-height: 1.45; }
+.vb-cb-plan { width: min(950px, calc(100vw - 48px)); max-height: 85vh; box-sizing: border-box; overflow: auto; border: 1px solid #64748b; border-radius: 12px; padding: 20px; background: #fff; color: #111827; }
+.vb-cb-plan::backdrop { background: rgb(0 0 0 / 55%); }
+.vb-cb-plan-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.vb-cb-plan-heading h2 { margin: 0; font-size: 20px; }
+.vb-cb-preview-notice { border-left: 4px solid #eab308; background: #fef9c3; padding: 12px; }
+.vb-cb-time-fields { display: flex; gap: 16px; flex-wrap: wrap; }
+.vb-cb-time-fields label { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+.vb-cb-time-fields input { font: inherit; padding: 8px; border: 1px solid #64748b; border-radius: 6px; }
+.vb-cb-preview-table { overflow-x: auto; margin: 16px 0; }
+.vb-cb-preview-table table { width: 100%; border-collapse: collapse; }
+.vb-cb-preview-table th, .vb-cb-preview-table td { padding: 9px; text-align: left; border: 1px solid #64748b; overflow-wrap: anywhere; }
+.vb-cb-preview-table th { background: #e5e7eb; }
+.vb-cb-note { font-size: 13px; line-height: 1.5; }
+#vbCallbackSelectPage, input[data-callback-select] { width: 18px; height: 18px; accent-color: #185342; }
+body.dark-mode .vb-cb-plan { background: #0f172a; color: #e5e7eb; color-scheme: dark; }
+body.dark-mode .vb-cb-preview-notice { background: #334155; }
+body.dark-mode .vb-cb-preview-table th { background: #1e293b; }
+@media (max-width: 600px) { .vb-cb-plan { padding: 12px; width: calc(100vw - 20px); } .vb-cb-buttons button { flex: 1; } }
+
+.vb-cb-preview-table td:nth-child(2) { white-space: nowrap; min-width: 132px; }

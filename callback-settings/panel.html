@@ -1,0 +1,43 @@
+<section id="abandonedCallbackSettingsPanel" class="vb-callback-panel" hidden aria-labelledby="abandonedCallbackSettingsTitle">
+  <div class="vb-callback-heading"><h2 id="abandonedCallbackSettingsTitle">Abandoned Callback Settings</h2>
+    <button type="button" id="abandonedCallbackClose" aria-label="Close abandoned callback settings">Close</button></div>
+  <p>Shared settings persist until explicitly changed. No separate login is required on an approved dashboard connection.</p>
+  <p id="abandonedCallbackLoadStatus" role="status" aria-live="polite">Open this panel to load the saved settings.</p>
+  <p id="abandonedCallbackProcessing" class="vb-callback-notice"></p>
+  <form id="abandonedCallbackForm"><fieldset id="abandonedCallbackFields" disabled>
+    <legend class="vb-callback-sr">Callback configuration</legend>
+    <label class="vb-callback-switch"><input type="checkbox" id="abandonedCallbackEnabled" role="switch"> Enable abandoned callbacks</label>
+    <p>Disabling stops new callbacks when execution is connected. Existing Webex schedules are not automatically canceled. Active calls are never ended.</p>
+    <div class="vb-callback-grid">
+      <label>Voice queue<select id="abandonedCallbackQueue"><option value="">Select one Voice queue</option></select></label>
+      <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
+        <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
+    </div>
+    <label class="vb-callback-attempts">Maximum callback attempts<input id="abandonedCallbackMaxAttempts" type="number" min="1" max="10" step="1" value="3" required aria-describedby="abandonedCallbackAttemptsHelp"></label>
+    <p id="abandonedCallbackAttemptsHelp">Total customer-dial attempts, including the first call. Default: 3 (first call plus up to 2 retries). Your saved choice must match a verified Webex retry policy before new schedules run. This does not change organization-wide Webex settings.</p>
+    <p class="vb-callback-policy"><strong>One callback schedule per original missed call · Configurable attempt limit · Any available agent</strong><br>
+      Agent message: <span id="abandonedCallbackAgentMessage">Callback for missed call from customer</span></p>
+    <details><summary>Timing and excluded dates</summary><div class="vb-callback-grid">
+      <label>Minimum delay (minutes)<input id="abandonedCallbackDelay" type="number" min="30" max="1440" step="1" required></label>
+      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="240" step="1" required></label>
+      <label>Calling starts — Central<input id="abandonedCallbackStart" type="time" required></label>
+      <label>Calling ends — Central<input id="abandonedCallbackEnd" type="time" required></label>
+    </div><fieldset class="vb-callback-days"><legend>Calling days — America/Chicago</legend>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="1">Mon</label><label><input type="checkbox" name="abandonedCallbackDay" value="2">Tue</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="3">Wed</label><label><input type="checkbox" name="abandonedCallbackDay" value="4">Thu</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="5">Fri</label><label><input type="checkbox" name="abandonedCallbackDay" value="6">Sat</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="0">Sun</label></fieldset>
+      <label>Excluded dates (YYYY-MM-DD, one per line)<textarea id="abandonedCallbackExcluded" rows="3" maxlength="704"></textarea></label>
+    </details><div class="vb-callback-actions"><button type="submit" id="abandonedCallbackSave">Save settings</button></div>
+  </fieldset></form>
+  <div class="vb-callback-audit"><h3>Last changed by</h3>
+    <p>Identifies the source connection, not a verified individual. Computer names are shown only when a trusted source provides them.</p>
+    <dl id="abandonedCallbackLastChange"></dl>
+  </div>
+  <details id="abandonedCallbackHistory"><summary>Change history</summary>
+    <p id="abandonedCallbackHistoryStatus" role="status"></p>
+    <div class="vb-callback-table"><table><thead><tr><th>When — CST/CDT</th><th>Change</th><th>Source IP</th><th>Browser / OS</th><th>Computer</th><th>Version</th></tr></thead>
+      <tbody id="abandonedCallbackHistoryRows"></tbody></table></div>
+    <button type="button" id="abandonedCallbackOlder" hidden>Older changes</button>
+  </details>
+</section>

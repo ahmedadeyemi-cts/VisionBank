@@ -26,9 +26,18 @@ jobs:
           node --check webex-channel-activity.js
           node --check webex-voice-statistics.js
           node --check webex-agent-indicators.js
+          node --check webex-abandoned-callback-settings.js
+          node --check callback-settings/policy.mjs
+          node --check callback-settings/gateway.mjs
+          node --check callback-settings/store.mjs
+          node --check callback-settings/native.mjs
+          node --check callback-settings/execution.mjs
+          node --check webex-abandoned-selection.js
+          node --check callback-settings/selection.mjs
+          node --check webex-abandoned-selection.js
       - name: Run request, roster, privacy and failure-isolation tests
         env:
           ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs
-        run: node --test tests/portal-safety/policy.test.mjs tests/channel-activity/*.test.mjs tests/voice-statistics/*.test.mjs tests/chat-agent-presentation.test.mjs tests/agent-indicators.test.mjs tests/agent-queue-state-r3.test.mjs
+        run: node --test tests/abandoned-callback-settings/*.test.mjs tests/portal-safety/policy.test.mjs tests/channel-activity/*.test.mjs tests/voice-statistics/*.test.mjs tests/chat-agent-presentation.test.mjs tests/agent-indicators.test.mjs tests/agent-queue-state-r3.test.mjs
 # No deployment, Cloudflare tokens, production requests, or repository writes.
 # The exact private production Worker/32-binding checks run in the guarded uploader.

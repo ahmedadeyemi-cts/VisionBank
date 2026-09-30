@@ -11,6 +11,8 @@ import {createNativeClient} from './callback-settings/native.mjs';
 export class TestCallbackStore extends AbandonedCallbackSettingsV1 {
  constructor(ctx,env){super(ctx,env);this.execution.client=createNativeClient({orgId:env.WEBEX_ORG_ID,getToken:async()=>'synthetic-test-token',fetchImpl:async(url,options)=>{
  const u=new URL(url),orgId=env.WEBEX_ORG_ID;
+ const ep={id:'22222222-2222-4222-8222-222222222222',name:'Pilot_Callback_EP',active:true,entryPointType:'OUTBOUND',channelType:'TELEPHONY',callbackEnabled:true};
+ if(options.method==='GET'&&u.pathname.endsWith('/entry-point'))return Response.json({meta:{orgid:orgId,page:0,totalPages:1,totalRecords:1},data:[ep]});
  if(options.method==='GET'&&u.pathname.endsWith('/organization-setting'))return Response.json([{webCallBackEnabled:true,maximumCallbackAttempts:3}]);
  if(options.method==='GET'&&u.pathname.includes('/contact-service-queue/'))return Response.json({id:u.pathname.split('/').at(-1),active:true,channelType:'TELEPHONY'});
  if(options.method==='GET'&&u.pathname.endsWith('/scheduled-callback')){const rows=await ctx.storage.get('mock:native')||[];return Response.json({meta:{page:0,totalPages:rows.length?1:0},data:rows});}
@@ -28,7 +30,7 @@ let mf;const start=async()=>{mf=new Miniflare(convertV4MiniflareOptions?convertV
  const ns=await mf.getDurableObjectNamespace('STORE');return ns.get(ns.idFromName('test-native'));};
 const send=async(stub,route,body)=>{const r=await stub.fetch('https://callback-settings.internal/'+route,{method:body?'POST':'GET',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};};
 try{
- let stub=await start();let result=await send(stub,'settings',{change:mutation({enabled:true,queueId:QUEUE}),actor:ACTOR,requestId:crypto.randomUUID()});assert.equal(result.status,200);assert.equal(result.data.processing.ready,true);
+ let stub=await start();let result=await send(stub,'settings',{change:mutation({enabled:true,queueId:QUEUE,callbackEntryPointId:approval().callbackEntryPointId}),actor:ACTOR,requestId:crypto.randomUUID()});assert.equal(result.status,200);assert.equal(result.data.processing.ready,true);
  const window=nextWindow({...defaults(),enabled:true,queueId:QUEUE},Date.now()+120000),batch={mutationId:crypto.randomUUID(),expectedVersion:1,preview:{scope:'selected',queue:{id:QUEUE},window,rows:[{contactId:cid(1),number:'+12025550123',disposition:'candidate'}]},actor:ACTOR,requestId:crypto.randomUUID()};
  result=await send(stub,'schedule',batch);assert.equal(result.status,202,JSON.stringify(result.data));
  for(let i=0;i<50;i++){result=await send(stub,'records?ids='+cid(1));if(result.data.rows[0]?.status==='scheduled')break;await new Promise(r=>setTimeout(r,100));}

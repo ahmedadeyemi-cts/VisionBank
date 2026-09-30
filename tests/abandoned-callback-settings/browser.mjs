@@ -1,7 +1,8 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
 import {evaluate,example,queue} from '../voice-statistics/fixtures.mjs';
 import {fixture,mutation,QUEUE} from './fixtures.mjs';
-const backend=fixture();let outage=false,uncertain=false;
+const EP='22222222-2222-4222-8222-222222222222';let epName='Pilot_Callback_EP',epOutage=false;
+const backend=fixture({nativeClient:{entryPoints:async()=>{if(epOutage)throw Error('injected discovery failure');return [{id:EP,name:epName,callbackEnabled:true}];}}});let outage=false,uncertain=false;
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'/Users/Ahmed.Adeyemi/visionbank-chat-release-sku_wror/browser-tools/node_modules/playwright-core/index.mjs');
 const root=path.resolve('.'),out=path.resolve('../browser-callback-settings');fs.mkdirSync(out,{recursive:true});
 const origin='https://visionbank-dashboard.onrender.com',worker='https://visionbank-security.ahmedadeyemi.workers.dev';
@@ -42,6 +43,8 @@ try{
   ok('settings panel starts closed',!await page.locator('#abandonedCallbackSettingsPanel').isVisible());
   await open(page);ok('first load defaults Off, with no login form',!await page.locator('#abandonedCallbackEnabled').isChecked()&&await page.locator('#abandonedCallbackSettingsPanel input[type=password]').count()===0);
   ok('new maximum defaults to 3 total attempts',await page.locator('#abandonedCallbackMaxAttempts').inputValue()==='3');
+  ok('entry point list is loaded by ID from Webex',await page.locator('#abandonedCallbackEntryPoint option[value="'+EP+'"]').count()===1);
+  await page.locator('#abandonedCallbackEntryPoint').selectOption(EP);
   await page.locator('#abandonedCallbackMaxAttempts').fill('2');
   await page.locator('#abandonedCallbackQueue').selectOption(QUEUE);await page.locator('#abandonedCallbackEnabled').check();await save(page);
   ok('one Save records enable and audit',/Saved\./.test(await page.locator('#abandonedCallbackLoadStatus').innerText()));
@@ -50,6 +53,16 @@ try{
   await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.VB_SECURITY?.allowed);await open(page);
   ok('enabled survives complete browser refresh',await page.locator('#abandonedCallbackEnabled').isChecked());
   ok('custom attempt limit survives reload',await page.locator('#abandonedCallbackMaxAttempts').inputValue()==='2');
+  ok('saved entry-point ID survives browser reload',await page.locator('#abandonedCallbackEntryPoint').inputValue()===EP);
+  epName='Renamed_Callback_EP';await page.locator('#abandonedCallbackClose').click();await open(page);
+  await page.waitForFunction(()=>document.querySelector('#abandonedCallbackEntryPoint option:checked')?.textContent.includes('Renamed_Callback_EP'));
+  ok('Webex rename appears without changing selected ID',await page.locator('#abandonedCallbackEntryPoint').inputValue()===EP);
+  epOutage=true;await page.locator('#abandonedCallbackClose').click();await open(page);
+  await page.waitForFunction(()=>document.getElementById('abandonedCallbackEntryPointStatus').textContent.includes('discovery is unavailable'));
+  ok('discovery outage keeps the saved ID instead of resetting it',await page.locator('#abandonedCallbackEntryPoint').inputValue()===EP);
+  epOutage=false;await page.locator('#abandonedCallbackClose').click();await open(page);
+  await page.waitForFunction(()=>document.querySelector('#abandonedCallbackEntryPoint option:checked')?.textContent.includes('Renamed_Callback_EP'));
+
   await page.locator('#abandonedCallbackHistory summary').click();await page.waitForSelector('#abandonedCallbackHistoryRows tr');
   ok('audit survives refresh with one enable row',await page.locator('#abandonedCallbackHistoryRows tr').count()===1);
   const second=await context.newPage();await second.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});await second.waitForFunction(()=>window.VB_SECURITY?.allowed);await open(second);

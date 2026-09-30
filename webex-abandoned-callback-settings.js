@@ -33,13 +33,19 @@ function apply(data,force=false) {
   for(const q of data.queueOptions||[])select.add(new Option(q.name,q.id));
   if(s.queueId&&![...select.options].some(o=>o.value===s.queueId))select.add(new Option('Saved queue — live availability not confirmed',s.queueId));
   select.value=s.queueId;
+  const entry=byId('EntryPoint');entry.replaceChildren(new Option('Select the Webex callback entry point',''));
+  for(const ep of data.entryPointOptions||[])entry.add(new Option(ep.name+(ep.callbackEnabled?' — Webex callback entry point':''),ep.id));
+  if(s.callbackEntryPointId&&![...entry.options].some(o=>o.value===s.callbackEntryPointId))entry.add(new Option('Saved entry point — currently unavailable',s.callbackEntryPointId));
+  entry.value=s.callbackEntryPointId||'';
+  text('EntryPointStatus',data.entryPointOptionsAvailable?'Names are refreshed from Webex. Renaming the same entry point retains its link.':'Entry-point discovery is unavailable. Your saved selection has not been changed.');
+
   for(const [id,key]of [['MaxAttempts','maxAttempts'],['Delay','delayMinutes'],['Window','windowMinutes'],['Start','startTime'],['End','endTime']])byId(id).value=s[key];
   document.querySelectorAll('[name="abandonedCallbackDay"]').forEach(e=>e.checked=s.days.includes(Number(e.value)));
   byId('Excluded').value=s.excludedDates.join('\n');byId('Fields').disabled=false;
   dirty=false;text('LoadStatus','Saved configuration loaded. Changes apply only when you select Save settings.');
 }
 function readForm() {
-  return normalizeSettings({enabled:byId('Enabled').checked,mode:byId('Mode').value,queueId:byId('Queue').value,
+  return normalizeSettings({enabled:byId('Enabled').checked,mode:byId('Mode').value,queueId:byId('Queue').value,callbackEntryPointId:byId('EntryPoint').value,
     delayMinutes:Number(byId('Delay').value),windowMinutes:Number(byId('Window').value),timezone:'America/Chicago',
     startTime:byId('Start').value,endTime:byId('End').value,
     days:[...document.querySelectorAll('[name="abandonedCallbackDay"]:checked')].map(e=>Number(e.value)),
@@ -76,7 +82,7 @@ async function history(older=false) {
   try{const data=await api('history'+(older&&nextBefore!==null?'?before='+nextBefore:''));
     const body=byId('HistoryRows');if(!older)body.replaceChildren();
     for(const row of data.rows){const tr=document.createElement('tr'),a=row.actor;
-      for(const value of [stamp(row.at),row.action,a.sourceIp,`${a.browser} / ${a.operatingSystem}`,a.computerName||'Not reported',String(row.version)])tr.append(node('td',value));
+      for(const value of [stamp(row.at),row.action+(row.entryPointChange?' · Callback entry point: '+(row.entryPointChange.nameAtChange||row.entryPointChange.nextId||'Cleared'):''),a.sourceIp,`${a.browser} / ${a.operatingSystem}`,a.computerName||'Not reported',String(row.version)])tr.append(node('td',value));
       body.append(tr);}
     nextBefore=data.nextBefore;byId('Older').hidden=nextBefore===null;
     text('HistoryStatus',body.children.length?'Server-recorded changes. Source IP identifies a connection, not a verified person.':'No saved changes.');

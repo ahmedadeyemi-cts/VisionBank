@@ -17,8 +17,8 @@ export function nativePayload(row,window,queueId){
 export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=15000}){
   if(!ID.test(orgId))throw new SettingsError('invalid-native-organization');
   const base='/v1/callbacks/organization/'+orgId+'/scheduled-callback';
-  async function request(path,method='GET',body){
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  async function request(path,method='GET',body,deadlineMs=timeoutMs){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.min(timeoutMs,deadlineMs));
     try{const token=await Promise.race([getToken(),new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(new NativeCallbackError('native-token-deadline')),{once:true}))]);
       if(typeof token!=='string'||!token)throw new NativeCallbackError('native-token-unavailable');
       const response=await fetchImpl(ORIGIN+path,{method,redirect:'error',signal:controller.signal,
@@ -68,13 +68,34 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
       try{const {data}=await request(base+'/'+id);return validateRecord(data);}
       catch(e){if(e.status===404)return null;throw e;}
     },
-    async configuration(queueId){
+    async entryPoints(){
+      const options=new Map(),seen=new Set(),deadline=Date.now()+5000;let totalPages=1,totalRecords=null;
+      for(let page=0;page<totalPages;page++){
+        if(Date.now()>=deadline)throw new NativeCallbackError('entry-point-discovery-timeout');
+        const {data}=await request('/organization/'+orgId+'/v2/entry-point?page='+page+'&pageSize=100','GET',undefined,deadline-Date.now());
+        const m=data?.meta;
+        if(!Array.isArray(data?.data)||m?.orgid!==orgId||m.page!==page||!Number.isSafeInteger(m.totalPages)||m.totalPages<0||m.totalPages>20)throw new NativeCallbackError('entry-point-inventory-incomplete');
+        if(!Number.isSafeInteger(m.totalRecords)||m.totalRecords<0||m.totalRecords>2000||m.totalPages!==Math.ceil(m.totalRecords/100))throw new NativeCallbackError('entry-point-inventory-incomplete');
+        if(page>0&&(m.totalPages!==totalPages||m.totalRecords!==totalRecords))throw new NativeCallbackError('entry-point-inventory-changed');
+        totalPages=m.totalPages;totalRecords=m.totalRecords;
+        for(const e of data.data){
+          if(!ID.test(e?.id||'')||typeof e.name!=='string'||!e.name.trim()||e.name.length>80||seen.has(e.id))throw new NativeCallbackError('entry-point-record-invalid');
+          seen.add(e.id);
+          if(e.entryPointType==='OUTBOUND'&&e.channelType==='TELEPHONY'&&e.active===true)
+            options.set(e.id,{id:e.id,name:e.name,callbackEnabled:e.callbackEnabled===true});
+        }
+      }
+      if(seen.size!==totalRecords)throw new NativeCallbackError('entry-point-inventory-incomplete');
+      return [...options.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
+    },
+    async configuration(queueId,entryPointId){
       if(!ID.test(queueId))throw new SettingsError('voice-queue-required');
-      const [{data:org},{data:queue}]=await Promise.all([request('/organization/'+orgId+'/organization-setting'),
-        request('/organization/'+orgId+'/v2/contact-service-queue/'+queueId)]);
-      const o=Array.isArray(org)?org[0]:org,q=queue.data||queue;
-      if(!o||!q||q.id!==queueId)throw new NativeCallbackError('native-configuration-incomplete');
-      return {queueId:q.id,queueName:q.name,queueActive:q.active===true||q.isActive===true,
+      if(!ID.test(entryPointId||''))throw new SettingsError('callback-entry-point-required');
+      const [{data:org},{data:queue},points]=await Promise.all([request('/organization/'+orgId+'/organization-setting'),
+        request('/organization/'+orgId+'/v2/contact-service-queue/'+queueId),this.entryPoints()]);
+      const o=Array.isArray(org)?org[0]:org,q=queue.data||queue,e=points.find(point=>point.id===entryPointId);
+      if(!o||!q||q.id!==queueId||!e||e.id!==entryPointId)throw new NativeCallbackError('native-configuration-incomplete');
+      return {callbackEntryPointId:e.id,callbackEntryPointName:e.name,entryPointActive:true,entryPointOutbound:true,entryPointCallbackEnabled:e.callbackEnabled===true,queueId:q.id,queueName:q.name,queueActive:q.active===true||q.isActive===true,
         voiceQueue:/^(telephony|voice)$/i.test(q.channelType||''),webCallbackEnabled:o.webCallBackEnabled===true,
         reportedMaximumAttempts:o.maximumCallbackAttempts??null,reportedRetryIntervalSeconds:o.retryCallbackInterval??null};
     }
@@ -94,7 +115,7 @@ export function runtimeGate(env){
   if(p.phase==='pilot'&&(!Array.isArray(p.testNumbers)||p.testNumbers.length!==1||!callbackNumber(p.testNumbers[0])))
     blockers.push('one-approved-test-number-required');
   if(p.phase==='live'&&p.singleCallbackPilotPassed!==true)blockers.push('single-callback-pilot-not-passed');
-  return {ready:blockers.length===0,blockers,phase:p.phase||'not-configured',queueId:p.queueId||null,
+  return {ready:blockers.length===0,blockers,phase:p.phase||'not-configured',queueId:p.queueId||null,callbackEntryPointId:p.callbackEntryPointId||null,
     maxBatch:p.phase==='pilot'?1:1000,testNumbers:(Array.isArray(p.testNumbers)?p.testNumbers:[]).map(callbackNumber).filter(Boolean),
     validatedTotalAttempts:p.validatedTotalAttempts??null,validatedNativeMaximumAttempts:p.validatedNativeMaximumAttempts??null,reviewedFlowSha256:p.reviewedFlowSha256||null};
 }

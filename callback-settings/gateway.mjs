@@ -94,7 +94,7 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         }
         const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,
           ...browserDetails(request.headers.get('User-Agent'))};
-        init={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change,actor,requestId:crypto.randomUUID()})};
+        init={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change:{...change,settings:body.settings},actor,requestId:crypto.randomUUID()})};
       } else if (part==='settings') {
         if (u.searchParams.has('mutationId') && !UUID.test(u.searchParams.get('mutationId')))
           throw new SettingsError('invalid-mutation-id');

@@ -55,3 +55,15 @@ Actual call-attempt outcomes, live callback flow routing, agent-visible reason, 
 - https://developer.webex.com/webex-contact-center/docs/api/v1/callback-schedule/schedule-a-callback
 - https://developer.webex.com/webex-contact-center/docs/api/v1/callback-schedule/get-scheduled-callbacks
 - https://developer.webex.com/webex-contact-center/docs/api/v1/callback-schedule/get-scheduled-callback-by-id
+
+## Configurable callback entry point (settings v3)
+
+The settings panel now exposes a persisted `callbackEntryPointId` selection. Options are loaded from the documented, read-only entry-point inventory and filtered to active outbound telephony entries. Names are display metadata, never routing keys; renaming an existing entry point does not change its saved ID. Names refresh when settings are reopened or through the existing visible-panel refresh. No entry-point name or tenant-specific ID is hardcoded in the application.
+
+The operator can select a different existing outbound entry point and save it with the same atomic source-IP audit. This does not rename an entry point, change the Control Hub organization callback selection, or modify existing schedules. Actual renames and organization-wide callback routing remain managed in Control Hub. A new selection requires matching reviewed runtime routing before new submissions are allowed. The live entry-point read must confirm that it remains active, outbound telephony and callback-enabled.
+
+Existing v2 records are projected with an empty new ID without rewriting their version, enabled state, attempts or audit history. The first deliberate selection is audited. A cached older browser that omits the new field cannot clear the saved selection. Discovery failures retain the saved ID and show an unavailable label; disabling remains possible. Discovery has an independent five-second total deadline, validates complete pagination, and is not added to the general reporting polling loop.
+
+The schedule ledger captures the selected entry-point ID/name at submission. The native scheduling request is unchanged and does not invent an entry-point override parameter. This update does not enable dialing, change the callback retry count, modify the approved pilot number, or complete the pending live callback-flow pilot.
+
+Deployment order remains companion/backend modules first, then matching frontend after validation. No new storage namespace or Worker binding is needed for this update.

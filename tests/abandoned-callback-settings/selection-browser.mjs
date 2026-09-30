@@ -2,7 +2,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 import {evaluate,example,queue} from '../voice-statistics/fixtures.mjs';
 import {fixture,mutation,QUEUE} from './fixtures.mjs';
 const cid=n=>'10000000-0000-4000-8000-'+String(n).padStart(12,'0');
-const start=Date.now();let stale=false;
+const start=Date.now();let stale=false,securityReplied=false,reportBeforeAccess=false;
 let dataset=Array.from({length:32},(_,i)=>({contactId:cid(i+1),ani:'+1515555'+String(i+1).padStart(4,'0'),dnis:'+15155551000',
   startEpoch:start-60000-i*1000,endEpoch:start-1000,agentName:i<30?'Group A':'Group B',abandonmentStage:'In queue',startTimeCentral:'Test time'}));
 dataset[30].ani='Anonymous';dataset[31].ani=dataset[0].ani;
@@ -31,10 +31,10 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
  if(!['GET','OPTIONS'].includes(req.method())){errors.push('Unexpected write '+req.method());return route.abort();}
  if(u.origin===origin){const p=path.resolve(root,u.pathname.replace(/^\//,'')||'webex.html');if(!p.startsWith(root+'/')||!fs.existsSync(p))return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'})[path.extname(p)]||'text/plain',body:fs.readFileSync(p)});}
  if(u.origin!==worker)return route.abort();requests.push(u.pathname);let body={success:true};
- if(u.pathname==='/security/check')body={allowed:true,reason:'synthetic-test'};
+ if(u.pathname==='/security/check'){await new Promise(resolve=>setTimeout(resolve,1200));securityReplied=true;body={allowed:true,reason:'synthetic-test'};}
  else if(u.pathname==='/api/webex/dashboard')body=dashboard();
  else if(u.pathname==='/api/webex/chat-reports'){const at=Date.now();body={success:true,schemaVersion:2,build:'2026.09.24-chat-integrated-2',channel:'chat',timezone:'America/Chicago',dailyStatus:'ready',liveStatus:'ready',completedStatus:'ready',dailyObservedAt:at,liveObservedAt:at,completedObservedAt:at,rows:[],completedRows:[],liveRows:[],queueSnapshot:{},summary:Object.fromEntries(['offered','handled','abandoned','active','wrapup','waiting','offeredNow','completedToday'].map(k=>[k,{status:'ready',value:0}])),callbacks:{status:'ready',observedAt:at,rows:[],coverage:'Test callback history'}};}
- else if(u.pathname==='/api/webex/daily-reports')body=dailyReport();
+ else if(u.pathname==='/api/webex/daily-reports'){if(!securityReplied)reportBeforeAccess=true;body=dailyReport();}
  else if(u.pathname==='/api/webex/dashboard/settings')body={success:true,settings:{}};
  else if(u.pathname==='/motd')body={message:''};
  return route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':origin},body:JSON.stringify(body)});
@@ -50,6 +50,7 @@ try{
   await page.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});
   await page.waitForSelector('input[data-callback-select]');
   ok('checkboxes added to the original abandoned report; 25 rows on first page',await page.locator('input[data-callback-select]').count()===25);
+  ok('report finishing before access approval recovers automatically',reportBeforeAccess&&await page.locator('input[data-callback-select]:not([disabled])').count()>0);
   ok('existing reporting and channel indicators remain',await page.locator('[data-voice-metric]').count()===16&&await page.locator('.vb-channel').count()===4);
   await page.locator('input[data-callback-select]').first().check();await plan(false);await preview();
   ok('single-call selection previews exactly that call',await page.locator('#vbCallbackPlanRows tr').count()===1&&(await page.locator('#vbCallbackPlanRows').innerText()).includes(cid(1)));
@@ -90,6 +91,12 @@ try{
   ok('expired report disables selection and bulk actions',await page.locator('#vbCallbackScheduleAll').isDisabled()&&await page.locator('#vbCallbackScheduleSelected').isDisabled());
   stale=false;await page.locator('#refreshDailyReports').click();await page.waitForTimeout(300);
   ok('successful refresh recovers without page reload',!await page.locator('#vbCallbackScheduleAll').isDisabled());
+  await page.evaluate(()=>document.body.classList.remove('security-approved'));
+  await page.waitForFunction(()=>document.getElementById('vbCallbackScheduleAll').disabled);
+  ok('security overlay removal blocks selection without a manual render',await page.locator('input[data-callback-select]').first().isDisabled());
+  await page.evaluate(()=>document.body.classList.add('security-approved'));
+  await page.waitForFunction(()=>!document.getElementById('vbCallbackScheduleAll').disabled);
+  ok('restored access restores controls without a page reload');
   await page.evaluate(()=>{window.VB_SECURITY={allowed:false};window.VB_ABANDONED_SELECTION.render();});
   ok('access revocation disables all callback selection',await page.locator('#vbCallbackScheduleAll').isDisabled()&&await page.locator('input[data-callback-select]').first().isDisabled());
   ok('no first-party browser errors',errors.length===0);

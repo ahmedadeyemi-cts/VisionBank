@@ -2,6 +2,8 @@ import { callbackNumber, centralDate, MAX_SELECTION, nextWindow } from './callba
 const API = 'https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/abandoned-callback/';
 const id = x => document.getElementById('vbCallback' + x);
 const selected = new Map();
+let accessObserver = null;
+const accessReady = () => window.VB_SECURITY?.allowed === true && document.body?.classList.contains('security-approved');
 const ledger=new Map();let preparedIntent=null,pendingSubmission=null,pollTimer=null,recordsLoading=false,lastRecordsRead=0;
 let lastFilter = null, current = null, saved = null, frozenIds = [], scope = 'selected', busy = false;
 const node = (tag, text) => { const n = document.createElement(tag); n.textContent = text; return n; };
@@ -10,7 +12,7 @@ const fingerprint = row => JSON.stringify([key(row), row.ani, row.startEpoch, ro
 const possible = row => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(key(row)) &&
   callbackNumber(row.ani) && Number.isFinite(row.endEpoch) && row.endEpoch > 0 &&
   !row.callbackScheduleId && !(Number(row.callbackAttempts) > 0) && !ledger.has(key(row));
-const fresh = s => window.VB_SECURITY?.allowed === true && s?.ready !== false &&
+const fresh = s => accessReady() && s?.ready !== false &&
   Number.isFinite(s?.observedAt) && Date.now() - s.observedAt <= 180000 &&
   s.observedAt <= Date.now() + 5000 && centralDate(s.observedAt) === centralDate(Date.now());
 function status(message) { if (id('SelectionStatus')) id('SelectionStatus').textContent = message; }
@@ -140,9 +142,21 @@ async function preview(event) {
   } catch (error) { id('PlanStatus').textContent = 'Preview failed: ' + error.message + '. No callbacks were scheduled.'; }
   finally { busy = false; id('Preview').disabled = !fresh(window.VB_ABANDONED_REPORT?.snapshot()); syncButtons(); }
 }
+function observeAccess() {
+  if (accessObserver || !document.body) return;
+  let approved = accessReady();
+  accessObserver = new MutationObserver(() => {
+    const next = accessReady();
+    if (next === approved) return;
+    approved = next;
+    if (next) render(); else invalidate('Dashboard access is not approved.');
+  });
+  accessObserver.observe(document.body, {attributes: true, attributeFilter: ['class']});
+}
 function init() {
   if (!id('ScheduleSelected')) return;
   window.VB_ABANDONED_SELECTION = Object.freeze({render, invalidate});
+  observeAccess();
   id('ScheduleSelected').addEventListener('click', () => void openPlan(false));
   id('ScheduleAll').addEventListener('click', () => void openPlan(true));
   id('SelectMatching').addEventListener('click', () => {
@@ -157,7 +171,8 @@ function init() {
   id('PlanClose').addEventListener('click', () => id('Plan').close());
   id('Plan').addEventListener('close', () => { frozenIds = []; saved = null; id('PlanRows').replaceChildren(); });
   id('PlanForm').addEventListener('input', () => { preparedIntent=null; id('PlanRows').replaceChildren(); id('Execute').disabled = true; });
-  window.addEventListener('pagehide', () => {clearTimeout(pollTimer);invalidate('Page closed.');});
+  window.addEventListener('pagehide', () => {clearTimeout(pollTimer);accessObserver?.disconnect();accessObserver=null;invalidate('Page closed.');});
+  window.addEventListener('pageshow', () => {observeAccess();render();});
   document.addEventListener('visibilitychange', () => { if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) invalidate('Refresh current reporting before selection.'); });
   render();
 }

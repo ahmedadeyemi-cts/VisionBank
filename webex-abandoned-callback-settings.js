@@ -8,7 +8,7 @@ const node=(tag,value)=>{const e=document.createElement(tag);e.textContent=value
 async function api(path,body) {
   if(window.VB_SECURITY?.allowed!==true)throw new Error('Dashboard access is not approved.');
   const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),20000);
-  try {const r=await fetch(BASE+path,{method:body?'POST':'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,
+  try {const r=await fetch(BASE+path+(path.includes('?')?'&':'?')+'schema=3',{method:body?'POST':'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,
     headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const data=await r.json();if(window.VB_SECURITY?.allowed!==true){revoke();throw new Error('Dashboard access is not approved.');}if(!r.ok||data.success!==true){const error=new Error(data.error||'Settings unavailable');error.status=r.status;if(r.status===401||r.status===403)revoke();throw error;}
     return data;

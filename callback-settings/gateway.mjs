@@ -15,7 +15,16 @@ function validIp(ip) {
 export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
     const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
-    const send=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
+    // Keep already-open v2 dashboards compatible while the v3 frontend is published.
+    const schema=new URL(request.url).searchParams.get('schema')==='3'?3:2;
+    const send=(value,status=200)=>{
+      if(value?.state?.settings){
+        const settings={...value.state.settings};
+        if(schema===2)delete settings.callbackEntryPointId;
+        value={...value,state:{...value.state,settings},settingsSchemaVersion:schema};
+      }
+      return new Response(JSON.stringify(value),{status,headers});
+    };
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);

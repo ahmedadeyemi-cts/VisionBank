@@ -21,7 +21,10 @@ export class AbandonedCallbackSettingsV1 {
   async alarm() { return this.execution.run(); }
   async entryPointDiscovery() {
     try{return {entryPointOptions:await this.execution.native().entryPoints(),entryPointOptionsAvailable:true};}
-    catch{return {entryPointOptions:[],entryPointOptionsAvailable:false};}
+    catch(error){
+      const code=typeof error?.code==='string'&&/^[a-z0-9-]{1,100}$/.test(error.code)?error.code:'entry-point-discovery-failed';
+      return {entryPointOptions:[],entryPointOptionsAvailable:false,entryPointDiscoveryError:code};
+    }
   }
   async fetch(request) {
     try {

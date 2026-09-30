@@ -21,9 +21,10 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.min(timeoutMs,deadlineMs));
     try{const token=await Promise.race([getToken(),new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(new NativeCallbackError('native-token-deadline')),{once:true}))]);
       if(typeof token!=='string'||!token)throw new NativeCallbackError('native-token-unavailable');
-      const response=await fetchImpl(ORIGIN+path,{method,redirect:'error',signal:controller.signal,
+      const response=await fetchImpl(ORIGIN+path,{method,redirect:'manual',signal:controller.signal,
       headers:{Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},
       ...(body?{body:JSON.stringify(body)}:{})});
+      if(response.status>=300&&response.status<400)throw new NativeCallbackError('native-redirect-rejected',{uncertain:method==='POST'});
       if(!response.ok)throw new NativeCallbackError('native-http-'+response.status,{status:response.status,
         uncertain:method==='POST'&&![400,401,403,404,422,429].includes(response.status)});
       let data;try{data=await response.json();}catch{throw new NativeCallbackError('native-invalid-json',{uncertain:method==='POST'});}

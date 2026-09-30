@@ -10,7 +10,8 @@ import {AbandonedCallbackSettingsV1} from './callback-settings/store.mjs';
 import {createNativeClient} from './callback-settings/native.mjs';
 export class TestCallbackStore extends AbandonedCallbackSettingsV1 {
  constructor(ctx,env){super(ctx,env);this.execution.client=createNativeClient({orgId:env.WEBEX_ORG_ID,getToken:async()=>'synthetic-test-token',fetchImpl:async(url,options)=>{
- const u=new URL(url),orgId=env.WEBEX_ORG_ID;
+ let realRequest;try{realRequest=new Request(url,options);}catch(error){console.error('REAL_REQUEST_OPTIONS',error.message);throw error;} // Synthetic request, no network.
+ const u=new URL(realRequest.url),orgId=env.WEBEX_ORG_ID;
  const ep={id:'22222222-2222-4222-8222-222222222222',name:'Pilot_Callback_EP',active:true,entryPointType:'OUTBOUND',channelType:'TELEPHONY',callbackEnabled:true};
  if(options.method==='GET'&&u.pathname.endsWith('/entry-point'))return Response.json({meta:{orgid:orgId,page:0,totalPages:1,totalRecords:1},data:[ep]});
  if(options.method==='GET'&&u.pathname.endsWith('/organization-setting'))return Response.json([{webCallBackEnabled:true,maximumCallbackAttempts:3}]);

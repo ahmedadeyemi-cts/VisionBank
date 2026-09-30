@@ -11,3 +11,13 @@ for(const status of [500,503])test('native ambiguous failure '+status+' requires
 test('a 201 with a mismatched organization is not accepted as scheduled',async()=>{const f=await fixture(201,x=>({...x,orgId:'44444444-4444-4444-8444-444444444444'}));await assert.rejects(()=>f.client.create(f.payload),e=>e.uncertain===true);});
 test('missing token expiry cannot be treated as a healthy native credential',async()=>{const c=clientFromEnvironment({WEBEX_ORG_ID:orgId,WEBEX_AUTH_KV:{get:async()=>({accessToken:'synthetic-token'})}});await assert.rejects(()=>c.list('+12025550123'),/native-auth-awaiting-normal-renewal/);});
 test('missing native schedule yields null, not a completed call outcome',async()=>{const f=await fixture(404);assert.equal(await f.client.get('55555555-5555-4555-8555-555555555555'),null);});
+
+for(const method of ['GET','POST'])test('native '+method+' rejects redirects without forwarding credentials or repeating creation',async()=>{
+ const f=await nativeFixture(),b=f.batch(),payload=nativePayload(b.preview.rows[0],b.preview.window,b.preview.queue.id);let calls=0;
+ const c=createNativeClient({orgId,getToken:async()=>'synthetic-token',fetchImpl:async(url,options)=>{
+  calls++;assert.equal(options.redirect,'manual');new Request(url,options);
+  return new Response(null,{status:302,headers:{Location:'https://other.example.invalid/'}});
+ }});
+ await assert.rejects(()=>method==='POST'?c.create(payload):c.entryPoints(),e=>e.code==='native-redirect-rejected'&&e.uncertain===(method==='POST'));
+ assert.equal(calls,1);
+});

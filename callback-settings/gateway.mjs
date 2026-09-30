@@ -1,4 +1,5 @@
 import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
+import { buildPreview, parseSelection } from './selection.mjs';
 const ORIGINS = new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
 const PREFIX = '/api/webex/abandoned-callback/';
 async function bounded(operation, ms = 10000) {
@@ -11,15 +12,15 @@ function validIp(ip) {
   if (ip.includes(':')) { try { return new URL('http://['+ip+']/').hostname.length > 2; } catch { return false; } }
   const parts=ip.split('.'); return parts.length===4 && parts.every(p=>/^\d{1,3}$/.test(p) && Number(p)<=255);
 }
-export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration}) {
+export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
     const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
     const send=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (part==='history' && request.method!=='GET')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (part==='history' && request.method!=='GET') || (['preview','schedule'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -39,6 +40,7 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
           q.active!==false && q.isActive!==false && String(q.status||'').toLowerCase()!=='inactive')
           .map(q=>({id:String(q.id),name:String(q.name||'Voice queue').slice(0,120)}));
       };
+      if (part==='schedule') throw new SettingsError('callback-execution-not-connected',409);
       let options=[],optionsAvailable=true,init={method:'GET'};
       if (request.method==='POST') {
         if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')
@@ -46,10 +48,21 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         let size=0,text=''; const reader=request.body?.getReader(), decoder=new TextDecoder('utf-8',{fatal:true});
         if (!reader) throw new SettingsError('missing-body');
         try { while (true) { const {value,done}=await reader.read(); if(done)break;
-          size+=value.byteLength; if(size>8192){await reader.cancel();throw new SettingsError('body-too-large',413);}
+          size+=value.byteLength; if(size>(part==='preview'?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
           text+=decoder.decode(value,{stream:true}); } text+=decoder.decode();
         } finally { reader.releaseLock(); }
         let body; try { body=JSON.parse(text); } catch { throw new SettingsError('invalid-json'); }
+        if (part==='preview') {
+          const selection=parseSelection(body);
+          const saved=await bounded(store.fetch(new Request('https://callback-settings.internal/settings')));
+          const value=await saved.json();
+          if (!saved.ok || value.success!==true) throw new SettingsError('callback-storage-unavailable',503);
+          if (value.state.version!==selection.expectedVersion) throw new SettingsError('settings-changed-reload',409);
+          options=await queueOptions();
+          if (typeof getAbandonedReport!=='function') throw new SettingsError('abandoned-report-unavailable',503);
+          const report=await bounded(getAbandonedReport(env),12000);
+          return send(buildPreview(selection,value.state,report,options));
+        }
         const change=parseMutation(body);
         if (change.settings.enabled) {
           options=await queueOptions();

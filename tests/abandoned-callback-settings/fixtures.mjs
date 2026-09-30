@@ -13,11 +13,11 @@ export class MemoryStorage {
 export const QUEUE='11111111-1111-4111-8111-111111111111';
 export const ACTOR={sourceIp:'198.51.100.12',source:'cloudflare-edge',identityVerified:false,...browserDetails('Mozilla/5.0 (Windows NT 10.0) Chrome/126.0 Edg/126.0')};
 export const mutation=(settings={},version=0,id=crypto.randomUUID())=>({mutationId:id,expectedVersion:version,settings:{...defaults(),...settings}});
-export function fixture({allowed=true,rules=['198.51.100.0/24'],queues=[{id:QUEUE,name:'CEG Voice',channelType:'TELEPHONY'}]}={}){
+export function fixture({allowed=true,rules=['198.51.100.0/24'],queues=[{id:QUEUE,name:'CEG Voice',channelType:'TELEPHONY'}],report=null}={}){
   const stores=new Map();let reads=0;
   const namespace={idFromName:x=>x,get(name){if(!stores.has(name))stores.set(name,new MemoryStorage());return new AbandonedCallbackSettingsV1({storage:stores.get(name)});}};
   const env={WEBEX_ORG_ID:'test-org',ABANDONED_CALLBACK_SETTINGS:namespace};
-  const handler=createCallbackSettingsHandler({checkAccess:async()=>({allowed}),loadIpRules:async()=>rules,getWebexQueueConfiguration:async()=>{reads++;return queues;}});
+  const handler=createCallbackSettingsHandler({checkAccess:async()=>({allowed}),loadIpRules:async()=>rules,getAbandonedReport:async()=>typeof report==='function'?report():report,getWebexQueueConfiguration:async()=>{reads++;return queues;}});
   const request=async(path='settings',body,extraHeaders={},cf=true)=>{const r=new Request('https://worker.example/api/webex/abandoned-callback/'+path,
     {method:body===undefined?'GET':'POST',headers:{Origin:'https://visionbank-dashboard.onrender.com','CF-Connecting-IP':ACTOR.sourceIp,
       'User-Agent':'Mozilla/5.0 (Windows NT 10.0) Chrome/126.0 Edg/126.0',...(body===undefined?{}:{'Content-Type':'application/json'}),...extraHeaders},...(body===undefined?{}:{body:JSON.stringify(body)})});

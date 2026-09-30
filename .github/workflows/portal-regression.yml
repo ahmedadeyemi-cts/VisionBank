@@ -30,6 +30,8 @@ jobs:
           node --check callback-settings/policy.mjs
           node --check callback-settings/gateway.mjs
           node --check callback-settings/store.mjs
+          node --check callback-settings/selection.mjs
+          node --check webex-abandoned-selection.js
       - name: Run request, roster, privacy and failure-isolation tests
         env:
           ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs

@@ -3,15 +3,15 @@ const {parse}=await import(process.env.ACORN_MODULE||'acorn');
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
 export const BASE_HASH='c9badc1ae00518e60d3584d90ef39e7c7571f9ddc64d8da2f70a6cceceb2ae85';
 const anchor='/** WEBEX DASHBOARD PRODUCTION ENDPOINTS **/';
-const route='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history") {\n  return vbCallbackSettingsV1(request, env, cors);\n}\n\n';
-const suffix='\n/* BEGIN ABANDONED CALLBACK SETTINGS V1 */\nimport {createCallbackSettingsHandler} from "./callback-settings/gateway.mjs";\nconst vbCallbackSettingsV1=createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration});\n/* END ABANDONED CALLBACK SETTINGS V1 */\n';
+const route='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history" || path === "/api/webex/abandoned-callback/preview" || path === "/api/webex/abandoned-callback/schedule") {\n  return vbCallbackSettingsV1(request, env, cors);\n}\n\n';
+const suffix='\n/* BEGIN ABANDONED CALLBACK SETTINGS V1 */\nimport {createCallbackSettingsHandler} from "./callback-settings/gateway.mjs";\nconst vbCallbackSettingsV1=createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport:env=>buildWebexDailyReportData(env,false)});\n/* END ABANDONED CALLBACK SETTINGS V1 */\n';
 export function build(source) {
   if(sha(source)!==BASE_HASH)throw new Error('Exact verified R7 combined baseline required; do not overwrite a newer release.');
   if(source.split(anchor).length!==2||source.includes('vbCallbackSettingsV1'))throw new Error('Unexpected router structure.');
   const candidate=source.replace(anchor,route+anchor)+suffix;
   if(candidate.replace(route,'').slice(0,-suffix.length)!==source)throw new Error('Existing Worker bytes changed.');
   parse(candidate,{ecmaVersion:'latest',sourceType:'module'});
-  const files=['callback-settings/policy.mjs','callback-settings/gateway.mjs'];
+  const files=['callback-settings/policy.mjs','callback-settings/gateway.mjs','callback-settings/selection.mjs'];
   const modules=Object.fromEntries(files.map(f=>{const data=fs.readFileSync(new URL('../'+f,import.meta.url),'utf8');
     parse(data,{ecmaVersion:'latest',sourceType:'module'});return[f,{sha256:sha(data),content:data}];}));
   return {candidate,modules,proof:{baselineSha256:sha(source),candidateSha256:sha(candidate),

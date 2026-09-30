@@ -122,6 +122,7 @@
 <link rel="stylesheet" href="webex-channel-activity.css?v=20260929-channels1">
 <link rel="stylesheet" href="webex-voice-statistics.css?v=20260929-voice-stats7">
 <link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20260930-settings1">
+<link rel="stylesheet" href="webex-abandoned-selection.css?v=20260930-selection1">
 </head>
 
 <body>
@@ -178,7 +179,7 @@
     <p>Disabling stops new callbacks when execution is connected. Existing Webex schedules are not automatically canceled. Active calls are never ended.</p>
     <div class="vb-callback-grid">
       <label>Voice queue<select id="abandonedCallbackQueue"><option value="">Select one Voice queue</option></select></label>
-      <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff schedule from an abandoned-call row</option>
+      <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
         <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
     </div>
     <p class="vb-callback-policy"><strong>One callback per original missed call · One customer-dial attempt · Any available agent</strong><br>
@@ -697,6 +698,36 @@
       <span id="abandonedRecordCount" class="daily-report-count">0 records</span>
     </div>
 
+<div class="vb-cb-selection" aria-label="Prepare abandoned callbacks">
+  <div class="vb-cb-buttons">
+    <button id="vbCallbackSelectMatching" type="button" disabled>Select all matching across pages</button>
+    <button id="vbCallbackClearSelection" type="button" disabled>Clear selection</button>
+    <button id="vbCallbackScheduleSelected" type="button" disabled>Schedule selected (0)</button>
+    <button id="vbCallbackScheduleAll" type="button" disabled>Schedule all eligible today</button>
+  </div>
+  <p id="vbCallbackSelectionStatus" role="status">Waiting for the abandoned-call report.</p>
+  <small>Filter to choose a group, or clear the search to include all of today's results across pages. Scheduling opens a preparation panel; it never submits merely by selecting rows.</small>
+</div>
+<dialog id="vbCallbackPlan" class="vb-cb-plan" aria-labelledby="vbCallbackPlanTitle">
+  <div class="vb-cb-plan-heading"><h2 id="vbCallbackPlanTitle">Prepare callbacks</h2>
+    <button id="vbCallbackPlanClose" type="button" aria-label="Close callback preparation">Close</button></div>
+  <p class="vb-cb-preview-notice"><strong>Preview only — no calls or schedules created.</strong> Native callback scheduling is not connected in this release.</p>
+  <p id="vbCallbackQueue"></p>
+  <p>Agent message: <strong>Callback for missed call from customer</strong></p>
+  <form id="vbCallbackPlanForm">
+    <div class="vb-cb-time-fields">
+      <label>Callback date — Central<input id="vbCallbackDate" type="date" required></label>
+      <label>Window starts — Central<input id="vbCallbackTime" type="time" required></label>
+    </div>
+    <p id="vbCallbackPlanStatus" role="status" aria-live="polite"></p>
+    <div class="vb-cb-buttons"><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
+      <button id="vbCallbackExecute" type="button" disabled title="Native Webex scheduling and one-attempt routing must be verified first">Schedule callbacks — not connected</button></div>
+  </form>
+  <div class="vb-cb-preview-table"><table><thead><tr><th>Original Contact ID</th><th>Callback number</th><th>Preview result</th><th>Reason / remaining checks</th></tr></thead>
+    <tbody id="vbCallbackPlanRows"></tbody></table></div>
+  <p class="vb-cb-note">One callback per original call. Repeated numbers in a batch are grouped. Existing native callback inventory still requires verification. An original abandoned call remains abandoned after any follow-up.</p>
+</dialog>
+
     <div class="daily-report-table-wrap">
       <table id="abandonedCallsTable" class="data-table daily-report-table">
         <thead>
@@ -759,12 +790,13 @@
   aria-label="VisionBank live agent chat"
 ></div>
 <script src="webex.js?v=20260929-voice-stats7"></script>
-<script src="webex-reports.js?v=20260928-reporting5"></script>
+<script src="webex-reports.js?v=20260930-selection1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20260929-voice-stats7"></script>
 <script src="webex-integrated-chat.js?v=20260929-voice-stats7"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20260930-settings1"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20260930-selection1"></script>
 </body>
 </html>

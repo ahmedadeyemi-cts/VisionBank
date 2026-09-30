@@ -25,6 +25,7 @@
   };
 
   let lastPayload = null;
+  let reportReady = false;
   let refreshTimer = null;
   let requestInFlight = null;
 
@@ -249,6 +250,7 @@
     if (next) next.disabled = state.page >= totalPages;
 
     renderSortIndicators(kind);
+    if (kind === "abandoned") window.VB_ABANDONED_SELECTION?.render();
   }
 
   function renderSummary(summary = {}) {
@@ -276,8 +278,10 @@
   }
 
   function setLoading(kind, message) {
+    if (kind === "abandoned") reportReady = false;
     const body = byId(kind === "answered" ? "answeredCallsBody" : "abandonedCallsBody");
     if (!body) return;
+    if (kind === "abandoned") window.VB_ABANDONED_SELECTION?.invalidate(message);
     const colspan = kind === "answered" ? 10 : 8;
     body.innerHTML = `<tr><td colspan="${colspan}" class="loading">${html(message)}</td></tr>`;
   }
@@ -311,6 +315,7 @@
         }
 
         lastPayload = data;
+        reportReady = true;
         states.answered.rows = Array.isArray(data.answeredCalls) ? data.answeredCalls : [];
         states.abandoned.rows = Array.isArray(data.abandonedCalls) ? data.abandonedCalls : [];
 
@@ -689,6 +694,17 @@
       if (refreshTimer) window.clearInterval(refreshTimer);
     }, { once: true });
   }
+
+  // Read-only selection bridge; native scheduling always revalidates source data server-side.
+  window.VB_ABANDONED_REPORT = Object.freeze({
+    snapshot() {
+      if (window.VB_SECURITY?.allowed !== true) return null;
+      const s = states.abandoned, start = (s.page - 1) * REPORT_PAGE_SIZE;
+      return { rows: s.rows, filtered: s.filtered, pageRows: s.filtered.slice(start, start + REPORT_PAGE_SIZE),
+        ready: reportReady, filter: getSearchValue('abandoned'), observedAt: lastPayload?.generatedAtEpoch ?? null };
+    },
+    redraw() { renderTable('abandoned'); }
+  });
 
   window.VB_WEBEX_REPORTS_TEST = {
     buildXlsx,

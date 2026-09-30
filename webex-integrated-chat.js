@@ -254,6 +254,7 @@
   }
   function render() {
     if(!started)return;
+    window.VB_VOICE_STATS?.render(approved()?base?.statistics?.voicePerformance:null,approved()?base:null);
     const liveOK=approved()&&live?.liveStatus==='ready'&&fresh(live.liveObservedAt,45000);
     const dailyOK=approved()&&daily?.dailyStatus==='ready'&&fresh(daily.dailyObservedAt,150000);
     const completedOK=approved()&&daily?.completedStatus==='ready'&&fresh(daily.completedObservedAt,150000);

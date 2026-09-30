@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.09.28-v8";
+const WEBEX_DASHBOARD_BUILD = "2026.09.29-v9";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -1370,6 +1370,7 @@ async function loadGlobalStats() {
   try {
     const data = await fetchWebexDashboard();
     const g = data?.statistics;
+    if (window.VB_VOICE_STATS) { window.VB_VOICE_STATS.render(g?.voicePerformance, data); return; }
 
     if (!g) {
       if (errorDiv) errorDiv.textContent = "Unable to load Webex global statistics.";

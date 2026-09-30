@@ -1,0 +1,21 @@
+/* Scoped to Voice Statistics; original portal and Chat/agent styles stay intact. */
+.vb-voice-stats h3{font-size:14px;margin:16px 0 9px;text-align:left}
+.vb-voice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(166px,1fr));gap:10px}
+.vb-voice-grid .stat-card{min-width:0;min-height:96px;padding:14px 10px}
+.vb-voice-grid .stat-value{font-size:27px;line-height:1.2}
+.vb-voice-grid .stat-label{line-height:1.35;min-height:30px;margin-top:7px}
+.vb-voice-meta,.vb-voice-sample{font-size:12px;line-height:1.45;color:#4b5563}
+.vb-voice-sample{min-height:18px;font-size:11px;margin-top:4px}
+.vb-voice-notice{padding:8px 10px;border-left:3px solid #d97706;background:#fffbeb;color:#78350f;font-size:12px}
+.vb-voice-stats details{font-size:12px;line-height:1.5;margin-top:14px;border-top:1px solid #9ca3af;padding-top:10px}
+.vb-voice-stats summary{cursor:pointer;font-weight:600}
+.vb-voice-context{display:flex;flex-wrap:wrap;gap:10px}
+.vb-voice-context>div{display:flex;gap:14px;justify-content:space-between;border:1px solid #9ca3af;border-radius:8px;padding:9px 12px;font-size:13px;flex:1 1 230px}
+body.dark-mode .vb-voice-meta,body.dark-mode .vb-voice-sample{color:#cbd5e1}
+body.dark-mode .vb-voice-notice{background:#292211;color:#fde68a}
+body.dark-mode .vb-voice-context>div,body.dark-mode .vb-voice-stats details{border-color:#374151}
+.vb-voice-stats [data-status=unavailable] .stat-value{color:#6b7280}
+body.dark-mode .vb-voice-stats [data-status=unavailable] .stat-value{color:#cbd5e1}
+@media(min-width:1300px){.vb-voice-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.vb-voice-stats section:nth-of-type(3) .vb-voice-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+.stat-grid[data-vb-replaced-voice-stats=true]{display:none!important}

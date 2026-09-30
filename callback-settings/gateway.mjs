@@ -1,0 +1,74 @@
+import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
+const ORIGINS = new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
+const PREFIX = '/api/webex/abandoned-callback/';
+async function bounded(operation, ms = 10000) {
+  let timer; try { return await Promise.race([operation,new Promise((_,reject)=>{
+    timer=setTimeout(()=>reject(new SettingsError('settings-service-timeout',503)),ms);
+  })]); } finally { clearTimeout(timer); }
+}
+function validIp(ip) {
+  if (typeof ip !== 'string' || ip.length > 45 || !/^[\da-f:.]+$/i.test(ip)) return false;
+  if (ip.includes(':')) { try { return new URL('http://['+ip+']/').hostname.length > 2; } catch { return false; } }
+  const parts=ip.split('.'); return parts.length===4 && parts.every(p=>/^\d{1,3}$/.test(p) && Number(p)<=255);
+}
+export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration}) {
+  return async function handler(request,env,cors={}) {
+    const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
+    const send=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
+    try {
+      const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
+      if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
+      if (!['settings','history'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (part==='history' && request.method!=='GET')) throw new SettingsError('method-or-route-not-allowed',405);
+      const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
+      if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
+      // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
+      const access=await bounded(checkAccess(request,env));
+      if (access?.allowed!==true) throw new SettingsError('access-denied',403);
+      const rules=await bounded(loadIpRules(env));
+      if (!Array.isArray(rules) || !rules.some(v=>typeof v==='string' && v.trim())) throw new SettingsError('approved-network-required',403);
+      const org=String(env.WEBEX_ORG_ID||'');
+      if (!org || !env.ABANDONED_CALLBACK_SETTINGS?.idFromName) throw new SettingsError('callback-storage-not-configured',503);
+      const store=env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(org+':settings:v1'));
+      const storeUrl=new URL('https://callback-settings.internal/'+part);
+      for (const name of ['before','mutationId']) if (u.searchParams.has(name)) storeUrl.searchParams.set(name,u.searchParams.get(name));
+      const queueOptions=async()=>{
+        const rows=await bounded(getWebexQueueConfiguration(env),5000);
+        if (!Array.isArray(rows)) throw new SettingsError('queue-configuration-unavailable',503);
+        return rows.filter(q=>['telephony','voice'].includes(String(q?.channelType||'').toLowerCase()) &&
+          q.active!==false && q.isActive!==false && String(q.status||'').toLowerCase()!=='inactive')
+          .map(q=>({id:String(q.id),name:String(q.name||'Voice queue').slice(0,120)}));
+      };
+      let options=[],optionsAvailable=true,init={method:'GET'};
+      if (request.method==='POST') {
+        if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')
+          throw new SettingsError('json-required',415);
+        let size=0,text=''; const reader=request.body?.getReader(), decoder=new TextDecoder('utf-8',{fatal:true});
+        if (!reader) throw new SettingsError('missing-body');
+        try { while (true) { const {value,done}=await reader.read(); if(done)break;
+          size+=value.byteLength; if(size>8192){await reader.cancel();throw new SettingsError('body-too-large',413);}
+          text+=decoder.decode(value,{stream:true}); } text+=decoder.decode();
+        } finally { reader.releaseLock(); }
+        let body; try { body=JSON.parse(text); } catch { throw new SettingsError('invalid-json'); }
+        const change=parseMutation(body);
+        if (change.settings.enabled) {
+          options=await queueOptions();
+          if (!options.some(q=>q.id===change.settings.queueId)) throw new SettingsError('voice-queue-not-configured');
+        }
+        const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,
+          ...browserDetails(request.headers.get('User-Agent'))};
+        init={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change,actor,requestId:crypto.randomUUID()})};
+      } else if (part==='settings') {
+        if (u.searchParams.has('mutationId') && !UUID.test(u.searchParams.get('mutationId')))
+          throw new SettingsError('invalid-mutation-id');
+        try { options=await queueOptions(); } catch { optionsAvailable=false; }
+      }
+      const response=await bounded(store.fetch(new Request(storeUrl,init)));
+      const data=await response.json();
+      return send({...data,...(part==='settings'?{queueOptions:options,queueOptionsAvailable:optionsAvailable}: {})},response.status);
+    } catch(error) {
+      return send({success:false,error:error instanceof SettingsError ? error.code : 'settings-temporarily-unavailable'},
+        error instanceof SettingsError ? error.status : 503);
+    }
+  };
+}

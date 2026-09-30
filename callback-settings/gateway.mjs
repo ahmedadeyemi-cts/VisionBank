@@ -19,8 +19,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (part==='history' && request.method!=='GET') || (['preview','schedule'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records'].includes(part) && request.method!=='GET') || (['preview','schedule'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -32,7 +32,7 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
       if (!org || !env.ABANDONED_CALLBACK_SETTINGS?.idFromName) throw new SettingsError('callback-storage-not-configured',503);
       const store=env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(org+':settings:v1'));
       const storeUrl=new URL('https://callback-settings.internal/'+part);
-      for (const name of ['before','mutationId']) if (u.searchParams.has(name)) storeUrl.searchParams.set(name,u.searchParams.get(name));
+      for (const name of ['before','mutationId','id','ids']) if (u.searchParams.has(name)) storeUrl.searchParams.set(name,u.searchParams.get(name));
       const queueOptions=async()=>{
         const rows=await bounded(getWebexQueueConfiguration(env),5000);
         if (!Array.isArray(rows)) throw new SettingsError('queue-configuration-unavailable',503);
@@ -40,7 +40,6 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
           q.active!==false && q.isActive!==false && String(q.status||'').toLowerCase()!=='inactive')
           .map(q=>({id:String(q.id),name:String(q.name||'Voice queue').slice(0,120)}));
       };
-      if (part==='schedule') throw new SettingsError('callback-execution-not-connected',409);
       let options=[],optionsAvailable=true,init={method:'GET'};
       if (request.method==='POST') {
         if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')
@@ -48,12 +47,23 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         let size=0,text=''; const reader=request.body?.getReader(), decoder=new TextDecoder('utf-8',{fatal:true});
         if (!reader) throw new SettingsError('missing-body');
         try { while (true) { const {value,done}=await reader.read(); if(done)break;
-          size+=value.byteLength; if(size>(part==='preview'?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
+          size+=value.byteLength; if(size>(['preview','schedule'].includes(part)?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
           text+=decoder.decode(value,{stream:true}); } text+=decoder.decode();
         } finally { reader.releaseLock(); }
         let body; try { body=JSON.parse(text); } catch { throw new SettingsError('invalid-json'); }
-        if (part==='preview') {
-          const selection=parseSelection(body);
+        if (['preview','schedule'].includes(part)) {
+          const {mutationId,...selectionBody}=body;
+          if(part==='schedule'&&!UUID.test(mutationId||''))throw new SettingsError('invalid-mutation-id');
+          if(part==='preview'&&mutationId!==undefined)throw new SettingsError('unknown-selection-field');
+          const selection=parseSelection(selectionBody);
+          if(part==='schedule'){
+            const found=await bounded(store.fetch(new Request('https://callback-settings.internal/jobs?id='+mutationId)));
+            if(found.ok){const prior=await found.json();const intent={contactIds:[...selection.contactIds].sort(),scope:selection.scope,expectedVersion:selection.expectedVersion,date:selection.date,startTime:selection.startTime};
+              if(JSON.stringify(prior.job.intent)!==JSON.stringify(intent))throw new SettingsError('mutation-id-reused',409);
+              return send({success:true,job:prior.job,replayed:true},202);
+            }
+            if(found.status!==404)throw new SettingsError('callback-ledger-unavailable',503);
+          }
           const saved=await bounded(store.fetch(new Request('https://callback-settings.internal/settings')));
           const value=await saved.json();
           if (!saved.ok || value.success!==true) throw new SettingsError('callback-storage-unavailable',503);
@@ -61,7 +71,21 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
           options=await queueOptions();
           if (typeof getAbandonedReport!=='function') throw new SettingsError('abandoned-report-unavailable',503);
           const report=await bounded(getAbandonedReport(env),12000);
-          return send(buildPreview(selection,value.state,report,options));
+          const preview=buildPreview(selection,value.state,report,options);
+          const ids=preview.rows.map(r=>r.contactId).join(',');
+          const ledgerResponse=await bounded(store.fetch(new Request('https://callback-settings.internal/records?ids='+encodeURIComponent(ids))));
+          const ledger=await ledgerResponse.json();
+          if(!ledgerResponse.ok||ledger.success!==true)throw new SettingsError('callback-ledger-unavailable',503);
+          const previous=new Map(ledger.rows.map(r=>[r.contactId,r]));
+          for(const row of preview.rows){const old=previous.get(row.contactId);if(old){row.disposition='skipped';row.reason='callback-already-reserved';row.callbackStatus=old.status;row.scheduleId=old.scheduleId;}}
+          preview.candidates=preview.rows.filter(r=>r.disposition==='candidate').length;preview.skipped=preview.selected-preview.candidates;
+          preview.processing=value.processing;preview.canSchedule=value.processing?.ready===true&&preview.candidates>0&&preview.candidates<=value.processing.maxBatch;
+          preview.warning=preview.canSchedule?'Preview only. Select Schedule to submit these callbacks. Native duplicate checks run again before creation.':value.processing?.message||'Native callback scheduling is paused.';
+          if(part==='preview')return send(preview);
+          const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))};
+          const response=await bounded(store.fetch(new Request('https://callback-settings.internal/schedule',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({mutationId,expectedVersion:selection.expectedVersion,preview,actor,requestId:crypto.randomUUID()})})),20000);
+          return send(await response.json(),response.status);
         }
         const change=parseMutation(body);
         if (change.settings.enabled) {

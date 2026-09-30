@@ -34,9 +34,11 @@ test('preview gateway reads authoritative reporting and never changes settings o
   const result=await f.request('preview',b);assert.equal(result.http,200);assert.equal(result.data.candidates,1);assert.equal(result.data.canSchedule,false);
   assert.equal(JSON.stringify([...f.stores.values()].map(s=>[...s.data])),before);
 });
-test('native scheduling is rejected even when the master switch is enabled',async()=>{
-  const f=fixture();await f.request('settings',mutation({enabled:true,queueId:QUEUE}));
-  const result=await f.request('schedule',body([cid(1)]));assert.equal(result.http,409);assert.equal(result.data.error,'callback-execution-not-connected');
+test('enabled master does not bypass native release gates',async()=>{
+ const f=fixture({report:()=>{const t=Date.now();return {success:true,generatedAtEpoch:t,abandonedCalls:[row(1,{startEpoch:t-60000,endEpoch:t-1000})]};}});
+ await f.request('settings',mutation({enabled:true,queueId:QUEUE}));const w=nextWindow(state.settings,Date.now()+120000);
+ const r=await f.request('schedule',{...body([cid(1)],{date:w.date,startTime:w.startTime}),mutationId:crypto.randomUUID()});
+ assert.equal(r.http,409);assert.equal(r.data.error,'native-execution-not-enabled');
 });
 test('preview retains original network and origin authorization',async()=>{
   const f=fixture({allowed:false});assert.equal((await f.request('preview',body([cid(1)]))).http,403);
@@ -50,8 +52,8 @@ test('international numbers remain strings; short codes and masked numbers are r
   assert.equal(callbackNumber('+442079460000'),'+442079460000');
   for(const v of ['911','*553223','Anonymous','+10000000000','***1234'])assert.equal(callbackNumber(v),null);
 });
-test('selection presentation does not include a scheduler, login prompt or customer-dial API',()=>{
+test('browser never calls native Webex directly, stores credentials, or automatically submits on a polling timer',()=>{
   const text=fs.readFileSync(new URL('../../webex-abandoned-selection.js',import.meta.url),'utf8');
-  assert.doesNotMatch(text,/localStorage|sessionStorage|createScheduleCallback|setInterval/);
+  assert.doesNotMatch(text,/localStorage|createScheduleCallback|setInterval|Bearer |api\.wxcc-us1/);
   assert.match(text,/id\('Execute'\)\.disabled = true/);
 });

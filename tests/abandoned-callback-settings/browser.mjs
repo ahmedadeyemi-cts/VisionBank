@@ -41,12 +41,15 @@ try{
   ok('existing Voice metrics and both Agent tables still load',await page.locator('[data-voice-metric]').count()===16&&await page.locator('#agent-body tr[data-vb-agent-id]').count()===1);
   ok('settings panel starts closed',!await page.locator('#abandonedCallbackSettingsPanel').isVisible());
   await open(page);ok('first load defaults Off, with no login form',!await page.locator('#abandonedCallbackEnabled').isChecked()&&await page.locator('#abandonedCallbackSettingsPanel input[type=password]').count()===0);
+  ok('new maximum defaults to 3 total attempts',await page.locator('#abandonedCallbackMaxAttempts').inputValue()==='3');
+  await page.locator('#abandonedCallbackMaxAttempts').fill('2');
   await page.locator('#abandonedCallbackQueue').selectOption(QUEUE);await page.locator('#abandonedCallbackEnabled').check();await save(page);
   ok('one Save records enable and audit',/Saved\./.test(await page.locator('#abandonedCallbackLoadStatus').innerText()));
   ok('enabled does not pretend the callback engine is connected',(await page.locator('#abandonedCallbackProcessing').innerText()).includes('Enabled — processing paused'));
   ok('last changed shows server source IP and no guessed computer name',(await page.locator('#abandonedCallbackLastChange').innerText()).includes('198.51.100.12')&&(await page.locator('#abandonedCallbackLastChange').innerText()).includes('Not reported'));
   await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.VB_SECURITY?.allowed);await open(page);
   ok('enabled survives complete browser refresh',await page.locator('#abandonedCallbackEnabled').isChecked());
+  ok('custom attempt limit survives reload',await page.locator('#abandonedCallbackMaxAttempts').inputValue()==='2');
   await page.locator('#abandonedCallbackHistory summary').click();await page.waitForSelector('#abandonedCallbackHistoryRows tr');
   ok('audit survives refresh with one enable row',await page.locator('#abandonedCallbackHistoryRows tr').count()===1);
   const second=await context.newPage();await second.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});await second.waitForFunction(()=>window.VB_SECURITY?.allowed);await open(second);
@@ -62,7 +65,7 @@ try{
   outage=false;await page.locator('#abandonedCallbackClose').click();await open(page);
   await page.locator('#abandonedCallbackForm details summary').click();await page.locator('#abandonedCallbackDelay').fill('90');uncertain=true;await save(page);
   ok('lost save response reconciles accepted mutation without a duplicate',(await page.locator('#abandonedCallbackLoadStatus').innerText()).includes('server confirmed'));
-  const recorded=await backend.request('history');ok('all intended changes have exactly one audit record',recorded.data.rows.length===4);
+  const recorded=await backend.request('history');ok('attempt change is recorded in the same source-IP audit',recorded.data.rows.at(-1).previous.maxAttempts===3&&recorded.data.rows.at(-1).next.maxAttempts===2);ok('all intended changes have exactly one audit record',recorded.data.rows.length===4);
   for(const width of [1440,1280,1024]){await page.setViewportSize({width,height:1200});await page.waitForTimeout(100);
     ok('settings panel fits viewport '+width,await page.locator('#abandonedCallbackSettingsPanel').evaluate(e=>{const b=e.getBoundingClientRect();return b.left>=-1&&b.right<=window.innerWidth+1;}));
     ok('dedicated button remains accessible '+width,await page.locator('#abandonedCallbackSettingsToggle').evaluate(e=>{const b=e.getBoundingClientRect();return b.left>=-1&&b.right<=window.innerWidth+1;}));}

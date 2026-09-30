@@ -24,3 +24,5 @@ body:not(.dark-mode) .vb-callback-notice,body:not(.dark-mode) .vb-callback-polic
 .vb-callback-settings-btn{position:static;padding:7px 12px;font:12px Arial,sans-serif;border-radius:999px;border:1px solid #64748b;background:#0f172a;color:#f8fafc;cursor:pointer}
 .vb-callback-settings-btn:focus-visible{outline:2px solid #60a5fa;outline-offset:3px}
 body.wallboard-mode .vb-callback-toolbar,body.wallboard-mode .vb-callback-panel{display:none}
+
+.vb-callback-panel .vb-callback-attempts { display: block; max-width: 16rem; margin-top: 1rem; }

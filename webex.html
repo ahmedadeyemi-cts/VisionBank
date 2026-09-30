@@ -121,8 +121,8 @@
 <link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
 <link rel="stylesheet" href="webex-channel-activity.css?v=20260929-channels1">
 <link rel="stylesheet" href="webex-voice-statistics.css?v=20260929-voice-stats7">
-<link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20260930-settings1">
-<link rel="stylesheet" href="webex-abandoned-selection.css?v=20260930-selection1">
+<link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20260930-native2-attempts">
+<link rel="stylesheet" href="webex-abandoned-selection.css?v=20260930-native2-attempts">
 </head>
 
 <body>
@@ -182,11 +182,13 @@
       <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
         <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
     </div>
-    <p class="vb-callback-policy"><strong>One callback per original missed call · One customer-dial attempt · Any available agent</strong><br>
+    <label class="vb-callback-attempts">Maximum callback attempts<input id="abandonedCallbackMaxAttempts" type="number" min="1" max="10" step="1" value="3" required aria-describedby="abandonedCallbackAttemptsHelp"></label>
+    <p id="abandonedCallbackAttemptsHelp">Total customer-dial attempts, including the first call. Default: 3 (first call plus up to 2 retries). Your saved choice must match a verified Webex retry policy before new schedules run. This does not change organization-wide Webex settings.</p>
+    <p class="vb-callback-policy"><strong>One callback schedule per original missed call · Configurable attempt limit · Any available agent</strong><br>
       Agent message: <span id="abandonedCallbackAgentMessage">Callback for missed call from customer</span></p>
     <details><summary>Timing and excluded dates</summary><div class="vb-callback-grid">
       <label>Minimum delay (minutes)<input id="abandonedCallbackDelay" type="number" min="30" max="1440" step="1" required></label>
-      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="15" max="240" step="1" required></label>
+      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="240" step="1" required></label>
       <label>Calling starts — Central<input id="abandonedCallbackStart" type="time" required></label>
       <label>Calling ends — Central<input id="abandonedCallbackEnd" type="time" required></label>
     </div><fieldset class="vb-callback-days"><legend>Calling days — America/Chicago</legend>
@@ -711,7 +713,7 @@
 <dialog id="vbCallbackPlan" class="vb-cb-plan" aria-labelledby="vbCallbackPlanTitle">
   <div class="vb-cb-plan-heading"><h2 id="vbCallbackPlanTitle">Prepare callbacks</h2>
     <button id="vbCallbackPlanClose" type="button" aria-label="Close callback preparation">Close</button></div>
-  <p class="vb-cb-preview-notice"><strong>Preview only — no calls or schedules created.</strong> Native callback scheduling is not connected in this release.</p>
+  <p class="vb-cb-preview-notice"><strong>Preview before scheduling.</strong> Only Schedule submits a callback. Bulk remains held until the single-call pilot passes.</p>
   <p id="vbCallbackQueue"></p>
   <p>Agent message: <strong>Callback for missed call from customer</strong></p>
   <form id="vbCallbackPlanForm">
@@ -721,7 +723,7 @@
     </div>
     <p id="vbCallbackPlanStatus" role="status" aria-live="polite"></p>
     <div class="vb-cb-buttons"><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
-      <button id="vbCallbackExecute" type="button" disabled title="Native Webex scheduling and one-attempt routing must be verified first">Schedule callbacks — not connected</button></div>
+      <button id="vbCallbackExecute" type="button" disabled title="Native Webex scheduling and one-attempt routing must be verified first">Scheduling paused</button></div>
   </form>
   <div class="vb-cb-preview-table"><table><thead><tr><th>Original Contact ID</th><th>Callback number</th><th>Preview result</th><th>Reason / remaining checks</th></tr></thead>
     <tbody id="vbCallbackPlanRows"></tbody></table></div>
@@ -796,7 +798,7 @@
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20260929-voice-stats7"></script>
 <script src="webex-integrated-chat.js?v=20260929-voice-stats7"></script>
-<script type="module" src="webex-abandoned-callback-settings.js?v=20260930-settings1"></script>
-<script type="module" src="webex-abandoned-selection.js?v=20260930-selection1"></script>
+<script type="module" src="webex-abandoned-callback-settings.js?v=20260930-native2-attempts"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20260930-native2-attempts"></script>
 </body>
 </html>

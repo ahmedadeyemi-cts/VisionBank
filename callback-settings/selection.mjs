@@ -93,6 +93,6 @@ export function buildPreview(body, state, report, queueOptions, now = Date.now()
   return {success: true, previewOnly: true, canSchedule: false, executionCode: 'callback-execution-not-connected',
     settingsEnabled: s.enabled, settingsVersion: state.version, observedAt: now, reportObservedAt: observed,
     scope: selection.scope, selected: ids.length, candidates, skipped: ids.length - candidates, rows, window,
-    queue: queueOptions.find(q => q.id === s.queueId), agentMessage: AGENT_MESSAGE, maxAttempts: 1,
-    warning: 'Preview only. Native callback inventory, routing and one-attempt execution are not connected. No calls or schedules were created.'};
+    queue: queueOptions.find(q => q.id === s.queueId), agentMessage: AGENT_MESSAGE, maxAttempts: s.maxAttempts,
+    warning: 'Preview only. Native callback inventory, routing and retry-policy execution are not connected. No calls or schedules were created.'};
 }

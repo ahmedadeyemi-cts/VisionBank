@@ -13,11 +13,13 @@
       <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
         <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
     </div>
-    <p class="vb-callback-policy"><strong>One callback per original missed call · One customer-dial attempt · Any available agent</strong><br>
+    <label class="vb-callback-attempts">Maximum callback attempts<input id="abandonedCallbackMaxAttempts" type="number" min="1" max="10" step="1" value="3" required aria-describedby="abandonedCallbackAttemptsHelp"></label>
+    <p id="abandonedCallbackAttemptsHelp">Total customer-dial attempts, including the first call. Default: 3 (first call plus up to 2 retries). Your saved choice must match a verified Webex retry policy before new schedules run. This does not change organization-wide Webex settings.</p>
+    <p class="vb-callback-policy"><strong>One callback schedule per original missed call · Configurable attempt limit · Any available agent</strong><br>
       Agent message: <span id="abandonedCallbackAgentMessage">Callback for missed call from customer</span></p>
     <details><summary>Timing and excluded dates</summary><div class="vb-callback-grid">
       <label>Minimum delay (minutes)<input id="abandonedCallbackDelay" type="number" min="30" max="1440" step="1" required></label>
-      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="15" max="240" step="1" required></label>
+      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="240" step="1" required></label>
       <label>Calling starts — Central<input id="abandonedCallbackStart" type="time" required></label>
       <label>Calling ends — Central<input id="abandonedCallbackEnd" type="time" required></label>
     </div><fieldset class="vb-callback-days"><legend>Calling days — America/Chicago</legend>

@@ -1,5 +1,5 @@
 // Settings only: this module does not schedule, dial, retry or cancel calls.
-export const REVISION = '2026.09.30-abandoned-callback-settings-v1';
+export const REVISION = '2026.09.30-abandoned-callback-settings-v2';
 export const AGENT_MESSAGE = 'Callback for missed call from customer';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -9,7 +9,7 @@ export class SettingsError extends Error {
 export const defaults = () => ({ enabled: false, mode: 'manual', queueId: '',
   delayMinutes: 30, windowMinutes: 30, timezone: 'America/Chicago',
   days: [1,2,3,4,5], startTime: '08:00', endTime: '17:00', excludedDates: [],
-  maxAttempts: 1, assignment: 'any-available-agent', agentMessage: AGENT_MESSAGE });
+  maxAttempts: 3, assignment: 'any-available-agent', agentMessage: AGENT_MESSAGE });
 export const initialState = () => ({ version: 0, settings: defaults(), updatedAt: null, lastChangedBy: null });
 const plain = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const need = (ok, code) => { if (!ok) throw new SettingsError(code); };
@@ -23,9 +23,10 @@ export function normalizeSettings(value) {
   need(typeof s.queueId === 'string' && (s.queueId === '' || ENTITY_ID.test(s.queueId)), 'invalid-queue');
   need(!s.enabled || s.queueId !== '', 'queue-required');
   need(Number.isInteger(s.delayMinutes) && s.delayMinutes >= 30 && s.delayMinutes <= 1440, 'invalid-delay');
-  need(Number.isInteger(s.windowMinutes) && s.windowMinutes >= 15 && s.windowMinutes <= 240, 'invalid-window');
+  need(Number.isInteger(s.windowMinutes) && s.windowMinutes >= 30 && s.windowMinutes <= 240, 'invalid-window');
   need(s.timezone === 'America/Chicago', 'invalid-timezone');
-  need(s.maxAttempts === 1 && s.assignment === 'any-available-agent' && s.agentMessage === AGENT_MESSAGE, 'fixed-callback-policy');
+  need(Number.isInteger(s.maxAttempts) && s.maxAttempts >= 1 && s.maxAttempts <= 10, 'invalid-max-attempts');
+  need(s.assignment === 'any-available-agent' && s.agentMessage === AGENT_MESSAGE, 'fixed-callback-policy');
   need(Array.isArray(s.days) && s.days.length > 0 && s.days.length <= 7 &&
     s.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6) && new Set(s.days).size === s.days.length, 'invalid-days');
   const time = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -53,4 +54,4 @@ export function browserDetails(userAgent = '') {
 }
 export const processingState = state => ({ state: state.settings.enabled ? 'enabled-paused' : 'disabled',
   ready: false, code: 'callback-execution-not-connected',
-  message: 'Settings are saved. Native callback scheduling, routing and the one-attempt flow still require validation. No calls are placed by this settings release.' });
+  message: 'Settings are saved. Native callback scheduling, routing and the configured retry policy still require validation. No calls are placed by this settings release.' });

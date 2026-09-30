@@ -3,7 +3,7 @@ const {parse}=await import(process.env.ACORN_MODULE||'acorn');
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
 export const BASE_HASH='c9badc1ae00518e60d3584d90ef39e7c7571f9ddc64d8da2f70a6cceceb2ae85';
 const anchor='/** WEBEX DASHBOARD PRODUCTION ENDPOINTS **/';
-const route='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history" || path === "/api/webex/abandoned-callback/preview" || path === "/api/webex/abandoned-callback/schedule") {\n  return vbCallbackSettingsV1(request, env, cors);\n}\n\n';
+const route='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history" || path === "/api/webex/abandoned-callback/preview" || path === "/api/webex/abandoned-callback/schedule" || path === "/api/webex/abandoned-callback/readiness" || path === "/api/webex/abandoned-callback/jobs" || path === "/api/webex/abandoned-callback/records") {\n  return vbCallbackSettingsV1(request, env, cors);\n}\n\n';
 const suffix='\n/* BEGIN ABANDONED CALLBACK SETTINGS V1 */\nimport {createCallbackSettingsHandler} from "./callback-settings/gateway.mjs";\nconst vbCallbackSettingsV1=createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport:env=>buildWebexDailyReportData(env,false)});\n/* END ABANDONED CALLBACK SETTINGS V1 */\n';
 export function build(source) {
   if(sha(source)!==BASE_HASH)throw new Error('Exact verified R7 combined baseline required; do not overwrite a newer release.');
@@ -17,7 +17,7 @@ export function build(source) {
   return {candidate,modules,proof:{baselineSha256:sha(source),candidateSha256:sha(candidate),
     modules:Object.fromEntries(Object.entries(modules).map(([k,v])=>[k,v.sha256])),
     originalBytesPreserved:true,requiredAdditionalBinding:'ABANDONED_CALLBACK_SETTINGS',
-    preservation:'Existing 32 bindings and Worker behavior must be inherited unchanged; add only the verified external Durable Object binding. No callback execution or scheduled-handler changes.'}};
+    preservation:'Existing 32 bindings and Worker behavior must be inherited unchanged; add only the verified external Durable Object binding. Native jobs execute in the private companion only. Existing scheduled handler is unchanged.'}};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const [sourcePath,out]=process.argv.slice(2);if(!sourcePath||!out)throw new Error('Usage: node builder private-baseline.mjs private-candidate.mjs');

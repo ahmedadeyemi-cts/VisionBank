@@ -30,6 +30,9 @@ jobs:
           node --check callback-settings/policy.mjs
           node --check callback-settings/gateway.mjs
           node --check callback-settings/store.mjs
+          node --check callback-settings/native.mjs
+          node --check callback-settings/execution.mjs
+          node --check webex-abandoned-selection.js
           node --check callback-settings/selection.mjs
           node --check webex-abandoned-selection.js
       - name: Run request, roster, privacy and failure-isolation tests

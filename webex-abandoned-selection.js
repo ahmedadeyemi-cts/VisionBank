@@ -2,13 +2,14 @@ import { callbackNumber, centralDate, MAX_SELECTION, nextWindow } from './callba
 const API = 'https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/abandoned-callback/';
 const id = x => document.getElementById('vbCallback' + x);
 const selected = new Map();
+const ledger=new Map();let preparedIntent=null,pendingSubmission=null,pollTimer=null,recordsLoading=false,lastRecordsRead=0;
 let lastFilter = null, current = null, saved = null, frozenIds = [], scope = 'selected', busy = false;
 const node = (tag, text) => { const n = document.createElement(tag); n.textContent = text; return n; };
 const key = row => String(row.contactId || '').toLowerCase();
 const fingerprint = row => JSON.stringify([key(row), row.ani, row.startEpoch, row.endEpoch]);
 const possible = row => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(key(row)) &&
   callbackNumber(row.ani) && Number.isFinite(row.endEpoch) && row.endEpoch > 0 &&
-  !row.callbackScheduleId && !(Number(row.callbackAttempts) > 0);
+  !row.callbackScheduleId && !(Number(row.callbackAttempts) > 0) && !ledger.has(key(row));
 const fresh = s => window.VB_SECURITY?.allowed === true && s?.ready !== false &&
   Number.isFinite(s?.observedAt) && Date.now() - s.observedAt <= 180000 &&
   s.observedAt <= Date.now() + 5000 && centralDate(s.observedAt) === centralDate(Date.now());
@@ -62,9 +63,10 @@ function render() {
     box.setAttribute('aria-label', 'Select abandoned call from ' + String(row.ani || 'unknown number'));
     box.addEventListener('change', () => setSelected(row, box.checked)); td.append(box); tr.prepend(td);
     const label = row.callbackScheduleId ? 'Already scheduled' : possible(row) ? 'Native status not verified' : 'Not eligible / already attempted';
-    tr.append(node('td', label));
-    tr.append(node('td', row.callbackScheduledWindow || '—'));
+    const statusCell=node('td',label),windowCell=node('td',row.callbackScheduledWindow||'—');
+    statusCell.dataset.callbackStatus=key(row);windowCell.dataset.callbackWindow=key(row);tr.append(statusCell,windowCell);
   });
+  applyLedger();void loadRecords();
   syncButtons();
   const eligiblePage = current.pageRows.filter(possible), checked = eligiblePage.filter(row => selected.has(key(row))).length;
   const page = id('SelectPage'); page.disabled = !eligiblePage.length;
@@ -88,7 +90,7 @@ async function api(path, body) {
       ...(body ? {body: JSON.stringify(body)} : {})});
     const data = await response.json();
     if (window.VB_SECURITY?.allowed !== true) throw new Error('Dashboard access is not approved.');
-    if (!response.ok || data.success !== true) throw new Error(data.error || 'Callback preparation unavailable');
+    if (!response.ok || data.success !== true){const error=new Error(data.error || 'Callback service unavailable');error.status=response.status;throw error;}
     return data;
   } finally { clearTimeout(timer); }
 }
@@ -98,7 +100,7 @@ async function openPlan(all = false) {
   frozenIds = all ? current.filtered.filter(possible).map(key) : [...selected.keys()];
   frozenIds = [...new Set(frozenIds)]; scope = all ? 'all-matching' : 'selected';
   if (!frozenIds.length || frozenIds.length > MAX_SELECTION) { status(`Select between 1 and ${MAX_SELECTION} calls per batch.`); return; }
-  busy = true; syncButtons(); saved = null;
+  busy = true; syncButtons(); saved = null;preparedIntent=null;
   id('PlanRows').replaceChildren(); id('Execute').disabled = true; id('Preview').disabled = true;
   id('PlanTitle').textContent = `Prepare ${frozenIds.length} callback${frozenIds.length === 1 ? '' : 's'}`;
   id('PlanStatus').textContent = 'Loading saved queue and callback hours…'; id('Plan').showModal();
@@ -106,11 +108,11 @@ async function openPlan(all = false) {
     saved = await api('settings');
     const s = saved.state.settings, q = saved.queueOptions?.find(item => item.id === s.queueId);
     if (!q) throw new Error('Select and save a Voice queue in Abandoned Callback Settings first.');
-    const window = nextWindow(s);
+    const window = nextWindow(s,Date.now()+120000);
     id('Date').value = window.date; id('Time').value = window.startTime;
-    id('Queue').textContent = `${q.name} · Any available agent · ${s.windowMinutes}-minute window · America/Chicago`;
+    id('Queue').textContent = `${q.name} · Any available agent · ${s.windowMinutes}-minute window · ${s.maxAttempts} total attempts maximum · America/Chicago`;
     id('Preview').disabled = false;
-    id('PlanStatus').textContent = `${s.enabled ? 'Enabled — processing paused.' : 'Master setting is Disabled.'} Preview only is available. Native scheduling is not connected; no calls will be placed.`;
+    id('PlanStatus').textContent = saved.processing?.message || 'Native readiness is not reported. Preview does not place calls.';
   } catch (error) { id('PlanStatus').textContent = error.message; }
   finally { busy = false; syncButtons(); }
 }
@@ -120,8 +122,8 @@ async function preview(event) {
   busy = true; id('Preview').disabled = true; id('PlanRows').replaceChildren();
   id('PlanStatus').textContent = 'Validating this frozen selection against today’s server-side report…';
   try {
-    const plan = await api('preview', {scope, contactIds: frozenIds, expectedVersion: saved.state.version,
-      date: id('Date').value, startTime: id('Time').value});
+    const intent={scope,contactIds:[...frozenIds],expectedVersion:saved.state.version,date:id('Date').value,startTime:id('Time').value};
+    const plan=await api('preview',intent);preparedIntent=plan.canSchedule?intent:null;
     const reasons = {'invalid-or-withheld-number':'Invalid or withheld number', 'same-number-already-in-batch':'Same number already in this batch',
       'callback-already-recorded':'Callback already recorded', 'not-in-todays-abandoned-report':'No longer in today’s report',
       'call-not-confirmed-ended':'End of call not confirmed', 'no-longer-abandoned':'No longer abandoned'};
@@ -133,7 +135,8 @@ async function preview(event) {
     }
     id('PlanStatus').textContent = `${plan.selected} selected · ${plan.candidates} candidates · ${plan.skipped} skipped. ${plan.window.date}, ${plan.window.startTime}–${plan.window.endTime} Central. ${plan.warning}`;
     // Never infer execution permission from an enabled setting or a successful preview.
-    id('Execute').disabled = true;
+    id('Execute').disabled = !plan.canSchedule;
+    id('Execute').textContent=plan.canSchedule?`Schedule ${plan.candidates} callback${plan.candidates===1?'':'s'}`:'Scheduling paused';
   } catch (error) { id('PlanStatus').textContent = 'Preview failed: ' + error.message + '. No callbacks were scheduled.'; }
   finally { busy = false; id('Preview').disabled = !fresh(window.VB_ABANDONED_REPORT?.snapshot()); syncButtons(); }
 }
@@ -150,11 +153,67 @@ function init() {
   });
   id('ClearSelection').addEventListener('click', () => { selected.clear(); render(); });
   id('PlanForm').addEventListener('submit', preview);
+  id('Execute').addEventListener('click',()=>void submitCallbacks());
   id('PlanClose').addEventListener('click', () => id('Plan').close());
   id('Plan').addEventListener('close', () => { frozenIds = []; saved = null; id('PlanRows').replaceChildren(); });
-  id('PlanForm').addEventListener('input', () => { id('PlanRows').replaceChildren(); id('Execute').disabled = true; });
-  window.addEventListener('pagehide', () => invalidate('Page closed.'));
+  id('PlanForm').addEventListener('input', () => { preparedIntent=null; id('PlanRows').replaceChildren(); id('Execute').disabled = true; });
+  window.addEventListener('pagehide', () => {clearTimeout(pollTimer);invalidate('Page closed.');});
   document.addEventListener('visibilitychange', () => { if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) invalidate('Refresh current reporting before selection.'); });
   render();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+
+function applyLedger(){
+  const labels={'submission-pending':'Preparing callback',dispatching:'Submitting to Webex',
+    'creation-unconfirmed':'Unconfirmed — review required',scheduled:'Scheduled',
+    'due-outcome-unconfirmed':'Due — outcome not yet confirmed',rejected:'Not scheduled — rejected','not-submitted':'Not submitted'};
+  for(const row of ledger.values()){
+    const state=row.status==='scheduled'&&row.window.startEpoch<=Date.now()?'due-outcome-unconfirmed':row.status;
+    const cell=document.querySelector('[data-callback-status="'+row.contactId+'"]');
+    if(cell){cell.textContent=labels[state]||'Not confirmed';cell.title=row.reason||'';}
+    const time=document.querySelector('[data-callback-window="'+row.contactId+'"]');
+    if(time)time.textContent=new Date(row.window.startEpoch).toLocaleString('en-US',{timeZone:'America/Chicago',timeZoneName:'short'})+' – '+
+      new Date(row.window.endEpoch).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit'});
+    const box=document.querySelector('[data-callback-select="'+row.contactId+'"]');if(box){box.disabled=true;box.checked=false;}
+    selected.delete(row.contactId);
+  }
+}
+async function loadRecords(force=false){
+  if(recordsLoading||!fresh(current)||!current.pageRows.length||!force&&Date.now()-lastRecordsRead<10000)return;
+  const ids=current.pageRows.map(key);recordsLoading=true;lastRecordsRead=Date.now();
+  try{const result=await api('records?ids='+encodeURIComponent(ids.join(',')));
+    for(const row of result.rows)ledger.set(row.contactId,row);applyLedger();syncButtons();
+  }catch{/* Reporting remains independent; never replace an unknown callback state with zero or success. */}
+  finally{recordsLoading=false;}
+}
+function rememberJob(value){
+  try{if(value)sessionStorage.setItem('vbCallbackPendingJobV1',JSON.stringify(value));else sessionStorage.removeItem('vbCallbackPendingJobV1');}catch{}
+}
+async function checkJob(jobId,attempt=0){
+  try{const result=await api('jobs?id='+jobId),job=result.job;
+    for(const row of job.records)ledger.set(row.contactId,row);applyLedger();syncButtons();
+    const scheduled=job.records.filter(r=>r.status==='scheduled').length;
+    const pending=job.records.some(r=>['submission-pending','dispatching','creation-unconfirmed'].includes(r.status));
+    if(id('Plan').open)id('PlanStatus').textContent=`${scheduled} confirmed scheduled · ${job.skipped.length} skipped. `+
+      (pending?'Remaining requests are being checked. Closing the dashboard does not cancel accepted work.':'See each abandoned-call row for its saved outcome.');
+    if(!pending){rememberJob(null);pendingSubmission=null;}
+    else if(attempt<15&&window.VB_SECURITY?.allowed)pollTimer=setTimeout(()=>void checkJob(jobId,attempt+1),2000);
+  }catch{
+    if(id('Plan').open)id('PlanStatus').textContent='Scheduling result is not confirmed. Do not create a replacement batch; the saved job will be checked again.';
+    if(attempt<3&&window.VB_SECURITY?.allowed)pollTimer=setTimeout(()=>void checkJob(jobId,attempt+1),3000);
+  }
+}
+async function submitCallbacks(){
+  if(busy||!preparedIntent)return;
+  const intent=structuredClone(preparedIntent),signature=JSON.stringify(intent);
+  if(!pendingSubmission||pendingSubmission.signature!==signature)pendingSubmission={signature,mutationId:crypto.randomUUID()};
+  const mutationId=pendingSubmission.mutationId;rememberJob({id:mutationId});
+  busy=true;id('Execute').disabled=true;id('Preview').disabled=true;syncButtons();
+  id('PlanStatus').textContent='Submitting the selected callback batch. Waiting for server confirmation…';
+  try{const result=await api('schedule',{...intent,mutationId});
+    preparedIntent=null;for(const row of result.job.records)ledger.set(row.contactId,row);applyLedger();
+    id('Execute').textContent='Submitted';void checkJob(mutationId);
+  }catch(e){if(e.status&&e.status<500){rememberJob(null);pendingSubmission=null;id('PlanStatus').textContent='Not submitted: '+e.message;}
+    else{id('PlanStatus').textContent='Result unknown. Checking the original request; no automatic resubmission.';void checkJob(mutationId);}}
+  finally{busy=false;id('Preview').disabled=false;syncButtons();}
+}

@@ -85,7 +85,7 @@ try{
   await page.locator('#vbCallbackPlan').screenshot({path:path.join(out,'selection-preview.png')});
   await closePlan();
   const audit=await backend.request('history');ok('previews do not create settings-audit mutations',audit.data.rows.length===1);
-  ok('no calling or schedule endpoint was requested',callbackRequests.every(x=>x.path.endsWith('/settings')||x.path.endsWith('/preview')));
+  ok('no calling or schedule endpoint was requested',callbackRequests.every(x=>x.method==='GET'||x.method==='OPTIONS'||x.path.endsWith('/settings')||x.path.endsWith('/preview')));
   stale=true;await page.locator('#refreshDailyReports').click();await page.waitForTimeout(300);
   ok('expired report disables selection and bulk actions',await page.locator('#vbCallbackScheduleAll').isDisabled()&&await page.locator('#vbCallbackScheduleSelected').isDisabled());
   stale=false;await page.locator('#refreshDailyReports').click();await page.waitForTimeout(300);

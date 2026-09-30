@@ -1,3 +1,4 @@
+import {CallbackExecution} from './execution.mjs';
 import { REVISION, SettingsError, initialState, parseMutation, normalizeSettings, processingState } from './policy.mjs';
 const output = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control':'no-store' } });
 const key = n => 'audit:' + String(n).padStart(16,'0');
@@ -12,15 +13,17 @@ function validateState(state) {
 }
 // Accessible only through a Worker binding; the companion has no public routes.
 export class AbandonedCallbackSettingsV1 {
-  constructor(ctx) { this.storage = ctx.storage; }
+  constructor(ctx,env={}) { this.storage = ctx.storage; this.execution=new CallbackExecution(ctx,env); }
+  async alarm() { return this.execution.run(); }
   async fetch(request) {
     try {
       const u = new URL(request.url);
+      if(['/readiness','/jobs','/records','/schedule'].includes(u.pathname))return this.execution.handle(request);
       if (request.method === 'GET' && u.pathname === '/settings') {
         const state = validateState(await this.storage.get('state'));
         const id = u.searchParams.get('mutationId');
         const mutation = id && /^[\da-f-]{36}$/i.test(id) ? await this.storage.get('mutation:'+id) : null;
-        return output({ success:true, revision:REVISION, state, processing:processingState(state),
+        return output({ success:true, revision:REVISION, state, processing:await this.execution.readiness(state),
           mutationStatus: id ? mutation ? 'accepted' : 'not-found' : null });
       }
       if (request.method === 'GET' && u.pathname === '/history') {
@@ -64,12 +67,12 @@ export class AbandonedCallbackSettingsV1 {
         await txn.put('mutation:'+mutation.mutationId,{fingerprint,changed,version:state.version});
         return {state,replayed:false,changed,mutationId:mutation.mutationId};
       });
-      return output({success:true,revision:REVISION,...result,processing:processingState(result.state)});
+      return output({success:true,revision:REVISION,...result,processing:await this.execution.readiness(result.state)});
     } catch (error) {
       const known = error instanceof SettingsError;
       return output({success:false,error:known ? error.code : 'settings-storage-unavailable'},known ? error.status : 503);
     }
   }
 }
-// The durable store has NO HTTP entrypoint, scheduler, alarms or Webex credentials.
+// Private entrypoint only. Explicitly accepted jobs use durable alarms; no browser timer.
 export default { fetch() { return output({success:false,error:'not-found'},404); } };

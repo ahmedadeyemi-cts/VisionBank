@@ -26,14 +26,14 @@ function apply(data,force=false) {
   if(!data.state||!Number.isSafeInteger(data.state.version)||typeof data.state.settings?.enabled!=='boolean')throw new Error('Incomplete settings response.');
   if(state&&data.state.version<state.version)return;
   const s=data.state.settings;renderAudit(data.state);
-  text('Processing',(s.enabled?'Enabled — processing paused. ':'Disabled. ')+(data.processing?.message||'Execution readiness not reported.'));
+  text('Processing',(s.enabled?(data.processing?.ready?'Enabled. ':'Enabled — processing paused. '):'Disabled. ')+(data.processing?.message||'Execution readiness not reported.'));
   if(dirty&&!force){if(state&&state.version!==data.state.version)text('LoadStatus','Saved settings changed elsewhere. Your unsaved edits have not been overwritten.');return;}
   state=data.state;byId('Enabled').checked=s.enabled;byId('Mode').value=s.mode;
   const select=byId('Queue');select.replaceChildren(new Option('Select one Voice queue',''));
   for(const q of data.queueOptions||[])select.add(new Option(q.name,q.id));
   if(s.queueId&&![...select.options].some(o=>o.value===s.queueId))select.add(new Option('Saved queue — live availability not confirmed',s.queueId));
   select.value=s.queueId;
-  for(const [id,key]of [['Delay','delayMinutes'],['Window','windowMinutes'],['Start','startTime'],['End','endTime']])byId(id).value=s[key];
+  for(const [id,key]of [['MaxAttempts','maxAttempts'],['Delay','delayMinutes'],['Window','windowMinutes'],['Start','startTime'],['End','endTime']])byId(id).value=s[key];
   document.querySelectorAll('[name="abandonedCallbackDay"]').forEach(e=>e.checked=s.days.includes(Number(e.value)));
   byId('Excluded').value=s.excludedDates.join('\n');byId('Fields').disabled=false;
   dirty=false;text('LoadStatus','Saved configuration loaded. Changes apply only when you select Save settings.');
@@ -44,7 +44,7 @@ function readForm() {
     startTime:byId('Start').value,endTime:byId('End').value,
     days:[...document.querySelectorAll('[name="abandonedCallbackDay"]:checked')].map(e=>Number(e.value)),
     excludedDates:byId('Excluded').value.split(/[\n,]/).map(v=>v.trim()).filter(Boolean),
-    maxAttempts:1,assignment:'any-available-agent',agentMessage:AGENT_MESSAGE});
+    maxAttempts:Number(byId('MaxAttempts').value),assignment:'any-available-agent',agentMessage:AGENT_MESSAGE});
 }
 async function load() {
   if(loading||saving||byId('SettingsPanel').hidden)return;loading=true;

@@ -87,7 +87,7 @@ async function api(path, body) {
   if (window.VB_SECURITY?.allowed !== true) throw new Error('Dashboard access is not approved.');
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(API + path, {method: body ? 'POST' : 'GET', credentials: 'omit', mode: 'cors',
+    const response = await fetch(API+path+(path.includes('?')?'&':'?')+'schema=3', {method: body ? 'POST' : 'GET', credentials: 'omit', mode: 'cors',
       cache: 'no-store', signal: controller.signal, headers: {Accept: 'application/json', ...(body ? {'Content-Type':'application/json'} : {})},
       ...(body ? {body: JSON.stringify(body)} : {})});
     const data = await response.json();

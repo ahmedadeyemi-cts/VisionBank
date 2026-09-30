@@ -1,12 +1,12 @@
 // Settings only: this module does not schedule, dial, retry or cancel calls.
-export const REVISION = '2026.09.30-abandoned-callback-settings-v2';
+export const REVISION = '2026.09.30-abandoned-callback-settings-v3';
 export const AGENT_MESSAGE = 'Callback for missed call from customer';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export class SettingsError extends Error {
   constructor(code, status = 400) { super(code); this.code = code; this.status = status; }
 }
-export const defaults = () => ({ enabled: false, mode: 'manual', queueId: '',
+export const defaults = () => ({ enabled: false, mode: 'manual', queueId: '', callbackEntryPointId: '',
   delayMinutes: 30, windowMinutes: 30, timezone: 'America/Chicago',
   days: [1,2,3,4,5], startTime: '08:00', endTime: '17:00', excludedDates: [],
   maxAttempts: 3, assignment: 'any-available-agent', agentMessage: AGENT_MESSAGE });
@@ -22,6 +22,7 @@ export function normalizeSettings(value) {
   need(['manual','automatic-new-abandoned'].includes(s.mode), 'invalid-mode');
   need(typeof s.queueId === 'string' && (s.queueId === '' || ENTITY_ID.test(s.queueId)), 'invalid-queue');
   need(!s.enabled || s.queueId !== '', 'queue-required');
+  need(typeof s.callbackEntryPointId === 'string' && (s.callbackEntryPointId === '' || ENTITY_ID.test(s.callbackEntryPointId)), 'invalid-callback-entry-point');
   need(Number.isInteger(s.delayMinutes) && s.delayMinutes >= 30 && s.delayMinutes <= 1440, 'invalid-delay');
   need(Number.isInteger(s.windowMinutes) && s.windowMinutes >= 30 && s.windowMinutes <= 240, 'invalid-window');
   need(s.timezone === 'America/Chicago', 'invalid-timezone');

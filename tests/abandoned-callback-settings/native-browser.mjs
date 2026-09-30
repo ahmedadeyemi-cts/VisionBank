@@ -43,7 +43,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
 });
 const ok=(name,value=true)=>{assert.ok(value,name);checks.push(name);console.log('PASS',name);};
 try{
- await backend.request('settings',mutation({enabled:true,queueId:QUEUE,maxAttempts:3}));
+ await backend.request('settings',mutation({enabled:true,queueId:QUEUE,maxAttempts:3,callbackEntryPointId:approval().callbackEntryPointId}));
  await page.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});await page.waitForSelector('input[data-callback-select]');
  await page.locator('input[data-callback-select]').first().check();await page.locator('#vbCallbackScheduleSelected').click();
  await page.waitForFunction(()=>!document.getElementById('vbCallbackPreview').disabled);await page.locator('#vbCallbackPreview').click();

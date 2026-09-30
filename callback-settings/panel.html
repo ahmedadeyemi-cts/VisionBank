@@ -13,6 +13,9 @@
       <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
         <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
     </div>
+    <label class="vb-callback-attempts">Callback entry point<select id="abandonedCallbackEntryPoint" aria-describedby="abandonedCallbackEntryPointHelp abandonedCallbackEntryPointStatus"><option value="">Select the Webex callback entry point</option></select></label>
+      <p id="abandonedCallbackEntryPointHelp">Select the same outbound entry point used in Control Hub → Channels → Settings. Saved by Webex ID, not by name. Rename the entry point in Control Hub; this list follows its current name. Selecting a different entry point here does not change Webex routing.</p>
+      <p id="abandonedCallbackEntryPointStatus" role="status"></p>
     <label class="vb-callback-attempts">Maximum callback attempts<input id="abandonedCallbackMaxAttempts" type="number" min="1" max="10" step="1" value="3" required aria-describedby="abandonedCallbackAttemptsHelp"></label>
     <p id="abandonedCallbackAttemptsHelp">Total customer-dial attempts, including the first call. Default: 3 (first call plus up to 2 retries). Your saved choice must match a verified Webex retry policy before new schedules run. This does not change organization-wide Webex settings.</p>
     <p class="vb-callback-policy"><strong>One callback schedule per original missed call · Configurable attempt limit · Any available agent</strong><br>

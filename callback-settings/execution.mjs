@@ -12,14 +12,20 @@ export class CallbackExecution {
     if(state?.settings?.enabled!==true)blockers.push('master-switch-disabled');
     if(state?.settings?.mode!=='manual')blockers.push('automatic-processing-not-enabled-in-this-stage');
     if(g.queueId&&state?.settings?.queueId!==g.queueId)blockers.push('queue-not-approved-for-this-release');
+    if(!state?.settings?.callbackEntryPointId)blockers.push('callback-entry-point-required');
+    else if(g.callbackEntryPointId!==state.settings.callbackEntryPointId)blockers.push('callback-entry-point-review-required');
     if(g.ready&&state?.settings?.maxAttempts!==g.validatedTotalAttempts)blockers.push('requested-attempt-limit-not-verified');
     let native=null;
-    if(g.ready){try{native=await this.native().configuration(g.queueId);
+    if(g.ready){try{native=await this.native().configuration(g.queueId,g.callbackEntryPointId);
       if(!native.queueActive||!native.voiceQueue)blockers.push('native-voice-queue-unavailable');
       if(native.reportedMaximumAttempts!==g.validatedNativeMaximumAttempts)blockers.push('webex-attempt-policy-changed');
       if(!native.webCallbackEnabled)blockers.push('native-web-callback-disabled');
+      if(native.callbackEntryPointId!==state?.settings?.callbackEntryPointId||!native.entryPointActive||!native.entryPointOutbound||!native.entryPointCallbackEnabled)blockers.push('webex-callback-entry-point-mismatch');
     }catch(e){blockers.push(e.code||'native-configuration-unavailable');}}
     const messages={
+      'callback-entry-point-required':'Select the outbound Callback entry point in Abandoned Callback Settings.',
+      'callback-entry-point-review-required':'The selected callback entry point differs from the reviewed routing configuration. New schedules remain paused until the new route is verified.',
+      'webex-callback-entry-point-mismatch':'The selected entry point is no longer an active Webex callback-enabled outbound entry point. Check Channels > Settings in Control Hub.',
       'requested-attempt-limit-not-verified':`Saved maximum is ${state?.settings?.maxAttempts} total attempts; the reviewed Webex policy permits ${g.validatedTotalAttempts}. Verify a matching policy before scheduling.`,
       'webex-attempt-policy-changed':'Webex retry settings changed after validation. Recheck the policy before submitting new callbacks.',
       'native-execution-not-enabled':'Native callback execution is not enabled for this release.',
@@ -76,7 +82,7 @@ export class CallbackExecution {
         const existing=await tx.get(recordKey(item.contactId)),phone=await tx.get(item.phoneKey);
         if(existing||phone){job.skipped.push({contactId:item.contactId,reason:existing?'original-contact-already-reserved':'number-already-reserved-for-date'});continue;}
         const record={...item,jobId:mutationId,settingsVersion:expectedVersion,window:preview.window,
-          policy:{totalAttempts:current.settings.maxAttempts,retryOwner:'webex',nativeMaximumAttempts:ready.native.reportedMaximumAttempts,flowReview:g.reviewedFlowSha256},attemptsMade:null,status:'submission-pending',scheduleId:null,createdAt:job.createdAt,actor,requestId,revision:1,postAttempts:0};
+          entryPoint:{id:current.settings.callbackEntryPointId,nameAtSubmission:ready.native.callbackEntryPointName||null},policy:{totalAttempts:current.settings.maxAttempts,retryOwner:'webex',nativeMaximumAttempts:ready.native.reportedMaximumAttempts,flowReview:g.reviewedFlowSha256},attemptsMade:null,status:'submission-pending',scheduleId:null,createdAt:job.createdAt,actor,requestId,revision:1,postAttempts:0};
         await tx.put(recordKey(item.contactId),record);await tx.put(item.phoneKey,item.contactId);
         await tx.put('work:'+item.contactId,{contactId:item.contactId});job.contactIds.push(item.contactId);
       }

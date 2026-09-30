@@ -5,8 +5,8 @@ import {runtimeGate} from '../../callback-settings/native.mjs';
 import {CallbackExecution} from '../../callback-settings/execution.mjs';
 import {fixture,mutation,QUEUE,MemoryStorage} from './fixtures.mjs';
 import {approval} from './native-fixtures.mjs';
-const state=(more={})=>({version:1,settings:{...defaults(),enabled:true,queueId:QUEUE,...more}});
-const nativeConfig=(more={})=>({queueActive:true,voiceQueue:true,webCallbackEnabled:true,reportedMaximumAttempts:3,...more});
+const state=(more={})=>({version:1,settings:{...defaults(),enabled:true,queueId:QUEUE,callbackEntryPointId:approval().callbackEntryPointId,...more}});
+const nativeConfig=(more={})=>({callbackEntryPointId:approval().callbackEntryPointId,entryPointActive:true,entryPointOutbound:true,entryPointCallbackEnabled:true,queueActive:true,voiceQueue:true,webCallbackEnabled:true,reportedMaximumAttempts:3,...more});
 const engine=(policy=approval(),config=nativeConfig())=>new CallbackExecution({storage:new MemoryStorage()},
   {CALLBACK_EXECUTION_CONFIG:JSON.stringify(policy)},{client:{configuration:async()=>config}});
 test('new settings default to three total attempts',()=>assert.equal(defaults().maxAttempts,3));

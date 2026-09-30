@@ -11,9 +11,10 @@ export const approval=(more={})=>({enabled:true,phase:'pilot',queueId:QUEUE,
 export const cid=n=>'10000000-0000-4000-8000-'+String(n).padStart(12,'0');
 export async function nativeFixture({settings={},policy={}}={}){
  const clock={now:Date.parse('2026-09-30T18:00:00Z')},storage=new MemoryStorage(),records=[];
- const state={version:1,settings:{...defaults(),enabled:true,queueId:QUEUE,...settings}};await storage.put('state',state);
+ const state={version:1,settings:{...defaults(),enabled:true,queueId:QUEUE,callbackEntryPointId:approval().callbackEntryPointId,...settings}};await storage.put('state',state);
  const client={posts:0,mode:'success',records,
-  configuration:async()=>({queueActive:true,voiceQueue:true,webCallbackEnabled:true,reportedMaximumAttempts:3}),
+  entryPoints:async()=>[{id:approval().callbackEntryPointId,name:"Pilot_Callback_EP",callbackEnabled:true}],
+  configuration:async()=>({callbackEntryPointId:approval().callbackEntryPointId,callbackEntryPointName:"Pilot_Callback_EP",entryPointActive:true,entryPointOutbound:true,entryPointCallbackEnabled:true,queueActive:true,voiceQueue:true,webCallbackEnabled:true,reportedMaximumAttempts:3}),
   list:async()=>structuredClone(records),matches:(r,p)=>r.sourceInteraction===p.sourceInteraction&&r.queueId===p.queueId&&r.callbackNumber===p.callbackNumber&&r.startTime===p.startTime,
   create:async payload=>{client.posts++;const r={...payload,id:crypto.randomUUID()};
    if(client.mode==='reject')throw new NativeCallbackError('native-http-400',{status:400});

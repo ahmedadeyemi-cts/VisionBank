@@ -14,7 +14,7 @@ export class CallbackExecution {
   constructor(ctx,env,{client,now=()=>Date.now()}={}){this.storage=ctx.storage;this.env=env;this.client=client;this.now=now;this.management=new CallbackManagement(this);this.outcomes=new CallbackOutcomes(this);this.automation=new CallbackAutomation(this);}
   native(){return this.client||clientFromEnvironment(this.env);}
   async readiness(state){
-    const g=runtimeGate(this.env),blockers=[...g.blockers];
+    const g=runtimeGate(this.env),displayBlockers=[...g.blockers],blockers=g.phase==='pilot'?displayBlockers.filter(code=>code!=='agent-message-display-not-verified'):[...displayBlockers];
     if(state?.settings?.enabled!==true)blockers.push('master-switch-disabled');
     if(state?.settings?.mode!=='manual'&&g.phase!=='live')blockers.push('automatic-processing-not-enabled-in-this-stage');
     if(g.queueId&&state?.settings?.queueId!==g.queueId)blockers.push('queue-not-approved-for-this-release');
@@ -43,7 +43,10 @@ export class CallbackExecution {
       'master-switch-disabled':'The saved callback switch is Off.',
       'agent-message-display-not-verified':'The flow must expose the saved callback reason to the receiving agent.',
       'automatic-processing-not-enabled-in-this-stage':'Automatic scheduling is not enabled in this stage. Use manual selection.'};
-    return {readiness:readinessChecklist(state,g,native,blockers,this.now()),ready:blockers.length===0,phase:g.phase,maxBatch:g.maxBatch,requestedMaxAttempts:state?.settings?.maxAttempts??null,verifiedTotalAttempts:g.validatedTotalAttempts,blockers,native,
+    const checklist=readinessChecklist(state,g,native,[...new Set([...displayBlockers,...blockers])],this.now());
+    checklist.canSubmit=blockers.length===0;
+    if(!blockers.length&&displayBlockers.includes('agent-message-display-not-verified'))checklist.summary='Ready for the approved single-call pilot. Verify the agent-visible callback reason during this test; bulk remains held.';
+    return {readiness:checklist,ready:blockers.length===0,phase:g.phase,maxBatch:g.maxBatch,requestedMaxAttempts:state?.settings?.maxAttempts??null,verifiedTotalAttempts:g.validatedTotalAttempts,blockers,native,
       state:state?.settings?.enabled?blockers.length?'enabled-paused':'enabled-ready':'disabled',
       message:blockers.length?blockers.map(code=>messages[code]||code).join(' '):g.phase==='pilot'?'Ready for one approved test callback. Bulk remains held.':'Native scheduling is ready.'};
   }

@@ -15,7 +15,7 @@ export async function nativeFixture({settings={},policy={}}={}){
  const client={posts:0,mode:'success',records,
   entryPoints:async()=>[{id:approval().callbackEntryPointId,name:"Pilot_Callback_EP",callbackEnabled:true}],
   configuration:async()=>({callbackEntryPointId:approval().callbackEntryPointId,callbackEntryPointName:"Pilot_Callback_EP",entryPointActive:true,entryPointOutbound:true,entryPointCallbackEnabled:true,queueActive:true,voiceQueue:true,webCallbackEnabled:true,reportedMaximumAttempts:3}),
-  list:async()=>structuredClone(records),matches:(r,p)=>r.sourceInteraction===p.sourceInteraction&&r.queueId===p.queueId&&r.callbackNumber===p.callbackNumber&&r.startTime===p.startTime,
+  active:async()=>[],list:async()=>structuredClone(records),matches:(r,p)=>r.sourceInteraction===p.sourceInteraction&&r.queueId===p.queueId&&r.callbackNumber===p.callbackNumber&&r.startTime===p.startTime,
   create:async payload=>{client.posts++;const r={...payload,id:crypto.randomUUID()};
    if(client.mode==='reject')throw new NativeCallbackError('native-http-400',{status:400});
    if(client.mode!=='unknown')records.push(r);

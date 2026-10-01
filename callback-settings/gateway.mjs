@@ -15,10 +15,12 @@ function validIp(ip) {
 export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
     const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
-    // Keep already-open v2 dashboards compatible while the v3 frontend is published.
-    const schema=new URL(request.url).searchParams.get('schema')==='3'?3:2;
+    // Negotiate limits explicitly; old tabs must not misread an expanded saved window.
+    const requestedSchema=new URL(request.url).searchParams.get('schema');
+    const schema=requestedSchema==='4'?4:requestedSchema==='3'?3:2;
     const send=(value,status=200)=>{
       if(value?.state?.settings){
+        if(schema<4 && value.state.settings.windowMinutes>240) return new Response(JSON.stringify({success:false,error:'callback-client-update-required',minimumClientSchema:4}),{status:409,headers});
         const settings={...value.state.settings};
         if(schema===2)delete settings.callbackEntryPointId;
         value={...value,state:{...value.state,settings},settingsSchemaVersion:schema};
@@ -87,8 +89,19 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
           if(!ledgerResponse.ok||ledger.success!==true)throw new SettingsError('callback-ledger-unavailable',503);
           const previous=new Map(ledger.rows.map(r=>[r.contactId,r]));
           for(const row of preview.rows){const old=previous.get(row.contactId);if(old){row.disposition='skipped';row.reason='callback-already-reserved';row.callbackStatus=old.status;row.scheduleId=old.scheduleId;}}
+          if(part==='preview'){
+            const candidates=preview.rows.filter(r=>r.disposition==='candidate');
+            if(candidates.length){
+              const inspectionResponse=await bounded(store.fetch(new Request('https://callback-settings.internal/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:candidates.map(({contactId,number})=>({contactId,number}))})})),12000);
+              const inspection=await inspectionResponse.json();
+              if(!inspectionResponse.ok||inspection.success!==true)throw new SettingsError('native-inspection-unavailable',503);
+              const byId=new Map(inspection.rows.map(r=>[r.contactId,r]));
+              for(const row of candidates){row.nativeInventory=byId.get(row.contactId)||{status:'unavailable'};
+                if(['reserved','duplicate'].includes(row.nativeInventory.status)){row.disposition='skipped';row.reason=row.nativeInventory.reason;}}
+            }
+          }
           preview.candidates=preview.rows.filter(r=>r.disposition==='candidate').length;preview.skipped=preview.selected-preview.candidates;
-          preview.processing=value.processing;preview.canSchedule=value.processing?.ready===true&&preview.candidates>0&&preview.candidates<=value.processing.maxBatch;
+          preview.processing=value.processing;preview.canSchedule=value.processing?.ready===true&&preview.candidates>0&&preview.candidates<=value.processing.maxBatch&&preview.rows.filter(r=>r.disposition==='candidate').every(r=>part==='schedule'||['clear','not-checked'].includes(r.nativeInventory?.status));
           preview.warning=preview.canSchedule?'Preview only. Select Schedule to submit these callbacks. Native duplicate checks run again before creation.':value.processing?.message||'Native callback scheduling is paused.';
           if(part==='preview')return send(preview);
           const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))};

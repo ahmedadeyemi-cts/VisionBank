@@ -1,6 +1,7 @@
 import {SettingsError, UUID, normalizeSettings} from './policy.mjs';
 import {nativePayload, clientFromEnvironment, runtimeGate, publicRecord, NativeCallbackError} from './native.mjs';
-import {validateWindow} from './selection.mjs';
+import {validateWindow,callbackNumber} from './selection.mjs';
+import {numberKey,initializeNumberIndex,releaseNumber,released} from './reservations.mjs';
 const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
 const respond=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 const recordKey=id=>'callback:'+id;
@@ -28,18 +29,31 @@ export class CallbackExecution {
       'webex-callback-entry-point-mismatch':'The selected entry point is no longer an active Webex callback-enabled outbound entry point. Check Channels > Settings in Control Hub.',
       'requested-attempt-limit-not-verified':`Saved maximum is ${state?.settings?.maxAttempts} total attempts; the reviewed Webex policy permits ${g.validatedTotalAttempts}. Verify a matching policy before scheduling.`,
       'webex-attempt-policy-changed':'Webex retry settings changed after validation. Recheck the policy before submitting new callbacks.',
-      'native-execution-not-enabled':'Native callback execution is not enabled for this release.',
-      'callback-attempt-policy-not-verified':'The callback retry policy and attempt counting still require validation.',
+      'native-execution-not-enabled':'Calling is not activated: the scheduled-call flow integration is not yet complete.',
+      'callback-attempt-policy-not-verified':'The flow needs a bounded customer-call retry path. IVR input retries do not enforce the requested call-attempt limit.',
       'callback-entrypoint-and-caller-id-not-verified':'Verify the callback entry point and caller ID before enabling execution.',
       'pilot-phase-not-configured':'The callback pilot is not configured.',
       'approved-queue-not-configured':'Select an approved Voice queue for the pilot.',
       'one-approved-test-number-required':'One approved test number is required for the pilot.',
       'master-switch-disabled':'The saved callback switch is Off.',
-      'agent-message-display-not-verified':'The incoming agent message still needs verification.',
+      'agent-message-display-not-verified':'The flow must expose the saved callback reason to the receiving agent.',
       'automatic-processing-not-enabled-in-this-stage':'Automatic scheduling is not enabled in this stage. Use manual selection.'};
     return {ready:blockers.length===0,phase:g.phase,maxBatch:g.maxBatch,requestedMaxAttempts:state?.settings?.maxAttempts??null,verifiedTotalAttempts:g.validatedTotalAttempts,blockers,native,
       state:state?.settings?.enabled?blockers.length?'enabled-paused':'enabled-ready':'disabled',
       message:blockers.length?blockers.map(code=>messages[code]||code).join(' '):g.phase==='pilot'?'Ready for one approved test callback. Bulk remains held.':'Native scheduling is ready.'};
+  }
+  async inspect(rows) {
+    if(!Array.isArray(rows)||rows.length>1000||rows.some(r=>!/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(r.contactId||'')||!callbackNumber(r.number)))throw new SettingsError('invalid-inspection');
+    const records=await this.storage.list({prefix:'callback:',limit:1001}),now=this.now();
+    return Promise.all(rows.map(async(row,index)=>{
+      const local=[...records.values()].find(r=>!released(r)&&callbackNumber(r.payload?.callbackNumber)===callbackNumber(row.number));
+      if(local)return {contactId:row.contactId,status:'reserved',reason:'number-has-existing-callback',checkedAt:now};
+      if(records.size>1000)return {contactId:row.contactId,status:'unavailable',reason:'callback-ledger-review-required',checkedAt:now};
+      if(index>=5)return {contactId:row.contactId,status:'not-checked',reason:'native-inventory-checked-at-submission',checkedAt:null};
+      try{const [future,active]=await Promise.all([this.native().list(row.number),this.native().active(row.number)]),found=[...future,...active];
+        return {contactId:row.contactId,status:found.length?'duplicate':'clear',reason:found.length?'native-callback-already-exists':null,count:found.length,checkedAt:now,coverage:'future-schedules-and-active-callbacks'};
+      }catch(error){return {contactId:row.contactId,status:'unavailable',reason:error.code||'native-inventory-unavailable',checkedAt:now};}
+    }));
   }
   async job(id){
     if(!UUID.test(id||''))throw new SettingsError('invalid-job-id');
@@ -75,15 +89,18 @@ export class CallbackExecution {
       validateWindow(preview.window.date,preview.window.startTime,current.settings,this.now());
       const job={id:mutationId,fingerprint,intent,createdAt:new Date(this.now()).toISOString(),settingsVersion:expectedVersion,
         contactIds:[],skipped:preview.rows.filter(r=>r.disposition!=='candidate').map(r=>({contactId:r.contactId,reason:r.reason})),actor,requestId};
+      await initializeNumberIndex(tx);
       const bucket=Math.floor(this.now()/60000),rateKey='job-rate:'+actor.sourceIp,oldRate=await tx.get(rateKey);
       const rate=oldRate?.bucket===bucket?oldRate:{bucket,count:0};
       if(rate.count>=4)throw new SettingsError('too-many-callback-batches',429);
       for(const item of prepared){
-        const existing=await tx.get(recordKey(item.contactId)),phone=await tx.get(item.phoneKey);
+        const activeKey=await numberKey(item.payload.callbackNumber);
+        const existing=await tx.get(recordKey(item.contactId)),phone=await tx.get(item.phoneKey),active=await tx.get(activeKey);
+        if(active?.length&&!existing){job.skipped.push({contactId:item.contactId,reason:'number-has-existing-callback'});continue;}
         if(existing||phone){job.skipped.push({contactId:item.contactId,reason:existing?'original-contact-already-reserved':'number-already-reserved-for-date'});continue;}
         const record={...item,jobId:mutationId,settingsVersion:expectedVersion,window:preview.window,
           entryPoint:{id:current.settings.callbackEntryPointId,nameAtSubmission:ready.native.callbackEntryPointName||null},policy:{totalAttempts:current.settings.maxAttempts,retryOwner:'webex',nativeMaximumAttempts:ready.native.reportedMaximumAttempts,flowReview:g.reviewedFlowSha256},attemptsMade:null,status:'submission-pending',scheduleId:null,createdAt:job.createdAt,actor,requestId,revision:1,postAttempts:0};
-        await tx.put(recordKey(item.contactId),record);await tx.put(item.phoneKey,item.contactId);
+        await tx.put(recordKey(item.contactId),record);await tx.put(item.phoneKey,item.contactId);await tx.put(activeKey,[item.contactId]);
         await tx.put('work:'+item.contactId,{contactId:item.contactId});job.contactIds.push(item.contactId);
       }
       await tx.put('job:'+mutationId,job);await tx.put(rateKey,{bucket,count:rate.count+1});
@@ -97,7 +114,7 @@ export class CallbackExecution {
     await this.storage.transaction(async tx=>{
       const r=await tx.get(recordKey(id));if(!r)return;
       const updated={...r,...details,status,revision:r.revision+1,updatedAt:new Date(this.now()).toISOString()};
-      await tx.put(recordKey(id),updated);if(!keepWork)await tx.delete('work:'+id);
+      await tx.put(recordKey(id),updated);await releaseNumber(tx,updated);if(!keepWork)await tx.delete('work:'+id);
       await tx.put('callback-audit:'+id+':'+String(updated.revision).padStart(8,'0'),{
         action:status,at:updated.updatedAt,contactId:id,scheduleId:updated.scheduleId,actor:r.actor,requestId:r.requestId});
     });
@@ -136,7 +153,8 @@ export class CallbackExecution {
       if(!readiness.ready){await this.finish(id,'not-submitted',{reason:readiness.blockers.join(', ')});return;}
       if(g.phase==='pilot'&&!g.testNumbers.includes(r.payload.callbackNumber)){await this.finish(id,'not-submitted',{reason:'pilot-number-not-approved'});return;}
       validateWindow(r.window.date,r.window.startTime,current.settings,this.now());
-      const native=this.native(),existing=await native.list(r.payload.callbackNumber);
+      const native=this.native(),[existing,active]=await Promise.all([native.list(r.payload.callbackNumber),native.active(r.payload.callbackNumber)]);
+      if(active.length){await this.finish(id,'not-submitted',{reason:'active-native-callback-already-exists'});return;}
       const same=existing.filter(x=>native.matches(x,r.payload));
       if(same.length===1){await this.finish(id,'scheduled',{scheduleId:same[0].id,reconciled:true});return;}
       if(existing.length){await this.finish(id,'not-submitted',{reason:'native-callback-already-exists'});return;}
@@ -162,6 +180,7 @@ export class CallbackExecution {
   async handle(request){
     try{
       const u=new URL(request.url);
+      if(request.method==='POST'&&u.pathname==='/inspect'){const input=await request.json();return respond({success:true,rows:await this.inspect(input.rows),observedAt:this.now()});}
       if(request.method==='GET'&&u.pathname==='/readiness'){
         const state=await this.storage.get('state');return respond({success:true,processing:await this.readiness(state)});
       }

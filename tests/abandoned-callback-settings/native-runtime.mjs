@@ -12,6 +12,7 @@ export class TestCallbackStore extends AbandonedCallbackSettingsV1 {
  constructor(ctx,env){super(ctx,env);this.execution.client=createNativeClient({orgId:env.WEBEX_ORG_ID,getToken:async()=>'synthetic-test-token',fetchImpl:async(url,options)=>{
  let realRequest;try{realRequest=new Request(url,options);}catch(error){console.error('REAL_REQUEST_OPTIONS',error.message);throw error;} // Synthetic request, no network.
  const u=new URL(realRequest.url),orgId=env.WEBEX_ORG_ID;
+ if(options.method==='POST'&&u.pathname==='/search')return Response.json({data:{taskDetails:{tasks:[],pageInfo:{hasNextPage:false,endCursor:null}}}});
  const ep={id:'22222222-2222-4222-8222-222222222222',name:'Pilot_Callback_EP',active:true,entryPointType:'OUTBOUND',channelType:'TELEPHONY',callbackEnabled:true};
  if(options.method==='GET'&&u.pathname.endsWith('/entry-point'))return Response.json({meta:{orgid:orgId,page:0,totalPages:1,totalRecords:1},data:[ep]});
  if(options.method==='GET'&&u.pathname.endsWith('/organization-setting'))return Response.json([{webCallBackEnabled:true,maximumCallbackAttempts:3}]);
@@ -24,7 +25,7 @@ export class TestCallbackStore extends AbandonedCallbackSettingsV1 {
 export default {fetch(){return new Response('Test only',{status:404});}};
 `;
 const options={name:'vb-callback-native-local-test',resourcePersistencePath:persist,cf:false,
- modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('../../test-native-runtime-entrypoint.mjs',import.meta.url)),contents:entry},...['store.mjs','policy.mjs','selection.mjs','native.mjs','execution.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')}))],
+ modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('../../test-native-runtime-entrypoint.mjs',import.meta.url)),contents:entry},...['store.mjs','policy.mjs','selection.mjs','native.mjs','execution.mjs','reservations.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')}))],
  compatibilityDate:'2026-09-28',durableObjects:{STORE:{className:'TestCallbackStore',useSQLite:true}},durableObjectsPersist:persist,
  bindings:{WEBEX_ORG_ID:orgId,CALLBACK_EXECUTION_CONFIG:JSON.stringify(approval())}};
 let mf;const start=async()=>{mf=new Miniflare(convertV4MiniflareOptions?convertV4MiniflareOptions(options):options);

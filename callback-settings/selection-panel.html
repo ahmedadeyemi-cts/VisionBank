@@ -19,9 +19,11 @@
       <label>Callback date — Central<input id="vbCallbackDate" type="date" required></label>
       <label>Window starts — Central<input id="vbCallbackTime" type="time" required></label>
     </div>
+    <p id="vbCallbackWindowRules">Webex scheduling: at least 30 minutes ahead; within 31 calendar days; a 30-minute to 8-hour window within your saved calling hours. Times use America/Chicago.</p>
+    <button id="vbCallbackOpenSettings" type="button">Open Abandoned Callback Settings</button>
     <p id="vbCallbackPlanStatus" role="status" aria-live="polite"></p>
     <div class="vb-cb-buttons"><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
-      <button id="vbCallbackExecute" type="button" disabled title="Native Webex scheduling and one-attempt routing must be verified first">Scheduling paused</button></div>
+      <button id="vbCallbackExecute" type="button" disabled title="The scheduled-callback flow and requested attempt limit must be ready before calling">Scheduling paused</button></div>
   </form>
   <div class="vb-cb-preview-table"><table><thead><tr><th>Original Contact ID</th><th>Callback number</th><th>Preview result</th><th>Reason / remaining checks</th></tr></thead>
     <tbody id="vbCallbackPlanRows"></tbody></table></div>

@@ -1,5 +1,7 @@
-import { callbackNumber, centralDate, MAX_SELECTION, nextWindow } from './callback-settings/selection.mjs';
+import { callbackNumber, centralDate, MAX_SELECTION, nextWindow, schedulingBounds, validateWindow } from './callback-settings/selection.mjs';
 const API = 'https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/abandoned-callback/';
+let clockReference=null;
+const planningNow=()=>clockReference?clockReference.server+performance.now()-clockReference.started:Date.now();
 const id = x => document.getElementById('vbCallback' + x);
 const selected = new Map();
 let accessObserver = null;
@@ -87,7 +89,7 @@ async function api(path, body) {
   if (window.VB_SECURITY?.allowed !== true) throw new Error('Dashboard access is not approved.');
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(API+path+(path.includes('?')?'&':'?')+'schema=3', {method: body ? 'POST' : 'GET', credentials: 'omit', mode: 'cors',
+    const response = await fetch(API+path+(path.includes('?')?'&':'?')+'schema=4', {method: body ? 'POST' : 'GET', credentials: 'omit', mode: 'cors',
       cache: 'no-store', signal: controller.signal, headers: {Accept: 'application/json', ...(body ? {'Content-Type':'application/json'} : {})},
       ...(body ? {body: JSON.stringify(body)} : {})});
     const data = await response.json();
@@ -95,6 +97,16 @@ async function api(path, body) {
     if (!response.ok || data.success !== true){const error=new Error(data.error || 'Callback service unavailable');error.status=response.status;throw error;}
     return data;
   } finally { clearTimeout(timer); }
+}
+function updateWindowBounds() {
+  if(!saved)return;
+  const s=saved.state.settings,limits=schedulingBounds(s,planningNow());
+  id('Date').min=limits.minimumDate;id('Date').max=limits.maximumDate;
+  const end=Number(s.endTime.slice(0,2))*60+Number(s.endTime.slice(3))-s.windowMinutes;
+  id('Time').min=s.startTime;id('Time').max=String(Math.floor(end/60)).padStart(2,'0')+':'+String(end%60).padStart(2,'0');
+  id('Date').setCustomValidity('');id('Time').setCustomValidity('');
+  try{validateWindow(id('Date').value,id('Time').value,s,planningNow());}
+  catch(e){const messages={'outside-scheduling-horizon':'Choose a start at least '+s.delayMinutes+' minutes ahead and a date no later than '+limits.maximumDate+'.','outside-callback-days':'Choose one of the saved callback working days, excluding holidays.','outside-callback-hours':'The entire callback window must fit between '+s.startTime+' and '+s.endTime+' Central.','ambiguous-or-nonexistent-central-time':'This time is ambiguous or unavailable because of daylight saving. Choose another time.'};id('Time').setCustomValidity(messages[e.code]||'Choose a valid callback date and time.');}
 }
 async function openPlan(all = false) {
   current = window.VB_ABANDONED_REPORT?.snapshot();
@@ -108,11 +120,12 @@ async function openPlan(all = false) {
   id('PlanStatus').textContent = 'Loading saved queue and callback hours…'; id('Plan').showModal();
   try {
     saved = await api('settings');
+    clockReference=Number.isFinite(saved.serverTimeEpoch)?{server:saved.serverTimeEpoch,started:performance.now()}:null;
     const s = saved.state.settings, q = saved.queueOptions?.find(item => item.id === s.queueId);
     if (!q) throw new Error('Select and save a Voice queue in Abandoned Callback Settings first.');
-    const window = nextWindow(s,Date.now()+120000);
-    id('Date').value = window.date; id('Time').value = window.startTime;
-    id('Queue').textContent = `${q.name} · Any available agent · ${s.windowMinutes}-minute window · ${s.maxAttempts} total attempts maximum · America/Chicago`;
+    const window = nextWindow(s,planningNow()+120000);
+    id('Date').value = window.date; id('Time').value = window.startTime;updateWindowBounds();
+    id('Queue').textContent = `${q.name} · Any available agent · ${s.windowMinutes}-minute window · ${s.maxAttempts} requested total attempts · America/Chicago`;
     id('Preview').disabled = false;
     id('PlanStatus').textContent = saved.processing?.message || 'Native readiness is not reported. Preview does not place calls.';
   } catch (error) { id('PlanStatus').textContent = error.message; }
@@ -121,6 +134,7 @@ async function openPlan(all = false) {
 async function preview(event) {
   event.preventDefault(); if (busy || !saved) return;
   if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) { invalidate('Reporting is stale; reopen preparation after it refreshes.'); return; }
+  updateWindowBounds();if(!id('PlanForm').reportValidity())return;
   busy = true; id('Preview').disabled = true; id('PlanRows').replaceChildren();
   id('PlanStatus').textContent = 'Validating this frozen selection against today’s server-side report…';
   try {
@@ -128,11 +142,11 @@ async function preview(event) {
     const plan=await api('preview',intent);preparedIntent=plan.canSchedule?intent:null;
     const reasons = {'invalid-or-withheld-number':'Invalid or withheld number', 'same-number-already-in-batch':'Same number already in this batch',
       'callback-already-recorded':'Callback already recorded', 'not-in-todays-abandoned-report':'No longer in today’s report',
-      'call-not-confirmed-ended':'End of call not confirmed', 'no-longer-abandoned':'No longer abandoned'};
+      'call-not-confirmed-ended':'End of call not confirmed', 'no-longer-abandoned':'No longer abandoned','number-has-existing-callback':'This number already has an unresolved callback, including other dates.','native-callback-already-exists':'Webex already has a scheduled or active callback for this number.','callback-already-reserved':'This original call already has a callback record.'};
     for (const row of plan.rows) {
       const tr = document.createElement('tr');
-      for (const value of [row.contactId, row.number || 'Not available', row.disposition === 'candidate' ? 'Candidate — native checks pending' : 'Skipped',
-        row.reason ? (reasons[row.reason] || row.reason) : 'Duplicate inventory and routing still need verification']) tr.append(node('td', value));
+      for (const value of [row.contactId, row.number || 'Not available', row.disposition === 'candidate' ? row.nativeInventory?.status==='clear'?'No duplicate found at check time':'Candidate — check pending' : 'Skipped',
+        row.reason ? (reasons[row.reason] || row.reason) : row.nativeInventory?.status==='clear'?'No future schedule or active callback found by the native checks. Rechecked before submission; activation is separate.':row.nativeInventory?.status==='unavailable'?'Webex duplicate lookup unavailable. Scheduling stays blocked.': 'Native duplicate lookup will run before submission.']) tr.append(node('td', value));
       id('PlanRows').append(tr);
     }
     id('PlanStatus').textContent = `${plan.selected} selected · ${plan.candidates} candidates · ${plan.skipped} skipped. ${plan.window.date}, ${plan.window.startTime}–${plan.window.endTime} Central. ${plan.warning}`;
@@ -169,8 +183,9 @@ function init() {
   id('PlanForm').addEventListener('submit', preview);
   id('Execute').addEventListener('click',()=>void submitCallbacks());
   id('PlanClose').addEventListener('click', () => id('Plan').close());
+  id('OpenSettings')?.addEventListener('click',()=>{id('Plan').close();const p=document.getElementById('abandonedCallbackSettingsPanel');if(p?.hidden)document.getElementById('abandonedCallbackSettingsToggle')?.click();});
   id('Plan').addEventListener('close', () => { frozenIds = []; saved = null; id('PlanRows').replaceChildren(); });
-  id('PlanForm').addEventListener('input', () => { preparedIntent=null; id('PlanRows').replaceChildren(); id('Execute').disabled = true; });
+  id('PlanForm').addEventListener('input', () => { preparedIntent=null; id('PlanRows').replaceChildren(); id('Execute').disabled = true;updateWindowBounds(); });
   window.addEventListener('pagehide', () => {clearTimeout(pollTimer);accessObserver?.disconnect();accessObserver=null;invalidate('Page closed.');});
   window.addEventListener('pageshow', () => {observeAccess();render();});
   document.addEventListener('visibilitychange', () => { if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) invalidate('Refresh current reporting before selection.'); });

@@ -48,7 +48,9 @@ try{
  await page.locator('input[data-callback-select]').first().check();await page.locator('#vbCallbackScheduleSelected').click();
  await page.waitForFunction(()=>!document.getElementById('vbCallbackPreview').disabled);await page.locator('#vbCallbackPreview').click();
  await page.waitForFunction(()=>!document.getElementById('vbCallbackExecute').disabled);
- ok('one approved pilot candidate can be explicitly submitted',(await page.locator('#vbCallbackQueue').innerText()).includes('3 total attempts maximum'));
+ ok('one approved pilot candidate can be explicitly submitted',(await page.locator('#vbCallbackQueue').innerText()).includes('3 requested total attempts'));
+ ok('preview shows an actual native future-inventory result',(await page.locator('#vbCallbackPlanRows').innerText()).includes('No duplicate found at check time'));
+ ok('date picker enforces the local 31-day horizon',!!await page.locator('#vbCallbackDate').getAttribute('max'));
  uncertain=true;await page.locator('#vbCallbackExecute').click();
  await page.waitForFunction(()=>document.querySelector('[data-callback-status]')?.textContent.includes('Preparing callback'));
  ok('lost schedule response is recovered through saved job lookup',callbackRequests.filter(x=>x.method==='POST'&&x.path.endsWith('/schedule')).length===1&&callbackRequests.some(x=>x.path.endsWith('/jobs')));

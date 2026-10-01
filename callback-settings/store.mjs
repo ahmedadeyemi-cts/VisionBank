@@ -29,12 +29,12 @@ export class AbandonedCallbackSettingsV1 {
   async fetch(request) {
     try {
       const u = new URL(request.url);
-      if(['/readiness','/jobs','/records','/schedule'].includes(u.pathname))return this.execution.handle(request);
+      if(['/readiness','/jobs','/records','/schedule','/inspect'].includes(u.pathname))return this.execution.handle(request);
       if (request.method === 'GET' && u.pathname === '/settings') {
         const state = validateState(await this.storage.get('state'));
         const id = u.searchParams.get('mutationId');
         const mutation = id && /^[\da-f-]{36}$/i.test(id) ? await this.storage.get('mutation:'+id) : null;
-        return output({ success:true, revision:REVISION, state, processing:await this.execution.readiness(state),
+        return output({ success:true, revision:REVISION, serverTimeEpoch:Date.now(), state, processing:await this.execution.readiness(state),
           ...(await this.entryPointDiscovery()),mutationStatus: id ? mutation ? 'accepted' : 'not-found' : null });
       }
       if (request.method === 'GET' && u.pathname === '/history') {

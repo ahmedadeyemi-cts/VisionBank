@@ -33,8 +33,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (['history','readiness','jobs','records','register','management','automation-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status','flow-token-status','flow-token-generate','flow-token-test'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records','register','management','automation-status','flow-token-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage','flow-token-generate','flow-token-test'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -45,6 +45,19 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
       const org=String(env.WEBEX_ORG_ID||'');
       if (!org || !env.ABANDONED_CALLBACK_SETTINGS?.idFromName) throw new SettingsError('callback-storage-not-configured',503);
       const store=env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(org+':settings:v1'));
+      if(part==='flow-token-status'){
+        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/status')),8000);return send(await r.json(),r.status);
+      }
+      if(part==='flow-token-generate'){
+        const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))};
+        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({actor})})),8000);return send(await r.json(),r.status);
+      }
+      if(part==='flow-token-test'){
+        let body;try{body=await request.json();}catch{throw new SettingsError('invalid-json');}
+        if(!body||Object.keys(body).some(k=>k!=='token')||typeof body.token!=='string'||body.token.length>160)throw new SettingsError('invalid-token-test');
+        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:body.token})})),8000),result=await r.json();
+        return send({success:true,authorized:result.authorized===true});
+      }
       const storeUrl=new URL('https://callback-settings.internal/'+part);
       for (const name of ['before','mutationId','id','ids']) if (u.searchParams.has(name)) storeUrl.searchParams.set(name,u.searchParams.get(name));
       const queueOptions=async()=>{

@@ -33,6 +33,22 @@
       <label>Excluded dates (YYYY-MM-DD, one per line)<textarea id="abandonedCallbackExcluded" rows="3" maxlength="704"></textarea></label>
     </details><div class="vb-callback-actions"><button type="submit" id="abandonedCallbackSave">Save settings</button></div>
   </fieldset></form>
+
+  <details id="abandonedCallbackSecurity" class="vb-callback-security"><summary>Flow Integration &amp; Security</summary>
+    <p>Manage the private token used by the Webex callback flow to read its saved callback policy. The token is shown only when generated or rotated.</p>
+    <div class="vb-callback-security-status"><strong>Callback Policy Token:</strong> <span id="abandonedCallbackTokenStatus">Checking…</span></div>
+    <p id="abandonedCallbackTokenMeta"></p>
+    <div class="vb-callback-actions vb-callback-security-actions">
+      <button type="button" id="abandonedCallbackGenerateToken">Generate / Rotate Token</button>
+      <button type="button" id="abandonedCallbackCopyToken" hidden>Copy Token</button>
+      <button type="button" id="abandonedCallbackTestToken">Test Connection</button>
+    </div>
+    <div id="abandonedCallbackTokenReveal" class="vb-callback-token-reveal" hidden>
+      <label>New token — copy this into <code>CB_PolicyToken</code><input id="abandonedCallbackTokenValue" type="text" readonly autocomplete="off" spellcheck="false"></label>
+      <p><strong>Copy it now.</strong> For security, reopening this page will not reveal the token again.</p>
+    </div>
+    <p id="abandonedCallbackTokenMessage" role="status" aria-live="polite"></p>
+  </details>
   <div class="vb-callback-audit"><h3>Last changed by</h3>
     <p>Identifies the source connection, not a verified individual. Computer names are shown only when a trusted source provides them.</p>
     <dl id="abandonedCallbackLastChange"></dl>

@@ -48,7 +48,7 @@ export function validateWindow(date, time, settings, now = Date.now()) {
   return {date, startTime: time, endTime, startEpoch: start, endEpoch: end, timezone: s.timezone};
 }
 export function nextWindow(settings, now = Date.now()) {
-  const s = normalizeSettings(settings), first = Math.ceil((now + s.delayMinutes * 60000) / 60000) * 60000;
+  const s = normalizeSettings(settings), leadMinutes = Math.max(SCHEDULE_RULES.minimumLeadMinutes, s.delayMinutes), first = Math.ceil((now + leadMinutes * 60000) / 60000) * 60000;
   const firstDate = centralDate(first), firstMinute = minutes(centralTime(first));
   const dateBase = Date.parse(firstDate + 'T12:00:00Z');
   for (let day = 0; day <= 31; day++) {

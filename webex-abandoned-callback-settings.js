@@ -88,6 +88,22 @@ async function history(older=false) {
     text('HistoryStatus',body.children.length?'Server-recorded changes. Source IP identifies a connection, not a verified person.':'No saved changes.');
   }catch(e){text('HistoryStatus','History unavailable: '+e.message);}
 }
+async function tokenStatus(){
+  try{const data=await api('flow-token-status');text('TokenStatus',data.configured?'Configured':'Not configured');
+    text('TokenMeta',data.configured?`Backend secret is configured. Fingerprint ${data.fingerprint||'available'} · Last rotated ${stamp(data.lastRotatedAt)}.`:'Generate a token before connecting the Webex flow.');
+  }catch(e){text('TokenStatus','Status unavailable');text('TokenMeta',e.message);}
+}
+async function generateToken(){
+  const button=byId('GenerateToken');if(button.disabled)return;button.disabled=true;text('TokenMessage','Generating a new backend token…');
+  try{const data=await api('flow-token-generate',{});const input=byId('TokenValue');input.value=data.token;byId('TokenReveal').hidden=false;byId('CopyToken').hidden=false;byId('TestToken').disabled=false;
+    text('TokenStatus','Configured');text('TokenMeta',`Backend token rotated ${stamp(data.lastRotatedAt)}. The previous token remains valid for 30 minutes so you can update Webex safely.`);
+    text('TokenMessage','New token generated. Copy it now and paste only the token value into CB_PolicyToken.');input.focus();input.select();
+  }catch(e){text('TokenMessage','Token generation failed: '+e.message);}finally{button.disabled=false;}
+}
+async function copyToken(){const value=byId('TokenValue').value;if(!value)return;try{await navigator.clipboard.writeText(value);text('TokenMessage','Token copied. Paste it into the Webex CB_PolicyToken value now.');}catch{byId('TokenValue').focus();byId('TokenValue').select();text('TokenMessage','Clipboard access was blocked. The token is selected; use Copy.');}}
+async function testToken(){const token=byId('TokenValue').value;if(!token){text('TokenMessage','Generate or rotate a token first. Existing token values are never returned to the browser.');return;}
+  const button=byId('TestToken');button.disabled=true;text('TokenMessage','Testing the newly generated token against the backend…');
+  try{const data=await api('flow-token-test',{token});text('TokenMessage',data.authorized?'Connection test passed. The displayed token is accepted by the callback-policy backend.':'Connection test failed. Generate a replacement token before updating Webex.');}catch(e){text('TokenMessage','Connection test failed: '+e.message);}finally{button.disabled=false;}}
 function revoke(){state=null;dirty=false;pending=null;byId('Fields').disabled=true;
   byId('LastChange').replaceChildren();byId('HistoryRows').replaceChildren();text('Processing','');text('LoadStatus','Dashboard access is not approved.');}
 function init(){
@@ -108,6 +124,8 @@ function init(){
   byId('Form').addEventListener('submit',save);
   byId('History').addEventListener('toggle',()=>{if(byId('History').open)void history(false);});
   byId('Older').addEventListener('click',()=>void history(true));
+  byId('Security').addEventListener('toggle',()=>{if(byId('Security').open)void tokenStatus();});
+  byId('GenerateToken').addEventListener('click',()=>void generateToken());byId('CopyToken').addEventListener('click',()=>void copyToken());byId('TestToken').addEventListener('click',()=>void testToken());byId('TestToken').disabled=true;
   window.addEventListener('pagehide',()=>{clearInterval(timer);timer=null;});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();

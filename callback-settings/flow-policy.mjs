@@ -1,4 +1,4 @@
-// Machine-to-machine, read-only policy for the new Webex flow. Never authorizes a browser.
+// Machine-to-machine, read-only policy for the Webex callback flow.
 const ID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const output=(body,status)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 async function equal(a,b){
@@ -7,17 +7,22 @@ async function equal(a,b){
 }
 export async function handleFlowPolicy(request,env){
  if(request.method!=='POST')return output({success:false,error:'method-not-allowed'},405);
- const secret=env.CALLBACK_FLOW_POLICY_TOKEN;
- if(typeof secret!=='string'||secret.length<40)return output({success:false,error:'flow-policy-not-configured'},503);
  const auth=request.headers.get('Authorization')||'';
- if(auth.length>512||!await equal(auth,'Bearer '+secret))return output({success:false,error:'unauthorized'},401);
+ if(auth.length>512||!auth.startsWith('Bearer '))return output({success:false,error:'unauthorized'},401);
+ const org=String(env.WEBEX_ORG_ID||''),store=env.ABANDONED_CALLBACK_SETTINGS,legacy=env.CALLBACK_FLOW_POLICY_TOKEN;
+ if(!(typeof legacy==='string'&&legacy.length>=40)&&!(org&&store?.idFromName))return output({success:false,error:'flow-policy-not-configured'},503);
+ let authorized=typeof legacy==='string'&&legacy.length>=40&&await equal(auth,'Bearer '+legacy);
+ if(!authorized&&org&&store?.idFromName)try{
+  const check=await store.get(store.idFromName(org+':settings:v1')).fetch(new Request('https://callback-settings.internal/flow-token/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:auth.slice(7)})}));
+  const result=await check.json();authorized=result?.authorized===true;
+ }catch{}
+ if(!authorized)return output({success:false,error:'unauthorized'},401);
  if(request.headers.get('Content-Type')?.split(';')[0]!=='application/json')return output({success:false,error:'json-required'},415);
  let body;try{
   const reader=request.body?.getReader();if(!reader)throw Error();let size=0,text='';const decoder=new TextDecoder();
   try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>1024){await reader.cancel();throw Error();}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader.releaseLock();}
   body=JSON.parse(text);if(!body||Object.keys(body).some(k=>k!=='sourceInteraction')||!ID.test(body.sourceInteraction||''))throw Error();
  }catch{return output({success:false,error:'invalid-flow-policy-request'},400);}
- const org=String(env.WEBEX_ORG_ID||''),store=env.ABANDONED_CALLBACK_SETTINGS;
  if(!org||!store?.idFromName)return output({success:false,error:'flow-policy-store-unavailable'},503);
  let timer;try{
   const response=await Promise.race([store.get(store.idFromName(org+':settings:v1')).fetch(new Request('https://callback-settings.internal/flow-policy?id='+body.sourceInteraction.toLowerCase())),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('deadline')),8000);})]);

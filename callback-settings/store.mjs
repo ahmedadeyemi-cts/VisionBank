@@ -3,6 +3,11 @@ import {CallbackExecution} from './execution.mjs';
 import { REVISION, SettingsError, initialState, parseMutation, normalizeSettings, processingState } from './policy.mjs';
 const output = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control':'no-store' } });
 const key = n => 'audit:' + String(n).padStart(16,'0');
+
+const tokenHash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
+const tokenValue=()=>{const b=crypto.getRandomValues(new Uint8Array(32));return 'vbcbp_'+Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');};
+async function constantHashEqual(a,b){if(typeof a!=='string'||typeof b!=='string'||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a.charCodeAt(i)^b.charCodeAt(i);return x===0;}
+
 function validateState(state) {
   if (state === undefined) return initialState();
   if (!state || !Number.isSafeInteger(state.version) || state.version < 0) throw new Error('invalid-stored-state');
@@ -34,6 +39,22 @@ export class AbandonedCallbackSettingsV1 {
     try {
       const u = new URL(request.url);
       if(u.pathname==='/plans')return this.plans.fetch(request);
+      if(u.pathname==='/flow-token/status'&&request.method==='GET'){
+        const meta=await this.storage.get('flow-token:meta');return output({success:true,configured:!!meta,createdAt:meta?.createdAt||null,lastRotatedAt:meta?.lastRotatedAt||null,fingerprint:meta?.fingerprint||null});
+      }
+      if(u.pathname==='/flow-token/generate'&&request.method==='POST'){
+        const input=await request.json(),actor=input?.actor;if(!actor||typeof actor.sourceIp!=='string'||actor.identityVerified!==false)throw new SettingsError('invalid-source');
+        const token=tokenValue(),digest=await tokenHash(token),now=new Date().toISOString(),prior=await this.storage.get('flow-token:meta');
+        const previous=await this.storage.get('flow-token:sha256'),graceUntil=previous?Date.now()+30*60000:null;
+        const meta={createdAt:prior?.createdAt||now,lastRotatedAt:now,fingerprint:digest.slice(0,12),graceUntil,actor};
+        await this.storage.transaction(async tx=>{if(previous){await tx.put('flow-token:previous-sha256',previous);await tx.put('flow-token:previous-until',graceUntil);}await tx.put('flow-token:sha256',digest);await tx.put('flow-token:meta',meta);});
+        return output({success:true,token,...meta});
+      }
+      if(u.pathname==='/flow-token/auth'&&request.method==='POST'){
+        const input=await request.json(),token=typeof input?.token==='string'?input.token:'';if(token.length<40||token.length>160)return output({success:true,authorized:false});
+        const digest=await tokenHash(token),saved=await this.storage.get('flow-token:sha256'),previous=await this.storage.get('flow-token:previous-sha256'),until=await this.storage.get('flow-token:previous-until');
+        const current=typeof saved==='string'&&await constantHashEqual(digest,saved),grace=Number(until)>Date.now()&&typeof previous==='string'&&await constantHashEqual(digest,previous);return output({success:true,authorized:current||grace});
+      }
       if(['/readiness','/jobs','/records','/schedule','/inspect','/register','/refresh-record','/manage','/management','/automation-status','/automation-tick','/flow-policy'].includes(u.pathname))return this.execution.handle(request);
       if (request.method === 'GET' && u.pathname === '/settings') {
         const state = validateState(await this.storage.get('state'));

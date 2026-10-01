@@ -26,3 +26,9 @@ body:not(.dark-mode) .vb-callback-notice,body:not(.dark-mode) .vb-callback-polic
 body.wallboard-mode .vb-callback-toolbar,body.wallboard-mode .vb-callback-panel{display:none}
 
 .vb-callback-panel .vb-callback-attempts { display: block; max-width: 16rem; margin-top: 1rem; }
+.vb-callback-security{margin-top:18px;border-top:1px solid #475569;padding-top:6px}
+.vb-callback-security-status{margin-top:8px}.vb-callback-security-actions{justify-content:flex-start}
+.vb-callback-security-actions button:first-child{background:#185342;color:#fff}
+.vb-callback-token-reveal{margin-top:12px;padding:12px;border:1px solid #64748b;border-radius:8px;background:#020617}
+.vb-callback-token-reveal input{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:6px}
+body:not(.dark-mode) .vb-callback-token-reveal{background:#f8fafc}

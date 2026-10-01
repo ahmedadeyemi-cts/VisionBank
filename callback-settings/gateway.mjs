@@ -14,6 +14,12 @@ function validIp(ip) {
   if (ip.includes(':')) { try { return new URL('http://['+ip+']/').hostname.length > 2; } catch { return false; } }
   const parts=ip.split('.'); return parts.length===4 && parts.every(p=>/^\d{1,3}$/.test(p) && Number(p)<=255);
 }
+async function readJsonBody(request,maxBytes=8192){
+  if(request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json')throw new SettingsError('json-required',415);
+  let size=0,text='';const reader=request.body?.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});if(!reader)throw new SettingsError('missing-body');
+  try{while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>maxBytes){await reader.cancel();throw new SettingsError('body-too-large',413);}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader.releaseLock();}
+  try{return JSON.parse(text);}catch{throw new SettingsError('invalid-json');}
+}
 export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
     if(new URL(request.url).pathname===PREFIX+'flow-policy')return handleFlowPolicy(request,env);
@@ -33,8 +39,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status','flow-token-status','flow-token-generate','flow-token-test'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (['history','readiness','jobs','records','register','management','automation-status','flow-token-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage','flow-token-generate','flow-token-test'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status','flow-token-status','flow-token-generate','flow-token-test','flow-token-policy-test'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records','register','management','automation-status','flow-token-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage','flow-token-generate','flow-token-test','flow-token-policy-test'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -46,17 +52,25 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
       if (!org || !env.ABANDONED_CALLBACK_SETTINGS?.idFromName) throw new SettingsError('callback-storage-not-configured',503);
       const store=env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(org+':settings:v1'));
       if(part==='flow-token-status'){
-        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/status')),8000);return send(await r.json(),r.status);
+        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/status')),8000),value=await r.json();
+        return send({...value,legacyConfigured:typeof env.CALLBACK_FLOW_POLICY_TOKEN==='string'&&env.CALLBACK_FLOW_POLICY_TOKEN.length>=40},r.status);
       }
       if(part==='flow-token-generate'){
+        const body=await readJsonBody(request,256);if(!body||Array.isArray(body)||Object.keys(body).length)throw new SettingsError('invalid-token-generation-request');
         const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))};
         const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({actor})})),8000);return send(await r.json(),r.status);
       }
       if(part==='flow-token-test'){
-        let body;try{body=await request.json();}catch{throw new SettingsError('invalid-json');}
+        const body=await readJsonBody(request,512);
         if(!body||Object.keys(body).some(k=>k!=='token')||typeof body.token!=='string'||body.token.length>160)throw new SettingsError('invalid-token-test');
         const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:body.token})})),8000),result=await r.json();
-        return send({success:true,authorized:result.authorized===true});
+        return send({success:true,authorized:result.authorized===true,testScope:'stored-verifier'});
+      }
+      if(part==='flow-token-policy-test'){
+        const body=await readJsonBody(request,512);
+        if(!body||Object.keys(body).some(k=>k!=='token')||typeof body.token!=='string'||body.token.length>160)throw new SettingsError('invalid-token-test');
+        const sourceInteraction=crypto.randomUUID(),probe=await bounded(handleFlowPolicy(new Request('https://callback-settings.internal'+PREFIX+'flow-policy',{method:'POST',headers:{Authorization:'Bearer '+body.token,'Content-Type':'application/json'},body:JSON.stringify({sourceInteraction})}),env),10000),result=await probe.json();
+        return send({success:true,authorized:probe.status!==401,policyRouteStatus:probe.status,policyResult:typeof result?.error==='string'?result.error:null,scheduled:false});
       }
       const storeUrl=new URL('https://callback-settings.internal/'+part);
       for (const name of ['before','mutationId','id','ids']) if (u.searchParams.has(name)) storeUrl.searchParams.set(name,u.searchParams.get(name));

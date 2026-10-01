@@ -88,27 +88,29 @@ async function history(older=false) {
     text('HistoryStatus',body.children.length?'Server-recorded changes. Source IP identifies a connection, not a verified person.':'No saved changes.');
   }catch(e){text('HistoryStatus','History unavailable: '+e.message);}
 }
+function clearTokenReveal(message=''){const input=byId('TokenValue');if(input)input.value='';const reveal=byId('TokenReveal');if(reveal)reveal.hidden=true;const copy=byId('CopyToken');if(copy)copy.hidden=true;const test=byId('TestToken');if(test)test.disabled=true;if(message)text('TokenMessage',message);}
 async function tokenStatus(){
-  try{const data=await api('flow-token-status');text('TokenStatus',data.configured?'Configured':'Not configured');
-    text('TokenMeta',data.configured?`Backend secret is configured. Fingerprint ${data.fingerprint||'available'} · Last rotated ${stamp(data.lastRotatedAt)}.`:'Generate a token before connecting the Webex flow.');
+  try{const data=await api('flow-token-status');text('TokenStatus',data.configured?'Dashboard-managed token configured':'No dashboard-managed token');
+    const legacy=data.legacyConfigured===true?' Legacy environment credential: configured and separate from managed-token rotation.':' Legacy environment credential: not reported by this Worker.';
+    text('TokenMeta',(data.configured?`Dashboard-managed token verifier is stored. Fingerprint ${data.fingerprint||'available'} · Last rotated ${stamp(data.lastRotatedAt)}.`:'No dashboard-managed token metadata exists yet.')+legacy);
   }catch(e){text('TokenStatus','Status unavailable');text('TokenMeta',e.message);}
 }
 async function generateToken(){
-  const button=byId('GenerateToken');if(button.disabled)return;button.disabled=true;text('TokenMessage','Generating a new backend token…');
+  const button=byId('GenerateToken');if(button.disabled)return;clearTokenReveal();button.disabled=true;text('TokenMessage','Generating a new dashboard-managed token…');
   try{const data=await api('flow-token-generate',{});const input=byId('TokenValue');input.value=data.token;byId('TokenReveal').hidden=false;byId('CopyToken').hidden=false;byId('TestToken').disabled=false;
-    text('TokenStatus','Configured');text('TokenMeta',`Backend token rotated ${stamp(data.lastRotatedAt)}. The previous token remains valid for 30 minutes so you can update Webex safely.`);
+    text('TokenStatus','Dashboard-managed token configured');text('TokenMeta',`Dashboard-managed token rotated ${stamp(data.lastRotatedAt)}. The previous dashboard-managed token remains valid for 30 minutes so you can update Webex safely. A separate legacy environment credential, if enabled, is not revoked by this rotation.`);
     text('TokenMessage','New token generated. Copy it now and paste only the token value into CB_PolicyToken.');input.focus();input.select();
-  }catch(e){text('TokenMessage','Token generation failed: '+e.message);}finally{button.disabled=false;}
+  }catch(e){clearTokenReveal('Token generation failed: '+e.message);}finally{button.disabled=false;}
 }
 async function copyToken(){const value=byId('TokenValue').value;if(!value)return;try{await navigator.clipboard.writeText(value);text('TokenMessage','Token copied. Paste it into the Webex CB_PolicyToken value now.');}catch{byId('TokenValue').focus();byId('TokenValue').select();text('TokenMessage','Clipboard access was blocked. The token is selected; use Copy.');}}
 async function testToken(){const token=byId('TokenValue').value;if(!token){text('TokenMessage','Generate or rotate a token first. Existing token values are never returned to the browser.');return;}
-  const button=byId('TestToken');button.disabled=true;text('TokenMessage','Testing the newly generated token against the backend…');
-  try{const data=await api('flow-token-test',{token});text('TokenMessage',data.authorized?'Connection test passed. The displayed token is accepted by the callback-policy backend.':'Connection test failed. Generate a replacement token before updating Webex.');}catch(e){text('TokenMessage','Connection test failed: '+e.message);}finally{button.disabled=false;}}
-function revoke(){state=null;dirty=false;pending=null;byId('Fields').disabled=true;
+  const button=byId('TestToken');button.disabled=true;text('TokenMessage','Testing the displayed token through the public callback-policy authentication path…');
+  try{const data=await api('flow-token-policy-test',{token});text('TokenMessage',data.authorized?'Connection test passed. The public flow-policy route accepted this token. The probe is read-only and did not schedule a callback.':'Connection test failed. The public flow-policy route rejected this token.');}catch(e){text('TokenMessage','Connection test failed: '+e.message);}finally{button.disabled=false;}}
+function revoke(){clearTokenReveal();state=null;dirty=false;pending=null;byId('Fields').disabled=true;
   byId('LastChange').replaceChildren();byId('HistoryRows').replaceChildren();text('Processing','');text('LoadStatus','Dashboard access is not approved.');}
 function init(){
   const button=byId('SettingsToggle'),panel=byId('SettingsPanel');if(!button||!panel)return;
-  const close=()=>{panel.hidden=true;button.setAttribute('aria-expanded','false');clearInterval(timer);timer=null;button.focus();};
+  const close=()=>{clearTokenReveal();panel.hidden=true;button.setAttribute('aria-expanded','false');clearInterval(timer);timer=null;button.focus();};
   button.addEventListener('click',()=>{
     if(!panel.hidden){close();return;}panel.hidden=false;button.setAttribute('aria-expanded','true');
     if(window.VB_SECURITY?.allowed!==true){revoke();return;}void load();
@@ -126,6 +128,6 @@ function init(){
   byId('Older').addEventListener('click',()=>void history(true));
   byId('Security').addEventListener('toggle',()=>{if(byId('Security').open)void tokenStatus();});
   byId('GenerateToken').addEventListener('click',()=>void generateToken());byId('CopyToken').addEventListener('click',()=>void copyToken());byId('TestToken').addEventListener('click',()=>void testToken());byId('TestToken').disabled=true;
-  window.addEventListener('pagehide',()=>{clearInterval(timer);timer=null;});
+  window.addEventListener('pagehide',()=>{clearTokenReveal();clearInterval(timer);timer=null;});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();

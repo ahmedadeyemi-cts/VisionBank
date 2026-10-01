@@ -23,7 +23,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
  return route.fulfill({status:x.http,contentType:'application/json',headers:{'Access-Control-Allow-Origin':origin},body:JSON.stringify(x.data)});
  }
  if(!['GET','OPTIONS'].includes(req.method())){errors.push('Unexpected write '+req.method());return route.abort();}
- if(u.origin===origin){const p=path.resolve(root,u.pathname.replace(/^\//,'')||'webex.html');if(!p.startsWith(root+'/')||!fs.existsSync(p))return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'})[path.extname(p)]||'text/plain',body:fs.readFileSync(p)});}
+ if(u.origin===origin){const relative=u.pathname.replace(/^\//,'')||'index.html',p=path.resolve(root,relative==='index'?'index.html':relative);if(!p.startsWith(root+'/')||!fs.existsSync(p))return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'})[path.extname(p)]||'text/plain',body:fs.readFileSync(p)});}
  if(u.origin!==worker)return route.abort();requests.push(u.pathname);let body={success:true};
  if(u.pathname==='/security/check')body={allowed:true,reason:'synthetic-test'};
  else if(u.pathname==='/api/webex/dashboard')body=dashboard();
@@ -67,7 +67,12 @@ try{
  mode='ready';await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.getElementById('dailyAnswered')?.textContent==='4');
  await page.evaluate(()=>{window.VB_SECURITY.allowed=false;document.body.classList.remove('security-approved');});await page.waitForTimeout(1100);
  ok('access revocation removes daily rows and summary',!(await page.locator('#answeredCallsBody').innerText()).includes('+12025550123')&&await page.locator('#dailyAnswered').innerText()==='—');
- await page.goto(origin+'/index.html',{waitUntil:'domcontentloaded'});await page.waitForURL('**/webex.html');ok('old dashboard bookmark opens the current Webex dashboard',page.url().endsWith('/webex.html'));
+ for(const pathname of ['/','/index','/index.html']){
+  await page.goto(origin+pathname,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.VB_SECURITY?.allowed===true);
+  ok('pre-cutover production dashboard stays at '+pathname,new URL(page.url()).pathname===pathname&&(await page.locator('.header-center h1').innerText())==='Contact Center Realtime Dashboard');
+  ok('default page loads the existing provider script only '+pathname,await page.locator('script[src^="dashboard.js"]').count()===1&&await page.locator('script[src^="webex.js"]').count()===0);
+ }
+ await page.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>document.getElementById('dailyAnswered')?.textContent==='4');
  ok('diagnostic history is available after refresh',await page.evaluate(()=>Array.isArray(window.VB_REPORT_HEALTH_HISTORY)&&window.VB_REPORT_HEALTH_HISTORY.length>0));
  await page.screenshot({path:path.join(out,'dashboard-audit.png'),fullPage:true});

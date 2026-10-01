@@ -25,7 +25,7 @@ export class TestCallbackStore extends AbandonedCallbackSettingsV1 {
 export default {fetch(){return new Response('Test only',{status:404});}};
 `;
 const options={name:'vb-callback-native-local-test',resourcePersistencePath:persist,cf:false,
- modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('../../test-native-runtime-entrypoint.mjs',import.meta.url)),contents:entry},...['store.mjs','policy.mjs','selection.mjs','native.mjs','execution.mjs','reservations.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')}))],
+ modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('../../test-native-runtime-entrypoint.mjs',import.meta.url)),contents:entry},...['store.mjs','policy.mjs','selection.mjs','native.mjs','execution.mjs','reservations.mjs','plans.mjs','readiness.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')}))],
  compatibilityDate:'2026-09-28',durableObjects:{STORE:{className:'TestCallbackStore',useSQLite:true}},durableObjectsPersist:persist,
  bindings:{WEBEX_ORG_ID:orgId,CALLBACK_EXECUTION_CONFIG:JSON.stringify(approval())}};
 let mf;const start=async()=>{mf=new Miniflare(convertV4MiniflareOptions?convertV4MiniflareOptions(options):options);

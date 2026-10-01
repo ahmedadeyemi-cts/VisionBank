@@ -1,3 +1,4 @@
+import {CallbackPlans} from './plans.mjs';
 import {CallbackExecution} from './execution.mjs';
 import { REVISION, SettingsError, initialState, parseMutation, normalizeSettings, processingState } from './policy.mjs';
 const output = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control':'no-store' } });
@@ -17,7 +18,7 @@ function validateState(state) {
 }
 // Accessible only through a Worker binding; the companion has no public routes.
 export class AbandonedCallbackSettingsV1 {
-  constructor(ctx,env={}) { this.storage = ctx.storage; this.execution=new CallbackExecution(ctx,env); }
+  constructor(ctx,env={}) { this.storage = ctx.storage; this.plans=new CallbackPlans(ctx.storage); this.execution=new CallbackExecution(ctx,env); }
   async alarm() { return this.execution.run(); }
   async entryPointDiscovery() {
     try{return {entryPointOptions:await this.execution.native().entryPoints(),entryPointOptionsAvailable:true};}
@@ -29,7 +30,8 @@ export class AbandonedCallbackSettingsV1 {
   async fetch(request) {
     try {
       const u = new URL(request.url);
-      if(['/readiness','/jobs','/records','/schedule','/inspect'].includes(u.pathname))return this.execution.handle(request);
+      if(u.pathname==='/plans')return this.plans.fetch(request);
+      if(['/readiness','/jobs','/records','/schedule','/inspect','/register','/refresh-record'].includes(u.pathname))return this.execution.handle(request);
       if (request.method === 'GET' && u.pathname === '/settings') {
         const state = validateState(await this.storage.get('state'));
         const id = u.searchParams.get('mutationId');

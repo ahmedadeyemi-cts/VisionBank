@@ -1,3 +1,4 @@
+import {handlePlanRequest} from './planning-gateway.mjs';
 import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
 import { buildPreview, parseSelection } from './selection.mjs';
 const ORIGINS = new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -30,8 +31,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (['history','readiness','jobs','records'].includes(part) && request.method!=='GET') || (['preview','schedule'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records','register'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -58,10 +59,18 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         let size=0,text=''; const reader=request.body?.getReader(), decoder=new TextDecoder('utf-8',{fatal:true});
         if (!reader) throw new SettingsError('missing-body');
         try { while (true) { const {value,done}=await reader.read(); if(done)break;
-          size+=value.byteLength; if(size>(['preview','schedule'].includes(part)?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
+          size+=value.byteLength; if(size>(['preview','schedule','plans','plan-preview','plan-schedule'].includes(part)?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
           text+=decoder.decode(value,{stream:true}); } text+=decoder.decode();
         } finally { reader.releaseLock(); }
         let body; try { body=JSON.parse(text); } catch { throw new SettingsError('invalid-json'); }
+        if(['plans','plan-preview','plan-schedule'].includes(part))return send(await handlePlanRequest({part,body,store,queueOptions,
+          getReport:()=>bounded(getAbandonedReport(env),12000),bounded,
+          actor:{sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))},requestId:crypto.randomUUID()}),part==='plan-schedule'?202:200);
+        if(part==='refresh-record'){
+          if(!body||Object.keys(body).some(k=>k!=='contactId')||!UUID.test(body.contactId||''))throw new SettingsError('invalid-record-id');
+          const r=await bounded(store.fetch(new Request('https://callback-settings.internal/refresh-record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})),20000);
+          return send(await r.json(),r.status);
+        }
         if (['preview','schedule'].includes(part)) {
           const {mutationId,...selectionBody}=body;
           if(part==='schedule'&&!UUID.test(mutationId||''))throw new SettingsError('invalid-mutation-id');

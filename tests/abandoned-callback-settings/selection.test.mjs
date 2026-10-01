@@ -26,6 +26,13 @@ test('master-off settings still allow an explicitly non-executing preview',()=>{
 test('DST gaps and ambiguous local times are rejected',()=>{assert.throws(()=>localEpoch('2026-03-08','02:30'));assert.throws(()=>localEpoch('2026-11-01','01:30'));});
 test('callback windows observe configured days, delay and end of shift',()=>{assert.throws(()=>validateWindow('2026-09-30','13:05',state.settings,now));assert.throws(()=>validateWindow('2026-09-30','16:50',state.settings,now));assert.equal(nextWindow(state.settings,Date.parse('2026-10-02T23:00:00Z')).date,'2026-10-05');});
 test('excluded dates are honored without overwriting the persisted switch',()=>{const s={...state.settings,excludedDates:['2026-09-30']};assert.equal(nextWindow(s,now).date,'2026-10-01');assert.equal(s.enabled,true);});
+test('when lead time consumes the remaining business day, next window advances to the next enabled day',()=>{
+  const s={...state.settings,delayMinutes:30,windowMinutes:30,startTime:'08:00',endTime:'17:00'};
+  const n=Date.parse('2026-10-01T21:01:00Z'); // 16:01 Central; earliest start 16:31, after latest 16:30
+  const w=nextWindow(s,n);
+  assert.equal(w.date,'2026-10-02');assert.equal(w.startTime,'08:00');assert.equal(w.endTime,'08:30');
+});
+
 test('preview gateway reads authoritative reporting and never changes settings or audit',async()=>{
   const f=fixture({report:()=>{const t=Date.now();return {success:true,generatedAtEpoch:t,abandonedCalls:[row(1,{startEpoch:t-60000,endEpoch:t-1000})]};}});
   await f.request('settings',mutation({enabled:true,queueId:QUEUE}));

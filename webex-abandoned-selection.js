@@ -107,14 +107,22 @@ async function api(path, body) {
 }
 function updateWindowBounds() {
   if(!saved)return;
-  const s=saved.state.settings,limits=schedulingBounds(s,planningNow());
+  const s=saved.state.settings,now=planningNow(),limits=schedulingBounds(s,now),leadMinutes=Math.max(limits.minimumLeadMinutes,s.delayMinutes);
   id('Date').min=limits.minimumDate;id('Date').max=limits.maximumDate;
-  const end=Number(s.endTime.slice(0,2))*60+Number(s.endTime.slice(3))-s.windowMinutes;
-  id('Time').min=s.startTime;id('Time').max=String(Math.floor(end/60)).padStart(2,'0')+':'+String(end%60).padStart(2,'0');
-  if(id('WindowEnd'))id('WindowEnd').textContent=String(Math.floor((Number(id('Time').value.slice(0,2))*60+Number(id('Time').value.slice(3))+s.windowMinutes)/60)).padStart(2,'0')+':'+String((Number(id('Time').value.slice(0,2))*60+Number(id('Time').value.slice(3))+s.windowMinutes)%60).padStart(2,'0')+' Central';
+  const latestStartMinutes=Number(s.endTime.slice(0,2))*60+Number(s.endTime.slice(3))-s.windowMinutes;
+  const latestStart=String(Math.floor(latestStartMinutes/60)).padStart(2,'0')+':'+String(latestStartMinutes%60).padStart(2,'0');
+  id('Time').min=s.startTime;id('Time').max=latestStart;
+  const selectedMinutes=Number(id('Time').value.slice(0,2))*60+Number(id('Time').value.slice(3));
+  const selectedEnd=String(Math.floor((selectedMinutes+s.windowMinutes)/60)).padStart(2,'0')+':'+String((selectedMinutes+s.windowMinutes)%60).padStart(2,'0');
+  if(id('WindowEnd'))id('WindowEnd').textContent=selectedEnd+' Central';
   id('Date').setCustomValidity('');id('Time').setCustomValidity('');
-  try{validateWindow(id('Date').value,id('Time').value,s,planningNow());}
-  catch(e){const messages={'outside-scheduling-horizon':'Choose a start at least '+s.delayMinutes+' minutes ahead and a date no later than '+limits.maximumDate+'.','outside-callback-days':'Choose one of the saved callback working days, excluding holidays.','outside-callback-hours':'The entire callback window must fit between '+s.startTime+' and '+s.endTime+' Central.','ambiguous-or-nonexistent-central-time':'This time is ambiguous or unavailable because of daylight saving. Choose another time.'};id('Time').setCustomValidity(messages[e.code]||'Choose a valid callback date and time.');}
+  let valid=true,message='';
+  try{validateWindow(id('Date').value,id('Time').value,s,now);}
+  catch(e){valid=false;const messages={'outside-scheduling-horizon':'This start is too soon. Webex requires at least '+leadMinutes+' minutes of lead time.','outside-callback-days':'This date is not an enabled callback day or is excluded.','outside-callback-hours':'This window ends outside saved calling hours. The latest '+s.windowMinutes+'-minute window starts at '+latestStart+' Central.','ambiguous-or-nonexistent-central-time':'This time is ambiguous or unavailable because of daylight saving. Choose another time.'};message=messages[e.code]||'Choose a valid callback date and time.';id('Time').setCustomValidity(message);}
+  const guidance=id('WindowGuidance');
+  if(guidance){
+    try{const next=nextWindow(s,now);const selected=`Selected: ${id('Date').value} ${id('Time').value}–${selectedEnd} Central`;guidance.textContent=valid?selected+' — permitted.':selected+' — not permitted. Next available: '+next.date+' '+next.startTime+'–'+next.endTime+' Central. '+message;}catch{guidance.textContent=message||'No permitted callback window is available within the scheduling horizon.';}
+  }
 }
 async function openPlan(all = false,planToOpen = null) {
   current = window.VB_ABANDONED_REPORT?.snapshot();
@@ -134,7 +142,7 @@ async function openPlan(all = false,planToOpen = null) {
     clockReference=Number.isFinite(saved.serverTimeEpoch)?{server:saved.serverTimeEpoch,started:performance.now()}:null;
     const s = saved.state.settings, q = saved.queueOptions?.find(item => item.id === s.queueId);
     if (!q) throw new Error('Select and save a Voice queue in Abandoned Callback Settings first.');
-    const window = editingPlan?.window || nextWindow(s,planningNow()+120000);
+    const window = editingPlan?.window || nextWindow(s,planningNow());
     id('Date').value = window.date; id('Time').value = window.startTime;updateWindowBounds();
     id('Queue').textContent = `${q.name} · Any available agent · ${s.windowMinutes}-minute window · ${s.maxAttempts} requested total attempts · America/Chicago`;
     id('Preview').disabled = false;id('SavePlan').disabled=false;
@@ -189,7 +197,7 @@ function init() {
   observeAccess();recoverPendingJob();
   id('SavePlan').addEventListener('click',()=>void savePlan());
   id('Recheck').addEventListener('click',()=>void recheckReadiness());
-  id('NextWindow').addEventListener('click',()=>{if(!saved)return;const w=nextWindow(saved.state.settings,planningNow()+120000);id('Date').value=w.date;id('Time').value=w.startTime;preparedIntent=null;id('Execute').disabled=true;updateWindowBounds();});
+  id('NextWindow').addEventListener('click',()=>{if(!saved)return;const w=nextWindow(saved.state.settings,planningNow());id('Date').value=w.date;id('Time').value=w.startTime;preparedIntent=null;id('Execute').disabled=true;updateWindowBounds();id('Time').focus();});
   id('ScheduleSelected').addEventListener('click', () => void openPlan(false));
   id('ScheduleAll').addEventListener('click', () => void openPlan(true));
   id('SelectMatching').addEventListener('click', () => {

@@ -1,3 +1,4 @@
+import {handlePlanRequest} from './planning-gateway.mjs';
 import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
 import { buildPreview, parseSelection } from './selection.mjs';
 const ORIGINS = new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -15,10 +16,12 @@ function validIp(ip) {
 export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
     const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
-    // Keep already-open v2 dashboards compatible while the v3 frontend is published.
-    const schema=new URL(request.url).searchParams.get('schema')==='3'?3:2;
+    // Negotiate limits explicitly; old tabs must not misread an expanded saved window.
+    const requestedSchema=new URL(request.url).searchParams.get('schema');
+    const schema=requestedSchema==='4'?4:requestedSchema==='3'?3:2;
     const send=(value,status=200)=>{
       if(value?.state?.settings){
+        if(schema<4 && value.state.settings.windowMinutes>240) return new Response(JSON.stringify({success:false,error:'callback-client-update-required',minimumClientSchema:4}),{status:409,headers});
         const settings={...value.state.settings};
         if(schema===2)delete settings.callbackEntryPointId;
         value={...value,state:{...value.state,settings},settingsSchemaVersion:schema};
@@ -28,8 +31,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (['history','readiness','jobs','records'].includes(part) && request.method!=='GET') || (['preview','schedule'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records','register'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -56,10 +59,18 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         let size=0,text=''; const reader=request.body?.getReader(), decoder=new TextDecoder('utf-8',{fatal:true});
         if (!reader) throw new SettingsError('missing-body');
         try { while (true) { const {value,done}=await reader.read(); if(done)break;
-          size+=value.byteLength; if(size>(['preview','schedule'].includes(part)?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
+          size+=value.byteLength; if(size>(['preview','schedule','plans','plan-preview','plan-schedule'].includes(part)?65536:8192)){await reader.cancel();throw new SettingsError('body-too-large',413);}
           text+=decoder.decode(value,{stream:true}); } text+=decoder.decode();
         } finally { reader.releaseLock(); }
         let body; try { body=JSON.parse(text); } catch { throw new SettingsError('invalid-json'); }
+        if(['plans','plan-preview','plan-schedule'].includes(part))return send(await handlePlanRequest({part,body,store,queueOptions,
+          getReport:()=>bounded(getAbandonedReport(env),12000),bounded,
+          actor:{sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))},requestId:crypto.randomUUID()}),part==='plan-schedule'?202:200);
+        if(part==='refresh-record'){
+          if(!body||Object.keys(body).some(k=>k!=='contactId')||!UUID.test(body.contactId||''))throw new SettingsError('invalid-record-id');
+          const r=await bounded(store.fetch(new Request('https://callback-settings.internal/refresh-record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})),20000);
+          return send(await r.json(),r.status);
+        }
         if (['preview','schedule'].includes(part)) {
           const {mutationId,...selectionBody}=body;
           if(part==='schedule'&&!UUID.test(mutationId||''))throw new SettingsError('invalid-mutation-id');
@@ -87,8 +98,19 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
           if(!ledgerResponse.ok||ledger.success!==true)throw new SettingsError('callback-ledger-unavailable',503);
           const previous=new Map(ledger.rows.map(r=>[r.contactId,r]));
           for(const row of preview.rows){const old=previous.get(row.contactId);if(old){row.disposition='skipped';row.reason='callback-already-reserved';row.callbackStatus=old.status;row.scheduleId=old.scheduleId;}}
+          if(part==='preview'){
+            const candidates=preview.rows.filter(r=>r.disposition==='candidate');
+            if(candidates.length){
+              const inspectionResponse=await bounded(store.fetch(new Request('https://callback-settings.internal/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:candidates.map(({contactId,number})=>({contactId,number}))})})),12000);
+              const inspection=await inspectionResponse.json();
+              if(!inspectionResponse.ok||inspection.success!==true)throw new SettingsError('native-inspection-unavailable',503);
+              const byId=new Map(inspection.rows.map(r=>[r.contactId,r]));
+              for(const row of candidates){row.nativeInventory=byId.get(row.contactId)||{status:'unavailable'};
+                if(['reserved','duplicate'].includes(row.nativeInventory.status)){row.disposition='skipped';row.reason=row.nativeInventory.reason;}}
+            }
+          }
           preview.candidates=preview.rows.filter(r=>r.disposition==='candidate').length;preview.skipped=preview.selected-preview.candidates;
-          preview.processing=value.processing;preview.canSchedule=value.processing?.ready===true&&preview.candidates>0&&preview.candidates<=value.processing.maxBatch;
+          preview.processing=value.processing;preview.canSchedule=value.processing?.ready===true&&preview.candidates>0&&preview.candidates<=value.processing.maxBatch&&preview.rows.filter(r=>r.disposition==='candidate').every(r=>part==='schedule'||['clear','not-checked'].includes(r.nativeInventory?.status));
           preview.warning=preview.canSchedule?'Preview only. Select Schedule to submit these callbacks. Native duplicate checks run again before creation.':value.processing?.message||'Native callback scheduling is paused.';
           if(part==='preview')return send(preview);
           const actor={sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))};

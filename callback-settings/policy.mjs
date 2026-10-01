@@ -24,7 +24,7 @@ export function normalizeSettings(value) {
   need(!s.enabled || s.queueId !== '', 'queue-required');
   need(typeof s.callbackEntryPointId === 'string' && (s.callbackEntryPointId === '' || ENTITY_ID.test(s.callbackEntryPointId)), 'invalid-callback-entry-point');
   need(Number.isInteger(s.delayMinutes) && s.delayMinutes >= 30 && s.delayMinutes <= 1440, 'invalid-delay');
-  need(Number.isInteger(s.windowMinutes) && s.windowMinutes >= 30 && s.windowMinutes <= 240, 'invalid-window');
+  need(Number.isInteger(s.windowMinutes) && s.windowMinutes >= 30 && s.windowMinutes <= 480, 'invalid-window');
   need(s.timezone === 'America/Chicago', 'invalid-timezone');
   need(Number.isInteger(s.maxAttempts) && s.maxAttempts >= 1 && s.maxAttempts <= 10, 'invalid-max-attempts');
   need(s.assignment === 'any-available-agent' && s.agentMessage === AGENT_MESSAGE, 'fixed-callback-policy');

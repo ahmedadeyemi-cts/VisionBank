@@ -1,6 +1,12 @@
 import { SettingsError, AGENT_MESSAGE, normalizeSettings } from './policy.mjs';
 // Read-only planning. This module cannot create a native callback or dial a customer.
 export const MAX_SELECTION = 1000;
+export const SCHEDULE_RULES = Object.freeze({minimumLeadMinutes:30,maximumCalendarDays:31,minimumWindowMinutes:30,maximumWindowMinutes:480});
+const addDays = (date, days) => new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);
+export function schedulingBounds(settings, now=Date.now()) {
+  const s=normalizeSettings(settings), minimumStartEpoch=now+Math.max(SCHEDULE_RULES.minimumLeadMinutes,s.delayMinutes)*60000;
+  return {...SCHEDULE_RULES,serverTimeEpoch:now,minimumDate:centralDate(now),maximumDate:addDays(centralDate(now),SCHEDULE_RULES.maximumCalendarDays),minimumStartEpoch,timezone:s.timezone};
+}
 const CONTACT_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const fail = (ok, code) => { if (!ok) throw new SettingsError(code); };
 export const centralDate = at => new Intl.DateTimeFormat('en-CA', {
@@ -35,8 +41,10 @@ export function validateWindow(date, time, settings, now = Date.now()) {
   const weekday = new Date(date + 'T12:00:00Z').getUTCDay();
   fail(s.days.includes(weekday) && !s.excludedDates.includes(date), 'outside-callback-days');
   fail(time >= s.startTime && endMinutes <= minutes(s.endTime), 'outside-callback-hours');
-  fail(start >= now + s.delayMinutes * 60000 && start <= now + 31 * 86400000, 'outside-scheduling-horizon');
+  const bounds=schedulingBounds(s,now);
+  fail(date>=bounds.minimumDate && date<=bounds.maximumDate && start>=bounds.minimumStartEpoch, 'outside-scheduling-horizon');
   const endTime = clock(endMinutes), end = localEpoch(date, endTime);
+  fail(end-start>=SCHEDULE_RULES.minimumWindowMinutes*60000 && end-start<=SCHEDULE_RULES.maximumWindowMinutes*60000,'invalid-native-window-duration');
   return {date, startTime: time, endTime, startEpoch: start, endEpoch: end, timezone: s.timezone};
 }
 export function nextWindow(settings, now = Date.now()) {

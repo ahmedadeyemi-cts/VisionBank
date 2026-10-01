@@ -41,11 +41,15 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
   async function list(number){
     if(!callbackNumber(number))throw new SettingsError('invalid-callback-number');
     const records=new Map();
-    for(const variant of [...new Set([number,number.replace(/^\+/,'' )])]){
+    const canonical=callbackNumber(number), digits=canonical.slice(1);
+    const variants=[canonical,digits,...(/^\+1\d{10}$/.test(canonical)?[digits.slice(1),digits.slice(1,4)+'-'+digits.slice(4,7)+'-'+digits.slice(7)]:[])];
+    const deadline=Date.now()+9000;
+    for(const variant of [...new Set(variants)]){
       let totalPages=1;
       for(let page=0;page<totalPages;page++){
         const q=new URLSearchParams({callbackNumber:variant,page:String(page),pageSize:'100'});
-        const {data}=await request(base+'?'+q);
+        if(Date.now()>=deadline)throw new NativeCallbackError('native-inventory-timeout');
+        const {data}=await request(base+'?'+q,'GET',undefined,deadline-Date.now());
         if(!Array.isArray(data?.data)||!Number.isSafeInteger(data.meta?.totalPages)||data.meta.totalPages<0||
           data.meta.totalPages>20||data.meta.page!==page)throw new NativeCallbackError('native-inventory-incomplete');
         totalPages=data.meta.totalPages;
@@ -54,11 +58,31 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
     }
     return [...records.values()];
   }
+  async function active(number) {
+    const normalized=callbackNumber(number);if(!normalized)throw new SettingsError('invalid-callback-number');
+    const to=Date.now(),deadline=to+9000,seen=new Set(),found=[],cursors=new Set();let cursor=null;
+    for(let page=0;page<20;page++){
+      if(Date.now()>=deadline)throw new NativeCallbackError('active-callback-lookup-timeout');
+      const query=`{taskDetails(from:${to-15*86400000} to:${to} filter:{and:[{isActive:{equals:true}},{isCallback:{equals:true}}]} ${cursor?`pagination:{cursor:${JSON.stringify(cursor)}}`:''}){tasks{id origin destination customer{phoneNumber} isActive isCallback createdTime} pageInfo{hasNextPage endCursor}}}`;
+      const {data}=await request('/search?orgId='+encodeURIComponent(orgId),'POST',{query,variables:{}},deadline-Date.now());
+      const tasks=data?.data?.taskDetails,info=tasks?.pageInfo;
+      if(data.error||data.errors?.length||!Array.isArray(tasks?.tasks)||typeof info?.hasNextPage!=='boolean')throw new NativeCallbackError('active-callback-inventory-incomplete');
+      for(const r of tasks.tasks){
+        if(!ID.test(r.id||'')||r.isActive!==true||r.isCallback!==true||seen.has(r.id))throw new NativeCallbackError('active-callback-record-invalid');
+        seen.add(r.id);
+        if([r.origin,r.destination,r.customer?.phoneNumber].some(value=>callbackNumber(value)===normalized))found.push({id:r.id});
+      }
+      if(!info.hasNextPage)return found;
+      if(typeof info.endCursor!=='string'||!info.endCursor||cursors.has(info.endCursor))throw new NativeCallbackError('active-callback-pagination-invalid');
+      cursors.add(info.endCursor);cursor=info.endCursor;
+    }
+    throw new NativeCallbackError('active-callback-inventory-incomplete');
+  }
   function matches(record,payload){return record.sourceInteraction===payload.sourceInteraction&&record.queueId===payload.queueId&&
     callbackNumber(record.callbackNumber)===payload.callbackNumber&&record.scheduleDate===payload.scheduleDate&&
     record.startTime===payload.startTime&&record.endTime===payload.endTime&&record.timezone===payload.timezone&&
     record.callbackReason===payload.callbackReason&&!record.assigneeAgent;}
-  return {list,matches,
+  return {list,active,matches,
     async create(payload){
       const {data,status}=await request(base,'POST',payload);
       try{validateRecord(data);if(status!==201||!matches(data,payload))throw Error('mismatch');}

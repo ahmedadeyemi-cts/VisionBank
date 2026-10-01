@@ -191,7 +191,7 @@
       Agent message: <span id="abandonedCallbackAgentMessage">Callback for missed call from customer</span></p>
     <details><summary>Timing and excluded dates</summary><div class="vb-callback-grid">
       <label>Minimum delay (minutes)<input id="abandonedCallbackDelay" type="number" min="30" max="1440" step="1" required></label>
-      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="240" step="1" required></label>
+      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="480" step="1" required></label>
       <label>Calling starts — Central<input id="abandonedCallbackStart" type="time" required></label>
       <label>Calling ends — Central<input id="abandonedCallbackEnd" type="time" required></label>
     </div><fieldset class="vb-callback-days"><legend>Calling days — America/Chicago</legend>
@@ -718,19 +718,24 @@
     <button id="vbCallbackPlanClose" type="button" aria-label="Close callback preparation">Close</button></div>
   <p class="vb-cb-preview-notice"><strong>Preview before scheduling.</strong> Only Schedule submits a callback. Bulk remains held until the single-call pilot passes.</p>
   <p id="vbCallbackQueue"></p>
+  <details class="vb-cb-readiness"><summary>Callback readiness and remaining setup</summary><div id="vbCallbackReadiness"></div></details>
   <p>Agent message: <strong>Callback for missed call from customer</strong></p>
   <form id="vbCallbackPlanForm">
     <div class="vb-cb-time-fields">
       <label>Callback date — Central<input id="vbCallbackDate" type="date" required></label>
       <label>Window starts — Central<input id="vbCallbackTime" type="time" required></label>
     </div>
+    <p>Window ends: <output id="vbCallbackWindowEnd">Not set</output></p>
+    <p id="vbCallbackWindowRules">Webex scheduling: at least 30 minutes ahead; within 31 calendar days; a 30-minute to 8-hour window within your saved calling hours. Times use America/Chicago.</p>
+    <div class="vb-cb-buttons"><button id="vbCallbackOpenSettings" type="button">Open Abandoned Callback Settings</button><button id="vbCallbackRecheck" type="button">Recheck readiness</button><button id="vbCallbackNextWindow" type="button">Use next permitted window</button></div>
     <p id="vbCallbackPlanStatus" role="status" aria-live="polite"></p>
-    <div class="vb-cb-buttons"><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
-      <button id="vbCallbackExecute" type="button" disabled title="Native Webex scheduling and one-attempt routing must be verified first">Scheduling paused</button></div>
+    <p id="vbCallbackDraftStatus" role="status">Not saved. Save plan keeps this selection without scheduling a call.</p>
+    <div class="vb-cb-buttons"><button id="vbCallbackSavePlan" type="button" disabled>Save plan — no calls</button><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
+      <button id="vbCallbackExecute" type="button" disabled title="The scheduled-callback flow and requested attempt limit must be ready before calling">Scheduling paused</button></div>
   </form>
   <div class="vb-cb-preview-table"><table><thead><tr><th>Original Contact ID</th><th>Callback number</th><th>Preview result</th><th>Reason / remaining checks</th></tr></thead>
     <tbody id="vbCallbackPlanRows"></tbody></table></div>
-  <p class="vb-cb-note">One callback per original call. Repeated numbers in a batch are grouped. Existing native callback inventory still requires verification. An original abandoned call remains abandoned after any follow-up.</p>
+  <p class="vb-cb-note">One callback per original call. Repeated numbers in a batch are grouped. Native duplicate checks run during preview and again before submission. Saving a plan does not schedule a call. An original abandoned call remains abandoned after any follow-up.</p>
 </dialog>
 
     <div class="daily-report-table-wrap">
@@ -759,6 +764,14 @@
       <button id="abandonedNextPage" class="daily-report-page-button" type="button">Next</button>
     </div>
   </section>
+
+<section class="panel daily-report-panel vb-cb-workspace" id="vbCallbackWorkspace" aria-labelledby="vbCallbackWorkspaceTitle">
+  <div class="daily-report-header"><h2 id="vbCallbackWorkspaceTitle">Callback Workspace</h2><button id="vbCallbackRefreshWorkspace" type="button" disabled>Refresh workspace</button></div>
+  <p id="vbCallbackWorkspaceStatus" role="status">Waiting for approved dashboard access.</p>
+  <details open><summary>Saved callback plans — not scheduled</summary><div class="daily-report-table-wrap"><table class="data-table"><thead><tr><th>Calls</th><th>Proposed window — Central</th><th>Requested attempts</th><th>Status</th><th>Last saved — Central</th><th>Actions</th></tr></thead><tbody id="vbCallbackSavedPlans"></tbody></table></div><button id="vbCallbackMorePlans" type="button" disabled>More saved plans</button></details>
+  <details open><summary>Callback requests — all dates</summary><div class="daily-report-table-wrap"><table class="data-table"><thead><tr><th>Callback number</th><th>Scheduled window — Central</th><th>Status</th><th>Attempts reported / requested</th><th>Webex confirmation</th><th>Actions</th></tr></thead><tbody id="vbCallbackRegister"></tbody></table></div><button id="vbCallbackMoreRecords" type="button" disabled>More callback requests</button></details>
+  <p class="vb-cb-note">Scheduled means Webex confirmed creation, not that the customer was reached. Missing native schedules and elapsed windows are never treated as completed calls.</p>
+</section>
 
 </main>
 
@@ -801,7 +814,7 @@
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20260929-voice-stats7"></script>
 <script src="webex-integrated-chat.js?v=20260929-voice-stats7"></script>
-<script type="module" src="webex-abandoned-callback-settings.js?v=20260930-entrypoint3-compat1"></script>
-<script type="module" src="webex-abandoned-selection.js?v=20260930-entrypoint3-compat1"></script>
+<script type="module" src="webex-abandoned-callback-settings.js?v=20261001-callback-workspace5"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20261001-callback-workspace5"></script>
 </body>
 </html>

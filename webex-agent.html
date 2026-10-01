@@ -51,7 +51,6 @@
           <a href="webex.html">Webex Dashboard</a>
           <a href="webex-agent.html" class="active">Webex Agent</a>
           <a href="security.html">Security</a>
-          <a href="agents.html">Legacy Agents</a>
           <a href="voicemails.html">Voicemail</a>
           <a href="directory.html">Directory</a>
         </nav>
@@ -61,11 +60,11 @@
     </header>
 
     <main class="main">
-      <section class="panel">
+      <section class="panel" hidden aria-hidden="true">
         <div class="section-header">
           <div>
-            <h2>Webex Agent Signout Reminder Settings</h2>
-            <p>Email reminders remain managed by the existing Legacy Agent Controls service. This page now controls Webex automatic signout without modifying the stable VisionBank Security Worker.</p>
+            <h2>Notification service compatibility fields</h2>
+            <p>Notification scheduling remains in its separate existing service; these compatibility fields are not editable here.</p>
           </div>
           <span id="settingsStatus">Not loaded.</span>
         </div>
@@ -86,7 +85,7 @@
 
           <label class="wide">
             CC Recipients
-            <textarea id="ccRecipients" rows="3" placeholder="Managed by Legacy Agent Controls" disabled></textarea>
+            <textarea id="ccRecipients" rows="3" placeholder="Managed by notification service" disabled></textarea>
           </label>
         </div>
       </section>
@@ -255,6 +254,6 @@
     </footer>
   </div>
 
-  <script src="webex-agent.js?v=20260827-standalone-v1"></script>
+  <script src="webex-agent.js?v=20261001-cleanup"></script>
 </body>
 </html>

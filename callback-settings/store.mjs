@@ -19,7 +19,10 @@ function validateState(state) {
 // Accessible only through a Worker binding; the companion has no public routes.
 export class AbandonedCallbackSettingsV1 {
   constructor(ctx,env={}) { this.storage = ctx.storage; this.plans=new CallbackPlans(ctx.storage); this.execution=new CallbackExecution(ctx,env); }
-  async alarm() { return this.execution.run(); }
+  async alarm() {
+    try{if(!await this.execution.management.run()){const work=await this.storage.list({prefix:'work:',limit:1});if(work.size)await this.execution.run();else await this.execution.outcomes.run();}}
+    finally{await this.execution.nextAlarm();await this.execution.management.ensureAlarm();await this.execution.outcomes.ensureAlarm();}
+  }
   async entryPointDiscovery() {
     try{return {entryPointOptions:await this.execution.native().entryPoints(),entryPointOptionsAvailable:true};}
     catch(error){
@@ -31,7 +34,7 @@ export class AbandonedCallbackSettingsV1 {
     try {
       const u = new URL(request.url);
       if(u.pathname==='/plans')return this.plans.fetch(request);
-      if(['/readiness','/jobs','/records','/schedule','/inspect','/register','/refresh-record'].includes(u.pathname))return this.execution.handle(request);
+      if(['/readiness','/jobs','/records','/schedule','/inspect','/register','/refresh-record','/manage','/management','/automation-status','/automation-tick','/flow-policy'].includes(u.pathname))return this.execution.handle(request);
       if (request.method === 'GET' && u.pathname === '/settings') {
         const state = validateState(await this.storage.get('state'));
         const id = u.searchParams.get('mutationId');
@@ -77,11 +80,12 @@ export class AbandonedCallbackSettingsV1 {
         const savedRate = await txn.get(rateKey), rate = savedRate?.bucket === bucket ? savedRate : {bucket,count:0};
         if (rate.count >= 12) throw new SettingsError('too-many-settings-changes',429);
         const resolvedSettings=provided?mutation.settings:{...mutation.settings,callbackEntryPointId:current.settings.callbackEntryPointId};
-        const changed = JSON.stringify(current.settings) !== JSON.stringify(resolvedSettings);
+        const automatic=resolvedSettings.enabled&&resolvedSettings.mode==='automatic-new-abandoned';
+        const changed = JSON.stringify(current.settings) !== JSON.stringify(resolvedSettings)||(automatic&&!current.automaticSince);
         let state = current;
         if (changed) {
           const version = current.version+1, at = new Date(now).toISOString();
-          state = {version,settings:resolvedSettings,updatedAt:at,lastChangedBy:actor};
+          state = {version,settings:resolvedSettings,updatedAt:at,lastChangedBy:actor,automaticSince:automatic?(current.settings.enabled&&current.settings.mode==='automatic-new-abandoned'&&current.automaticSince||now):null};
           const action = current.settings.enabled !== resolvedSettings.enabled ?
             resolvedSettings.enabled ? 'Enabled' : 'Disabled' : 'Configuration changed';
           await txn.put(key(version), {version,at,action,actor,requestId:input.requestId,

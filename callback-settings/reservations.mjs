@@ -1,7 +1,7 @@
 // Atomic number-wide reservations. A missing native future schedule does not release a reservation.
 import {SettingsError} from './policy.mjs';
 import {callbackNumber} from './selection.mjs';
-export const released = r => ['not-submitted','rejected'].includes(r?.status);
+export const released = r => ['not-submitted','rejected','canceled','completed','exhausted','expired','failed-terminal'].includes(r?.status);
 export async function numberKey(number) {
   const normalized=callbackNumber(number);
   if(!normalized)throw new SettingsError('invalid-callback-number');

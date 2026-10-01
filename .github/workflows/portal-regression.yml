@@ -21,6 +21,7 @@ jobs:
         run: |
           node --check dashboard.js
           node --check webex.js
+          node --check webex-report-health.js
           node --check webex-integrated-chat.js
           node --check webex-reports.js
           node --check webex-channel-activity.js
@@ -38,6 +39,13 @@ jobs:
           node --check callback-settings/planning-gateway.mjs
           node --check callback-settings/readiness.mjs
           node --check callback-settings/workspace.mjs
+          node --check callback-settings/management.mjs
+          node --check callback-settings/outcomes.mjs
+          node --check callback-settings/automation.mjs
+          node --check callback-settings/maintenance.mjs
+          node --check callback-settings/management-ui.mjs
+          node --check callback-settings/work-index.mjs
+          node --check callback-settings/flow-policy.mjs
           node --check callback-settings/reservations.mjs
           node --check webex-abandoned-selection.js
       - name: Run request, roster, privacy and failure-isolation tests

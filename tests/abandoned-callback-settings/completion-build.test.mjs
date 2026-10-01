@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {build} from '../../scripts/build-callback-completion-v5.mjs';
+test('completion release refuses unknown or older Worker source',()=>assert.throws(()=>build('export default {}')));
+test('completion release preserves exact deployed source except reviewed hooks',{skip:!process.env.VB_COMPLETION_BASELINE},()=>{const source=fs.readFileSync(process.env.VB_COMPLETION_BASELINE,'utf8'),r=build(source);assert.equal(r.proof.originalBytesRecoverable,true);assert.equal(r.proof.existingScheduledTasksRetained,true);assert.equal(Object.keys(r.modules).length,7);assert.ok(r.candidate.includes('VB_DASHBOARD_R8'));for(const path of ['manage','management','automation-status'])assert.ok(r.candidate.includes('/api/webex/abandoned-callback/'+path));assert.ok(!r.candidate.includes('/api/webex/abandoned-callback/automation-tick'));});

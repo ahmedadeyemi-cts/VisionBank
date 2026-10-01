@@ -18,18 +18,20 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
   if(!ID.test(orgId))throw new SettingsError('invalid-native-organization');
   const base='/v1/callbacks/organization/'+orgId+'/scheduled-callback';
   async function request(path,method='GET',body,deadlineMs=timeoutMs){
+    const writesSchedule=path.startsWith(base)&&method!=='GET';
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.min(timeoutMs,deadlineMs));
     try{const token=await Promise.race([getToken(),new Promise((_,reject)=>controller.signal.addEventListener('abort',()=>reject(new NativeCallbackError('native-token-deadline')),{once:true}))]);
       if(typeof token!=='string'||!token)throw new NativeCallbackError('native-token-unavailable');
       const response=await fetchImpl(ORIGIN+path,{method,redirect:'manual',signal:controller.signal,
       headers:{Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},
       ...(body?{body:JSON.stringify(body)}:{})});
-      if(response.status>=300&&response.status<400)throw new NativeCallbackError('native-redirect-rejected',{uncertain:method==='POST'});
+      if(response.status>=300&&response.status<400)throw new NativeCallbackError('native-redirect-rejected',{uncertain:writesSchedule});
       if(!response.ok)throw new NativeCallbackError('native-http-'+response.status,{status:response.status,
-        uncertain:method==='POST'&&![400,401,403,404,422,429].includes(response.status)});
-      let data;try{data=await response.json();}catch{throw new NativeCallbackError('native-invalid-json',{uncertain:method==='POST'});}
+        uncertain:writesSchedule&&![400,401,403,404,422,429].includes(response.status)});
+      if(method==='DELETE'&&response.status===204)return {data:null,status:204};
+      let data;try{data=await response.json();}catch{throw new NativeCallbackError('native-invalid-json',{uncertain:writesSchedule});}
       return {data,status:response.status};
-    }catch(e){if(e instanceof NativeCallbackError)throw e;throw new NativeCallbackError('native-transport-unconfirmed',{uncertain:method==='POST'});}finally{clearTimeout(timer);}
+    }catch(e){if(e instanceof NativeCallbackError)throw e;throw new NativeCallbackError('native-transport-unconfirmed',{uncertain:writesSchedule});}finally{clearTimeout(timer);}
   }
   function validateRecord(x){
     if(!x||!ID.test(x.id||'')||x.orgId!==orgId||!callbackNumber(x.callbackNumber)||
@@ -63,14 +65,16 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
     const to=Date.now(),deadline=to+9000,seen=new Set(),found=[],cursors=new Set();let cursor=null;
     for(let page=0;page<20;page++){
       if(Date.now()>=deadline)throw new NativeCallbackError('active-callback-lookup-timeout');
-      const query=`{taskDetails(from:${to-15*86400000} to:${to} filter:{and:[{isActive:{equals:true}},{isCallback:{equals:true}}]} ${cursor?`pagination:{cursor:${JSON.stringify(cursor)}}`:''}){tasks{id origin destination customer{phoneNumber} isActive isCallback createdTime} pageInfo{hasNextPage endCursor}}}`;
+      const query=`{taskDetails(from:${to-15*86400000} to:${to} filter:{and:[{isActive:{equals:true}},{isCallback:{equals:true}}]} ${cursor?`pagination:{cursor:${JSON.stringify(cursor)}}`:''}){tasks{id origin destination customer{phoneNumber} callbackData{callbackNumber} isActive isCallback createdTime} pageInfo{hasNextPage endCursor}}}`;
       const {data}=await request('/search?orgId='+encodeURIComponent(orgId),'POST',{query,variables:{}},deadline-Date.now());
       const tasks=data?.data?.taskDetails,info=tasks?.pageInfo;
       if(data.error||data.errors?.length||!Array.isArray(tasks?.tasks)||typeof info?.hasNextPage!=='boolean')throw new NativeCallbackError('active-callback-inventory-incomplete');
       for(const r of tasks.tasks){
         if(!ID.test(r.id||'')||r.isActive!==true||r.isCallback!==true||seen.has(r.id))throw new NativeCallbackError('active-callback-record-invalid');
         seen.add(r.id);
-        if([r.origin,r.destination,r.customer?.phoneNumber].some(value=>callbackNumber(value)===normalized))found.push({id:r.id});
+        const numbers=[r.callbackData?.callbackNumber,r.origin,r.destination,r.customer?.phoneNumber].map(callbackNumber).filter(Boolean);
+        if(!numbers.length)throw new NativeCallbackError('active-callback-number-unavailable');
+        if(numbers.includes(normalized))found.push({id:r.id});
       }
       if(!info.hasNextPage)return found;
       if(typeof info.endCursor!=='string'||!info.endCursor||cursors.has(info.endCursor))throw new NativeCallbackError('active-callback-pagination-invalid');
@@ -83,6 +87,35 @@ export function createNativeClient({orgId,getToken,fetchImpl=fetch,timeoutMs=150
     record.startTime===payload.startTime&&record.endTime===payload.endTime&&record.timezone===payload.timezone&&
     record.callbackReason===payload.callbackReason&&!record.assigneeAgent;}
   return {list,active,matches,
+    async history(record){
+      if(!ID.test(record?.scheduleId||'')||!Number.isFinite(record?.window?.startEpoch))throw new SettingsError('invalid-outcome-record');
+      const to=Date.now(),from=record.window.startEpoch-60000;if(from>to)return [];
+      if(to-from>15*86400000)throw new NativeCallbackError('outcome-report-window-expired');
+      const results=[],seen=new Set(),cursors=new Set(),deadline=Date.now()+9000;let cursor=null;
+      for(let page=0;page<20;page++){
+        if(Date.now()>=deadline)throw new NativeCallbackError('callback-outcome-lookup-timeout');
+        const query=`{taskDetails(from:${Math.floor(from)} to:${to} filter:{isCallback:{equals:true}} ${cursor?`pagination:{cursor:${JSON.stringify(cursor)}}`:''}){tasks{id status createdTime endedTime lastActivityTime isActive isCallback globalVariables callbackData{callbackNumber callbackConnectTime callbackRetryCount callbackStatus} lastAgent{id name}} pageInfo{hasNextPage endCursor}}}`;
+        const {data}=await request('/search?orgId='+encodeURIComponent(orgId),'POST',{query,variables:{}},deadline-Date.now()),d=data?.data?.taskDetails;
+        if(data.errors?.length||data.error||!Array.isArray(d?.tasks)||typeof d.pageInfo?.hasNextPage!=='boolean')throw new NativeCallbackError('callback-outcome-inventory-incomplete');
+        for(const r of d.tasks){if(!ID.test(r.id||'')||r.isCallback!==true||typeof r.isActive!=='boolean'||seen.has(r.id))throw new NativeCallbackError('callback-outcome-record-invalid');seen.add(r.id);results.push(r);}
+        if(!d.pageInfo.hasNextPage)return results;
+        cursor=d.pageInfo.endCursor;if(typeof cursor!=='string'||!cursor||cursors.has(cursor))throw new NativeCallbackError('callback-outcome-pagination-invalid');cursors.add(cursor);
+      }
+      throw new NativeCallbackError('callback-outcome-inventory-incomplete');
+    },
+    async update(id,payload){
+      if(!ID.test(id))throw new SettingsError('invalid-schedule-id');
+      const {data,status}=await request(base+'/'+id,'PUT',{...payload,id});
+      try{validateRecord(data);if(status!==200||data.id!==id||!matches(data,payload))throw Error('mismatch');}
+      catch{throw new NativeCallbackError('native-update-response-unconfirmed',{uncertain:true});}
+      return data;
+    },
+    async cancel(id){
+      if(!ID.test(id))throw new SettingsError('invalid-schedule-id');
+      const {status}=await request(base+'/'+id,'DELETE');
+      if(status!==204)throw new NativeCallbackError('native-cancel-response-unconfirmed',{uncertain:true});
+      return {id,canceled:true};
+    },
     async create(payload){
       const {data,status}=await request(base,'POST',payload);
       try{validateRecord(data);if(status!==201||!matches(data,payload))throw Error('mismatch');}
@@ -136,13 +169,14 @@ export function runtimeGate(env){
   if(!ID.test(p.callbackEntryPointId||'')||!callbackNumber(p.callbackAni)||p.callbackDefaultsVerified!==true)
     blockers.push('callback-entrypoint-and-caller-id-not-verified');
   if(p.attemptPolicyVerified!==true||p.attemptSemantics!=='total-customer-dial-attempts'||!Number.isInteger(p.validatedTotalAttempts)||p.validatedTotalAttempts<1||p.validatedTotalAttempts>10||!Number.isInteger(p.validatedNativeMaximumAttempts)||p.validatedNativeMaximumAttempts<0||!/^[\da-f]{64}$/i.test(p.reviewedFlowSha256||''))blockers.push('callback-attempt-policy-not-verified');
+  if(p.attemptPolicyMode==='per-record-policy'&&p.flowPolicyLookupVerified!==true)blockers.push('callback-attempt-policy-not-verified');
   if(p.agentMessageVerified!==true)blockers.push('agent-message-display-not-verified');
   if(p.phase==='pilot'&&(!Array.isArray(p.testNumbers)||p.testNumbers.length!==1||!callbackNumber(p.testNumbers[0])))
     blockers.push('one-approved-test-number-required');
   if(p.phase==='live'&&p.singleCallbackPilotPassed!==true)blockers.push('single-callback-pilot-not-passed');
   return {ready:blockers.length===0,blockers,phase:p.phase||'not-configured',queueId:p.queueId||null,callbackEntryPointId:p.callbackEntryPointId||null,
     maxBatch:p.phase==='pilot'?1:1000,testNumbers:(Array.isArray(p.testNumbers)?p.testNumbers:[]).map(callbackNumber).filter(Boolean),
-    validatedTotalAttempts:p.validatedTotalAttempts??null,validatedNativeMaximumAttempts:p.validatedNativeMaximumAttempts??null,reviewedFlowSha256:p.reviewedFlowSha256||null};
+    attemptPolicyMode:p.attemptPolicyMode==='per-record-policy'?'per-record-policy':'fixed-reviewed',validatedTotalAttempts:p.validatedTotalAttempts??null,validatedNativeMaximumAttempts:p.validatedNativeMaximumAttempts??null,reviewedFlowSha256:p.reviewedFlowSha256||null};
 }
 export function clientFromEnvironment(env){
   return createNativeClient({orgId:env.WEBEX_ORG_ID,getToken:async()=>{
@@ -155,6 +189,8 @@ export function clientFromEnvironment(env){
 export function publicRecord(record,now=Date.now()){
   const {payload,...rest}=record;
   // A vanished schedule or elapsed time never proves queued, called, or completed.
-  const status=record.status==='scheduled'&&record.window.startEpoch<=now?'due-outcome-unconfirmed':record.status;
+  let status=record.management ? record.management.status==='unconfirmed' ? 'change-unconfirmed' : 'change-pending' : record.status==='scheduled'&&record.window.startEpoch<=now?'due-outcome-unconfirmed':record.status;
+  if(!record.management&&record.status==='scheduled'&&['schedule-changed-externally','not-in-future-inventory'].includes(record.nativeObservation?.status))status='schedule-unconfirmed';
+  if(['dialing','connected','awaiting-agent','callback-active','retry-pending'].includes(status)&&(!Number.isFinite(record.outcomeObservation?.checkedAt)||now-record.outcomeObservation.checkedAt>120000))status='activity-stale';
   return {...rest,status,number:payload.callbackNumber};
 }

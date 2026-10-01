@@ -4,7 +4,7 @@ import fs from 'node:fs';import os from 'node:os';import path from 'node:path';i
 import {fileURLToPath} from 'node:url';import {mutation,ACTOR,QUEUE} from './fixtures.mjs';
 const {Miniflare,convertV4MiniflareOptions}=await import(process.env.MINIFLARE_MODULE||'miniflare');
 const persist=fs.mkdtempSync(path.join(os.tmpdir(),'vb-callback-store-test-'));
-const options={name:'vb-callback-settings-local-test',resourcePersistencePath:persist,cf:false,modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:['store.mjs','policy.mjs','execution.mjs','native.mjs','selection.mjs','reservations.mjs','plans.mjs','readiness.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')})),
+const options={name:'vb-callback-settings-local-test',resourcePersistencePath:persist,cf:false,modulesRoot:fileURLToPath(new URL('../../',import.meta.url)),modules:['store.mjs','policy.mjs','execution.mjs','native.mjs','selection.mjs','reservations.mjs','management.mjs','outcomes.mjs','automation.mjs','work-index.mjs','flow-policy.mjs','plans.mjs','readiness.mjs'].map(name=>({type:'ESModule',path:fileURLToPath(new URL('../../callback-settings/'+name,import.meta.url)),contents:fs.readFileSync(new URL('../../callback-settings/'+name,import.meta.url),'utf8')})),
   compatibilityDate:'2026-09-28',durableObjects:{STORE:{className:'AbandonedCallbackSettingsV1',useSQLite:true}},durableObjectsPersist:persist};
 let mf;
 try{

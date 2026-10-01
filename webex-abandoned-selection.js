@@ -1,3 +1,4 @@
+import {callbackStatusLabel} from './callback-settings/readiness.mjs';
 import {createCallbackWorkspace,renderReadiness} from './callback-settings/workspace.mjs';
 import { callbackNumber, centralDate, MAX_SELECTION, nextWindow, schedulingBounds, validateWindow } from './callback-settings/selection.mjs';
 const API = 'https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/abandoned-callback/';
@@ -218,7 +219,7 @@ function applyLedger(){
   for(const row of ledger.values()){
     const state=row.status==='scheduled'&&row.window.startEpoch<=Date.now()?'due-outcome-unconfirmed':row.status;
     const cell=document.querySelector('[data-callback-status="'+row.contactId+'"]');
-    if(cell){cell.textContent=labels[state]||'Not confirmed';cell.title=row.reason||'';}
+    if(cell){cell.textContent=labels[state]||callbackStatusLabel(state);cell.title=row.outcomeObservation?.message||row.nativeObservation?.message||row.reason||'';}
     const time=document.querySelector('[data-callback-window="'+row.contactId+'"]');
     if(time)time.textContent=new Date(row.window.startEpoch).toLocaleString('en-US',{timeZone:'America/Chicago',timeZoneName:'short'})+' – '+
       new Date(row.window.endEpoch).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit'});

@@ -93,12 +93,12 @@ try{
   ok('successful refresh recovers without page reload',!await page.locator('#vbCallbackScheduleAll').isDisabled());
   await page.evaluate(()=>document.body.classList.remove('security-approved'));
   await page.waitForFunction(()=>document.getElementById('vbCallbackScheduleAll').disabled);
-  ok('security overlay removal blocks selection without a manual render',await page.locator('input[data-callback-select]').first().isDisabled());
+  ok('security overlay removal blocks selection without a manual render',await page.locator('input[data-callback-select]').evaluateAll(nodes=>nodes.every(n=>n.disabled)));
   await page.evaluate(()=>document.body.classList.add('security-approved'));
   await page.waitForFunction(()=>!document.getElementById('vbCallbackScheduleAll').disabled);
   ok('restored access restores controls without a page reload');
   await page.evaluate(()=>{window.VB_SECURITY={allowed:false};window.VB_ABANDONED_SELECTION.render();});
-  ok('access revocation disables all callback selection',await page.locator('#vbCallbackScheduleAll').isDisabled()&&await page.locator('input[data-callback-select]').first().isDisabled());
+  ok('access revocation disables all callback selection',await page.locator('#vbCallbackScheduleAll').isDisabled()&&await page.locator('input[data-callback-select]').evaluateAll(nodes=>nodes.every(n=>n.disabled)));
   ok('no first-party browser errors',errors.length===0);
   const result={passed:true,checks:checks.length,names:checks,errors,transport:'Real dashboard scripts with isolated synthetic reporting and settings; preview only, zero native calls'};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));console.log('RESULT',JSON.stringify(result));

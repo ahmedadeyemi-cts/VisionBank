@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.09.29-v9";
+const WEBEX_DASHBOARD_BUILD = "2026.10.01-v10";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -98,7 +98,7 @@ async function fetchWebexDashboardOnce() {
       throw error;
     }
 
-    if(!Array.isArray(data.queues)||!Array.isArray(data.agents)||!data.statistics)
+    if(data.success!==true||!Number.isFinite(data.generatedAtEpoch)||!Array.isArray(data.queues)||!Array.isArray(data.agents)||!data.statistics)
       throw new Error('Webex reporting response is incomplete; no zero totals were substituted.');
     window.VB_REPORT_HEALTH.state='ready';
     return data;
@@ -109,6 +109,7 @@ async function fetchWebexDashboardOnce() {
   } finally {
     window.VB_REPORT_HEALTH.elapsedMs=Date.now()-began;
     window.VB_REPORT_HEALTH.finishedAt=Date.now();
+    window.VB_REPORT_DIAGNOSTICS?.record(window.VB_REPORT_HEALTH);
     clearTimeout(timer);
   }
 }

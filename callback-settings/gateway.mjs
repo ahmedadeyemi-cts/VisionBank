@@ -1,3 +1,4 @@
+import {handleFlowPolicy} from './flow-policy.mjs';
 import {handlePlanRequest} from './planning-gateway.mjs';
 import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
 import { buildPreview, parseSelection } from './selection.mjs';
@@ -15,6 +16,7 @@ function validIp(ip) {
 }
 export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQueueConfiguration,getAbandonedReport}) {
   return async function handler(request,env,cors={}) {
+    if(new URL(request.url).pathname===PREFIX+'flow-policy')return handleFlowPolicy(request,env);
     const headers={...cors,'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
     // Negotiate limits explicitly; old tabs must not misread an expanded saved window.
     const requestedSchema=new URL(request.url).searchParams.get('schema');
@@ -31,8 +33,8 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record'].includes(part) || !['GET','POST'].includes(request.method) ||
-          (['history','readiness','jobs','records','register'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
+      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status'].includes(part) || !['GET','POST'].includes(request.method) ||
+          (['history','readiness','jobs','records','register','management','automation-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
       // Reuse normal access policy; no separate login, but an empty IP allowlist is NOT a write grant.
@@ -66,6 +68,9 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
         if(['plans','plan-preview','plan-schedule'].includes(part))return send(await handlePlanRequest({part,body,store,queueOptions,
           getReport:()=>bounded(getAbandonedReport(env),12000),bounded,
           actor:{sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))},requestId:crypto.randomUUID()}),part==='plan-schedule'?202:200);
+        if(part==='manage'){
+          const r=await bounded(store.fetch(new Request('https://callback-settings.internal/manage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change:body,actor:{sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))},requestId:crypto.randomUUID()})})),12000);return send(await r.json(),r.status);
+        }
         if(part==='refresh-record'){
           if(!body||Object.keys(body).some(k=>k!=='contactId')||!UUID.test(body.contactId||''))throw new SettingsError('invalid-record-id');
           const r=await bounded(store.fetch(new Request('https://callback-settings.internal/refresh-record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})),20000);

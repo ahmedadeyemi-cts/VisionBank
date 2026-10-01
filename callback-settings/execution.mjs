@@ -1,3 +1,7 @@
+import {storedFlowPolicy} from './flow-policy.mjs';
+import {CallbackManagement} from './management.mjs';
+import {CallbackOutcomes} from './outcomes.mjs';
+import {CallbackAutomation} from './automation.mjs';
 import {readinessChecklist} from './readiness.mjs';
 import {SettingsError, UUID, normalizeSettings} from './policy.mjs';
 import {nativePayload, clientFromEnvironment, runtimeGate, publicRecord, NativeCallbackError} from './native.mjs';
@@ -7,16 +11,16 @@ const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SH
 const respond=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 const recordKey=id=>'callback:'+id;
 export class CallbackExecution {
-  constructor(ctx,env,{client,now=()=>Date.now()}={}){this.storage=ctx.storage;this.env=env;this.client=client;this.now=now;}
+  constructor(ctx,env,{client,now=()=>Date.now()}={}){this.storage=ctx.storage;this.env=env;this.client=client;this.now=now;this.management=new CallbackManagement(this);this.outcomes=new CallbackOutcomes(this);this.automation=new CallbackAutomation(this);}
   native(){return this.client||clientFromEnvironment(this.env);}
   async readiness(state){
     const g=runtimeGate(this.env),blockers=[...g.blockers];
     if(state?.settings?.enabled!==true)blockers.push('master-switch-disabled');
-    if(state?.settings?.mode!=='manual')blockers.push('automatic-processing-not-enabled-in-this-stage');
+    if(state?.settings?.mode!=='manual'&&g.phase!=='live')blockers.push('automatic-processing-not-enabled-in-this-stage');
     if(g.queueId&&state?.settings?.queueId!==g.queueId)blockers.push('queue-not-approved-for-this-release');
     if(!state?.settings?.callbackEntryPointId)blockers.push('callback-entry-point-required');
     else if(g.callbackEntryPointId!==state.settings.callbackEntryPointId)blockers.push('callback-entry-point-review-required');
-    if(g.validatedTotalAttempts!==null && state?.settings?.maxAttempts!==g.validatedTotalAttempts)blockers.push('requested-attempt-limit-not-verified');
+    if(g.attemptPolicyMode!=='per-record-policy' && g.validatedTotalAttempts!==null && state?.settings?.maxAttempts!==g.validatedTotalAttempts)blockers.push('requested-attempt-limit-not-verified');
     let native=null;
     if(state?.settings?.queueId && state?.settings?.callbackEntryPointId){try{native=await this.native().configuration(state.settings.queueId,state.settings.callbackEntryPointId);
       if(!native.queueActive||!native.voiceQueue)blockers.push('native-voice-queue-unavailable');
@@ -45,11 +49,11 @@ export class CallbackExecution {
   }
   async inspect(rows) {
     if(!Array.isArray(rows)||rows.length>1000||rows.some(r=>!/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(r.contactId||'')||!callbackNumber(r.number)))throw new SettingsError('invalid-inspection');
-    const records=await this.storage.list({prefix:'callback:',limit:1001}),now=this.now();
+    const indexed=await this.storage.get('phone-active-index:v1'),legacy=indexed?null:await this.storage.list({prefix:'callback:',limit:1001}),now=this.now();
     return Promise.all(rows.map(async(row,index)=>{
-      const local=[...records.values()].find(r=>!released(r)&&callbackNumber(r.payload?.callbackNumber)===callbackNumber(row.number));
-      if(local)return {contactId:row.contactId,status:'reserved',reason:'number-has-existing-callback',checkedAt:now};
-      if(records.size>1000)return {contactId:row.contactId,status:'unavailable',reason:'callback-ledger-review-required',checkedAt:now};
+      if(legacy?.size>1000)return {contactId:row.contactId,status:'unavailable',reason:'callback-ledger-review-required',checkedAt:now};
+      const reserved=indexed?await this.storage.get(await numberKey(row.number)):[...legacy.values()].filter(r=>!released(r)&&callbackNumber(r.payload?.callbackNumber)===callbackNumber(row.number));
+      if(reserved?.length)return {contactId:row.contactId,status:'reserved',reason:'number-has-existing-callback',checkedAt:now};
       if(index>=5)return {contactId:row.contactId,status:'not-checked',reason:'native-inventory-checked-at-submission',checkedAt:null};
       try{const [future,active]=await Promise.all([this.native().list(row.number),this.native().active(row.number)]),found=[...future,...active];
         return {contactId:row.contactId,status:found.length?'duplicate':'clear',reason:found.length?'native-callback-already-exists':null,count:found.length,checkedAt:now,coverage:'future-schedules-and-active-callbacks'};
@@ -132,7 +136,10 @@ export class CallbackExecution {
     await this.storage.transaction(async tx=>{
       const r=await tx.get(recordKey(id));if(!r)return;
       const updated={...r,...details,status,revision:r.revision+1,updatedAt:new Date(this.now()).toISOString()};
-      await tx.put(recordKey(id),updated);await releaseNumber(tx,updated);if(!keepWork)await tx.delete('work:'+id);
+      await tx.put(recordKey(id),updated);await releaseNumber(tx,updated);
+      if(status==='scheduled')await tx.put('monitor:'+id,{contactId:id,due:Math.max(this.now()+1000,updated.window.startEpoch)});
+      if(released(updated))await tx.delete('monitor:'+id);
+      if(!keepWork)await tx.delete('work:'+id);
       await tx.put('callback-audit:'+id+':'+String(updated.revision).padStart(8,'0'),{
         action:status,at:updated.updatedAt,contactId:id,scheduleId:updated.scheduleId,actor:r.actor,requestId:r.requestId});
     });
@@ -158,7 +165,8 @@ export class CallbackExecution {
     // Durable wake-up precedes external I/O. A restart never replays an uncertain POST.
     await this.storage.setAlarm(this.now()+45000);
     try{
-      if(['dispatching','creation-unconfirmed'].includes(r.status)){
+      if(r.management){const op=await this.management.get(r.management.id);if(op)await this.management.reconcile(op);return {success:true,record:publicRecord(await this.storage.get(recordKey(id)),this.now())};}
+    if(['dispatching','creation-unconfirmed'].includes(r.status)){
         if(r.status==='dispatching'&&this.now()<(r.leaseUntil||0)){delay=45000;return;}
         try{await this.reconcile(r);}catch(e){await this.finish(id,'creation-unconfirmed',{reason:e.code||'reconciliation-unavailable'});}
         delay=15000;return;
@@ -211,11 +219,13 @@ export class CallbackExecution {
   async refreshRecord(id){
     if(!UUID.test(id||''))throw new SettingsError('invalid-record-id');
     const r=await this.storage.get(recordKey(id));if(!r)throw new SettingsError('callback-record-not-found',404);
+    if(r.management){const op=await this.management.get(r.management.id);if(op)await this.management.reconcile(op);return {success:true,record:publicRecord(await this.storage.get(recordKey(id)),this.now())};}
     if(['dispatching','creation-unconfirmed'].includes(r.status)){
       if(r.status==='dispatching'&&this.now()<(r.leaseUntil||0))return {success:true,record:publicRecord(r,this.now())};
       await this.reconcile(r);return {success:true,record:publicRecord(await this.storage.get(recordKey(id)),this.now())};
     }
-    if(!r.scheduleId)return {success:true,record:publicRecord(r,this.now())};
+    if(!r.scheduleId||released(r))return {success:true,record:publicRecord(r,this.now())};
+    if(this.now()>=r.window.startEpoch){await this.outcomes.observe(id);return {success:true,record:publicRecord(await this.storage.get(recordKey(id)),this.now())};}
     const schedule=await this.native().get(r.scheduleId);
     const observation={checkedAt:this.now(),status:schedule?this.native().matches(schedule,r.payload)?'schedule-confirmed':'schedule-changed-externally':'not-in-future-inventory',
       message:schedule?'Native schedule checked. A schedule is not evidence of a completed call.':'Not present in future schedules. Outcome and any remaining attempts are unconfirmed.'};
@@ -225,6 +235,11 @@ export class CallbackExecution {
   async handle(request){
     try{
       const u=new URL(request.url);
+      if(request.method==='GET'&&u.pathname==='/flow-policy'){const id=u.searchParams.get('id');if(!UUID.test(id||''))throw new SettingsError('invalid-record-id');const record=await this.storage.get(recordKey(id)),policy=storedFlowPolicy(record,this.now());return respond(policy,policy.success?200:404);}
+      if(request.method==='GET'&&u.pathname==='/management'){const operation=await this.management.get(u.searchParams.get('id'));return respond({success:true,operation});}
+      if(request.method==='POST'&&u.pathname==='/manage')return respond(await this.management.enqueue(await request.json()),202);
+      if(request.method==='GET'&&u.pathname==='/automation-status')return respond(await this.automation.status());
+      if(request.method==='POST'&&u.pathname==='/automation-tick')return respond(await this.automation.tick((await request.json()).report));
       if(request.method==='GET'&&u.pathname==='/register')return respond(await this.register(u.searchParams.get('before')));
       if(request.method==='POST'&&u.pathname==='/refresh-record')return respond(await this.refreshRecord((await request.json()).contactId));
       if(request.method==='POST'&&u.pathname==='/inspect'){const input=await request.json();return respond({success:true,rows:await this.inspect(input.rows),observedAt:this.now()});}

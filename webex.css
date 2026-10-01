@@ -1390,3 +1390,14 @@ body.dark-mode .stat-card {
   font-weight: 800;
   white-space: nowrap;
 }
+
+/* Current dashboard header: all actions remain visible, without overlapping absolute positions. */
+.header-right .dashboard-settings-btn, .header-right .alert-settings-btn, .header-right .alert-history-btn {
+  position: static; inset: auto; white-space: nowrap; flex: 0 0 auto;
+}
+.header-right { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 1150px) {
+  .header { flex-wrap: wrap; gap: 10px; }
+  .header-right { flex: 1 0 100%; }
+  .header-center { min-width: 180px; }
+}

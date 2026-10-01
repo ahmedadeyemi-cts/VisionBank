@@ -28,6 +28,22 @@
   let reportReady = false;
   let refreshTimer = null;
   let requestInFlight = null;
+  let lastDisplayKey = '';
+  const centralDate = at => new Intl.DateTimeFormat('en-CA',{timeZone:REPORT_TIMEZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(at);
+  function reportCurrent() {
+    const at=lastPayload?.generatedAtEpoch,now=Date.now();
+    return window.VB_SECURITY?.allowed===true&&reportReady&&Number.isFinite(at)&&now-at>=-5000&&now-at<150000&&centralDate(at)===centralDate(now);
+  }
+  const displayCount = v => Number.isSafeInteger(v)&&v>=0?v.toLocaleString():'—';
+  const rateFromCounts = (n,d) => Number.isSafeInteger(n)&&n>=0&&Number.isSafeInteger(d)&&d>0&&n<=d?(100*n/d).toFixed(1)+'%':'—';
+  const displayedDuration = v => typeof v==='string'&&/^\d{2,}:\d{2}:\d{2}$/.test(v)?v:'Not reported';
+  function refreshDisplay() {
+    const key=[window.VB_SECURITY?.allowed===true,reportCurrent(),lastPayload?.generatedAtEpoch].join(':');
+    if(key===lastDisplayKey)return;lastDisplayKey=key;
+    renderSummary(lastPayload?.summary||{});renderOperatingMode(lastPayload||{});setReportMeta(lastPayload);
+    renderTable('answered');renderTable('abandoned');
+  }
+  window.VB_DAILY_REPORT_STATUS=Object.freeze({refresh:refreshDisplay,current:reportCurrent});
 
   function byId(id) {
     return document.getElementById(id);
@@ -52,8 +68,7 @@
   }
 
   function formatRate(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0.0%";
+    return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100?`${value.toFixed(1)}%`:'—';
   }
 
   function ensureTransitionUi() {
@@ -79,7 +94,9 @@
 
     const answerRate = byId("dailyAnswerRate");
     const answerRateLabel = answerRate?.closest(".stat-card")?.querySelector(".stat-label");
-    if (answerRateLabel) answerRateLabel.textContent = "Agent Answer Rate";
+    if (answerRateLabel) {answerRateLabel.textContent = "Answered / received";answerRateLabel.parentElement.title='Answered contacts / all received inbound Voice contacts started today. Offered-based answer rate is in Voice Statistics.';}
+    const abandonRateLabel=byId('dailyAbandonRate')?.closest('.stat-card')?.querySelector('.stat-label');
+    if(abandonRateLabel){abandonRateLabel.textContent='Abandoned / received';abandonRateLabel.parentElement.title='Abandoned contacts / all received inbound Voice contacts started today. Queue-entry abandonment rate is in Voice Statistics.';}
 
     if (summary && !byId("dailyOperatingModeNotice")) {
       const notice = document.createElement("div");
@@ -103,18 +120,11 @@
     const notice = byId("dailyOperatingModeNotice");
     if (!notice) return;
 
-    const transferredOut = Number(payload?.summary?.transferredOutCalls || 0);
-    const transitionMode = payload?.operatingMode === "flow-blind-transfer-transition";
-
-    if (transitionMode || transferredOut > 0) {
-      const message = payload?.operatingModeMessage ||
-        `${transferredOut.toLocaleString()} call${transferredOut === 1 ? "" : "s"} transferred out by Webex Contact Center Flow.`;
-      notice.innerHTML = `<strong>Current call-routing mode:</strong> ${html(message)} When agents begin taking calls inside Webex Contact Center, answered-agent metrics will populate automatically.`;
-      notice.style.display = "block";
-    } else {
-      notice.textContent = "";
-      notice.style.display = "none";
-    }
+    const transferredOut=payload?.summary?.transferredOutCalls;
+    if(reportCurrent()&&Number.isSafeInteger(transferredOut)&&transferredOut>0){
+      notice.textContent=`${transferredOut.toLocaleString()} inbound contact(s) transferred out today. This does not establish whether a person answered at the destination. Daily rates here use all received calls; Voice Statistics shows the separate offered-based rate.`;
+      notice.style.display='block';
+    }else{notice.textContent='';notice.style.display='none';}
   }
 
   function compareValues(a, b, key) {
@@ -193,10 +203,10 @@
         <td>${html(row.agentName || "-")}</td>
         <td>${html(row.startTimeCentral || "-")}</td>
         <td>${html(row.endTimeCentral || "-")}</td>
-        <td>${html(row.ivrQueueTime || "00:00:00")}</td>
-        <td>${html(row.talkTime || "00:00:00")}</td>
-        <td>${html(row.totalCallDuration || "00:00:00")}</td>
-        <td>${row.transferred ? "Yes" : "No"}</td>
+        <td>${html(displayedDuration(row.ivrQueueTime))}</td>
+        <td>${html(displayedDuration(row.talkTime))}</td>
+        <td>${html(displayedDuration(row.totalCallDuration))}</td>
+        <td>${row.transferred===true ? "Yes" : row.transferred===false ? "No" : "Not reported"}</td>
         <td>${html(row.transferred ? (row.transferredTo || "Not provided by Webex") : "-")}</td>
       </tr>`;
   }
@@ -207,9 +217,9 @@
         <td>${html(row.ani || "-")}</td>
         <td>${html(row.dnis || "-")}</td>
         <td>${html(row.startTimeCentral || "-")}</td>
-        <td>${html(row.totalCallDuration || "00:00:00")}</td>
-        <td>${html(row.totalIvrQueueDuration || "00:00:00")}</td>
-        <td>${html(row.timeToAbandon || "00:00:00")}</td>
+        <td>${html(displayedDuration(row.totalCallDuration))}</td>
+        <td>${html(displayedDuration(row.totalIvrQueueDuration))}</td>
+        <td>${html(displayedDuration(row.timeToAbandon))}</td>
         <td>${html(row.abandonmentStage || "Abandoned")}</td>
         <td>${html(row.agentName || "-")}</td>
       </tr>`;
@@ -217,6 +227,16 @@
 
   function renderTable(kind) {
     const state = states[kind];
+    const exportButton=byId(kind==='answered'?'exportAnsweredCalls':'exportAbandonedCalls');
+    if(exportButton)exportButton.disabled=!reportCurrent();
+    if(!reportCurrent()){
+      const body=byId(kind==='answered'?'answeredCallsBody':'abandonedCallsBody');
+      if(body)body.innerHTML=`<tr><td colspan="${kind==='answered'?10:8}" class="report-empty">${window.VB_SECURITY?.allowed!==true?'Reporting access is not approved.':'Report is loading, stale, or unavailable. Retrying automatically; no zero totals are inferred.'}</td></tr>`;
+      for(const suffix of ['PrevPage','NextPage']){const b=byId(kind+suffix);if(b)b.disabled=true;}
+      setText(kind+'RecordCount','Not reported');setText(kind+'PageStatus','Not reported');
+      if(kind==='abandoned')window.VB_ABANDONED_SELECTION?.invalidate('Current abandoned-call reporting is unavailable.');
+      return;
+    }
     applyFilterSort(kind);
 
     const body = byId(kind === "answered" ? "answeredCallsBody" : "abandonedCallsBody");
@@ -227,12 +247,7 @@
     const colspan = kind === "answered" ? 10 : 8;
 
     if (!pageRows.length) {
-      let empty;
-      if (kind === "answered" && lastPayload?.summary?.agentAnswerRateApplicable === false) {
-        empty = "No calls were answered by Webex agents today. Calls are currently being blind-transferred out by Flow.";
-      } else {
-        empty = kind === "answered" ? "No answered calls today." : "No abandoned calls today.";
-      }
+      const empty=getSearchValue(kind)?'No calls match the current search.':kind==='answered'?'No answered calls in today’s reporting scope.':'No abandoned calls in today’s reporting scope.';
       body.innerHTML = `<tr><td colspan="${colspan}" class="report-empty">${empty}</td></tr>`;
     } else {
       body.innerHTML = pageRows
@@ -255,12 +270,13 @@
 
   function renderSummary(summary = {}) {
     ensureTransitionUi();
-    setText("dailyTotalReceived", Number(summary.totalCallsReceived || 0).toLocaleString());
-    setText("dailyAnswered", Number(summary.answeredCalls || 0).toLocaleString());
-    setText("dailyAbandoned", Number(summary.abandonedCalls || 0).toLocaleString());
-    setText("dailyTransferredOut", Number(summary.transferredOutCalls || 0).toLocaleString());
-    setText("dailyAnswerRate", summary.agentAnswerRateApplicable === false ? "N/A" : formatRate(summary.answerRate));
-    setText("dailyAbandonRate", formatRate(summary.abandonRate));
+    const valid=reportCurrent(),value=key=>valid?summary[key]:null;
+    setText('dailyTotalReceived',displayCount(value('totalCallsReceived')));
+    setText('dailyAnswered',displayCount(value('answeredCalls')));
+    setText('dailyAbandoned',displayCount(value('abandonedCalls')));
+    setText('dailyTransferredOut',displayCount(value('transferredOutCalls')));
+    setText('dailyAnswerRate',rateFromCounts(value('answeredCalls'),value('totalCallsReceived')));
+    setText('dailyAbandonRate',rateFromCounts(value('abandonedCalls'),value('totalCallsReceived')));
 
     const transferCard = byId("dailyTransferredOutCard");
     if (transferCard) {
@@ -269,12 +285,9 @@
   }
 
   function setReportMeta(payload) {
-    const label = payload?.generatedAtCentral || "-";
-    const modeSuffix = payload?.operatingMode === "flow-blind-transfer-transition"
-      ? " • Flow blind-transfer transition mode"
-      : "";
-    setText("answeredCallsMeta", `America/Chicago business day • Updated ${label}${modeSuffix}`);
-    setText("abandonedCallsMeta", `America/Chicago business day • Updated ${label}${modeSuffix}`);
+    const label=Number.isFinite(payload?.generatedAtEpoch)?new Date(payload.generatedAtEpoch).toLocaleString('en-US',{timeZone:REPORT_TIMEZONE,timeZoneName:'short'}):'Not reported';
+    const scope=reportCurrent()?`Inbound Voice contacts started today · America/Chicago · Updated ${label}`:`Daily reporting unavailable or stale · Last response: ${label}`;
+    setText('answeredCallsMeta',scope);setText('abandonedCallsMeta',scope);
   }
 
   function setLoading(kind, message) {
@@ -314,6 +327,7 @@
           throw new Error(data?.error || `Daily report endpoint returned HTTP ${res.status}.`);
         }
 
+        if(!Array.isArray(data.answeredCalls)||!Array.isArray(data.abandonedCalls)||!data.summary||!Number.isFinite(data.generatedAtEpoch))throw new Error('Daily report response is incomplete.');
         lastPayload = data;
         reportReady = true;
         states.answered.rows = Array.isArray(data.answeredCalls) ? data.answeredCalls : [];
@@ -325,6 +339,8 @@
         renderTable("answered");
         renderTable("abandoned");
       } catch (err) {
+        reportReady=false;renderSummary({});renderOperatingMode({});setReportMeta(lastPayload);
+        for(const id of ['exportAnsweredCalls','exportAbandonedCalls']){const button=byId(id);if(button)button.disabled=true;}
         console.error("Webex daily report load failed:", err);
         setLoading("answered", `Unable to load answered-call report: ${err.message}`);
         setLoading("abandoned", `Unable to load abandoned-call report: ${err.message}`);
@@ -615,6 +631,7 @@
   }
 
   function exportAnswered() {
+    if(!reportCurrent())return;
     applyFilterSort("answered");
     const headers = [
       "Customer Number (ANI)",
@@ -634,10 +651,10 @@
       row.agentName || "-",
       row.startTimeCentral || "-",
       row.endTimeCentral || "-",
-      row.ivrQueueTime || "00:00:00",
-      row.talkTime || "00:00:00",
-      row.totalCallDuration || "00:00:00",
-      row.transferred ? "Yes" : "No",
+      displayedDuration(row.ivrQueueTime),
+      displayedDuration(row.talkTime),
+      displayedDuration(row.totalCallDuration),
+      row.transferred===true ? "Yes" : row.transferred===false ? "No" : "Not reported",
       row.transferred ? (row.transferredTo || "Not provided by Webex") : "-"
     ]);
 
@@ -645,6 +662,7 @@
   }
 
   function exportAbandoned() {
+    if(!reportCurrent())return;
     applyFilterSort("abandoned");
     const headers = [
       "ANI",
@@ -660,9 +678,9 @@
       row.ani || "-",
       row.dnis || "-",
       row.startTimeCentral || "-",
-      row.totalCallDuration || "00:00:00",
-      row.totalIvrQueueDuration || "00:00:00",
-      row.timeToAbandon || "00:00:00",
+      displayedDuration(row.totalCallDuration),
+      displayedDuration(row.totalIvrQueueDuration),
+      displayedDuration(row.timeToAbandon),
       row.abandonmentStage || "Abandoned",
       row.agentName || "-"
     ]);
@@ -689,8 +707,11 @@
     setLoading("abandoned", "Loading today's abandoned calls…");
     fetchDailyReports();
 
-    refreshTimer = window.setInterval(() => fetchDailyReports(false), REPORT_REFRESH_MS);
+    const observer=new MutationObserver(refreshDisplay);observer.observe(document.body,{attributes:true,attributeFilter:['class']});
+    document.addEventListener('visibilitychange',refreshDisplay);
+    refreshTimer = window.setInterval(() => {refreshDisplay();void fetchDailyReports(false);}, REPORT_REFRESH_MS);
     window.addEventListener("beforeunload", () => {
+      observer.disconnect();
       if (refreshTimer) window.clearInterval(refreshTimer);
     }, { once: true });
   }
@@ -701,7 +722,7 @@
       if (window.VB_SECURITY?.allowed !== true) return null;
       const s = states.abandoned, start = (s.page - 1) * REPORT_PAGE_SIZE;
       return { rows: s.rows, filtered: s.filtered, pageRows: s.filtered.slice(start, start + REPORT_PAGE_SIZE),
-        ready: reportReady, filter: getSearchValue('abandoned'), observedAt: lastPayload?.generatedAtEpoch ?? null };
+        ready: reportCurrent(), filter: getSearchValue('abandoned'), observedAt: lastPayload?.generatedAtEpoch ?? null };
     },
     redraw() { renderTable('abandoned'); }
   });
@@ -714,7 +735,8 @@
     states,
     applyFilterSort,
     ensureTransitionUi,
-    renderOperatingMode
+    renderOperatingMode,
+    formatRate,displayCount,rateFromCounts,displayedDuration,reportCurrent,refreshDisplay,renderSummary
   };
 
   if (document.readyState === "loading") {

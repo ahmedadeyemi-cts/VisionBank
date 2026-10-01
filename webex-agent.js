@@ -475,7 +475,7 @@ runAutoLogoutNowBtn?.addEventListener("click", async function () {
 // =====================================================
 sendTestReminderBtn?.addEventListener("click", async function () {
   showActionMessage(
-    "Webex automatic signout is handled by the standalone Worker. Email reminders remain on the existing Legacy Agent Controls service so the stable VisionBank Security Worker does not need to be modified.",
+    "Webex automatic signout is handled by its dedicated service. Notification scheduling is managed separately.",
     "success"
   );
 });

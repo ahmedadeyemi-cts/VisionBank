@@ -11,7 +11,7 @@ export function build(source) {
   const candidate=source.replace(anchor,route+anchor)+suffix;
   if(candidate.replace(route,'').slice(0,-suffix.length)!==source)throw new Error('Existing Worker bytes changed.');
   parse(candidate,{ecmaVersion:'latest',sourceType:'module'});
-  const files=['callback-settings/policy.mjs','callback-settings/gateway.mjs','callback-settings/selection.mjs','callback-settings/plans.mjs','callback-settings/planning-gateway.mjs'];
+  const files=['callback-settings/policy.mjs','callback-settings/gateway.mjs','callback-settings/selection.mjs','callback-settings/plans.mjs','callback-settings/planning-gateway.mjs','callback-settings/flow-policy.mjs'];
   const modules=Object.fromEntries(files.map(f=>{const data=fs.readFileSync(new URL('../'+f,import.meta.url),'utf8');
     parse(data,{ecmaVersion:'latest',sourceType:'module'});return[f,{sha256:sha(data),content:data}];}));
   for(const [name,module]of Object.entries(modules)){

@@ -11,7 +11,7 @@ export function readinessChecklist(state, gate, native, blockers, now = Date.now
   add('flow', 'Published flow, routing and caller ID', has('callback-entrypoint-and-caller-id-not-verified','callback-entry-point-review-required','queue-not-approved-for-this-release','approved-queue-not-configured') ? 'not-verified' : 'passed',
     'The new flow must be published and assigned to the selected entry point. Its route and caller ID require a matching backend review.', 'Flow integration');
   add('attempts', 'Customer-dial attempt limit', has('callback-attempt-policy-not-verified','requested-attempt-limit-not-verified','webex-attempt-policy-changed') ? 'not-verified' : 'passed',
-    `${settings.maxAttempts ?? 'Not saved'} total attempts requested; ${gate.validatedTotalAttempts ?? 'no'} verified total-attempt policy. Retries belong to Webex, not additional dashboard schedules.`, 'Flow integration');
+    gate.attemptPolicyMode==='per-record-policy'?`${settings.maxAttempts ?? 'Not saved'} total attempts requested. The reviewed flow retrieves this immutable record policy before dialing; Webex owns retries.`:`${settings.maxAttempts ?? 'Not saved'} total attempts requested; ${gate.validatedTotalAttempts ?? 'no'} verified total-attempt policy. Retries belong to Webex, not additional dashboard schedules.`, 'Flow integration');
   add('message', 'Incoming agent message', has('agent-message-display-not-verified') ? 'not-verified' : 'passed',
     'Callback for missed call from customer. Map the callback reason to an agent-viewable flow variable.', 'Flow integration');
   add('pilot', 'Pilot approval', has('pilot-phase-not-configured','one-approved-test-number-required','single-callback-pilot-not-passed') ? 'not-verified' : 'passed',
@@ -28,7 +28,7 @@ export function readinessChecklist(state, gate, native, blockers, now = Date.now
     summary:blockers.length ? 'You can save settings and callback plans. Webex scheduling remains paused until the checks below pass.' : 'Ready to submit the selected callbacks to Webex.'};
 }
 export function callbackStatusLabel(status) {
-  return ({'submission-pending':'Accepted locally — awaiting Webex',dispatching:'Submitting to Webex',
+  return ({'schedule-unconfirmed':'Schedule no longer confirmed','activity-stale':'Last activity is stale — refresh status','change-pending':'Schedule change pending','change-unconfirmed':'Schedule change unconfirmed',canceled:'Canceled in Webex',completed:'Callback completed',exhausted:'Attempts exhausted',expired:'Callback expired','failed-terminal':'Callback failed',dialing:'Calling customer',connected:'Customer connected','awaiting-agent':'Awaiting agent','callback-active':'Callback active','retry-pending':'Awaiting Webex retry','outcome-unconfirmed':'Outcome not confirmed','submission-pending':'Accepted locally — awaiting Webex',dispatching:'Submitting to Webex',
     'creation-unconfirmed':'Creation unconfirmed — review required',scheduled:'Scheduled in Webex',
     'due-outcome-unconfirmed':'Due — outcome not confirmed',rejected:'Not scheduled — Webex rejected',
     'not-submitted':'Not submitted',draft:'Saved plan — not scheduled',submitted:'Submitted — see callback records',archived:'Archived plan'})[status] || 'Status not confirmed';

@@ -64,9 +64,18 @@ test('Whitespace/null IDs are not made into phantom agents',()=>{
 });
 test('HTML version pins and labels load the corrected scripts once',()=>{
  const html=fs.readFileSync(new URL('../webex.html',import.meta.url),'utf8');
- assert.equal((html.match(/src="webex-integrated-chat.js\?v=20260929-voice-stats7"/g)||[]).length,1);
- assert(html.includes('webex.js?v=20260929-voice-stats7'));
+ assert.equal((html.match(/src="webex-integrated-chat.js\?v=20261001-completion-audit1"/g)||[]).length,1);
+ assert(html.includes('webex.js?v=20261001-completion-audit1'));
  const voice=fs.readFileSync(new URL('../webex.js',import.meta.url),'utf8');
  assert(voice.includes('tr.dataset.vbAgentId = String(a.agentId || "")'));
  assert(!voice.includes('No Webex agents are currently logged in.'));
+});
+
+test('newer explicit zero slot counts agree with channel icons when Chat history is absent',()=>{
+ const b=dash('available');b.agents[0].chatChannel={routingState:'available',source:'agentSession.channelInfo',observedAt:now,reportedSlotCount:5,activeSlots:0,wrapupSlots:0};
+ const a=present(b,null,null).rows[0];assert.equal(a.active,0);assert.equal(a.wrapup,0);
+});
+test('newer complete per-agent counts supersede an older live snapshot',()=>{
+ const b=dash('engaged');b.agents[0].chatChannel={routingState:'engaged',source:'agentSession.channelInfo',observedAt:now,reportedSlotCount:5,activeSlots:1,wrapupSlots:0};
+ const a=present(b,{...live(),liveObservedAt:now-5000},null).rows[0];assert.equal(a.active,1);
 });

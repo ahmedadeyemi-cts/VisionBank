@@ -5,7 +5,7 @@ export class MemoryStorage {
   constructor(){this.data=new Map();this.tail=Promise.resolve();this.failAudit=false;}
   async get(k){return structuredClone(this.data.get(k));}
   async put(k,v){if(this.failAudit&&k.startsWith('audit:'))throw Error('injected storage failure');this.data.set(k,structuredClone(v));}
-  async list({prefix='',reverse=false,limit=100,end}={}){let entries=[...this.data].filter(([k])=>k.startsWith(prefix)&&(!end||k<end)).sort(([a],[b])=>a.localeCompare(b));if(reverse)entries.reverse();return new Map(entries.slice(0,limit));}
+  async list({prefix='',reverse=false,limit=100,end,startAfter}={}){let entries=[...this.data].filter(([k])=>k.startsWith(prefix)&&(!end||k<end)&&(!startAfter||k>startAfter)).sort(([a],[b])=>a.localeCompare(b));if(reverse)entries.reverse();return new Map(entries.slice(0,limit));}
   async delete(k){this.data.delete(k);}
   async setAlarm(at){this.data.set('__alarm',at);}
   async getAlarm(){return this.data.get('__alarm')??null;}

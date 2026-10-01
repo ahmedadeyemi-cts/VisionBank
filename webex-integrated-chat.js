@@ -55,7 +55,7 @@
   function table(panel,id,columns,choices=[]) {
     if(!panel)return;
     const container=document.createElement('div');container.className='vb-ops-table-block';
-    container.innerHTML=`<p class="vb-ops-meta" id="${id}-meta" role="status">Unavailable until the Chat candidate is deployed.</p>
+    container.innerHTML=`<p class="vb-ops-meta" id="${id}-meta" role="status">Waiting for reporting data.</p>
       <div class="vb-ops-tools"><label>Search <input type="search" id="${id}-search" aria-label="Search ${esc(panel.querySelector('h2').textContent)}" autocomplete="off"></label>
       ${choices.length?`<label>View <select id="${id}-filter">${choices.map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('')}</select></label>`:''}
       <button type="button" id="${id}-export" disabled>Export CSV</button></div>
@@ -126,6 +126,7 @@
       row.slotActive = sessionFresh && Number.isInteger(a.chatChannel?.activeSlots) ? a.chatChannel.activeSlots : null;
       row.slotWrapup = sessionFresh && Number.isInteger(a.chatChannel?.wrapupSlots) ? a.chatChannel.wrapupSlots : null;
       row.slotNewer = sessionFresh && recent(a.chatChannel?.observedAt,45000) && a.chatChannel.observedAt >= (liveReport?.liveObservedAt || 0);
+      row.slotCountsKnown = row.slotNewer && a.chatChannel?.source==='agentSession.channelInfo' && !text(a.chatChannel.reason) && [row.slotActive,row.slotWrapup].every(n=>Number.isSafeInteger(n)&&n>=0) && Number.isSafeInteger(row.slotLimit)&&row.slotLimit>0&&row.slotActive+row.slotWrapup<=row.slotLimit;
     }
     if (dailyFresh) for (const r of dailyReport.rows) {
       if (r.handled !== true) continue;
@@ -142,8 +143,8 @@
       unavailable:'Unavailable', wrapup:'Wrap-up', 'wrap-up':'Wrap-up', 'engagedother':'Engaged other'};
     const rows = [...agents.values()].map(row => {
       const current = row.sessionReported || row.liveRecord;
-      const active = ownershipKnown && current ? row.activeCount : row.slotNewer && row.slotActive > 0 ? row.slotActive : null;
-      const wrapup = ownershipKnown && current ? row.wrapupCount : row.slotNewer && row.slotWrapup > 0 ? row.slotWrapup : null;
+      const active = row.slotCountsKnown && current ? row.slotActive : ownershipKnown && current ? row.activeCount : null;
+      const wrapup = row.slotCountsKnown && current ? row.slotWrapup : ownershipKnown && current ? row.wrapupCount : null;
       const raw = row.rawRouting, key = raw.toLowerCase();
       const routingState = raw ? (reportedNames[key] || raw) : (row.staleSession && !row.liveRecord ? 'Stale data' : 'Not reported');
       const routingTone = !raw ? 'unknown' : key === 'available' ? 'available' :
@@ -226,8 +227,8 @@
       ['Ended (CST/CDT)',r=>time(r.endedAt),r=>r.endedAt||0],['Recorded queue duration',r=>duration(r.queueWaitMs),r=>r.queueWaitMs??-1],['Status',r=>r.status]];
     table(appendPanel('vbHandledChats',"Today's Handled Chats",$('answeredCallsPanel')),'chat-handled',fields,[['all','Handled contacts started today'],['active','Active now (30-day snapshot)'],['completed','Completed today (including earlier starts)']]);
     table(appendPanel('vbAbandonedChats',"Today's Abandoned Chats",$('abandonedCallsPanel')),'chat-abandoned',fields.concat([['Reported reason',r=>r.abandonmentType||'Not supplied']]));
-    const callbackPanel=appendPanel('vbCallbacks','Callback Register — History', $('vbAbandonedChats')||$('abandonedCallsPanel'));
-    if(callbackPanel)callbackPanel.insertAdjacentHTML('beforeend','<p class="vb-ops-warning">Scheduled callback inventory is not connected. Upcoming, pending, overdue, canceled and assigned-due totals are unavailable. This history is not a list of all callback requests.</p>');
+    const callbackPanel=appendPanel('vbCallbacks','Webex Callback Call History', $('vbAbandonedChats')||$('abandonedCallsPanel'));
+    if(callbackPanel)callbackPanel.insertAdjacentHTML('beforeend','<p class="vb-ops-warning">Provider-reported callback interactions, including callbacks created outside this dashboard. Use Callback Workspace for dashboard-scheduled requests. Call history is not pending schedule inventory.</p>');
     table(callbackPanel,'callback-history',[
       ['Callback contact / attempt ID',r=>r.contactId],['Origin',r=>r.origin||'Unavailable'],['Type',r=>r.type||'Unavailable'],
       ['Requested',r=>time(r.requestedAt),r=>r.requestedAt||0],['Connected',r=>time(r.connectedAt),r=>r.connectedAt||0],
@@ -241,12 +242,12 @@
     const table=body.closest('table');if(!table)return;
     const current=approved()&&fresh(base.generatedAtEpoch,45000);
     table.classList.add('vb-ops-queue');
-    table.querySelector('thead tr').innerHTML=['Queue','Channel','Waiting','Offered','Active','Wrap-up','Agents (legacy count)','Max wait','Avg wait'].map(x=>`<th>${esc(x)}</th>`).join('');
+    table.querySelector('thead tr').innerHTML=['Queue','Channel','Waiting','Offered','Active','Wrap-up','Agents reported','Max wait','Avg wait'].map(x=>`<th>${esc(x)}</th>`).join('');
     body.innerHTML=base.queues.map(q=>{
       const known=current&&q.operationsRevision===3&&q.countStatus==='ready';
       const n=k=>known&&Number.isInteger(q[k])&&q[k]>=0?q[k]:'Not reported';
       const label=String(q.channelType).toLowerCase()==='chat'?'Chat':'Voice';
-      return `<tr><td>${esc(q.name)}</td><td>${label}</td><td>${esc(n('waiting'))}</td><td>${esc(n('offered'))}</td><td>${esc(n('active'))}</td><td>${esc(n('wrapup'))}</td><td>${esc(q.agents??'Not reported')}</td><td>${esc(known?q.maxWait:'Not reported')}</td><td>${esc(known?q.avgWait:'Not reported')}</td></tr>`;
+      return `<tr><td>${esc(q.name)}</td><td>${label}</td><td>${esc(n('waiting'))}</td><td>${esc(n('offered'))}</td><td>${esc(n('active'))}</td><td>${esc(n('wrapup'))}</td><td>${esc(current&&Number.isSafeInteger(q.agents)&&q.agents>=0?q.agents:'Not reported')}</td><td>${esc(known?q.maxWait:'Not reported')}</td><td>${esc(known?q.avgWait:'Not reported')}</td></tr>`;
     }).join('');
     let note=$('vb-queue-note');if(!note){note=document.createElement('p');note.id='vb-queue-note';note.className='vb-ops-meta';table.insertAdjacentElement('afterend',note);}
     note.textContent=current?`Voice and Chat snapshot: ${time(base.generatedAtEpoch)}. Only Waiting contacts trigger queue alerts. Offered, Active and Wrap-up are separate. Timers require a current queue-entry event.`:'Current queue snapshot is stale or unavailable; no zero counts are inferred.';
@@ -277,7 +278,8 @@
     else{handled=daily?.rows?.filter(r=>r.handled===true)||[];handledOK=dailyOK;note=`Handled contacts STARTED today, including ongoing conversations · ${time(daily?.dailyObservedAt)}`;}
     fill('chat-handled',handled,handledOK,note);
     fill('chat-abandoned',daily?.completedRows?.filter(r=>r.status==='Abandoned')||[],completedOK,`Provider-marked abandonment before handling, contacts ENDING today · ${time(daily?.completedObservedAt)}. No browser-close inference.`);
-    const cb=daily?.callbacks;fill('callback-history',cb?.rows||[],approved()&&cb?.status==='ready'&&fresh(cb.observedAt,150000),cb?.coverage||'Callback history unavailable; scheduled request inventory is not connected.');
+    const cb=daily?.callbacks;fill('callback-history',cb?.rows||[],approved()&&cb?.status==='ready'&&fresh(cb.observedAt,150000),cb?.status==='ready'?`Provider-reported callback interactions · ${time(cb.observedAt)}. Retry counts are reported retries, not a count of confirmed customer-dial attempts.`:'Callback call history is unavailable. Use Callback Workspace for saved plans and schedule confirmations.');
+    window.VB_DAILY_REPORT_STATUS?.refresh();
     renderQueues();
     window.VB_AGENT_INDICATORS?.decorate(presentation,approved()?base:null,approved()?live:null);
   }

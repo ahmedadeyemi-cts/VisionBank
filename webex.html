@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
     <link rel="stylesheet" href="webex-reports.css?v=20260828-v1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
+    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261001-enterprise1" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -610,6 +611,64 @@
   </section>
 
   <!-- ===================================================== -->
+  <!-- ENTERPRISE OPERATIONS & ANALYTICS -->
+  <!-- ===================================================== -->
+  <section class="panel enterprise-analytics" id="enterpriseAnalyticsPanel" aria-labelledby="enterpriseAnalyticsTitle">
+    <div class="ea-heading">
+      <div>
+        <h2 id="enterpriseAnalyticsTitle">Enterprise Operations & Analytics</h2>
+        <p>Supervisor visibility across agent activity, queue pressure, daily demand, and callbacks.</p>
+      </div>
+      <button id="enterpriseAnalyticsRefresh" class="daily-report-button secondary" type="button">Refresh Analytics</button>
+    </div>
+    <div class="ea-status-row">
+      <span id="enterpriseAnalyticsStatus" class="ea-status">Loading enterprise analytics…</span>
+      <span><span id="eaRealtimeFreshness">Realtime snapshot unavailable</span> · <span id="eaDailyFreshness">Daily reporting unavailable</span></span>
+    </div>
+    <div class="ea-tabs" role="tablist" aria-label="Enterprise analytics views">
+      <button class="ea-tab active" type="button" data-ea-tab="overview">Command Center</button>
+      <button class="ea-tab" type="button" data-ea-tab="people">Top Performers</button>
+      <button class="ea-tab" type="button" data-ea-tab="demand">Demand & Trends</button>
+    </div>
+    <div data-ea-view="overview">
+      <div class="ea-kpis">
+        <div class="ea-kpi"><strong id="eaAgentsLoggedIn">—</strong><span>Agents logged in</span></div>
+        <div class="ea-kpi"><strong id="eaAgentsAvailable">—</strong><span>Available now</span></div>
+        <div class="ea-kpi"><strong id="eaAgentsEngaged">—</strong><span>Engaged now</span></div>
+        <div class="ea-kpi"><strong id="eaCallsWaiting">—</strong><span>Calls waiting</span></div>
+        <div class="ea-kpi"><strong id="eaServiceLevel">—</strong><span>Service level</span></div>
+        <div class="ea-kpi"><strong id="eaAnswerRate">—</strong><span>Answer rate</span></div>
+        <div class="ea-kpi"><strong id="eaAbandonRate">—</strong><span>Abandon rate</span></div>
+        <div class="ea-kpi"><strong id="eaMaxWait">—</strong><span>Maximum wait</span></div>
+        <div class="ea-kpi"><strong id="eaCallbacksRegistered">—</strong><span>Callbacks registered</span></div>
+        <div class="ea-kpi"><strong id="eaCallbacksWaiting">—</strong><span>Callbacks waiting</span></div>
+      </div>
+      <div class="ea-grid">
+        <div class="ea-card"><h3>Agent state distribution</h3><div id="eaStateDistribution"></div></div>
+        <div class="ea-card"><h3>Queue pressure</h3><div id="eaQueuePressure"></div></div>
+      </div>
+    </div>
+    <div data-ea-view="people" hidden>
+      <div class="ea-card">
+        <h3>Current agent activity ranking</h3>
+        <p class="ea-ranking-note">Ranked by current-session handled contact volume (inbound + outbound). This is an activity view, not a quality, customer-satisfaction, or employee-performance score.</p>
+        <div class="ea-table-wrap"><table class="ea-table"><thead><tr><th>#</th><th>Agent</th><th>State</th><th>Inbound</th><th>Outbound</th><th>Missed</th><th>Transferred</th><th>Avg Handle</th></tr></thead><tbody id="eaLeaderboardRows"></tbody></table></div>
+      </div>
+    </div>
+    <div data-ea-view="demand" hidden>
+      <div class="ea-kpis">
+        <div class="ea-kpi"><strong id="eaTodayReceived">—</strong><span>Received today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayAnswered">—</strong><span>Answered today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayAbandoned">—</strong><span>Abandoned today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayTransferred">—</strong><span>Transferred out</span></div>
+        <div class="ea-kpi"><strong id="eaAvgTalk">—</strong><span>Average talk time</span></div>
+        <div class="ea-kpi"><strong id="eaAvgQueue">—</strong><span>Average queue/IVR time</span></div>
+      </div>
+      <div class="ea-card"><h3>Hourly answered vs abandoned</h3><div class="ea-legend"><span><i class="answered"></i>Answered</span><span><i class="abandoned"></i>Abandoned</span></div><div id="eaHourlyChart" class="ea-hourly"></div></div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
   <!-- DAILY WEBEX REPORTING - AMERICA/CHICAGO BUSINESS DAY -->
   <!-- ===================================================== -->
   <section class="panel daily-report-panel" id="answeredCallsPanel">
@@ -832,6 +891,7 @@
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
 <script src="webex-integrated-chat.js?v=20261001-completion-audit1"></script>
+<script src="webex-enterprise-analytics.js?v=20261001-enterprise1"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261001-completion-audit1"></script>
 </body>

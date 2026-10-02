@@ -63,7 +63,7 @@ function ownerType(value){
 }
 function memberRow(value){
   const location=locationOf(value),type=ownerType(value),extension=display(value?.extension||'',32);
-  const rawName=display(value?.firstName&&value?.lastName?value.firstName+' '+value.lastName:value?.displayName||value?.name,160);
+  const rawName=display(value?.displayName||value?.name||[value?.firstName,value?.lastName].filter(Boolean).join(' '),160);
   const name=rawName||(type==='PLACE'?(extension?'Workspace '+extension:'Workspace'):(extension?'Extension '+extension:'Member'));
   return {id:id(value?.id||value?.memberId||value?.personId||value?.workspaceId),
     name,type,extension,phoneNumber:display(value?.phoneNumber||value?.number||'',64),

@@ -298,7 +298,7 @@ function summaryPhoneRow(phone,tenant){
 
 async function activeLeaseIndex(env){
   const leases=await listLeases(env,{limit:1000});
-  const active=leases.filter(l=>['active','pending-verification','restore-sync-pending','restore-reboot-pending'].includes(String(l?.status||'')));
+  const active=leases.filter(l=>['active','pending-verification','restore-sync-pending','restore-reboot-pending','external-change-sync-pending','external-change-reboot-pending'].includes(String(l?.status||'')));
   const byDevice=new Map(),byMac=new Map();
   for(const lease of active){
     if(lease?.device?.id)byDevice.set(String(lease.device.id),lease);

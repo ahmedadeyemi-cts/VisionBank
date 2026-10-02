@@ -64,10 +64,10 @@
     const webex=data?.webex||{},phonism=data?.phonism||{},writes=data?.writes||{};
     healthDot("deviceWebexDot",webex.ready?"ready":webex.detected?"warning":"blocked");
     healthDot("devicePhonismDot",phonism.ready?"ready":phonism.detected?"warning":"blocked");
-    healthDot("deviceWriteDot",writes.enabled?"ready":writes.previewReady?"warning":"blocked");
+    healthDot("deviceWriteDot",writes.enabled?"ready":(data?.readOnly===true||writes.previewReady)?"warning":"blocked");
     text("deviceWebexHealth",webex.message||(webex.ready?"Connected":"Not ready"));
     text("devicePhonismHealth",phonism.message||(phonism.ready?"Connected":"Not configured"));
-    text("deviceWriteHealth",writes.message||(writes.enabled?"Changes enabled":"Read-only until validated"));
+    text("deviceWriteHealth",writes.enabled?(writes.message||"Changes enabled"):(data?.readOnly===true?"Read-only pilot — changes disabled":(writes.message||"Read-only until validated")));
     text("deviceHealthWebexText",webex.detail||webex.message||"Webex capability check pending.");
     text("deviceHealthPhonismText",phonism.detail||phonism.message||"Phonism capability check pending.");
     renderCheckList("deviceHealthWebexChecks",webex.checks||[]);
@@ -95,7 +95,7 @@
       const data=await api("/locations");
       state.locations=Array.isArray(data.locations)?data.locations:[];
       const select=$("deviceLocationFilter"),current=select.value;
-      select.innerHTML='<option value="">All permitted locations</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
+      select.innerHTML='<option value="">Select a Webex location</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
       if([...select.options].some(o=>o.value===current))select.value=current;
     }catch(error){
       state.locations=[];
@@ -105,9 +105,17 @@
 
   async function loadInventory(force=false){
     const body=$("deviceInventoryRows");
-    text("deviceInventoryStatus","Loading phones and line assignments…");
-    if(body&&!state.devices.length)body.innerHTML='<tr><td colspan="8" class="device-empty">Loading inventory…</td></tr>';
     const locationId=$("deviceLocationFilter")?.value||"";
+    if(!locationId){
+      state.devices=[];state.filtered=[];
+      text("deviceInventoryStatus","Select a Webex location to load VisionBank phones.");
+      text("deviceSyncStamp","Waiting for location");
+      if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Select a Webex location to load the scoped phone inventory.</td></tr>';
+      renderKpis();
+      return;
+    }
+    text("deviceInventoryStatus","Loading phones and line assignments…");
+    if(body&&!state.devices.length)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading inventory…</td></tr>';
     try{
       const q=new URLSearchParams();
       if(locationId)q.set("locationId",locationId);
@@ -118,7 +126,7 @@
       applyFilters();
     }catch(error){
       state.devices=[];state.filtered=[];
-      if(body)body.innerHTML='<tr><td colspan="8" class="device-empty">Device inventory is not active yet. '+esc(error.status===404?"Backend integration is being prepared.":error.message)+'</td></tr>';
+      if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Device inventory could not be loaded. '+esc(error.status===404?"Backend integration is being prepared.":error.message)+'</td></tr>';
       text("deviceInventoryStatus","No live inventory has been loaded.");
       renderKpis();
     }

@@ -23,6 +23,13 @@ function metadata(value){
   return out;
 }
 
+function metadataValues(value,name){
+  const target=String(name||'').toLowerCase();
+  if(Array.isArray(value))return value.filter(row=>String(row?.name||'').toLowerCase()===target).map(row=>clean(row?.value,500)).filter(Boolean);
+  if(value&&typeof value==='object'&&Object.prototype.hasOwnProperty.call(value,target))return [clean(value[target],500)].filter(Boolean);
+  return [];
+}
+
 function macOrNull(value){
   try{return value?normalizeMac(value):null;}catch{return null;}
 }
@@ -36,10 +43,12 @@ export async function defaultPhonismFetch(env,path,{method='GET',signal}={}){
   if(method!=='GET')throw new DeviceManagementError('phonism-read-only',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  return fetch(PHONISM_BASE+safePath(path),{
-    method:'GET',redirect:'error',signal,
+  const response=await fetch(PHONISM_BASE+safePath(path),{
+    method:'GET',redirect:'manual',signal,
     headers:{Accept:'application/json','x-api-key':key}
   });
+  if(response.status>=300&&response.status<400)throw new DeviceManagementError('phonism-unexpected-redirect',502);
+  return response;
 }
 
 async function readJson(response){
@@ -59,9 +68,13 @@ async function readJson(response){
 function nextPath(value){
   if(!value)return null;
   try{
-    const u=new URL(String(value),PHONISM_BASE);
-    if(u.origin!==new URL(PHONISM_BASE).origin)return null;
-    return u.pathname+u.search;
+    const base=new URL(PHONISM_BASE),u=new URL(String(value),base);
+    if(u.origin!==base.origin)return null;
+    let path=u.pathname;
+    const prefix=base.pathname.replace(/\/$/,'');
+    if(path===prefix)path='/';
+    else if(path.startsWith(prefix+'/'))path=path.slice(prefix.length);
+    return path+u.search;
   }catch{return null;}
 }
 
@@ -109,6 +122,8 @@ function integrationRow(value){
 
 function phoneRow(value,tenantNames=new Map()){
   const meta=metadata(value?.metadata);
+  const webexDeviceIds=[...new Set(metadataValues(value?.metadata,'webex_device_id'))];
+  const webexDeviceTypes=[...new Set(metadataValues(value?.metadata,'webex_device_type'))];
   const services=Array.isArray(value?.service_state)?value.service_state:[];
   const serviceNames=services.map(x=>clean(typeof x==='string'?x:(x?.name||x?.service||x?.type),80).toLowerCase()).filter(Boolean);
   const tenantId=id(value?.tenant_id);
@@ -118,7 +133,8 @@ function phoneRow(value,tenantNames=new Map()){
     alias:clean(value?.device_alias,160),state:id(value?.state),
     serviceState:serviceNames,tr069:serviceNames.some(x=>x.includes('tr069')),
     lastProvision:value?.last_provision||null,updated:value?.updated||null,
-    webexDeviceId:meta.webex_device_id||null,webexDeviceType:meta.webex_device_type||null
+    webexDeviceIds,webexDeviceId:webexDeviceIds[0]||meta.webex_device_id||null,
+    webexDeviceTypes,webexDeviceType:webexDeviceTypes[0]||meta.webex_device_type||null
   };
 }
 
@@ -163,6 +179,12 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       const tenantNames=new Map(tenants.map(x=>[String(x.id),x.name]));
       const page=await paged(env,'/hierarchy/'+encodeURIComponent(domainId)+'/phones?limit=100',fetcher,50,5000);
       return {phones:page.rows.map(x=>phoneRow(x,tenantNames)).filter(x=>x.id),truncated:page.truncated};
+    },
+
+    async tenantPhones(env,tenantId,tenantName=''){
+      const page=await paged(env,'/tenants/'+encodeURIComponent(tenantId)+'/phones?limit=100',fetcher,20,2000);
+      const names=new Map([[String(tenantId),tenantName]]);
+      return {phones:page.rows.map(x=>phoneRow(x,names)).filter(x=>x.id),truncated:page.truncated};
     },
 
     async lines(env,phoneId){

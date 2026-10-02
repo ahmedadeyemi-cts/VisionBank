@@ -140,6 +140,69 @@ async function mergePhonismInventory(env,org,devices,phonismReader){
     phoneCount:phoneInventory.phones.length,truncated:discovery.truncated||phoneInventory.truncated}};
 }
 
+async function firstWebexDeviceForPhone(webexFetch,env,phone){
+  const ids=[...(phone.webexDeviceIds||[]),phone.webexDeviceId].filter(Boolean);
+  for(const value of [...new Set(ids)]){
+    try{
+      const response=await bounded(webexFetch(env,WEBEX+'/devices/'+encodeURIComponent(value),{method:'GET'}),12000);
+      if(!response.ok)continue;
+      const data=await responseJson(response);
+      return {data,matchedId:value};
+    }catch{}
+  }
+  return null;
+}
+
+async function scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader){
+  let phonismLines=[];
+  try{phonismLines=await phonismReader.lines(env,phone.id);}catch{}
+  const p1=phonismLines.find(x=>x.lineNumber===1)||null,p2=phonismLines.find(x=>x.lineNumber===2)||null;
+
+  const found=await firstWebexDeviceForPhone(webexFetch,env,phone);
+  if(!found){
+    const line=x=>x?mergeLine(null,x):null;
+    return {
+      id:'phonism:'+phone.id,webexDeviceId:null,callingDeviceId:null,
+      displayName:phone.alias||p1?.alias||'Partner-managed phone',
+      model:phone.webexDeviceType||'Partner-managed phone',mac:phone.mac,
+      locationId:tenant.webexLocationId||null,locationName:tenant.name||'',
+      owner:p1?{id:null,name:p1.alias||p1.username||'Assigned line',type:null,extension:p1.username||'',phoneNumber:''}:null,
+      line1:line(p1),line2:line(p2),
+      phonismPhoneId:phone.id,phonismTenantId:tenant.id,phonismTenantName:tenant.name,
+      phonismMatch:'phonism-only',phonismStatus:[phone.state==='1'?'Ready':phone.state?'State '+phone.state:null,phone.tr069?'TR69':null].filter(Boolean).join(' · ')||'Linked',
+      phonismServiceState:phone.serviceState||[],lastProvision:phone.lastProvision||'Not reported',
+      syncStatus:'attention',syncStatusLabel:'Webex device lookup unavailable',syncMessage:'Phonism inventory loaded; Webex enrichment unavailable'
+    };
+  }
+
+  const base=deviceBase(found.data);
+  let members=[];
+  if(base.callingDeviceId){
+    try{
+      const data=await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(base.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),12000));
+      members=(data.members||data.items||[]).map(memberRow).filter(m=>m.id);
+    }catch{}
+  }
+  members.sort((a,b)=>(a.port??99)-(b.port??99));
+  const primary=members.find(m=>m.lineType.toUpperCase()==='PRIMARY'||m.port===1)||members[0]||null;
+  const second=members.find(m=>m!==primary&&(m.port===2||m.lineType.toUpperCase()!=='PRIMARY'))||null;
+  const overall=normalizeRegistration(base.connectionStatus);
+  const webexLine=x=>x?{id:x.id,memberId:x.id,name:x.name,type:x.type,extension:x.extension,phoneNumber:x.phoneNumber,
+    registrationStatus:x.registrationStatus==='unknown'?overall:x.registrationStatus,port:x.port}:null;
+  const w1=webexLine(primary),w2=webexLine(second);
+  const owner=primary?{id:primary.id,name:primary.name,type:primary.type,extension:primary.extension,phoneNumber:primary.phoneNumber}:
+    p1?{id:null,name:p1.alias||p1.username||phone.alias||'Assigned line',type:null,extension:p1.username||'',phoneNumber:''}:null;
+  return {
+    ...base,id:base.callingDeviceId||base.webexDeviceId||('phonism:'+phone.id),
+    mac:phone.mac||base.mac,locationId:tenant.webexLocationId||found.data?.locationId||null,locationName:tenant.name||'',
+    owner,line1:mergeLine(w1,p1),line2:mergeLine(w2,p2),
+    phonismPhoneId:phone.id,phonismTenantId:tenant.id,phonismTenantName:tenant.name,
+    phonismMatch:'webex-device-id',phonismStatus:[phone.state==='1'?'Ready':phone.state?'State '+phone.state:null,phone.tr069?'TR69':null].filter(Boolean).join(' · ')||'Linked',
+    phonismServiceState:phone.serviceState||[],lastProvision:phone.lastProvision||'Not reported',
+    syncStatus:'linked',syncStatusLabel:'Webex ↔ Phonism linked',syncMessage:'Scoped through VisionBank Iowa Phonism metadata'
+  };
+}
+
 async function readPhonismCapabilities(env,org,phonismReader){
   const checks=[];
   if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
@@ -147,22 +210,24 @@ async function readPhonismCapabilities(env,org,phonismReader){
     const discovery=await phonismReader.discover(env,org);
     checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found'});
     checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available'});
-    checks.push({label:'Webex integration',status:discovery.webexIntegration?'Found':'Not uniquely identified'});
-    const inventory=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
-    checks.push({label:'Phonism phone inventory',status:String(inventory.phones.length)+' available'});
-    let lineRead='not-tested',registrationMonitoring='unknown';
-    const sample=inventory.phones[0];
-    if(sample)try{
-      const lines=await phonismReader.lines(env,sample.id);lineRead='available';
-      registrationMonitoring=lines.some(x=>x.registrationStatus!=='unknown')?'available':'not-reported-on-sample';
-      checks.push({label:'Phone line status read',status:'Available'});
-      checks.push({label:'Line registration monitoring',status:registrationMonitoring});
-    }catch{lineRead='unavailable';checks.push({label:'Phone line status read',status:'Unavailable'});}
-    const ready=Boolean(discovery.domain)&&inventory.phones.length>=0;
-    return {detected:true,ready,message:ready?'Read-only Phonism discovery available':'Phonism discovery is incomplete',
-      detail:'VisionBank Iowa can be read through the server-side Phonism API key. Writes and Sync remain disabled.',
-      checks,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:inventory.phones.length,
-      webexIntegrationAvailable:Boolean(discovery.webexIntegration),lineRead,registrationMonitoring};
+    const sampleTenant=discovery.tenants[0]||null;
+    let sampleInventory={phones:[]},lineRead='not-tested',registrationMonitoring='unknown';
+    if(sampleTenant){
+      sampleInventory=await phonismReader.tenantPhones(env,sampleTenant.id,sampleTenant.name);
+      checks.push({label:'Phonism tenant phone inventory',status:'Available ('+sampleInventory.phones.length+' in sample tenant)'});
+      const sample=sampleInventory.phones[0];
+      if(sample)try{
+        const lines=await phonismReader.lines(env,sample.id);lineRead='available';
+        registrationMonitoring=lines.some(x=>x.registrationStatus!=='unknown')?'available':'not-reported-on-sample';
+        checks.push({label:'Phone line status read',status:'Available'});
+        checks.push({label:'Line registration monitoring',status:registrationMonitoring});
+      }catch{lineRead='unavailable';checks.push({label:'Phone line status read',status:'Unavailable'});}
+    }
+    return {detected:true,ready:true,message:'Read-only Phonism discovery available',
+      detail:'VisionBank Iowa, its tenants, phone inventory, and line status APIs are reachable. Writes and Sync remain disabled.',
+      checks,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,
+      sampleTenantPhoneCount:sampleInventory.phones.length,webexIntegrationAvailable:Boolean(discovery.webexIntegration),
+      lineRead,registrationMonitoring};
   }catch(error){
     return {detected:true,ready:false,message:'Phonism read failed',
       detail:'The API key is present, but read-only discovery could not complete.',checks,error:error?.code||'phonism-read-unavailable'};
@@ -193,30 +258,74 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
       if(part==='capabilities'){
         const checks=[];let locationsOk=false,devicesOk=false,memberRead='not-tested',callingCount=0,deviceCount=0;
-        try{const p=await readPaged(webexFetch,env,WEBEX+'/locations?orgId='+encodeURIComponent(org),['items','locations'],3,500);locationsOk=true;checks.push({label:'Webex locations read',status:'Available ('+p.rows.length+')'});}catch{checks.push({label:'Webex locations read',status:'Unavailable'});}
         try{
-          const p=await readPaged(webexFetch,env,WEBEX+'/devices?orgId='+encodeURIComponent(org),['items','devices'],5,1000);devicesOk=true;deviceCount=p.rows.length;
-          const first=p.rows.map(deviceBase).find(x=>x.callingDeviceId);callingCount=p.rows.map(deviceBase).filter(x=>x.callingDeviceId).length;
-          checks.push({label:'Webex device inventory',status:'Available ('+deviceCount+')'});
-          checks.push({label:'Calling device IDs',status:callingCount?callingCount+' detected':'None detected'});
-          if(first)try{await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(first.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'})));memberRead='available';checks.push({label:'Calling device members read',status:'Available'});}catch(error){memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
-        }catch{checks.push({label:'Webex device inventory',status:'Unavailable'});}
-        const ready=locationsOk&&devicesOk;
+          const p=await readPaged(webexFetch,env,WEBEX+'/locations?orgId='+encodeURIComponent(org),['items','locations'],3,500);
+          locationsOk=true;checks.push({label:'Webex locations read',status:'Available ('+p.rows.length+')'});
+        }catch{checks.push({label:'Webex locations read',status:'Unavailable'});}
+
         const phonism=await readPhonismCapabilities(env,org,phonismReader);
-        return output({success:true,webex:{detected:true,ready,message:ready?'Read-only Webex discovery available':'Webex discovery is incomplete',
-          detail:ready?'Existing OAuth can read locations and devices. Partner-managed line/member support is reported separately.':'One or more required read APIs are unavailable with the existing authorization.',
-          checks,deviceCount,callingDeviceCount:callingCount,memberRead},phonism,
+        try{
+          const discovery=await phonismReader.discover(env,org);
+          let samplePhone=null;
+          for(const tenant of discovery.tenants.slice(0,4)){
+            const sample=await phonismReader.tenantPhones(env,tenant.id,tenant.name);
+            if(sample.phones.length){samplePhone=sample.phones[0];break;}
+          }
+          if(samplePhone){
+            const found=await firstWebexDeviceForPhone(webexFetch,env,samplePhone);
+            if(found){
+              devicesOk=true;deviceCount=1;
+              const base=deviceBase(found.data);
+              callingCount=base.callingDeviceId?1:0;
+              checks.push({label:'VisionBank Webex device lookup',status:'Available'});
+              if(base.callingDeviceId)try{
+                const data=await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(base.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),12000));
+                memberRead=Array.isArray(data.members)||Array.isArray(data.items)?'available':'unavailable';
+                checks.push({label:'Calling device members read',status:memberRead==='available'?'Available':'Unavailable'});
+              }catch{memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
+            }
+          }
+        }catch{}
+        if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
+
+        const ready=locationsOk&&devicesOk;
+        return output({success:true,webex:{detected:true,ready,
+          message:ready?'Read-only Webex discovery available':'Webex discovery is incomplete',
+          detail:ready?'Webex locations and VisionBank-scoped partner-managed devices can be read through Phonism-stored Webex device IDs.':'Webex location access works, but the VisionBank-scoped device enrichment probe did not complete.',
+          checks,deviceCount,callingDeviceCount:callingCount,memberRead,deviceScope:'phonism-visionbank-iowa'},phonism,
           writes:{enabled:false,previewReady:false,message:'Read-only capability phase'},readOnly:true},200,headers);
       }
 
       if(part==='inventory'){
         const requestedLocation=id(url.searchParams.get('locationId'));
-        const page=await readPaged(webexFetch,env,WEBEX+'/devices?orgId='+encodeURIComponent(org),['items','devices'],10,500);
-        const bases=page.rows.map(deviceBase).filter(x=>x.callingDeviceId);
-        let devices=await mapLimit(bases,4,base=>readCallingDevice(webexFetch,env,org,base));
-        if(requestedLocation)devices=devices.filter(d=>String(d.locationId||'')===requestedLocation);
-        const merged=await mergePhonismInventory(env,org,devices,phonismReader);
-        return output({success:true,devices:merged.devices,phonism:merged.phonism,truncated:page.truncated,
+        if(!requestedLocation){
+          return output({success:true,devices:[],locationRequired:true,
+            message:'Select a Webex location to load VisionBank phones.',
+            generatedAt:new Date().toISOString(),readOnly:true},200,headers);
+        }
+
+        let discovery;
+        try{discovery=await phonismReader.discover(env,org);}
+        catch{throw new DeviceManagementError('phonism-read-unavailable',503);}
+        const tenants=discovery.tenants.filter(t=>String(t.webexLocationId||'')===requestedLocation);
+        if(!tenants.length){
+          return output({success:true,devices:[],locationRequired:false,
+            phonism:{ready:true,domainName:discovery.domain.name,tenantMatched:false},
+            message:'No Phonism tenant is mapped to this Webex location.',
+            generatedAt:new Date().toISOString(),readOnly:true},200,headers);
+        }
+
+        const scoped=[];
+        let truncated=false;
+        for(const tenant of tenants){
+          const inventory=await phonismReader.tenantPhones(env,tenant.id,tenant.name);
+          truncated=truncated||inventory.truncated;
+          for(const phone of inventory.phones)scoped.push({tenant,phone});
+        }
+        const devices=await mapLimit(scoped,4,entry=>scopedPhoneRow(webexFetch,env,org,entry.tenant,entry.phone,phonismReader));
+        return output({success:true,devices,truncated,
+          phonism:{ready:true,domainName:discovery.domain.name,tenantMatched:true,
+            tenantCount:tenants.length,phoneCount:scoped.length},
           generatedAt:new Date().toISOString(),readOnly:true},200,headers);
       }
       if(part==='members'){

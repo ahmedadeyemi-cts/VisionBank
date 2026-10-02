@@ -198,9 +198,42 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   });
   lease.baselineMember=preview.baselineMember||null;
   await putLease(env,lease);
-  if(env?.SESSIONS?.delete)await env.SESSIONS.delete(PREVIEW_PREFIX+preview.mutationId);
 
-  return {lease,audit};
+  let rebootQueued=false,rebootError=null;
+  if(pc.phoneId){
+    const rebootAt=new Date().toISOString();
+    try{
+      await phonismReader.tr069Action(env,pc.phoneId,'Reboot');
+      rebootQueued=true;
+      lease.recovery={...(lease.recovery||{}),rebootAttempted:true,rebootAt,automaticReboot:true};
+      lease.verification={...(lease.verification||{}),phonism:'reboot-queued',state:'reboot-queued',lastCheckedAt:rebootAt};
+      await putLease(env,lease);
+      await writeAuditRecord(env,buildAuditRecord({
+        eventType:'device-recovery',action:'automatic-reboot-after-save',
+        systemActor:automatedActor(session.operator),device:preview.device,location:preview.location,
+        change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
+        reason:'Webex save completed and Phonism Sync was queued; automatic TR-069 reboot queued to apply the temporary line on the handset.',
+        webexStatus:'saved',phonismStatus:'reboot-queued',result:'pending-verification',
+        originalAuditId:audit.auditId
+      }));
+    }catch(error){
+      rebootError=String(error?.code||error?.message||'reboot-failed').slice(0,160);
+      lease.recovery={...(lease.recovery||{}),rebootAttempted:false,automaticReboot:true,autoRebootFailed:true,autoRebootError:rebootError,autoRebootFailedAt:rebootAt};
+      lease.verification={...(lease.verification||{}),phonism:'reboot-failed',state:'reboot-failed',lastCheckedAt:rebootAt};
+      await putLease(env,lease);
+      await writeAuditRecord(env,buildAuditRecord({
+        eventType:'device-recovery',action:'automatic-reboot-after-save',
+        systemActor:automatedActor(session.operator),device:preview.device,location:preview.location,
+        change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
+        reason:'Webex save and Phonism Sync succeeded, but the automatic TR-069 reboot could not be queued.',
+        webexStatus:'saved',phonismStatus:'reboot-failed',result:'failed',
+        originalAuditId:audit.auditId
+      }));
+    }
+  }
+
+  if(env?.SESSIONS?.delete)await env.SESSIONS.delete(PREVIEW_PREFIX+preview.mutationId);
+  return {lease,audit,rebootQueued,rebootError};
 }
 
 export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=createPhonismReader()}){
@@ -208,8 +241,10 @@ export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=cr
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
   const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
   const webexLine2=line2SummaryFromMembers(current.members);
+  const removingLine2=!lease.temporaryLine2;
   const targetId=String(lease.temporaryLine2?.memberId||'');
-  const webexMatches=String(webexLine2?.memberId||'')===targetId;
+  const webexMatches=removingLine2?!webexLine2:String(webexLine2?.memberId||'')===targetId;
+
   let phonismLine2=null;
   if(lease.phonismPhoneId){
     try{
@@ -217,41 +252,64 @@ export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=cr
       phonismLine2=lines.find(x=>x.lineNumber===2)||null;
     }catch{}
   }
+
   const targetName=clean(lease.temporaryLine2?.name||'',160).toLowerCase();
-  const removingLine2=!lease.temporaryLine2;
   const phonismPresent=removingLine2?!phonismLine2:(Boolean(phonismLine2)&&(!targetName||String(phonismLine2.alias||'').toLowerCase().includes(targetName)));
   const phonismRegistration=removingLine2?'removed':(phonismLine2?.registrationStatus||'pending');
-  const state=webexMatches&&phonismPresent?'applied':'pending-verification';
-  lease.verification={webex:webexMatches?'confirmed':'pending',phonism:phonismPresent?phonismRegistration:'pending',state,lastCheckedAt:new Date().toISOString()};
-  if(state==='applied')lease.status='active';
+  const configConverged=webexMatches&&phonismPresent;
+
+  let state='pending-verification';
+  if(configConverged&&lease.recovery?.rebootAttempted===true){
+    if(removingLine2||phonismRegistration==='registered')state='applied';
+    else if(phonismRegistration==='not-monitored')state='applied-unverified';
+    else if(phonismRegistration==='unregistered')state='registration-failed';
+  }else if(configConverged&&lease.recovery?.autoRebootFailed===true){
+    state='reboot-failed';
+  }else if(configConverged){
+    state='reboot-pending';
+  }
+
+  lease.verification={
+    webex:webexMatches?'confirmed':'pending',
+    phonism:phonismPresent?phonismRegistration:'pending',
+    state,lastCheckedAt:new Date().toISOString()
+  };
+  if(configConverged)lease.status='active';
   await putLease(env,lease);
   return {lease,webexLine2,phonismLine2,state};
 }
 
-export async function runRecoveryAction({env,request,session,leaseId,action,explicitConfirmation=false,phonismReader=createPhonismReader()}){
+export async function runRecoveryAction({env,request,session,leaseId,phonismReader=createPhonismReader()}){
   const lease=await getLease(env,leaseId);
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
   if(!isPilotDevice(env,lease.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
-  if(!['Reboot','FactoryReset'].includes(action))throw new DeviceManagementError('recovery-action-denied');
-  if(action==='FactoryReset'){
-    if(lease.recovery?.rebootAttempted!==true)throw new DeviceManagementError('reboot-required-before-factory-reset',409);
-    if(explicitConfirmation!==true)throw new DeviceManagementError('factory-reset-confirmation-required',409);
-  }
-  const result=await phonismReader.tr069Action(env,lease.phonismPhoneId,action);
-  lease.recovery={...(lease.recovery||{}),
-    ...(action==='Reboot'?{rebootAttempted:true,rebootAt:new Date().toISOString()}:{factoryResetAttempted:true,factoryResetAt:new Date().toISOString()})
-  };
-  lease.verification={...(lease.verification||{}),phonism:action+'-queued',state:'pending-verification',lastCheckedAt:new Date().toISOString()};
+  const result=await phonismReader.tr069Action(env,lease.phonismPhoneId,'Reboot');
+  const rebootAt=new Date().toISOString();
+  lease.recovery={...(lease.recovery||{}),rebootAttempted:true,rebootAt,automaticReboot:false};
+  lease.verification={...(lease.verification||{}),phonism:'Reboot-queued',state:'pending-verification',lastCheckedAt:rebootAt};
   await putLease(env,lease);
   const audit=buildAuditRecord({
-    eventType:'device-recovery',action:action==='Reboot'?'reboot-reverify':'factory-reset-recover',
+    eventType:'device-recovery',action:'reboot-reverify',
     request,session,device:lease.device,location:lease.location,
-    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},reason:'Recovery action requested from Device Manager',
-    webexStatus:lease.verification?.webex||'unknown',phonismStatus:action+'-queued',result:'pending-verification',
+    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},reason:'Manual Reboot & Reverify requested from Device Manager.',
+    webexStatus:lease.verification?.webex||'unknown',phonismStatus:'Reboot-queued',result:'pending-verification',
     originalAuditId:lease.auditId
   });
   await writeAuditRecord(env,audit);
   return {result,audit,lease};
+}
+
+async function queueRestoreReboot({env,lease,phonismReader,now}){
+  if(!lease.phonismPhoneId)return {queued:false,error:'phonism-phone-required'};
+  try{
+    await phonismReader.tr069Action(env,lease.phonismPhoneId,'Reboot');
+    lease.recovery={...(lease.recovery||{}),restoreRebootAttempted:true,restoreRebootAt:new Date(now).toISOString(),restoreAutomaticReboot:true};
+    return {queued:true};
+  }catch(error){
+    const message=String(error?.code||error?.message||'reboot-failed').slice(0,160);
+    lease.recovery={...(lease.recovery||{}),restoreRebootAttempted:true,restoreRebootFailed:true,restoreRebootError:message,restoreRebootFailedAt:new Date(now).toISOString()};
+    return {queued:false,error:message};
+  }
 }
 
 export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=createPhonismReader(),now=Date.now()}){
@@ -261,26 +319,56 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     const expires=Date.parse(lease.expiresAt||'');
     if(!Number.isFinite(expires)||expires>now)continue;
 
+    if(lease.status==='restore-reboot-pending'){
+      const reboot=await queueRestoreReboot({env,lease,phonismReader,now});
+      if(reboot.queued){
+        lease.status='restored';
+        lease.restoredAt=new Date(now).toISOString();
+        lease.verification={...(lease.verification||{}),phonism:'sync-queued-reboot-queued',state:'restored',lastCheckedAt:new Date(now).toISOString()};
+        await putLease(env,lease);
+        await writeAuditRecord(env,buildAuditRecord({
+          eventType:'temporary-line-expiry',action:'auto-restore-reboot',
+          systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,
+          change:{leaseId:lease.leaseId,restoredLine2:lease.baselineLine2},
+          reason:'Permanent Webex baseline was already restored and Phonism Sync was queued; automatic reboot was retried and queued.',
+          webexStatus:'restored',phonismStatus:'sync-queued-reboot-queued',result:'completed',originalAuditId:lease.auditId,now
+        }));
+        results.push({leaseId:lease.leaseId,status:'restored'});
+      }else{
+        await putLease(env,lease);
+        results.push({leaseId:lease.leaseId,status:'restore-reboot-pending',error:reboot.error});
+      }
+      continue;
+    }
+
     if(lease.status==='restore-sync-pending'){
       try{
         await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
           tenantId:lease.phonismTenantId,
           assetTypes:['People','Workspace','Device']
         });
+        const reboot=await queueRestoreReboot({env,lease,phonismReader,now});
+        if(!reboot.queued){
+          lease.status='restore-reboot-pending';
+          lease.verification={...(lease.verification||{}),phonism:'sync-queued-reboot-failed',state:'restore-reboot-pending',lastCheckedAt:new Date(now).toISOString()};
+          await putLease(env,lease);
+          results.push({leaseId:lease.leaseId,status:'restore-reboot-pending',error:reboot.error});
+          continue;
+        }
         lease.status='restored';
         lease.restoredAt=new Date(now).toISOString();
-        lease.verification={...(lease.verification||{}),phonism:'sync-queued-after-restore',state:'restored',lastCheckedAt:new Date(now).toISOString()};
+        lease.verification={...(lease.verification||{}),phonism:'sync-queued-reboot-queued',state:'restored',lastCheckedAt:new Date(now).toISOString()};
         await putLease(env,lease);
-        const audit=buildAuditRecord({
-          eventType:'temporary-line-expiry',action:'auto-restore-sync',
+        await writeAuditRecord(env,buildAuditRecord({
+          eventType:'temporary-line-expiry',action:'auto-restore-sync-reboot',
           systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,
           change:{leaseId:lease.leaseId,restoredLine2:lease.baselineLine2},
-          reason:'Temporary assignment expired; Phonism sync queued after Webex restore.',
-          webexStatus:'restored',phonismStatus:'sync-queued',result:'completed',originalAuditId:lease.auditId,now
-        });
-        await writeAuditRecord(env,audit);
+          reason:'Temporary assignment expired; Phonism Sync and automatic reboot were queued after Webex restore.',
+          webexStatus:'restored',phonismStatus:'sync-queued-reboot-queued',result:'completed',originalAuditId:lease.auditId,now
+        }));
         results.push({leaseId:lease.leaseId,status:'restored'});
       }catch(error){
+        await putLease(env,lease);
         results.push({leaseId:lease.leaseId,status:'restore-sync-pending',error:error.code||'sync-failed'});
       }
       continue;
@@ -317,18 +405,25 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
           tenantId:lease.phonismTenantId,
           assetTypes:['People','Workspace','Device']
         });
+        const reboot=await queueRestoreReboot({env,lease,phonismReader,now});
+        if(!reboot.queued){
+          lease.status='restore-reboot-pending';
+          lease.verification={...(lease.verification||{}),webex:'restored',phonism:'sync-queued-reboot-failed',state:'restore-reboot-pending',lastCheckedAt:new Date(now).toISOString()};
+          await putLease(env,lease);
+          results.push({leaseId:lease.leaseId,status:'restore-reboot-pending',error:reboot.error});
+          continue;
+        }
         lease.status='restored';
         lease.restoredAt=new Date(now).toISOString();
-        lease.verification={...(lease.verification||{}),webex:'restored',phonism:'sync-queued',state:'restored',lastCheckedAt:new Date(now).toISOString()};
+        lease.verification={...(lease.verification||{}),webex:'restored',phonism:'sync-queued-reboot-queued',state:'restored',lastCheckedAt:new Date(now).toISOString()};
         await putLease(env,lease);
-        const audit=buildAuditRecord({
+        await writeAuditRecord(env,buildAuditRecord({
           eventType:'temporary-line-expiry',action:'auto-restore',
           systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,
           change:{leaseId:lease.leaseId,restoredLine2:lease.baselineLine2},
-          reason:'Temporary assignment expired; permanent Webex baseline restored and Phonism sync queued.',
-          webexStatus:'restored',phonismStatus:'sync-queued',result:'completed',originalAuditId:lease.auditId,now
-        });
-        await writeAuditRecord(env,audit);
+          reason:'Temporary assignment expired; permanent Webex baseline restored, Phonism Sync queued, and automatic reboot queued.',
+          webexStatus:'restored',phonismStatus:'sync-queued-reboot-queued',result:'completed',originalAuditId:lease.auditId,now
+        }));
         results.push({leaseId:lease.leaseId,status:'restored'});
       }catch(error){
         lease.status='restore-sync-pending';

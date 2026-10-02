@@ -496,21 +496,38 @@
 
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+  async function finishVerifiedLease(last,message){
+    text("deviceInventoryStatus",message);
+    $("deviceRecovery")?.close();state.recovery=null;
+    if(state.postSave?.locationId&&state.postSave?.phonismPhoneId){
+      await refreshDeviceDetail(state.postSave.locationId,state.postSave.phonismPhoneId).catch(()=>null);
+    }else{
+      await loadInventory(true);
+    }
+    clearPostSaveContext();
+    return last;
+  }
+
   async function pollLeaseVerification(leaseId,{attempts=6,delayMs=5000}={}){
     let last=null;
     for(let i=0;i<attempts;i++){
       try{
         last=await api("/lease-status?leaseId="+encodeURIComponent(leaseId));
-        state.recovery={leaseId,rebootAvailable:last.rebootAvailable===true,factoryResetAvailable:last.factoryResetAvailable===true};
+        state.recovery={leaseId,rebootAvailable:last.rebootAvailable===true};
         if(last.state==="applied"){
-          text("deviceInventoryStatus","Save & Sync completed. Webex is confirmed and the Phonism line is present. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
-          $("deviceRecovery")?.close();state.recovery=null;
-          if(state.postSave?.locationId&&state.postSave?.phonismPhoneId){
-            await refreshDeviceDetail(state.postSave.locationId,state.postSave.phonismPhoneId).catch(()=>null);
-          }else{
-            await loadInventory(true);
-          }
-          clearPostSaveContext();
+          return await finishVerifiedLease(last,"Save & Sync completed. Webex and Phonism are confirmed after the automatic reboot. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
+        }
+        if(last.state==="applied-unverified"){
+          return await finishVerifiedLease(last,"Save & Sync completed and the automatic reboot was queued. Webex and Phonism contain the temporary line, but Phonism does not provide registration telemetry for this handset. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
+        }
+        if(last.state==="reboot-failed"){
+          text("deviceRecoveryReason","The line change and Phonism Sync completed, but the automatic reboot could not be queued. Use Reboot & Reverify.");
+          $("deviceRecovery")?.showModal();
+          return last;
+        }
+        if(last.state==="registration-failed"){
+          text("deviceRecoveryReason","The temporary line is present but registration is explicitly failing after reboot. Use Reboot & Reverify.");
+          $("deviceRecovery")?.showModal();
           return last;
         }
       }catch(error){
@@ -518,47 +535,28 @@
       }
       if(i<attempts-1)await wait(delayMs);
     }
-    text("deviceRecoveryReason","Save & Sync is still pending verification. Reboot is available as the first recovery step.");
-    const confirm=$("deviceRecoveryConfirm");if(confirm)confirm.checked=false;
+    text("deviceRecoveryReason","The temporary line has not fully converged after the automatic reboot. Use Reboot & Reverify if the handset still needs attention.");
     const reboot=$("deviceReboot");if(reboot)reboot.disabled=!state.recovery?.rebootAvailable;
-    const reset=$("deviceFactoryReset");if(reset)reset.disabled=true;
     $("deviceRecovery")?.showModal();
-    await loadInventory(true);
+    if(state.postSave?.locationId&&state.postSave?.phonismPhoneId){
+      await refreshDeviceDetail(state.postSave.locationId,state.postSave.phonismPhoneId).catch(()=>null);
+    }
     return last;
   }
 
   async function rebootRecovery(){
     if(!state.recovery?.leaseId)return;
+    const leaseId=state.recovery.leaseId;
     const btn=$("deviceReboot");if(btn){btn.disabled=true;btn.textContent="Rebooting…";}
     try{
-      const result=await api("/reboot",{method:"POST",body:{leaseId:state.recovery.leaseId}});
-      state.recovery.factoryResetAvailable=result.factoryResetAvailable===true;
+      const result=await api("/reboot",{method:"POST",body:{leaseId}});
       text("deviceRecoveryReason",result.message||"Reboot queued. Waiting for the phone to reconnect and rechecking Line 2.");
       await wait(8000);
-      await pollLeaseVerification(state.recovery.leaseId,{attempts:6,delayMs:5000});
+      await pollLeaseVerification(leaseId,{attempts:6,delayMs:5000});
     }catch(error){
-      text("deviceRecoveryReason","Reboot recovery was not completed: "+error.message);
+      text("deviceRecoveryReason","Reboot recovery was not completed: "+friendlyDeviceError(error));
     }finally{
       if(btn){btn.textContent="Reboot & Reverify";btn.disabled=false;}
-    }
-  }
-
-  async function factoryResetRecovery(){
-    if(!state.recovery?.leaseId||state.recovery.factoryResetAvailable!==true||$("deviceRecoveryConfirm")?.checked!==true)return;
-    const btn=$("deviceFactoryReset");btn.disabled=true;btn.textContent="Resetting & Reprovisioning…";
-    try{
-      const result=await api("/factory-reset",{method:"POST",body:{
-        leaseId:state.recovery.leaseId,
-        explicitConfirmation:true
-      }});
-      text("deviceRecoveryReason",result.message||"Factory reset accepted. Waiting for phone reprovisioning and line verification…");
-      await wait(15000);
-      await pollLeaseVerification(state.recovery.leaseId,{attempts:8,delayMs:7500});
-    }catch(error){
-      text("deviceRecoveryReason","Factory reset recovery was not completed: "+error.message);
-    }finally{
-      btn.textContent="Factory Reset & Reprovision";
-      btn.disabled=$("deviceRecoveryConfirm")?.checked!==true||state.recovery?.factoryResetAvailable!==true;
     }
   }
 
@@ -611,11 +609,7 @@
     $("deviceConfirmCancel")?.addEventListener("click",()=>$("deviceConfirm")?.close());
     $("deviceRecoveryClose")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceRecoveryCancel")?.addEventListener("click",()=>$("deviceRecovery")?.close());
-    $("deviceRecoveryConfirm")?.addEventListener("change",()=>{
-      $("deviceFactoryReset").disabled=$("deviceRecoveryConfirm").checked!==true||state.recovery?.factoryResetAvailable!==true;
-    });
     $("deviceReboot")?.addEventListener("click",()=>void rebootRecovery());
-    $("deviceFactoryReset")?.addEventListener("click",()=>void factoryResetRecovery());
   }
 
   async function resumePostSave(){

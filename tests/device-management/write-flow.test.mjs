@@ -103,7 +103,7 @@ test('preview is restricted to pilot MAC and records the baseline',async()=>{
   }),err=>err.code==='device-write-not-enabled');
 });
 
-test('apply writes Webex first, queues Phonism sync, creates lease and audit',async()=>{
+test('apply writes Webex, queues Phonism sync, then automatically queues reboot',async()=>{
   const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
@@ -116,12 +116,16 @@ test('apply writes Webex first, queues Phonism sync, creates lease and audit',as
   });
   assert.equal(wx.state.puts.length,1);
   assert.equal(wx.state.puts[0].members.find(x=>x.port===2).id,'user-ryan');
-  assert.equal(ph.calls[0].type,'sync');
+  assert.deepEqual(ph.calls.map(x=>x.type),['sync','tr069']);
+  assert.equal(ph.calls[1].action,'Reboot');
+  assert.equal(result.rebootQueued,true);
   assert.equal(result.lease.temporaryLine2.memberId,'user-ryan');
   assert.equal(result.lease.status,'active');
+  assert.equal(result.lease.recovery.rebootAttempted,true);
+  assert.equal(result.lease.recovery.automaticReboot,true);
   assert.ok(await e.LOGS.get('device-lease:'+result.lease.leaseId));
   const auditKeys=(await e.LOGS.list({prefix:'device-audit:'})).keys;
-  assert.equal(auditKeys.length,1);
+  assert.equal(auditKeys.length,2);
 });
 
 test('appearance-limit failure carries the reviewed target and device context',async()=>{
@@ -161,7 +165,7 @@ test('apply rejects stale Webex state before any write',async()=>{
   assert.equal(ph.calls.length,0);
 });
 
-test('verification confirms Webex and Phonism convergence',async()=>{
+test('verification reports applied-unverified when line is present after reboot but Phonism is not monitored',async()=>{
   const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
@@ -170,12 +174,13 @@ test('verification confirms Webex and Phonism convergence',async()=>{
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   const verified=await verifyLease({env:e,webexFetch:wx.fetch,orgId:ORG,leaseId:applied.lease.leaseId,phonismReader:ph.reader});
-  assert.equal(verified.state,'applied');
+  assert.equal(verified.state,'applied-unverified');
   assert.equal(verified.lease.verification.webex,'confirmed');
   assert.equal(verified.lease.verification.phonism,'not-monitored');
+  assert.equal(verified.lease.recovery.rebootAttempted,true);
 });
 
-test('reboot is allowed before factory reset, and factory reset requires reboot plus confirmation',async()=>{
+test('manual recovery can queue another reboot after the automatic reboot',async()=>{
   const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
@@ -183,16 +188,14 @@ test('reboot is allowed before factory reset, and factory reset requires reboot 
     phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
-  await assert.rejects(()=>runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,action:'FactoryReset',explicitConfirmation:true,phonismReader:ph.reader}),err=>err.code==='reboot-required-before-factory-reset');
-  const reboot=await runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,action:'Reboot',phonismReader:ph.reader});
+  assert.equal(applied.lease.recovery.automaticReboot,true);
+  const reboot=await runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,phonismReader:ph.reader});
   assert.equal(reboot.lease.recovery.rebootAttempted,true);
-  await assert.rejects(()=>runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,action:'FactoryReset',explicitConfirmation:false,phonismReader:ph.reader}),err=>err.code==='factory-reset-confirmation-required');
-  const reset=await runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,action:'FactoryReset',explicitConfirmation:true,phonismReader:ph.reader});
-  assert.equal(reset.lease.recovery.factoryResetAttempted,true);
-  assert.deepEqual(ph.calls.filter(x=>x.type==='tr069').map(x=>x.action),['Reboot','FactoryReset']);
+  assert.equal(reboot.lease.recovery.automaticReboot,false);
+  assert.deepEqual(ph.calls.filter(x=>x.type==='tr069').map(x=>x.action),['Reboot','Reboot']);
 });
 
-test('expiry restores baseline and queues another Phonism sync',async()=>{
+test('expiry restores baseline, queues another Phonism sync, and reboots the handset',async()=>{
   const e=env(),wx=webexFixture([PRIMARY,BASELINE]),ph=phonismFixture();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY,BASELINE],
@@ -205,6 +208,7 @@ test('expiry restores baseline and queues another Phonism sync',async()=>{
   assert.equal(results[0].status,'restored');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'space-old');
   assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
 });
 
 test('expiry preserves a newer external Webex change',async()=>{

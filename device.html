@@ -219,13 +219,14 @@
           <li>Revalidate the phone, selected extension, location, and current assignments.</li>
           <li>Save the supported line association in Webex Calling.</li>
           <li>Trigger Phonism Sync so the phone receives the updated Webex configuration.</li>
-          <li>Recheck Line 2 registration and record the result in Change History.</li>
+          <li>Automatically reboot the phone through Phonism TR-069 so the temporary line is applied to the handset.</li>
+          <li>Recheck Line 2 state and record the result in Change History.</li>
           <li>At the selected expiration time (maximum 12 hours), restore the permanent Webex baseline and force another Phonism Sync.</li>
           <li>If Webex changed outside this platform during the temporary lease, preserve the newer external state instead of overwriting it.</li>
           <li>Preserve existing Webex BLF / Line Monitoring entries. This workflow does not modify monitoring settings or monitored keys.</li>
-          <li>If Sync does not recover registration, offer Reboot & Reverify first, followed by a separate supervised Factory Reset recovery action. Factory Reset is never automatic.</li>
+          <li>If verification still needs attention, allow Reboot & Reverify again.</li>
         </ol>
-        <p id="deviceEditorWarning" class="device-warning">Changes are disabled until Webex write support and the Phonism Sync API are validated. Factory Reset will remain a separate recovery-only action.</p>
+        <p id="deviceEditorWarning" class="device-warning">Pilot Save & Sync automatically queues a phone reboot after the Webex change and Phonism Sync.</p>
       </section>
       <div class="device-dialog-actions">
         <button class="device-btn secondary" value="cancel">Cancel</button>
@@ -245,22 +246,17 @@
   <dialog id="deviceRecovery" class="device-dialog compact" aria-labelledby="deviceRecoveryTitle">
     <div class="device-dialog-shell">
       <div class="device-dialog-heading">
-        <div><span class="device-eyebrow">Recovery only</span><h2 id="deviceRecoveryTitle">Reboot / Factory Reset Recovery</h2></div>
+        <div><span class="device-eyebrow">Recovery only</span><h2 id="deviceRecoveryTitle">Reboot & Reverify</h2></div>
         <button id="deviceRecoveryClose" class="device-icon-btn" type="button">×</button>
       </div>
       <div class="device-confirm-body">
-        <p><strong>Use only after Save & Sync has completed but Line 2 has not converged.</strong></p>
-        <p id="deviceRecoveryReason" class="device-helper">Reboot is the first recovery step. Factory Reset stays locked until a reboot has been attempted.</p>
-        <label class="device-recovery-confirm">
-          <input id="deviceRecoveryConfirm" type="checkbox">
-          I understand this factory-resets the phone, removes its local configuration, and requires the phone to reprovision from Phonism.
-        </label>
-        <p class="device-warning">This action is never run automatically and is recorded separately in Change History.</p>
+        <p><strong>Save & Sync already queues an automatic reboot. Use this only if the handset still needs another reboot.</strong></p>
+        <p id="deviceRecoveryReason" class="device-helper">Reboot & Reverify queues another TR-069 reboot and rechecks the temporary line.</p>
+        <p class="device-warning">Reboots are recorded separately in Change History.</p>
       </div>
       <div class="device-dialog-actions">
         <button id="deviceRecoveryCancel" class="device-btn secondary" type="button">Cancel</button>
-        <button id="deviceReboot" class="device-btn secondary" type="button">Reboot & Reverify</button>
-        <button id="deviceFactoryReset" class="device-btn danger" type="button" disabled>Factory Reset & Reprovision</button>
+        <button id="deviceReboot" class="device-btn" type="button">Reboot & Reverify</button>
       </div>
     </div>
   </dialog>
@@ -269,6 +265,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v10"></script>
+  <script src="device.js?v=20261002-v11"></script>
 </body>
 </html>

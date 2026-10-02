@@ -248,10 +248,10 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
 
     async tr069Action(env,phoneId,action){
       const normalized=String(action||'');
-      if(!['Reboot','FactoryReset'].includes(normalized))throw new DeviceManagementError('phonism-tr069-action-denied',400);
+      if(normalized!=='Reboot')throw new DeviceManagementError('phonism-tr069-action-denied',400);
       if(!phoneId)throw new DeviceManagementError('phonism-phone-required');
-      const result=await phonismWrite(env,'/phones/'+encodeURIComponent(phoneId)+'/tr069',{method:'PUT',body:{queue:[normalized]}});
-      return {accepted:true,status:result.status,action:normalized};
+      const result=await phonismWrite(env,'/phones/'+encodeURIComponent(phoneId)+'/tr069',{method:'PUT',body:{queue:['Reboot']}});
+      return {accepted:true,status:result.status,action:'Reboot'};
     }
   };
 }

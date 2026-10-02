@@ -2,7 +2,7 @@
   "use strict";
   const SECURITY_BASE="https://visionbank-security.ahmedadeyemi.workers.dev";
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],preview:null};
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],preview:null,recovery:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -131,13 +131,18 @@
   function applyFilters(){
     const term=normalize($("deviceSearch")?.value);
     const owner=$("deviceOwnerFilter")?.value||"";
-    const registration=$("deviceRegistrationFilter")?.value||"";
+    const webexFilter=$("deviceWebexRegistrationFilter")?.value||"";
+    const phonismFilter=$("devicePhonismRegistrationFilter")?.value||"";
     state.filtered=state.devices.filter(d=>{
       if(term&&!deviceSearchText(d).includes(term))return false;
       if(owner&&String(d.owner?.type||"").toUpperCase()!==owner)return false;
-      if(registration){
-        const statuses=[lineStatus(d.line1),lineStatus(d.line2)].filter(Boolean);
-        if(!statuses.some(s=>s===registration))return false;
+      if(webexFilter){
+        const statuses=[d.line1,d.line2].filter(Boolean).map(l=>statusClass(registrationValue(l,"webex")));
+        if(!statuses.includes(webexFilter))return false;
+      }
+      if(phonismFilter){
+        const statuses=[d.line1,d.line2].filter(Boolean).map(l=>statusClass(registrationValue(l,"phonism")));
+        if(!statuses.includes(phonismFilter))return false;
       }
       return true;
     });
@@ -149,22 +154,36 @@
     let registered=0,attention=0,pending=0;
     state.filtered.forEach(d=>{
       for(const line of [d.line1,d.line2]){
-        if(line&&statusClass(lineStatus(line))==="registered")registered++;
+        if(line&&lineHealthy(line))registered++;
       }
-      if([d.line1,d.line2].some(l=>l&&statusClass(lineStatus(l))==="unregistered")||syncClass(d.syncStatus)==="mismatch")attention++;
-      if(syncClass(d.syncStatus)==="pending")pending++;
+      if([d.line1,d.line2].some(l=>l&&!lineHealthy(l))||syncClass(d.syncStatus)==="mismatch")attention++;
+      if(syncClass(d.syncStatus)==="pending"||[d.line1,d.line2].some(l=>l&&statusClass(registrationValue(l,"phonism"))==="pending"))pending++;
     });
     text("deviceKpiRegistered",registered.toLocaleString());
     text("deviceKpiAttention",attention.toLocaleString());
     text("deviceKpiPending",pending.toLocaleString());
   }
 
+  function registrationValue(line,system){
+    if(!line)return "Unknown";
+    if(system==="webex")return line.webexRegistrationStatus||line.registrationStatus||line.status||"Unknown";
+    return line.phonismRegistrationStatus||"Unknown";
+  }
+
+  function lineHealthy(line){
+    if(!line)return true;
+    const webex=statusClass(registrationValue(line,"webex"));
+    const phonism=statusClass(registrationValue(line,"phonism"));
+    return webex==="registered"&&phonism==="registered";
+  }
+
   function lineCell(line){
     if(!line)return '<span class="device-badge neutral">None</span>';
-    const status=line.registrationStatus||line.status||"Unknown";
+    const webex=registrationValue(line,"webex"),phonism=registrationValue(line,"phonism");
     return '<strong>'+esc(line.name||line.displayName||"Assigned line")+'</strong>'+
       '<small>'+esc(line.extension||line.phoneNumber||"No extension")+'</small>'+
-      '<span class="device-status '+statusClass(status)+'">'+esc(status)+'</span>';
+      '<div class="device-dual-status"><span>Webex <b class="device-status '+statusClass(webex)+'">'+esc(webex)+'</b></span>'+
+      '<span>Phonism <b class="device-status '+statusClass(phonism)+'">'+esc(phonism)+'</b></span></div>';
   }
 
   function renderInventory(){
@@ -208,14 +227,14 @@
 
   async function openEditor(id){
     const device=state.devices.find(d=>String(d.id)===String(id));if(!device)return;
-    state.selected=device;state.preview=null;
+    state.selected=device;state.preview=null;state.recovery=null;
     text("deviceEditorTitle",device.displayName||device.model||"Phone");
     text("deviceEditorMeta",[device.locationName,device.mac].filter(Boolean).join(" · "));
     text("deviceLine1Name",device.line1?.name||device.owner?.name||"Primary line");
     text("deviceLine1Extension",device.line1?.extension||device.owner?.extension||"No extension");
-    const s=device.line1?.registrationStatus||device.line1?.status||"Unknown";
+    const wx=registrationValue(device.line1,"webex"),ph=registrationValue(device.line1,"phonism");
     const status=$("deviceLine1Status");
-    if(status){status.textContent=s;status.className="device-status "+statusClass(s);}
+    if(status){status.textContent="Webex: "+wx+" · Phonism: "+ph;status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
     await loadMembers(device);
     const select=$("deviceLine2Select");
     if(select){
@@ -225,7 +244,7 @@
     renderCandidate();
     const enabled=state.capabilities?.writes?.enabled===true;
     $("devicePreviewChange").disabled=!enabled;
-    text("deviceEditorWarning",enabled?"Review the proposed Line 2 change before applying it. Current state will be revalidated first.":"Changes remain disabled until Webex and Phonism write capabilities and the exact post-save action are validated.");
+    text("deviceEditorWarning",enabled?"Review the proposed Line 2 change before Save & Sync. Current state will be revalidated first.":"Changes remain disabled until Webex write support and the Phonism Sync API are validated. Factory Reset remains recovery-only.");
     $("deviceEditor")?.showModal();
   }
 
@@ -264,27 +283,53 @@
       '<div class="device-confirm-row"><span>Location</span><strong>'+esc(plan.location?.name||state.selected?.locationName||"Location")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+'</strong></div>'+
       '<div class="device-confirm-row"><span>New Line 2</span><strong>'+esc(after?.name||"None")+' '+esc(after?.extension||"")+'</strong></div>'+
-      '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Verified Phonism action")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Phonism Sync + registration verification")+'</strong></div>'+
       '<p class="device-helper">'+esc(plan.summary||"The backend will revalidate current state before any write.")+'</p>';
     $("deviceApplyChange").disabled=plan.executable!==true;
   }
 
   async function applyChange(){
     if(!state.preview)return;
-    const btn=$("deviceApplyChange");btn.disabled=true;btn.textContent="Applying…";
+    const btn=$("deviceApplyChange");btn.disabled=true;btn.textContent="Saving & Syncing…";
     try{
       const result=await api("/apply",{method:"POST",body:{
         mutationId:state.preview.mutationId,
         expectedVersion:state.preview.expectedVersion
       }});
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
-      text("deviceInventoryStatus",result.message||"Change accepted. Refreshing device state…");
+      text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism registration…");
       await loadInventory(true);
+      if(result.recoveryEligible===true&&result.recovery){
+        state.recovery=result.recovery;
+        text("deviceRecoveryReason",result.recovery.reason||"Line 2 is still not registered after Save & Sync verification.");
+        const confirm=$("deviceRecoveryConfirm");if(confirm)confirm.checked=false;
+        $("deviceFactoryReset").disabled=true;
+        $("deviceRecovery")?.showModal();
+      }
     }catch(error){
       const host=$("deviceConfirmBody");
-      if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Change was not completed: '+esc(error.message)+'</p>');
+      if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Save & Sync was not completed: '+esc(error.message)+'</p>');
     }finally{
-      btn.textContent="Save & Apply";
+      btn.textContent="Save & Sync";
+    }
+  }
+
+  async function factoryResetRecovery(){
+    if(!state.recovery||$("deviceRecoveryConfirm")?.checked!==true)return;
+    const btn=$("deviceFactoryReset");btn.disabled=true;btn.textContent="Resetting & Reprovisioning…";
+    try{
+      const result=await api("/factory-reset",{method:"POST",body:{
+        recoveryId:state.recovery.recoveryId,
+        expectedVersion:state.recovery.expectedVersion
+      }});
+      $("deviceRecovery")?.close();state.recovery=null;
+      text("deviceInventoryStatus",result.message||"Factory reset accepted. Waiting for phone reprovisioning and line registration…");
+      await loadInventory(true);
+    }catch(error){
+      text("deviceRecoveryReason","Factory reset recovery was not completed: "+error.message);
+    }finally{
+      btn.textContent="Factory Reset & Reprovision";
+      btn.disabled=$("deviceRecoveryConfirm")?.checked!==true||!state.recovery;
     }
   }
 
@@ -317,10 +362,11 @@
     }));
     $("deviceSearch")?.addEventListener("input",applyFilters);
     $("deviceOwnerFilter")?.addEventListener("change",applyFilters);
-    $("deviceRegistrationFilter")?.addEventListener("change",applyFilters);
+    $("deviceWebexRegistrationFilter")?.addEventListener("change",applyFilters);
+    $("devicePhonismRegistrationFilter")?.addEventListener("change",applyFilters);
     $("deviceLocationFilter")?.addEventListener("change",()=>void loadInventory(true));
     $("deviceClearFilters")?.addEventListener("click",()=>{
-      $("deviceSearch").value="";$("deviceOwnerFilter").value="";$("deviceRegistrationFilter").value="";applyFilters();
+      $("deviceSearch").value="";$("deviceOwnerFilter").value="";$("deviceWebexRegistrationFilter").value="";$("devicePhonismRegistrationFilter").value="";applyFilters();
     });
     $("deviceRefresh")?.addEventListener("click",async()=>{await loadCapabilities();await loadLocations();await loadInventory(true);});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
@@ -328,6 +374,12 @@
     $("deviceApplyChange")?.addEventListener("click",()=>void applyChange());
     $("deviceConfirmClose")?.addEventListener("click",()=>$("deviceConfirm")?.close());
     $("deviceConfirmCancel")?.addEventListener("click",()=>$("deviceConfirm")?.close());
+    $("deviceRecoveryClose")?.addEventListener("click",()=>$("deviceRecovery")?.close());
+    $("deviceRecoveryCancel")?.addEventListener("click",()=>$("deviceRecovery")?.close());
+    $("deviceRecoveryConfirm")?.addEventListener("change",()=>{
+      $("deviceFactoryReset").disabled=$("deviceRecoveryConfirm").checked!==true||!state.recovery;
+    });
+    $("deviceFactoryReset")?.addEventListener("click",()=>void factoryResetRecovery());
   }
 
   async function init(){

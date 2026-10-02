@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261001-v1">
+  <link rel="stylesheet" href="device.css?v=20261001-v2">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -68,11 +68,21 @@
               <option value="PLACE">Workspaces</option>
             </select>
           </label>
-          <label>Registration
-            <select id="deviceRegistrationFilter">
-              <option value="">Any status</option>
+          <label>Webex registration
+            <select id="deviceWebexRegistrationFilter">
+              <option value="">Any Webex status</option>
               <option value="registered">Registered</option>
               <option value="unregistered">Unregistered</option>
+              <option value="pending">Pending</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label>Phonism registration
+            <select id="devicePhonismRegistrationFilter">
+              <option value="">Any Phonism status</option>
+              <option value="registered">Registered</option>
+              <option value="unregistered">Unregistered</option>
+              <option value="pending">Sync pending</option>
               <option value="unknown">Unknown</option>
             </select>
           </label>
@@ -166,11 +176,11 @@
         <ol>
           <li>Revalidate the phone, selected extension, location, and current assignments.</li>
           <li>Save the supported line association in Webex Calling.</li>
-          <li>Update the matching physical phone configuration through Phonism.</li>
-          <li>Trigger the verified Phonism reprovision/reset action.</li>
-          <li>Recheck line registration and record the result in Change History.</li>
+          <li>Trigger Phonism Sync so the phone receives the updated Webex configuration.</li>
+          <li>Recheck Line 2 registration and record the result in Change History.</li>
+          <li>If Sync does not recover registration, offer a separate supervised Factory Reset recovery action. Factory Reset is never automatic.</li>
         </ol>
-        <p id="deviceEditorWarning" class="device-warning">Changes are disabled until both integrations and the exact Phonism post-save action are validated.</p>
+        <p id="deviceEditorWarning" class="device-warning">Changes are disabled until Webex write support and the Phonism Sync API are validated. Factory Reset will remain a separate recovery-only action.</p>
       </section>
       <div class="device-dialog-actions">
         <button class="device-btn secondary" value="cancel">Cancel</button>
@@ -183,7 +193,29 @@
     <div class="device-dialog-shell">
       <div class="device-dialog-heading"><div><span class="device-eyebrow">Final review</span><h2 id="deviceConfirmTitle">Confirm extension change</h2></div><button id="deviceConfirmClose" class="device-icon-btn" type="button">×</button></div>
       <div id="deviceConfirmBody" class="device-confirm-body"></div>
-      <div class="device-dialog-actions"><button id="deviceConfirmCancel" class="device-btn secondary" type="button">Cancel</button><button id="deviceApplyChange" class="device-btn" type="button">Save & Apply</button></div>
+      <div class="device-dialog-actions"><button id="deviceConfirmCancel" class="device-btn secondary" type="button">Cancel</button><button id="deviceApplyChange" class="device-btn" type="button">Save & Sync</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="deviceRecovery" class="device-dialog compact" aria-labelledby="deviceRecoveryTitle">
+    <div class="device-dialog-shell">
+      <div class="device-dialog-heading">
+        <div><span class="device-eyebrow">Recovery only</span><h2 id="deviceRecoveryTitle">Factory Reset & Recover</h2></div>
+        <button id="deviceRecoveryClose" class="device-icon-btn" type="button">×</button>
+      </div>
+      <div class="device-confirm-body">
+        <p><strong>Use only after Save & Sync has completed but Line 2 is still not registered.</strong></p>
+        <p id="deviceRecoveryReason" class="device-helper">The backend must confirm a failed registration check before this option can be enabled.</p>
+        <label class="device-recovery-confirm">
+          <input id="deviceRecoveryConfirm" type="checkbox">
+          I understand this factory-resets the phone, removes its local configuration, and requires the phone to reprovision from Phonism.
+        </label>
+        <p class="device-warning">This action is never run automatically and is recorded separately in Change History.</p>
+      </div>
+      <div class="device-dialog-actions">
+        <button id="deviceRecoveryCancel" class="device-btn secondary" type="button">Cancel</button>
+        <button id="deviceFactoryReset" class="device-btn danger" type="button" disabled>Factory Reset & Reprovision</button>
+      </div>
     </div>
   </dialog>
 
@@ -191,6 +223,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261001-v1"></script>
+  <script src="device.js?v=20261001-v2"></script>
 </body>
 </html>

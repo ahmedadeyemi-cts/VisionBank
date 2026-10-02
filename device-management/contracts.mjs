@@ -60,6 +60,26 @@ export function validatePostSaveAction(action){
   return {id,label:String(action.label||id).slice(0,120),verifiedNonDestructive:true};
 }
 
+export function registrationConvergence({webex,phonism}={}){
+  const webexStatus=normalizeRegistration(webex),phonismStatus=normalizeRegistration(phonism);
+  let state="pending-verification";
+  if(webexStatus==="registered"&&phonismStatus==="registered")state="completed";
+  else if(webexStatus==="unregistered"||phonismStatus==="unregistered")state="mismatch";
+  else if(webexStatus==="unknown"&&phonismStatus==="unknown")state="unknown";
+  return {webexStatus,phonismStatus,state,healthy:state==="completed"};
+}
+
+export function validateFactoryResetRecovery(value){
+  if(!value||typeof value!=="object")throw new DeviceManagementError("recovery-request-required");
+  if(!UUID.test(String(value.recoveryId||"")))throw new DeviceManagementError("invalid-recovery-id");
+  if(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0)throw new DeviceManagementError("invalid-expected-version");
+  if(value.syncAttempted!==true)throw new DeviceManagementError("sync-required-before-factory-reset",409);
+  if(!["mismatch","unknown"].includes(String(value.verificationState||"")))throw new DeviceManagementError("factory-reset-not-eligible",409);
+  if(value.endpointVerified!==true)throw new DeviceManagementError("factory-reset-endpoint-not-verified",409);
+  if(value.explicitConfirmation!==true)throw new DeviceManagementError("factory-reset-confirmation-required",409);
+  return {recoveryId:value.recoveryId,expectedVersion:value.expectedVersion};
+}
+
 export function buildChangePlan({device,targetMember,currentLine2=null,version=0,mutationId,capabilities={},postSaveAction=null}){
   assertDevice(device);
   const member=assertAssignableMember(targetMember,device);
@@ -74,7 +94,7 @@ export function buildChangePlan({device,targetMember,currentLine2=null,version=0
     location:{id:device.locationId,name:device.locationName||"Location"},
     before:{line2:currentLine2},
     after:{line2:member?{memberId:member.id,name:member.name||member.displayName||"Member",extension:member.extension||member.phoneNumber,type:normalizeOwnerType(member.type)}:null},
-    phonismActionLabel:action?.label||"Pending verified Phonism action",
-    summary:writeReady?"Current state will be revalidated before Webex and Phonism are changed.":"Preview only: write capabilities are not fully validated."
+    phonismActionLabel:action?.label||"Phonism Sync + registration verification",
+    summary:writeReady?"Current state will be revalidated, Webex will be saved, Phonism Sync will be forced, and both registration states will be re-read.":"Preview only: Webex write and Phonism Sync are not fully validated."
   };
 }

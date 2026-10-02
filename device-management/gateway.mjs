@@ -1,6 +1,8 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
-import {createOperatorSession,readOperatorSession,listAuditRecords} from './audit.mjs';
+import {createOperatorSession,readOperatorSession,requireOperatorSession,listAuditRecords} from './audit.mjs';
+import {isPilotDevice} from './lease.mjs';
+import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
 const PREFIX='/api/webex/device-management/';
@@ -238,6 +240,29 @@ function summaryPhoneRow(phone,tenant){
   };
 }
 
+async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,locationId,phonismPhoneId}){
+  const discovery=await phonismReader.discover(env,org);
+  const tenant=discovery.tenants.find(t=>String(t.webexLocationId||'')===String(locationId||''));
+  if(!tenant)throw new DeviceManagementError('phonism-tenant-location-mismatch',409);
+  const inventory=await phonismReader.tenantPhones(env,tenant.id,tenant.name);
+  const phone=inventory.phones.find(p=>String(p.id)===String(phonismPhoneId||''));
+  if(!phone)throw new DeviceManagementError('phonism-phone-not-found',404);
+  if(!isPilotDevice(env,phone.mac))throw new DeviceManagementError('device-write-not-enabled',403);
+  const found=await firstWebexDeviceForPhone(webexFetch,env,phone);
+  if(!found)throw new DeviceManagementError('webex-device-not-found',404);
+  const base=deviceBase(found.data);
+  const resolvedId=base.callingDeviceId||base.webexDeviceId;
+  if(!resolvedId||String(resolvedId)!==String(deviceId||''))throw new DeviceManagementError('device-identity-mismatch',409);
+  if(String(found.data?.locationId||locationId)!==String(locationId))throw new DeviceManagementError('device-location-mismatch',409);
+  const integration=discovery.webexIntegration;
+  if(!integration?.id)throw new DeviceManagementError('phonism-webex-integration-not-found',409);
+  return {
+    device:{...base,id:resolvedId,displayName:base.displayName||phone.alias||'Partner-managed phone',mac:phone.mac||base.mac},
+    location:{id:locationId,name:tenant.name||''},
+    phone,tenant,domain:discovery.domain,integration
+  };
+}
+
 async function readPhonismCapabilities(env,org,phonismReader){
   const checks=[];
   if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
@@ -276,14 +301,17 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
     try{
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','members','history','operator-session']);
-      const postRoutes=new Set(['operator-session']);
+      const readRoutes=new Set(['capabilities','locations','inventory','members','history','operator-session','lease-status']);
+      const postRoutes=new Set(['operator-session','preview','apply','reboot','factory-reset']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
       if((await bounded(checkAccess(request,env),8000))?.allowed!==true)throw new DeviceManagementError('access-denied',403);
       const rules=await bounded(loadIpRules(env),8000);
       if(!Array.isArray(rules)||!rules.some(v=>typeof v==='string'&&v.trim()))throw new DeviceManagementError('approved-network-required',403);
+
+      const writeParts=new Set(['preview','apply','reboot','factory-reset']);
+      if(writeParts.has(part)&&!String(env.DEVICE_WRITE_PILOT_MACS||'').trim())throw new DeviceManagementError('read-only-phase',405);
 
       if(part==='operator-session'){
         if(request.method==='POST'){
@@ -341,11 +369,12 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
 
         const ready=locationsOk&&devicesOk;
+        const pilotEnabled=String(env.DEVICE_WRITE_PILOT_MACS||'').trim().length>0;
         return output({success:true,webex:{detected:true,ready,
-          message:ready?'Read-only Webex discovery available':'Webex discovery is incomplete',
+          message:ready?'Webex discovery available':'Webex discovery is incomplete',
           detail:ready?'Webex locations and VisionBank-scoped partner-managed devices can be read through Phonism-stored Webex device IDs.':'Webex location access works, but the VisionBank-scoped device enrichment probe did not complete.',
           checks,deviceCount,callingDeviceCount:callingCount,memberRead,deviceScope:'phonism-visionbank-iowa'},phonism,
-          writes:{enabled:false,previewReady:false,message:'Read-only capability phase'},readOnly:true},200,headers);
+          writes:{enabled:pilotEnabled,previewReady:pilotEnabled,pilot:true,message:pilotEnabled?'Pilot Save & Sync enabled for approved devices':'Pilot writes are not configured'},readOnly:!pilotEnabled},200,headers);
       }
 
       if(part==='inventory'){
@@ -358,7 +387,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!requestedLocation){
           const all=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
           const tenantById=new Map(discovery.tenants.map(t=>[String(t.id),t]));
-          const devices=all.phones.map(phone=>summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null));
+          const devices=all.phones.map(phone=>({...summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null),writeEligible:isPilotDevice(env,phone.mac)}));
           return output({success:true,devices,summaryOnly:true,truncated:all.truncated,
             phonism:{ready:true,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:devices.length},
             message:'Showing all VisionBank Iowa phones. Select a location for Webex and line details.',
@@ -380,7 +409,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           truncated=truncated||inventory.truncated;
           for(const phone of inventory.phones)scoped.push({tenant,phone});
         }
-        const devices=await mapLimit(scoped,4,entry=>scopedPhoneRow(webexFetch,env,org,entry.tenant,entry.phone,phonismReader));
+        const detailed=await mapLimit(scoped,4,entry=>scopedPhoneRow(webexFetch,env,org,entry.tenant,entry.phone,phonismReader));
+        const devices=detailed.map(d=>({...d,writeEligible:isPilotDevice(env,d.mac)}));
         return output({success:true,devices,truncated,
           phonism:{ready:true,domainName:discovery.domain.name,tenantMatched:true,
             tenantCount:tenants.length,phoneCount:scoped.length},
@@ -394,6 +424,72 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const members=page.rows.map(memberRow).filter(m=>m.id&&m.type&&String(m.locationId||'')===locationId);
         return output({success:true,members,truncated:page.truncated,locationId,deviceId,readOnly:true},200,headers);
       }
+
+      if(part==='preview'){
+        const session=await requireOperatorSession(env,request);
+        const body=await readSmallJson(request,4096);
+        const allowed=new Set(['deviceId','locationId','phonismPhoneId','targetLine2MemberId','durationMinutes','reason']);
+        if(!body||Object.keys(body).some(k=>!allowed.has(k)))throw new DeviceManagementError('invalid-preview-request');
+        const deviceId=id(body.deviceId),locationId=id(body.locationId),phonismPhoneId=id(String(body.phonismPhoneId||''));
+        if(!deviceId||!locationId||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
+        const ctx=await resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,locationId,phonismPhoneId});
+        const current=await readWebexMembers(webexFetch,env,org,deviceId);
+
+        let targetMember=null;
+        if(body.targetLine2MemberId){
+          const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&locationId='+encodeURIComponent(locationId)+'&usageType=SHARED_LINE';
+          const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,1000);
+          const candidates=page.rows.map(memberRow).filter(m=>m.id&&m.type&&String(m.locationId||'')===locationId);
+          targetMember=candidates.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
+          if(!targetMember)throw new DeviceManagementError('target-member-not-available',409);
+        }
+
+        const preview=await createWritePreview({
+          env,session,device:ctx.device,location:ctx.location,currentMembers:current.members,targetMember,
+          durationMinutes:body.durationMinutes,reason:body.reason,
+          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.domain.id,integrationId:ctx.integration.id}
+        });
+        const expiresAt=new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
+        return output({success:true,plan:{
+          mutationId:preview.mutationId,expectedVersion:0,executable:true,
+          device:preview.device,location:preview.location,
+          before:{line2:preview.baselineLine2},after:{line2:preview.targetMember},
+          lease:{temporary:true,durationMinutes:preview.durationMinutes,startsAt:preview.createdAt,expiresAt,baselineLine2:preview.baselineLine2},
+          phonismActionLabel:'Force Phonism Webex Sync',
+          summary:'Webex Line 2 will be saved first, Phonism Sync will be forced immediately, and both systems will be re-read before the temporary lease is considered healthy.'
+        },readOnly:false},200,headers);
+      }
+
+      if(part==='apply'){
+        const session=await requireOperatorSession(env,request);
+        const body=await readSmallJson(request,2048);
+        if(!body||typeof body.mutationId!=='string'||Object.keys(body).some(k=>!['mutationId'].includes(k)))throw new DeviceManagementError('invalid-apply-request');
+        const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
+        return output({success:true,message:'Webex updated and Phonism Sync queued. Verifying provider state.',leaseId:result.lease.leaseId,
+          expiresAt:result.lease.expiresAt,verification:result.lease.verification,rebootAvailable:Boolean(result.lease.phonismPhoneId),factoryResetAvailable:false},200,headers);
+      }
+
+      if(part==='lease-status'){
+        const session=await requireOperatorSession(env,request);
+        const leaseId=id(url.searchParams.get('leaseId'));
+        if(!leaseId)throw new DeviceManagementError('lease-id-required');
+        const result=await verifyLease({env,webexFetch,orgId:org,leaseId,phonismReader});
+        return output({success:true,leaseId,state:result.state,verification:result.lease.verification,
+          expiresAt:result.lease.expiresAt,rebootAvailable:Boolean(result.lease.phonismPhoneId),
+          factoryResetAvailable:result.lease.recovery?.rebootAttempted===true},200,headers);
+      }
+
+      if(part==='reboot'||part==='factory-reset'){
+        const session=await requireOperatorSession(env,request);
+        const body=await readSmallJson(request,2048);
+        const allowed=new Set(['leaseId','explicitConfirmation']);
+        if(!body||Object.keys(body).some(k=>!allowed.has(k))||typeof body.leaseId!=='string')throw new DeviceManagementError('invalid-recovery-request');
+        const action=part==='reboot'?'Reboot':'FactoryReset';
+        const result=await runRecoveryAction({env,request,session,leaseId:body.leaseId,action,explicitConfirmation:body.explicitConfirmation===true,phonismReader});
+        return output({success:true,message:action==='Reboot'?'Reboot queued in Phonism; re-verification required.':'Factory Reset queued in Phonism; phone must reprovision before verification.',
+          leaseId:result.lease.leaseId,rebootAvailable:true,factoryResetAvailable:result.lease.recovery?.rebootAttempted===true},200,headers);
+      }
+
       throw new DeviceManagementError('not-found',404);
     }catch(error){
       const status=Number.isInteger(error?.status)?error.status:500;

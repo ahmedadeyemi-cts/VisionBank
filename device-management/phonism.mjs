@@ -51,6 +51,24 @@ export async function defaultPhonismFetch(env,path,{method='GET',signal}={}){
   return response;
 }
 
+async function phonismWrite(env,path,{method='PUT',body}={}){
+  if(!['PUT','POST'].includes(method))throw new DeviceManagementError('phonism-write-method-denied',405);
+  const key=String(env?.PHONISM_API_KEY||'');
+  if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
+  const response=await fetch(PHONISM_BASE+safePath(path),{
+    method,redirect:'manual',
+    headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},
+    body:JSON.stringify(body||{})
+  });
+  if(response.status>=300&&response.status<400)throw new DeviceManagementError('phonism-unexpected-redirect',502);
+  let data={};try{data=await response.clone().json();}catch{}
+  if(!response.ok||!Array.isArray(data?.errors)||data.errors.length){
+    const error=new DeviceManagementError('phonism-write-failed',response.status===401||response.status===403?503:502);
+    error.upstreamStatus=response.status;throw error;
+  }
+  return {status:response.status,data};
+}
+
 async function readJson(response){
   let body={};try{body=await response.json();}catch{}
   if(!response.ok||!body||!Array.isArray(body.errors)){
@@ -194,6 +212,28 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       const body=await readJson(response);
       const data=Array.isArray(body.data)?body.data:(body.data==null?[]:[body.data]);
       return data.map(lineRow).filter(x=>x.lineNumber);
+    },
+
+    async syncIntegration(env,integrationId,{companyId,tenantId,assetTypes=['People','Workspace','Device']}={}){
+      if(!integrationId)throw new DeviceManagementError('phonism-integration-required',409);
+      const allowed=new Set(['Organization','Location','People','Workspace','Device']);
+      const assets=(Array.isArray(assetTypes)?assetTypes:[assetTypes]).map(x=>String(x||'')).filter(x=>allowed.has(x));
+      if(!assets.length)throw new DeviceManagementError('phonism-sync-assets-required');
+      const body={};
+      if(companyId)body.company_id=Number(companyId)||companyId;
+      if(tenantId)body.tenant_id=Number(tenantId)||tenantId;
+      body.asset_type=assets;
+      const result=await phonismWrite(env,'/integrations/'+encodeURIComponent(integrationId)+'/sync',{method:'PUT',body});
+      if(result.status!==202&&result.status!==200)throw new DeviceManagementError('phonism-sync-not-accepted',502);
+      return {accepted:true,status:result.status};
+    },
+
+    async tr069Action(env,phoneId,action){
+      const normalized=String(action||'');
+      if(!['Reboot','FactoryReset'].includes(normalized))throw new DeviceManagementError('phonism-tr069-action-denied',400);
+      if(!phoneId)throw new DeviceManagementError('phonism-phone-required');
+      const result=await phonismWrite(env,'/phones/'+encodeURIComponent(phoneId)+'/tr069',{method:'PUT',body:{queue:[normalized]}});
+      return {accepted:true,status:result.status,action:normalized};
     }
   };
 }

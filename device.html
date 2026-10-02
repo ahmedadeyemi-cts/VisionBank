@@ -222,7 +222,8 @@
           <li>Recheck Line 2 registration and record the result in Change History.</li>
           <li>At the selected expiration time (maximum 12 hours), restore the permanent Webex baseline and force another Phonism Sync.</li>
           <li>If Webex changed outside this platform during the temporary lease, preserve the newer external state instead of overwriting it.</li>
-          <li>If Sync does not recover registration, offer a separate supervised Factory Reset recovery action. Factory Reset is never automatic.</li>
+          <li>Preserve existing Webex BLF / Line Monitoring entries. This workflow does not modify monitoring settings or monitored keys.</li>
+          <li>If Sync does not recover registration, offer Reboot & Reverify first, followed by a separate supervised Factory Reset recovery action. Factory Reset is never automatic.</li>
         </ol>
         <p id="deviceEditorWarning" class="device-warning">Changes are disabled until Webex write support and the Phonism Sync API are validated. Factory Reset will remain a separate recovery-only action.</p>
       </section>
@@ -268,6 +269,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v9"></script>
+  <script src="device.js?v=20261002-v10"></script>
 </body>
 </html>

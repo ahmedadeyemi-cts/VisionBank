@@ -173,6 +173,11 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
       phonismStatus:phonismQueued?'sync-queued':'failed',result:rolledBack?'rolled-back':'failed'
     });
     await writeAuditRecord(env,audit);
+    if(error?.code==='target-appearance-limit'){
+      error.targetMember=targetSummary(preview.targetMember);
+      error.location=preview.location;
+      error.device=preview.device;
+    }
     throw error;
   }
 

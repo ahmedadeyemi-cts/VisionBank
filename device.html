@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VisionBank® | Device & Extension Manager</title>
+  <meta name="description" content="VisionBank Webex Calling device and extension management">
+  <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
+  <link rel="stylesheet" href="device.css?v=20261001-v1">
+</head>
+<body class="device-shell">
+  <div id="deviceAccessOverlay" class="device-overlay">
+    <div class="device-overlay-card">
+      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="device-overlay-logo">
+      <h1>Device & Extension Manager</h1>
+      <p id="deviceAccessMessage">Checking approved network access…</p>
+    </div>
+  </div>
+
+  <header class="device-header">
+    <div class="device-brand">
+      <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="device-logo">
+      <div>
+        <span class="device-eyebrow">Webex Calling</span>
+        <h1>Device & Extension Manager</h1>
+        <p>Move secondary extensions between approved phones without navigating multiple admin systems.</p>
+      </div>
+    </div>
+    <div class="device-header-actions">
+      <span id="deviceSyncStamp" class="device-sync-stamp">Waiting for inventory</span>
+      <button id="deviceRefresh" class="device-btn secondary" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <main class="device-main" aria-live="polite">
+    <section class="device-healthbar" aria-label="Integration health">
+      <div><span class="device-dot" id="deviceWebexDot"></span><strong>Webex</strong><small id="deviceWebexHealth">Checking…</small></div>
+      <div><span class="device-dot" id="devicePhonismDot"></span><strong>Phonism</strong><small id="devicePhonismHealth">Checking…</small></div>
+      <div><span class="device-dot" id="deviceWriteDot"></span><strong>Change workflow</strong><small id="deviceWriteHealth">Read-only until validated</small></div>
+    </section>
+
+    <nav class="device-tabs" aria-label="Device management views">
+      <button type="button" class="device-tab active" data-device-tab="inventory">Device Assignments</button>
+      <button type="button" class="device-tab" data-device-tab="history">Change History</button>
+      <button type="button" class="device-tab" data-device-tab="health">Integration Health</button>
+    </nav>
+
+    <section data-device-view="inventory">
+      <div class="device-kpi-grid">
+        <article class="device-kpi"><span>Total phones</span><strong id="deviceKpiPhones">—</strong><small>Visible in selected location</small></article>
+        <article class="device-kpi"><span>Registered lines</span><strong id="deviceKpiRegistered">—</strong><small>Current line health</small></article>
+        <article class="device-kpi"><span>Needs attention</span><strong id="deviceKpiAttention">—</strong><small>Registration or sync issue</small></article>
+        <article class="device-kpi"><span>Pending changes</span><strong id="deviceKpiPending">—</strong><small>Not yet fully verified</small></article>
+      </div>
+
+      <section class="device-panel device-filter-panel">
+        <div class="device-filter-grid">
+          <label>Location
+            <select id="deviceLocationFilter"><option value="">All permitted locations</option></select>
+          </label>
+          <label class="device-search-label">Search
+            <input id="deviceSearch" type="search" autocomplete="off" placeholder="Name, extension, phone number, or MAC">
+          </label>
+          <label>Owner type
+            <select id="deviceOwnerFilter">
+              <option value="">Users & workspaces</option>
+              <option value="PEOPLE">Users</option>
+              <option value="PLACE">Workspaces</option>
+            </select>
+          </label>
+          <label>Registration
+            <select id="deviceRegistrationFilter">
+              <option value="">Any status</option>
+              <option value="registered">Registered</option>
+              <option value="unregistered">Unregistered</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+        </div>
+        <div class="device-filter-foot">
+          <span id="deviceInventoryStatus">Inventory has not loaded yet.</span>
+          <button id="deviceClearFilters" class="device-link-btn" type="button">Clear filters</button>
+        </div>
+      </section>
+      <section class="device-panel">
+        <div class="device-panel-heading">
+          <div>
+            <h2>Phones & line assignments</h2>
+            <p>Line 1 is shown for context. Line 2 is the managed secondary assignment in the initial release.</p>
+          </div>
+          <span class="device-badge neutral" id="deviceInventoryCount">0 devices</span>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Location</th>
+                <th>Primary owner</th>
+                <th>Line 1</th>
+                <th>Line 2</th>
+                <th>Configuration sync</th>
+                <th>Last provision</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="deviceInventoryRows">
+              <tr><td colspan="8" class="device-empty">Loading approved device-management capabilities…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section data-device-view="history" hidden>
+      <section class="device-panel">
+        <div class="device-panel-heading">
+          <div><h2>Change History</h2><p>Who changed what, when, and whether Webex and Phonism both completed.</p></div>
+          <button id="deviceHistoryRefresh" class="device-btn secondary" type="button">Refresh history</button>
+        </div>
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead><tr><th>When</th><th>Device</th><th>Location</th><th>Change</th><th>Webex</th><th>Phonism</th><th>Result</th></tr></thead>
+            <tbody id="deviceHistoryRows"><tr><td colspan="7" class="device-empty">No device-management history loaded.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+    <section data-device-view="health" hidden>
+      <section class="device-panel">
+        <div class="device-panel-heading"><div><h2>Integration Health</h2><p>Readiness checks required before changes are enabled.</p></div></div>
+        <div class="device-health-grid">
+          <article><h3>Webex authorization</h3><p id="deviceHealthWebexText">Not yet verified.</p><ul id="deviceHealthWebexChecks"></ul></article>
+          <article><h3>Phonism / InLayer</h3><p id="deviceHealthPhonismText">API connection is not configured yet.</p><ul id="deviceHealthPhonismChecks"></ul></article>
+          <article><h3>Safety controls</h3><p>Every change will be location-scoped and previewed before execution.</p>
+            <ul><li>Same-location assignments only</li><li>Line 1 protected in initial release</li><li>One change mutation ID per save</li><li>Webex + Phonism result tracked separately</li><li>No factory reset action</li></ul>
+          </article>
+          <article><h3>Device correlation</h3><p>MAC address will be the preferred cross-system key, with Webex Calling device ID and Phonism device ID retained as system-specific identifiers.</p></article>
+        </div>
+      </section>
+    </section>
+  </main>
+  <dialog id="deviceEditor" class="device-dialog" aria-labelledby="deviceEditorTitle">
+    <form method="dialog" class="device-dialog-shell">
+      <div class="device-dialog-heading">
+        <div><span class="device-eyebrow">Change extension assignment</span><h2 id="deviceEditorTitle">Phone</h2><p id="deviceEditorMeta"></p></div>
+        <button id="deviceEditorClose" class="device-icon-btn" value="cancel" aria-label="Close">×</button>
+      </div>
+      <div class="device-editor-grid">
+        <section class="device-line-card locked">
+          <div class="device-line-title"><span>Line 1</span><span class="device-badge neutral">Primary · protected</span></div>
+          <strong id="deviceLine1Name">—</strong>
+          <span id="deviceLine1Extension">—</span>
+          <span id="deviceLine1Status" class="device-status unknown">Unknown</span>
+        </section>
+        <section class="device-line-card">
+          <div class="device-line-title"><span>Line 2</span><span class="device-badge">Managed</span></div>
+          <label>Secondary extension
+            <select id="deviceLine2Select"><option value="">None</option></select>
+          </label>
+          <div id="deviceLine2CandidateMeta" class="device-helper">Only users and workspaces in this phone's location will be available.</div>
+        </section>
+      </div>
+      <section class="device-change-preview">
+        <h3>What will happen</h3>
+        <ol>
+          <li>Revalidate the phone, selected extension, location, and current assignments.</li>
+          <li>Save the supported line association in Webex Calling.</li>
+          <li>Update the matching physical phone configuration through Phonism.</li>
+          <li>Trigger the verified Phonism reprovision/reset action.</li>
+          <li>Recheck line registration and record the result in Change History.</li>
+        </ol>
+        <p id="deviceEditorWarning" class="device-warning">Changes are disabled until both integrations and the exact Phonism post-save action are validated.</p>
+      </section>
+      <div class="device-dialog-actions">
+        <button class="device-btn secondary" value="cancel">Cancel</button>
+        <button id="devicePreviewChange" class="device-btn" type="button" disabled>Review Change</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="deviceConfirm" class="device-dialog compact" aria-labelledby="deviceConfirmTitle">
+    <div class="device-dialog-shell">
+      <div class="device-dialog-heading"><div><span class="device-eyebrow">Final review</span><h2 id="deviceConfirmTitle">Confirm extension change</h2></div><button id="deviceConfirmClose" class="device-icon-btn" type="button">×</button></div>
+      <div id="deviceConfirmBody" class="device-confirm-body"></div>
+      <div class="device-dialog-actions"><button id="deviceConfirmCancel" class="device-btn secondary" type="button">Cancel</button><button id="deviceApplyChange" class="device-btn" type="button">Save & Apply</button></div>
+    </div>
+  </dialog>
+
+  <footer class="device-footer">
+    <span id="deviceSecurityStatus">Security check pending</span>
+    <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
+  </footer>
+  <script src="device.js?v=20261001-v1"></script>
+</body>
+</html>

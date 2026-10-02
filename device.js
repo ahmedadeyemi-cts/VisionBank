@@ -330,9 +330,9 @@
       select.onchange=renderCandidate;
     }
     renderCandidate();
-    const enabled=state.capabilities?.writes?.enabled===true;
-    $("devicePreviewChange").disabled=!enabled;
-    text("deviceEditorWarning",enabled?"Review the proposed Line 2 change before Save & Sync. Current state will be revalidated first.":"Changes remain disabled until Webex write support and the Phonism Sync API are validated. Factory Reset remains recovery-only.");
+    const enabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
+    $("devicePreviewChange").disabled=!enabled||Boolean(state.memberLoadError);
+    text("deviceEditorWarning",enabled?"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":(state.capabilities?.writes?.enabled===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until the write pilot is configured."));
     $("deviceEditor")?.showModal();
   }
 
@@ -353,6 +353,7 @@
       const data=await api("/preview",{method:"POST",body:{
         deviceId:state.selected.id,
         locationId:state.selected.locationId,
+        phonismPhoneId:state.selected.phonismPhoneId,
         targetLine2MemberId:memberId,
         durationMinutes,
         reason:($("deviceChangeReason")?.value||"").trim()
@@ -363,7 +364,7 @@
     }catch(error){
       text("deviceEditorWarning","Unable to prepare change: "+error.message);
     }finally{
-      button.disabled=state.capabilities?.writes?.enabled!==true;
+      button.disabled=!(state.capabilities?.writes?.enabled===true&&state.selected?.writeEligible===true)||Boolean(state.memberLoadError);
     }
   }
 
@@ -389,22 +390,11 @@
     if(!state.preview)return;
     const btn=$("deviceApplyChange");btn.disabled=true;btn.textContent="Saving & Syncing…";
     try{
-      const result=await api("/apply",{method:"POST",body:{
-        mutationId:state.preview.mutationId,
-        expectedVersion:state.preview.expectedVersion,
-        durationMinutes:state.preview.lease?.durationMinutes||Number($("deviceLeaseDuration")?.value||60),
-        reason:($("deviceChangeReason")?.value||"").trim()
-      }});
+      const result=await api("/apply",{method:"POST",body:{mutationId:state.preview.mutationId}});
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
-      text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism registration…");
-      await loadInventory(true);
-      if(result.recoveryEligible===true&&result.recovery){
-        state.recovery=result.recovery;
-        text("deviceRecoveryReason",result.recovery.reason||"Line 2 is still not registered after Save & Sync verification.");
-        const confirm=$("deviceRecoveryConfirm");if(confirm)confirm.checked=false;
-        $("deviceFactoryReset").disabled=true;
-        $("deviceRecovery")?.showModal();
-      }
+      state.recovery={leaseId:result.leaseId,rebootAvailable:result.rebootAvailable===true,factoryResetAvailable:false};
+      text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism state…");
+      await pollLeaseVerification(result.leaseId);
     }catch(error){
       const host=$("deviceConfirmBody");
       if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Save & Sync was not completed: '+esc(error.message)+'</p>');
@@ -413,22 +403,66 @@
     }
   }
 
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+  async function pollLeaseVerification(leaseId,{attempts=6,delayMs=5000}={}){
+    let last=null;
+    for(let i=0;i<attempts;i++){
+      try{
+        last=await api("/lease-status?leaseId="+encodeURIComponent(leaseId));
+        state.recovery={leaseId,rebootAvailable:last.rebootAvailable===true,factoryResetAvailable:last.factoryResetAvailable===true};
+        if(last.state==="applied"){
+          text("deviceInventoryStatus","Save & Sync completed. Webex is confirmed and the Phonism line is present. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
+          $("deviceRecovery")?.close();state.recovery=null;
+          await loadInventory(true);
+          return last;
+        }
+      }catch(error){
+        text("deviceInventoryStatus","Verification check delayed: "+error.message);
+      }
+      if(i<attempts-1)await wait(delayMs);
+    }
+    text("deviceRecoveryReason","Save & Sync is still pending verification. Reboot is available as the first recovery step.");
+    const confirm=$("deviceRecoveryConfirm");if(confirm)confirm.checked=false;
+    const reboot=$("deviceReboot");if(reboot)reboot.disabled=!state.recovery?.rebootAvailable;
+    const reset=$("deviceFactoryReset");if(reset)reset.disabled=true;
+    $("deviceRecovery")?.showModal();
+    await loadInventory(true);
+    return last;
+  }
+
+  async function rebootRecovery(){
+    if(!state.recovery?.leaseId)return;
+    const btn=$("deviceReboot");if(btn){btn.disabled=true;btn.textContent="Rebooting…";}
+    try{
+      const result=await api("/reboot",{method:"POST",body:{leaseId:state.recovery.leaseId}});
+      state.recovery.factoryResetAvailable=result.factoryResetAvailable===true;
+      text("deviceRecoveryReason",result.message||"Reboot queued. Waiting for the phone to reconnect and rechecking Line 2.");
+      await wait(8000);
+      await pollLeaseVerification(state.recovery.leaseId,{attempts:6,delayMs:5000});
+    }catch(error){
+      text("deviceRecoveryReason","Reboot recovery was not completed: "+error.message);
+    }finally{
+      if(btn){btn.textContent="Reboot & Reverify";btn.disabled=false;}
+    }
+  }
+
   async function factoryResetRecovery(){
-    if(!state.recovery||$("deviceRecoveryConfirm")?.checked!==true)return;
+    if(!state.recovery?.leaseId||state.recovery.factoryResetAvailable!==true||$("deviceRecoveryConfirm")?.checked!==true)return;
     const btn=$("deviceFactoryReset");btn.disabled=true;btn.textContent="Resetting & Reprovisioning…";
     try{
       const result=await api("/factory-reset",{method:"POST",body:{
-        recoveryId:state.recovery.recoveryId,
-        expectedVersion:state.recovery.expectedVersion
+        leaseId:state.recovery.leaseId,
+        explicitConfirmation:true
       }});
-      $("deviceRecovery")?.close();state.recovery=null;
-      text("deviceInventoryStatus",result.message||"Factory reset accepted. Waiting for phone reprovisioning and line registration…");
-      await loadInventory(true);
+      text("deviceRecoveryReason",result.message||"Factory reset accepted. Waiting for phone reprovisioning and line verification…");
+      await wait(15000);
+      await pollLeaseVerification(state.recovery.leaseId,{attempts:8,delayMs:7500});
     }catch(error){
       text("deviceRecoveryReason","Factory reset recovery was not completed: "+error.message);
     }finally{
       btn.textContent="Factory Reset & Reprovision";
-      btn.disabled=$("deviceRecoveryConfirm")?.checked!==true||!state.recovery;
+      btn.disabled=$("deviceRecoveryConfirm")?.checked!==true||state.recovery?.factoryResetAvailable!==true;
     }
   }
 
@@ -482,8 +516,9 @@
     $("deviceRecoveryClose")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceRecoveryCancel")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceRecoveryConfirm")?.addEventListener("change",()=>{
-      $("deviceFactoryReset").disabled=$("deviceRecoveryConfirm").checked!==true||!state.recovery;
+      $("deviceFactoryReset").disabled=$("deviceRecoveryConfirm").checked!==true||state.recovery?.factoryResetAvailable!==true;
     });
+    $("deviceReboot")?.addEventListener("click",()=>void rebootRecovery());
     $("deviceFactoryReset")?.addEventListener("click",()=>void factoryResetRecovery());
   }
 

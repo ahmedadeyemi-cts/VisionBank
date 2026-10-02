@@ -149,8 +149,8 @@
         <div class="device-health-grid">
           <article><h3>Webex authorization</h3><p id="deviceHealthWebexText">Not yet verified.</p><ul id="deviceHealthWebexChecks"></ul></article>
           <article><h3>Phonism / InLayer</h3><p id="deviceHealthPhonismText">API connection is not configured yet.</p><ul id="deviceHealthPhonismChecks"></ul></article>
-          <article><h3>Safety controls</h3><p>Every change will be location-scoped and previewed before execution.</p>
-            <ul><li>Same-location assignments only</li><li>Line 1 protected in initial release</li><li>One change mutation ID per save</li><li>Webex + Phonism result tracked separately</li><li>No factory reset action</li></ul>
+          <article><h3>Safety controls</h3><p>Every change is organization-scoped, device-validated, and previewed before execution.</p>
+            <ul><li>Cross-location lines are allowed only when Webex returns them as eligible</li><li>Line 1 protected in initial release</li><li>One change mutation ID per save</li><li>Webex + Phonism result tracked separately</li><li>Destructive Phonism actions are blocked</li></ul>
           </article>
           <article><h3>Device correlation</h3><p>MAC address will be the preferred cross-system key, with Webex Calling device ID and Phonism device ID retained as system-specific identifiers.</p></article>
         </div>
@@ -278,6 +278,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v12"></script>
+  <script src="device.js?v=20261002-v13"></script>
 </body>
 </html>

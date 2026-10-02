@@ -203,6 +203,29 @@ async function scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader){
   };
 }
 
+function summaryPhoneRow(phone,tenant){
+  return {
+    id:'phonism:'+phone.id,
+    webexDeviceId:phone.webexDeviceId||null,
+    callingDeviceId:null,
+    displayName:phone.alias||'Partner-managed phone',
+    model:phone.webexDeviceType||'Partner-managed phone',
+    mac:phone.mac||null,
+    locationId:tenant?.webexLocationId||null,
+    locationName:tenant?.name||phone.tenantName||'',
+    owner:phone.alias?{id:null,name:phone.alias,type:null,extension:'',phoneNumber:''}:null,
+    line1:null,line2:null,detailsLoaded:false,
+    phonismPhoneId:phone.id,phonismTenantId:phone.tenantId,phonismTenantName:tenant?.name||phone.tenantName||'',
+    phonismMatch:'summary',
+    phonismStatus:[phone.state==='1'?'Ready':phone.state?'State '+phone.state:null,phone.tr069?'TR69':null].filter(Boolean).join(' · ')||'Linked',
+    phonismServiceState:phone.serviceState||[],
+    lastProvision:phone.lastProvision||'Not reported',
+    syncStatus:'summary',
+    syncStatusLabel:'Summary view',
+    syncMessage:'Select a location for Webex and line details'
+  };
+}
+
 async function readPhonismCapabilities(env,org,phonismReader){
   const checks=[];
   if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
@@ -298,15 +321,21 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
       if(part==='inventory'){
         const requestedLocation=id(url.searchParams.get('locationId'));
-        if(!requestedLocation){
-          return output({success:true,devices:[],locationRequired:true,
-            message:'Select a Webex location to load VisionBank phones.',
-            generatedAt:new Date().toISOString(),readOnly:true},200,headers);
-        }
 
         let discovery;
         try{discovery=await phonismReader.discover(env,org);}
         catch{throw new DeviceManagementError('phonism-read-unavailable',503);}
+
+        if(!requestedLocation){
+          const all=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
+          const tenantById=new Map(discovery.tenants.map(t=>[String(t.id),t]));
+          const devices=all.phones.map(phone=>summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null));
+          return output({success:true,devices,summaryOnly:true,truncated:all.truncated,
+            phonism:{ready:true,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:devices.length},
+            message:'Showing all VisionBank Iowa phones. Select a location for Webex and line details.',
+            generatedAt:new Date().toISOString(),readOnly:true},200,headers);
+        }
+
         const tenants=discovery.tenants.filter(t=>String(t.webexLocationId||'')===requestedLocation);
         if(!tenants.length){
           return output({success:true,devices:[],locationRequired:false,

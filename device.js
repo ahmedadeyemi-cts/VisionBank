@@ -95,7 +95,7 @@
       const data=await api("/locations");
       state.locations=Array.isArray(data.locations)?data.locations:[];
       const select=$("deviceLocationFilter"),current=select.value;
-      select.innerHTML='<option value="">Select a Webex location</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
+      select.innerHTML='<option value="">All VisionBank locations</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
       if([...select.options].some(o=>o.value===current))select.value=current;
     }catch(error){
       state.locations=[];
@@ -106,15 +106,7 @@
   async function loadInventory(force=false){
     const body=$("deviceInventoryRows");
     const locationId=$("deviceLocationFilter")?.value||"";
-    if(!locationId){
-      state.devices=[];state.filtered=[];
-      text("deviceInventoryStatus","Select a Webex location to load VisionBank phones.");
-      text("deviceSyncStamp","Waiting for location");
-      if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Select a Webex location to load the scoped phone inventory.</td></tr>';
-      renderKpis();
-      return;
-    }
-    text("deviceInventoryStatus","Loading phones and line assignments…");
+    text("deviceInventoryStatus",locationId?"Loading detailed phone and line assignments…":"Loading VisionBank Iowa phone inventory…");
     if(body&&!state.devices.length)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading inventory…</td></tr>';
     try{
       const q=new URLSearchParams();
@@ -123,6 +115,7 @@
       const data=await api("/inventory"+(q.size?"?"+q.toString():""));
       state.devices=Array.isArray(data.devices)?data.devices:[];
       text("deviceSyncStamp",data.generatedAt?("Updated "+new Date(data.generatedAt).toLocaleTimeString()):"Inventory updated");
+      text("deviceInventoryStatus",data.message||(data.summaryOnly?("Showing "+state.devices.length+" VisionBank phones. Select a location for line details."):("Loaded "+state.devices.length+" phones with detailed provider data.")));
       applyFilters();
     }catch(error){
       state.devices=[];state.filtered=[];
@@ -185,7 +178,8 @@
     return webex==="registered"&&phonism==="registered";
   }
 
-  function lineCell(line){
+  function lineCell(line,detailsLoaded=true){
+    if(!detailsLoaded)return '<span class="device-badge neutral">Select location for line details</span>';
     if(!line)return '<span class="device-badge neutral">None</span>';
     const webex=registrationValue(line,"webex"),phonism=registrationValue(line,"phonism");
     return '<strong>'+esc(line.name||line.displayName||"Assigned line")+'</strong>'+
@@ -214,12 +208,18 @@
       '<td><strong>'+esc(d.displayName||d.model||"Phone")+'</strong><small>'+esc(d.model||"Unknown model")+' · '+esc(d.mac||"MAC unavailable")+'</small></td>'+
       '<td>'+esc(d.locationName||"Unknown")+'<small>'+esc(d.locationCode||"")+'</small></td>'+
       '<td><strong>'+esc(d.owner?.name||"Unassigned")+'</strong><small>'+esc(d.owner?.type||"")+' '+esc(d.owner?.extension||"")+'</small></td>'+
-      '<td>'+lineCell(d.line1)+'</td><td>'+lineCell(d.line2)+'</td>'+
+      '<td>'+lineCell(d.line1,d.detailsLoaded!==false)+'</td><td>'+lineCell(d.line2,d.detailsLoaded!==false)+'</td>'+
       '<td>'+leaseCell(d)+'</td>'+
       '<td><span class="device-status '+syncClass(d.syncStatus)+'">'+esc(d.syncStatusLabel||d.syncStatus||"Unknown")+'</span><small>'+esc(d.syncMessage||"")+'</small></td>'+
       '<td>'+esc(d.lastProvision||"Not reported")+'<small>'+esc(d.phonismStatus||"")+'</small></td>'+
-      '<td><button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage lines</button></td></tr>').join("");
+      '<td>'+(d.detailsLoaded===false?'<button class="device-row-action" type="button" data-device-location="'+esc(d.locationId||"")+'">Open location</button>':'<button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage lines</button>')+'</td></tr>').join("");
     body.querySelectorAll("[data-device-edit]").forEach(btn=>btn.addEventListener("click",()=>openEditor(btn.dataset.deviceEdit)));
+    body.querySelectorAll("[data-device-location]").forEach(btn=>btn.addEventListener("click",async()=>{
+      const locationId=btn.dataset.deviceLocation||"";
+      if(!locationId)return;
+      const filter=$("deviceLocationFilter");if(filter)filter.value=locationId;
+      await loadInventory(true);
+    }));
   }
 
   async function loadMembers(device){

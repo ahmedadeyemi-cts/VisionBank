@@ -1,4 +1,5 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
+import {createPhonismReader} from './phonism.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
 const PREFIX='/api/webex/device-management/';
@@ -83,8 +84,93 @@ async function mapLimit(rows,limit,fn){
   async function worker(){while(true){const i=cursor++;if(i>=rows.length)return;out[i]=await fn(rows[i],i);}}
   await Promise.all(Array.from({length:Math.min(limit,rows.length||1)},worker));return out;
 }
-export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRules}){
-  if(typeof webexFetch!=='function'||typeof checkAccess!=='function'||typeof loadIpRules!=='function')throw new Error('device-management-dependencies-required');
+
+function phonismMatch(device,phones,tenants=[]){
+  const tenantById=new Map(tenants.map(t=>[String(t.id),t]));
+  const candidates=phones.filter(p=>{
+    const tenant=tenantById.get(String(p.tenantId||''));
+    return !device.locationId||!tenant?.webexLocationId||String(tenant.webexLocationId)===String(device.locationId);
+  });
+  const byWebex=candidates.filter(p=>p.webexDeviceId&&[device.webexDeviceId,device.callingDeviceId].includes(p.webexDeviceId));
+  if(byWebex.length===1)return {phone:byWebex[0],method:'webex-device-id'};
+  const byMac=candidates.filter(p=>p.mac&&device.mac&&p.mac===device.mac);
+  if(byMac.length===1)return {phone:byMac[0],method:'mac'};
+  return {phone:null,method:byWebex.length>1||byMac.length>1?'ambiguous':'unmatched'};
+}
+
+function mergeLine(webexLine,phonismLine){
+  if(!webexLine&&!phonismLine)return null;
+  return {
+    ...(webexLine||{id:null,memberId:null,name:phonismLine?.alias||'Phonism line',type:null,extension:'',phoneNumber:'',port:phonismLine?.lineNumber||null}),
+    registrationStatus:webexLine?.registrationStatus||'unknown',
+    webexRegistrationStatus:webexLine?.registrationStatus||'unknown',
+    phonismRegistrationStatus:phonismLine?.registrationStatus||'unknown',
+    phonismLineNumber:phonismLine?.lineNumber||null,
+    phonismUsername:phonismLine?.username||'',
+    phonismAlias:phonismLine?.alias||''
+  };
+}
+
+async function mergePhonismInventory(env,org,devices,phonismReader){
+  let discovery,phoneInventory;
+  try{
+    discovery=await phonismReader.discover(env,org);
+    phoneInventory=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
+  }catch(error){
+    return {devices:devices.map(d=>({...d,line1:mergeLine(d.line1,null),line2:mergeLine(d.line2,null),
+      phonismStatus:'Unavailable',phonismMatch:'unavailable',syncStatus:'attention',syncStatusLabel:'Phonism unavailable',
+      syncMessage:error?.code||'phonism-read-unavailable'})),phonism:{ready:false,error:error?.code||'phonism-read-unavailable'}};
+  }
+  const merged=await mapLimit(devices,4,async device=>{
+    const match=phonismMatch(device,phoneInventory.phones,discovery.tenants);
+    if(!match.phone)return {...device,line1:mergeLine(device.line1,null),line2:mergeLine(device.line2,null),
+      phonismStatus:'Not matched',phonismMatch:match.method,syncStatus:'attention',syncStatusLabel:'Phonism device not matched',syncMessage:'No unique Webex device ID or MAC match'};
+    let lines=[];try{lines=await phonismReader.lines(env,match.phone.id);}catch{}
+    const line1=lines.find(x=>x.lineNumber===1)||null,line2=lines.find(x=>x.lineNumber===2)||null;
+    const services=match.phone.serviceState||[];
+    return {...device,
+      line1:mergeLine(device.line1,line1),line2:mergeLine(device.line2,line2),
+      phonismPhoneId:match.phone.id,phonismTenantId:match.phone.tenantId,phonismTenantName:match.phone.tenantName,
+      phonismMatch:match.method,phonismStatus:[match.phone.state?'State '+match.phone.state:null,match.phone.tr069?'TR69':null].filter(Boolean).join(' · ')||'Linked',
+      phonismServiceState:services,lastProvision:match.phone.lastProvision||'Not reported',
+      syncStatus:'linked',syncStatusLabel:'Webex ↔ Phonism linked',syncMessage:match.method==='mac'?'Matched by MAC':'Matched by Webex device ID'};
+  });
+  return {devices:merged,phonism:{ready:true,domainName:discovery.domain.name,
+    tenantCount:discovery.tenants.length,webexIntegrationAvailable:Boolean(discovery.webexIntegration),
+    phoneCount:phoneInventory.phones.length,truncated:discovery.truncated||phoneInventory.truncated}};
+}
+
+async function readPhonismCapabilities(env,org,phonismReader){
+  const checks=[];
+  if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
+  try{
+    const discovery=await phonismReader.discover(env,org);
+    checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found'});
+    checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available'});
+    checks.push({label:'Webex integration',status:discovery.webexIntegration?'Found':'Not uniquely identified'});
+    const inventory=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
+    checks.push({label:'Phonism phone inventory',status:String(inventory.phones.length)+' available'});
+    let lineRead='not-tested',registrationMonitoring='unknown';
+    const sample=inventory.phones[0];
+    if(sample)try{
+      const lines=await phonismReader.lines(env,sample.id);lineRead='available';
+      registrationMonitoring=lines.some(x=>x.registrationStatus!=='unknown')?'available':'not-reported-on-sample';
+      checks.push({label:'Phone line status read',status:'Available'});
+      checks.push({label:'Line registration monitoring',status:registrationMonitoring});
+    }catch{lineRead='unavailable';checks.push({label:'Phone line status read',status:'Unavailable'});}
+    const ready=Boolean(discovery.domain)&&inventory.phones.length>=0;
+    return {detected:true,ready,message:ready?'Read-only Phonism discovery available':'Phonism discovery is incomplete',
+      detail:'VisionBank Iowa can be read through the server-side Phonism API key. Writes and Sync remain disabled.',
+      checks,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:inventory.phones.length,
+      webexIntegrationAvailable:Boolean(discovery.webexIntegration),lineRead,registrationMonitoring};
+  }catch(error){
+    return {detected:true,ready:false,message:'Phonism read failed',
+      detail:'The API key is present, but read-only discovery could not complete.',checks,error:error?.code||'phonism-read-unavailable'};
+  }
+}
+
+export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRules,phonismReader=createPhonismReader()}){
+  if(typeof webexFetch!=='function'||typeof checkAccess!=='function'||typeof loadIpRules!=='function'||!phonismReader)throw new Error('device-management-dependencies-required');
   return async function handler(request,env,cors={}){
     const headers={...cors};
     try{
@@ -116,9 +202,10 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           if(first)try{await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(first.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'})));memberRead='available';checks.push({label:'Calling device members read',status:'Available'});}catch(error){memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
         }catch{checks.push({label:'Webex device inventory',status:'Unavailable'});}
         const ready=locationsOk&&devicesOk;
+        const phonism=await readPhonismCapabilities(env,org,phonismReader);
         return output({success:true,webex:{detected:true,ready,message:ready?'Read-only Webex discovery available':'Webex discovery is incomplete',
           detail:ready?'Existing OAuth can read locations and devices. Partner-managed line/member support is reported separately.':'One or more required read APIs are unavailable with the existing authorization.',
-          checks,deviceCount,callingDeviceCount:callingCount,memberRead},phonism:{detected:false,ready:false,message:'API details required',detail:'Phonism has not been connected to this Worker.',checks:[]},
+          checks,deviceCount,callingDeviceCount:callingCount,memberRead},phonism,
           writes:{enabled:false,previewReady:false,message:'Read-only capability phase'},readOnly:true},200,headers);
       }
 
@@ -128,7 +215,9 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const bases=page.rows.map(deviceBase).filter(x=>x.callingDeviceId);
         let devices=await mapLimit(bases,4,base=>readCallingDevice(webexFetch,env,org,base));
         if(requestedLocation)devices=devices.filter(d=>String(d.locationId||'')===requestedLocation);
-        return output({success:true,devices,truncated:page.truncated,generatedAt:new Date().toISOString(),readOnly:true},200,headers);
+        const merged=await mergePhonismInventory(env,org,devices,phonismReader);
+        return output({success:true,devices:merged.devices,phonism:merged.phonism,truncated:page.truncated,
+          generatedAt:new Date().toISOString(),readOnly:true},200,headers);
       }
       if(part==='members'){
         const deviceId=id(url.searchParams.get('deviceId')),locationId=id(url.searchParams.get('locationId'));

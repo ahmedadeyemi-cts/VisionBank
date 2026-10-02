@@ -6,7 +6,7 @@ const ORIGIN='https://visionbank-dashboard.onrender.com';
 const IP='198.51.100.12';
 function json(body,status=200,headers={}){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json',...headers}});}
 
-function fixture(){
+function fixture({phonismReader}={}){
   const calls=[];
   const webexFetch=async(_env,url,options={})=>{
     calls.push({url,method:options.method||'GET'});
@@ -27,14 +27,14 @@ function fixture(){
     ]});
     return json({message:'not found'},404);
   };
-  const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['198.51.100.0/24']});
+  const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['198.51.100.0/24'],...(phonismReader?{phonismReader}:{})});
   return {handler,calls};
 }
 
-async function request(handler,path,{method='GET',origin=ORIGIN,cf=true,headers={}}={}){
+async function request(handler,path,{method='GET',origin=ORIGIN,cf=true,headers={},env={WEBEX_ORG_ID:'org-1'}}={}){
   const req=new Request('https://worker.example/api/webex/device-management/'+path,{method,headers:{Origin:origin,'CF-Connecting-IP':IP,...headers}});
   if(cf)Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
-  const res=await handler(req,{WEBEX_ORG_ID:'org-1'},{'Access-Control-Allow-Origin':ORIGIN});
+  const res=await handler(req,env,{'Access-Control-Allow-Origin':ORIGIN});
   return {status:res.status,data:await res.json()};
 }
 test('locations are normalized through the read-only gateway',async()=>{
@@ -88,4 +88,54 @@ test('upstream error details are not leaked to browser responses',async()=>{
   const r=await request(handler,'locations');
   assert.equal(r.status,503);assert.equal(r.data.error,'webex-read-unavailable');
   assert.equal(Object.hasOwn(r.data,'message'),false);assert.equal(Object.hasOwn(r.data,'trackingId'),false);
+});
+
+test('inventory merges Phonism line registration by Webex device ID',async()=>{
+  const phonismReader={
+    async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'DUFF',webexLocationId:'loc-a'}],webexIntegration:{id:'501'},truncated:false};},
+    async phones(){return {phones:[{id:'9001',tenantId:'101',tenantName:'DUFF',mac:'00:11:22:33:44:55',state:'1',serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',webexDeviceId:'webex-1'}],truncated:false};},
+    async lines(){return [
+      {lineNumber:1,username:'sip1',alias:'Alex User',registrationStatus:'registered'},
+      {lineNumber:2,username:'sip2',alias:'Open Desk',registrationStatus:'unregistered'}
+    ];}
+  };
+  const f=fixture({phonismReader});
+  const r=await request(f.handler,'inventory?locationId=loc-a',{env:{WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32)}});
+  assert.equal(r.status,200);
+  const d=r.data.devices[0];
+  assert.equal(d.phonismMatch,'webex-device-id');
+  assert.equal(d.phonismTenantName,'DUFF');
+  assert.equal(d.line1.webexRegistrationStatus,'registered');
+  assert.equal(d.line1.phonismRegistrationStatus,'registered');
+  assert.equal(d.line2.webexRegistrationStatus,'registered');
+  assert.equal(d.line2.phonismRegistrationStatus,'unregistered');
+  assert.equal(d.lastProvision,'2026-10-01 12:10:00');
+  assert.equal(r.data.phonism.ready,true);
+});
+
+test('capabilities reports Phonism discovery while keeping writes disabled',async()=>{
+  const phonismReader={
+    async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'DUFF'}],webexIntegration:{id:'501'},truncated:false};},
+    async phones(){return {phones:[{id:'9001'}],truncated:false};},
+    async lines(){return [{lineNumber:1,registrationStatus:'registered'}];}
+  };
+  const f=fixture({phonismReader});
+  const r=await request(f.handler,'capabilities',{env:{WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32)}});
+  assert.equal(r.status,200);
+  assert.equal(r.data.phonism.ready,true);
+  assert.equal(r.data.phonism.domainName,'VisionBank Iowa');
+  assert.equal(r.data.phonism.registrationMonitoring,'available');
+  assert.equal(r.data.writes.enabled,false);
+});
+
+test('inventory remains usable when Phonism is unavailable',async()=>{
+  const phonismReader={
+    async discover(){const e=new Error('nope');e.code='phonism-read-unavailable';throw e;}
+  };
+  const f=fixture({phonismReader});
+  const r=await request(f.handler,'inventory?locationId=loc-a',{env:{WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32)}});
+  assert.equal(r.status,200);
+  assert.equal(r.data.devices.length,1);
+  assert.equal(r.data.devices[0].phonismStatus,'Unavailable');
+  assert.equal(r.data.phonism.ready,false);
 });

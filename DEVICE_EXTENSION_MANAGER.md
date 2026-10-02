@@ -68,7 +68,7 @@ Never use display name as the primary correlation key.
 8. Immediately invoke the verified Phonism Sync action so the Webex change is pulled into Phonism without waiting for the normal periodic synchronization.
 9. Queue a Phonism TR-069 reboot so the handset applies the updated configuration.
 10. Re-read Webex and Phonism Line 2 state independently. When Phonism does not expose registration telemetry, report the configuration as present but registration telemetry unavailable.
-11. If the handset still needs attention, allow Reboot & Reverify. Factory Reset is not part of this workflow.
+11. If the handset still needs attention, allow Reboot & Reverify. Destructive recovery actions remain blocked.
 12. Record complete, applied-unverified, mismatch, pending-verification, reboot-failed, failed, or unknown result in audit history.
 
 Never blindly retry a write after an unknown network response. Reconcile first.
@@ -78,7 +78,7 @@ Normal production behavior is:
 
 `Save in Webex → force Phonism Sync → queue TR-069 Reboot → reverify`
 
-Factory Reset and configuration-clearing actions are not part of this workflow. If another reboot is needed, `Reboot & Reverify` can be invoked and is audited separately.
+Configuration-clearing and other destructive actions are not part of this workflow. If another reboot is needed, `Reboot & Reverify` can be invoked and is audited separately.
 
 Existing Webex BLF / Line Monitoring settings are a separate configuration domain and are not modified by the temporary shared-line workflow.
 
@@ -88,7 +88,7 @@ Front end contract:
 - `GET /api/webex/device-management/capabilities`
 - `GET /api/webex/device-management/locations`
 - `GET /api/webex/device-management/inventory?locationId=...`
-- `GET /api/webex/device-management/members?deviceId=...` — organization-wide eligible users/workspaces with each member's source location.
+- `GET /api/webex/device-management/members?deviceId=...&q=...&limit=50` — bounded organization-wide eligible users/workspaces, searchable by name, extension, number, workspace/user type, or location.
 - `GET /api/webex/device-management/history`
 - `POST /api/webex/device-management/preview`
 - `POST /api/webex/device-management/apply` — Save in Webex, force Phonism Sync, queue reboot, then verify both systems.
@@ -108,7 +108,7 @@ The UI must remain read-only until all are true:
 - Exact Phonism Sync API action is proven and can be triggered immediately after a Webex save.
 - Webex registration status read is proven for the customer device/line type.
 - Phonism line-registration status read is proven.
-- Factory-reset API action is separately verified before any recovery control can be enabled.
+- Destructive Phonism recovery actions remain blocked; the supported recovery control is non-destructive Reboot & Reverify.
 - Audit/idempotency storage is ready.
 ## Information needed from VisionBank / Phonism
 
@@ -131,7 +131,7 @@ A change is not simply Success/Failure. The UI should distinguish:
 - Completed — desired Line 2 is present, Phonism Sync completed, and both Webex and Phonism report healthy registration.
 - Pending verification — Save & Sync was accepted but one or both registration states are still converging.
 - Mismatch — Webex and Phonism disagree about Line 2 or its registration state.
-- Recovery eligible — Sync was attempted, verification still failed, and Factory Reset may be offered as a separate supervised action.
+- Recovery eligible — Sync and the automatic reboot were attempted, verification still needs attention, and Reboot & Reverify may be offered as a separate audited action.
 - Partial — one system updated and another did not.
 - Rejected — validation blocked the request before writes.
 - Failed — provider returned a terminal failure.
@@ -200,6 +200,6 @@ Server-captured audit evidence includes:
 - Overall result
 - Unique audit/mutation identifier
 
-Automatic lease expiration/reconciliation uses actor `VisionBank Device Manager – Automated` and retains a link to the original human operator. Factory Reset recovery must be audited as its own action.
+Automatic lease expiration/reconciliation uses actor `VisionBank Device Manager – Automated` and retains a link to the original human operator. Manual Reboot & Reverify recovery is audited as its own action.
 
 The Change History UI exposes operator, source IP, device, location, action, provider results, and final result. Operator sessions expire after 12 hours and are namespaced so they do not collide with existing VisionBank authentication sessions.

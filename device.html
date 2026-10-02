@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261001-v2">
+  <link rel="stylesheet" href="device.css?v=20261002-v3">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -50,7 +50,7 @@
         <article class="device-kpi"><span>Total phones</span><strong id="deviceKpiPhones">—</strong><small>Visible in selected location</small></article>
         <article class="device-kpi"><span>Registered lines</span><strong id="deviceKpiRegistered">—</strong><small>Current line health</small></article>
         <article class="device-kpi"><span>Needs attention</span><strong id="deviceKpiAttention">—</strong><small>Registration or sync issue</small></article>
-        <article class="device-kpi"><span>Pending changes</span><strong id="deviceKpiPending">—</strong><small>Not yet fully verified</small></article>
+        <article class="device-kpi"><span>Temporary lines</span><strong id="deviceKpiPending">—</strong><small>Active platform-managed leases</small></article>
       </div>
 
       <section class="device-panel device-filter-panel">
@@ -109,13 +109,14 @@
                 <th>Primary owner</th>
                 <th>Line 1</th>
                 <th>Line 2</th>
+                <th>Temporary until</th>
                 <th>Configuration sync</th>
                 <th>Last provision</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="deviceInventoryRows">
-              <tr><td colspan="8" class="device-empty">Loading approved device-management capabilities…</td></tr>
+              <tr><td colspan="9" class="device-empty">Loading approved device-management capabilities…</td></tr>
             </tbody>
           </table>
         </div>
@@ -168,7 +169,17 @@
           <label>Secondary extension
             <select id="deviceLine2Select"><option value="">None</option></select>
           </label>
-          <div id="deviceLine2CandidateMeta" class="device-helper">Only users and workspaces in this phone's location will be available.</div>
+          <label class="device-duration-label">Temporary duration
+            <select id="deviceLeaseDuration">
+              <option value="30">30 minutes</option>
+              <option value="60" selected>1 hour</option>
+              <option value="120">2 hours</option>
+              <option value="240">4 hours</option>
+              <option value="480">8 hours</option>
+              <option value="720">12 hours (maximum)</option>
+            </select>
+          </label>
+          <div id="deviceLine2CandidateMeta" class="device-helper">Only users and workspaces in this phone's location will be available. Changes made here are always temporary.</div>
         </section>
       </div>
       <section class="device-change-preview">
@@ -178,6 +189,8 @@
           <li>Save the supported line association in Webex Calling.</li>
           <li>Trigger Phonism Sync so the phone receives the updated Webex configuration.</li>
           <li>Recheck Line 2 registration and record the result in Change History.</li>
+          <li>At the selected expiration time (maximum 12 hours), restore the permanent Webex baseline and force another Phonism Sync.</li>
+          <li>If Webex changed outside this platform during the temporary lease, preserve the newer external state instead of overwriting it.</li>
           <li>If Sync does not recover registration, offer a separate supervised Factory Reset recovery action. Factory Reset is never automatic.</li>
         </ol>
         <p id="deviceEditorWarning" class="device-warning">Changes are disabled until Webex write support and the Phonism Sync API are validated. Factory Reset will remain a separate recovery-only action.</p>
@@ -223,6 +236,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261001-v2"></script>
+  <script src="device.js?v=20261002-v3"></script>
 </body>
 </html>

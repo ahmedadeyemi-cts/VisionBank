@@ -1,5 +1,7 @@
 const OWNER_TYPES=new Set(["PEOPLE","PLACE"]);
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+export const TEMP_LINE_MIN_MINUTES=15;
+export const TEMP_LINE_MAX_MINUTES=12*60;
 
 export class DeviceManagementError extends Error{
   constructor(code,status=400){super(code);this.code=code;this.status=status;}
@@ -45,11 +47,30 @@ export function assertAssignableMember(member,device){
   return member;
 }
 
+export function validateTemporaryDuration(value){
+  const minutes=Number(value);
+  if(!Number.isSafeInteger(minutes)||minutes<TEMP_LINE_MIN_MINUTES||minutes>TEMP_LINE_MAX_MINUTES)throw new DeviceManagementError("invalid-temporary-duration");
+  return minutes;
+}
+
 export function validateApplyRequest(value){
   if(!value||!UUID.test(String(value.mutationId||"")))throw new DeviceManagementError("invalid-mutation-id");
   if(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0)throw new DeviceManagementError("invalid-expected-version");
-  if(Object.keys(value).some(k=>!["mutationId","expectedVersion"].includes(k)))throw new DeviceManagementError("unknown-apply-field");
-  return {mutationId:value.mutationId,expectedVersion:value.expectedVersion};
+  const durationMinutes=validateTemporaryDuration(value.durationMinutes);
+  if(Object.keys(value).some(k=>!["mutationId","expectedVersion","durationMinutes"].includes(k)))throw new DeviceManagementError("unknown-apply-field");
+  return {mutationId:value.mutationId,expectedVersion:value.expectedVersion,durationMinutes};
+}
+
+function lineIdentity(line){
+  if(!line)return null;
+  return String(line.memberId||line.id||line.extension||line.phoneNumber||"").trim()||null;
+}
+
+export function leaseExpiryDecision({lease,currentLine2}={}){
+  if(!lease||lease.status!=="active")return {action:"noop",reason:"lease-not-active"};
+  const expected=lineIdentity(lease.temporaryLine2),current=lineIdentity(currentLine2);
+  if(expected!==current)return {action:"preserve-current",reason:"external-change-detected"};
+  return {action:"restore-baseline",baselineLine2:lease.baselineLine2||null,reason:"temporary-lease-expired"};
 }
 
 export function validatePostSaveAction(action){
@@ -80,11 +101,14 @@ export function validateFactoryResetRecovery(value){
   return {recoveryId:value.recoveryId,expectedVersion:value.expectedVersion};
 }
 
-export function buildChangePlan({device,targetMember,currentLine2=null,version=0,mutationId,capabilities={},postSaveAction=null}){
+export function buildChangePlan({device,targetMember,currentLine2=null,version=0,mutationId,durationMinutes=60,now=Date.now(),capabilities={},postSaveAction=null}){
   assertDevice(device);
   const member=assertAssignableMember(targetMember,device);
   if(!UUID.test(String(mutationId||"")))throw new DeviceManagementError("invalid-mutation-id");
   if(!Number.isSafeInteger(version)||version<0)throw new DeviceManagementError("invalid-device-version");
+  const leaseMinutes=validateTemporaryDuration(durationMinutes);
+  if(!Number.isFinite(Number(now)))throw new DeviceManagementError("invalid-current-time");
+  const startsAt=new Date(Number(now)).toISOString(),expiresAt=new Date(Number(now)+leaseMinutes*60000).toISOString();
   let action=null;
   try{action=validatePostSaveAction(postSaveAction);}catch(error){if(error.code!=="phonism-action-not-verified")throw error;}
   const writeReady=capabilities.webexWrite===true&&capabilities.phonismWrite===true&&Boolean(action);
@@ -94,6 +118,7 @@ export function buildChangePlan({device,targetMember,currentLine2=null,version=0
     location:{id:device.locationId,name:device.locationName||"Location"},
     before:{line2:currentLine2},
     after:{line2:member?{memberId:member.id,name:member.name||member.displayName||"Member",extension:member.extension||member.phoneNumber,type:normalizeOwnerType(member.type)}:null},
+    lease:{temporary:true,durationMinutes:leaseMinutes,startsAt,expiresAt,baselineLine2:currentLine2||null},
     phonismActionLabel:action?.label||"Phonism Sync + registration verification",
     summary:writeReady?"Current state will be revalidated, Webex will be saved, Phonism Sync will be forced, and both registration states will be re-read.":"Preview only: Webex write and Phonism Sync are not fully validated."
   };

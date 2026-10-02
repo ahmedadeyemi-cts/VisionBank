@@ -157,7 +157,7 @@
         if(line&&lineHealthy(line))registered++;
       }
       if([d.line1,d.line2].some(l=>l&&!lineHealthy(l))||syncClass(d.syncStatus)==="mismatch")attention++;
-      if(syncClass(d.syncStatus)==="pending"||[d.line1,d.line2].some(l=>l&&statusClass(registrationValue(l,"phonism"))==="pending"))pending++;
+      if(d.temporaryLease?.status==="active")pending++;
     });
     text("deviceKpiRegistered",registered.toLocaleString());
     text("deviceKpiAttention",attention.toLocaleString());
@@ -186,12 +186,20 @@
       '<span>Phonism <b class="device-status '+statusClass(phonism)+'">'+esc(phonism)+'</b></span></div>';
   }
 
+  function leaseCell(device){
+    const lease=device?.temporaryLease;
+    if(!lease||lease.status!=="active"||!lease.expiresAt)return '<span class="device-badge neutral">Permanent</span>';
+    const when=new Date(lease.expiresAt);
+    const label=Number.isNaN(when.getTime())?lease.expiresAt:when.toLocaleString();
+    return '<span class="device-status pending">Temporary</span><small>Expires '+esc(label)+'</small>';
+  }
+
   function renderInventory(){
     const body=$("deviceInventoryRows");if(!body)return;
     text("deviceInventoryCount",state.filtered.length+" device"+(state.filtered.length===1?"":"s"));
     text("deviceInventoryStatus",state.devices.length?(state.filtered.length+" of "+state.devices.length+" devices shown."):"No devices returned.");
     if(!state.filtered.length){
-      body.innerHTML='<tr><td colspan="8" class="device-empty">No devices match the current filters.</td></tr>';
+      body.innerHTML='<tr><td colspan="9" class="device-empty">No devices match the current filters.</td></tr>';
       return;
     }
     body.innerHTML=state.filtered.map(d=>'<tr>'+
@@ -199,6 +207,7 @@
       '<td>'+esc(d.locationName||"Unknown")+'<small>'+esc(d.locationCode||"")+'</small></td>'+
       '<td><strong>'+esc(d.owner?.name||"Unassigned")+'</strong><small>'+esc(d.owner?.type||"")+' '+esc(d.owner?.extension||"")+'</small></td>'+
       '<td>'+lineCell(d.line1)+'</td><td>'+lineCell(d.line2)+'</td>'+
+      '<td>'+leaseCell(d)+'</td>'+
       '<td><span class="device-status '+syncClass(d.syncStatus)+'">'+esc(d.syncStatusLabel||d.syncStatus||"Unknown")+'</span><small>'+esc(d.syncMessage||"")+'</small></td>'+
       '<td>'+esc(d.lastProvision||"Not reported")+'<small>'+esc(d.phonismStatus||"")+'</small></td>'+
       '<td><button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage lines</button></td></tr>').join("");
@@ -228,6 +237,7 @@
   async function openEditor(id){
     const device=state.devices.find(d=>String(d.id)===String(id));if(!device)return;
     state.selected=device;state.preview=null;state.recovery=null;
+    const duration=$("deviceLeaseDuration");if(duration)duration.value="60";
     text("deviceEditorTitle",device.displayName||device.model||"Phone");
     text("deviceEditorMeta",[device.locationName,device.mac].filter(Boolean).join(" · "));
     text("deviceLine1Name",device.line1?.name||device.owner?.name||"Primary line");
@@ -259,10 +269,12 @@
     const memberId=$("deviceLine2Select")?.value||null;
     const button=$("devicePreviewChange");button.disabled=true;
     try{
+      const durationMinutes=Number($("deviceLeaseDuration")?.value||60);
       const data=await api("/preview",{method:"POST",body:{
         deviceId:state.selected.id,
         locationId:state.selected.locationId,
-        targetLine2MemberId:memberId
+        targetLine2MemberId:memberId,
+        durationMinutes
       }});
       state.preview=data.plan||data;
       renderConfirm(state.preview);
@@ -283,6 +295,8 @@
       '<div class="device-confirm-row"><span>Location</span><strong>'+esc(plan.location?.name||state.selected?.locationName||"Location")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+'</strong></div>'+
       '<div class="device-confirm-row"><span>New Line 2</span><strong>'+esc(after?.name||"None")+' '+esc(after?.extension||"")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Temporary duration</span><strong>'+esc(plan.lease?.durationMinutes?String(plan.lease.durationMinutes)+" minutes":"Temporary")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Auto-revert</span><strong>'+esc(plan.lease?.expiresAt?new Date(plan.lease.expiresAt).toLocaleString():"At lease expiry")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Phonism Sync + registration verification")+'</strong></div>'+
       '<p class="device-helper">'+esc(plan.summary||"The backend will revalidate current state before any write.")+'</p>';
     $("deviceApplyChange").disabled=plan.executable!==true;
@@ -294,7 +308,8 @@
     try{
       const result=await api("/apply",{method:"POST",body:{
         mutationId:state.preview.mutationId,
-        expectedVersion:state.preview.expectedVersion
+        expectedVersion:state.preview.expectedVersion,
+        durationMinutes:state.preview.lease?.durationMinutes||Number($("deviceLeaseDuration")?.value||60)
       }});
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
       text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism registration…");

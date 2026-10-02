@@ -5,6 +5,8 @@ import {
   normalizeMac,
   assertAssignableMember,
   validatePostSaveAction,
+  validateTemporaryDuration,
+  leaseExpiryDecision,
   registrationConvergence,
   validateFactoryResetRecovery,
   buildChangePlan,
@@ -63,10 +65,17 @@ test('preview becomes executable only with both write paths and a verified non-d
   assert.match(plan.summary,/Phonism Sync/);
 });
 
-test('apply request accepts only mutation ID and optimistic version',()=>{
-  assert.deepEqual(validateApplyRequest({mutationId:MID,expectedVersion:3}),{mutationId:MID,expectedVersion:3});
+test('apply request requires a temporary duration and caps it at 12 hours',()=>{
+  assert.deepEqual(
+    validateApplyRequest({mutationId:MID,expectedVersion:3,durationMinutes:720}),
+    {mutationId:MID,expectedVersion:3,durationMinutes:720}
+  );
+  assert.equal(validateTemporaryDuration(15),15);
+  assert.equal(validateTemporaryDuration(720),720);
+  assert.throws(()=>validateTemporaryDuration(721),error=>error.code==='invalid-temporary-duration');
+  assert.throws(()=>validateTemporaryDuration(0),error=>error.code==='invalid-temporary-duration');
   assert.throws(
-    ()=>validateApplyRequest({mutationId:MID,expectedVersion:3,deviceId:'dev-1'}),
+    ()=>validateApplyRequest({mutationId:MID,expectedVersion:3,durationMinutes:60,deviceId:'dev-1'}),
     error=>error.code==='unknown-apply-field'
   );
 });
@@ -119,5 +128,43 @@ test('factory reset recovery needs verified endpoint and explicit confirmation',
       verificationState:'mismatch',endpointVerified:true,explicitConfirmation:true
     }),
     {recoveryId:MID,expectedVersion:2}
+  );
+});
+
+test('temporary plan stores baseline and exact expiration',()=>{
+  const now=Date.parse('2026-10-02T12:00:00Z');
+  const baseline={memberId:'permanent-1',name:'Permanent Shared Line',extension:'4200'};
+  const plan=buildChangePlan({
+    device:DEVICE,targetMember:USER,currentLine2:baseline,mutationId:MID,
+    durationMinutes:720,now,capabilities:{webexWrite:false,phonismWrite:false}
+  });
+  assert.equal(plan.lease.temporary,true);
+  assert.equal(plan.lease.durationMinutes,720);
+  assert.equal(plan.lease.startsAt,'2026-10-02T12:00:00.000Z');
+  assert.equal(plan.lease.expiresAt,'2026-10-03T00:00:00.000Z');
+  assert.deepEqual(plan.lease.baselineLine2,baseline);
+});
+
+test('lease expiry restores baseline only while the platform temporary line is still present',()=>{
+  const lease={
+    status:'active',
+    temporaryLine2:{memberId:'temp-1',extension:'4101'},
+    baselineLine2:{memberId:'permanent-1',extension:'4200'}
+  };
+  assert.deepEqual(
+    leaseExpiryDecision({lease,currentLine2:{memberId:'temp-1',extension:'4101'}}),
+    {action:'restore-baseline',baselineLine2:lease.baselineLine2,reason:'temporary-lease-expired'}
+  );
+});
+
+test('lease expiry preserves a newer Control Hub change instead of overwriting it',()=>{
+  const lease={
+    status:'active',
+    temporaryLine2:{memberId:'temp-1',extension:'4101'},
+    baselineLine2:null
+  };
+  assert.deepEqual(
+    leaseExpiryDecision({lease,currentLine2:{memberId:'controlhub-2',extension:'4300'}}),
+    {action:'preserve-current',reason:'external-change-detected'}
   );
 });

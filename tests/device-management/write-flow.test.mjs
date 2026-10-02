@@ -226,7 +226,7 @@ test('expiry restores baseline, queues another Phonism sync, and reboots the han
   assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
 });
 
-test('expiry preserves a newer external Webex change',async()=>{
+test('expiry preserves a newer external Webex change and reconciles Phonism without overwriting Webex',async()=>{
   const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
@@ -236,8 +236,35 @@ test('expiry preserves a newer external Webex change',async()=>{
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(applied.lease.expiresAt)+1});
-  assert.equal(results[0].status,'external-change-detected');
+  assert.equal(results[0].status,'external-change-reconciled');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
+  assert.equal(wx.state.puts.length,1);
+  assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
+  const stored=JSON.parse(await e.LOGS.get('device-lease:'+applied.lease.leaseId));
+  assert.equal(stored.status,'external-change-reconciled');
+  assert.equal(stored.externalCurrentLine2.memberId,'control-hub-line');
+});
+
+test('external-change reconciliation retries Phonism Sync without overwriting Webex',async()=>{
+  const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
+    targetMember:TARGET,durationMinutes:15,reason:'',
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
+  });
+  const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
+  const failingReader={...ph.reader,async syncHierarchyIntegration(){const error=new Error('sync-failed');error.code='sync-failed';throw error;}};
+  const due=Date.parse(applied.lease.expiresAt)+1;
+  const first=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:failingReader,now:due});
+  assert.equal(first[0].status,'external-change-sync-pending');
+  assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
+  assert.equal(wx.state.puts.length,1);
+  const second=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due+300000});
+  assert.equal(second[0].status,'external-change-reconciled');
+  assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
+  assert.equal(wx.state.puts.length,1);
 });
 
 test('apply fails before Webex write when Enterprise Phonism sync owner is missing',async()=>{

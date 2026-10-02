@@ -81,6 +81,38 @@ function memberResultLimit(value){
   return Number.isFinite(parsed)&&parsed>0?Math.min(parsed,100):50;
 }
 
+function availableMembersUrl(deviceId,org,filters={}){
+  const params=new URLSearchParams({orgId:String(org),usageType:'SHARED_LINE'});
+  for(const [key,value] of Object.entries(filters)){
+    const cleanValue=display(value||'',160);
+    if(cleanValue)params.set(key,cleanValue);
+  }
+  return WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?'+params.toString();
+}
+
+async function searchEligibleMembers({webexFetch,env,org,deviceId,query='',locationId=null}) {
+  const q=display(query||'',160);
+  const baseFilters=locationId?{locationId}:{};
+  const urls=[availableMembersUrl(deviceId,org,baseFilters)];
+  if(q){
+    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,memberName:q}));
+    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,extension:q}));
+    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,phoneNumber:q}));
+  }
+  const attempts=await Promise.all(urls.map(async endpoint=>{
+    try{return {...await readPaged(webexFetch,env,endpoint,['members','items'],6,600),error:null};}
+    catch(error){return {rows:[],truncated:false,error};}
+  }));
+  if(attempts.every(x=>x.error))throw attempts.find(x=>x.error).error;
+  const unique=new Map();
+  for(const attempt of attempts)for(const raw of attempt.rows){
+    const row=memberRow(raw);
+    if(row.id&&row.type&&row.locationId&&!unique.has(String(row.id)))unique.set(String(row.id),row);
+  }
+  const members=[...unique.values()].filter(m=>!q||memberSearchText(m).includes(q.toLowerCase()));
+  return {members,truncated:attempts.some(x=>x.truncated)};
+}
+
 function numberOwnerRow(value){
   const owner=value?.owner||{},location=locationOf({location:value?.location});
   const type=ownerType({memberType:owner.type||owner.ownerType});
@@ -118,6 +150,12 @@ async function findUnavailableMemberMatches({env,org,webexFetch,phonismReader,de
   }
   const candidates=[...unique.values()].slice(0,Math.min(Math.max(Number(limit)||5,1),5));
   return mapLimit(candidates,3,async row=>{
+    const lookup=row.extension||row.phoneNumber||row.name;
+    const eligible=lookup?await searchEligibleMembers({
+      webexFetch,env,org,deviceId,query:lookup,locationId:row.locationId
+    }).catch(()=>({members:[]})): {members:[]};
+    const recovered=eligible.members.find(m=>String(m.id)===String(row.id));
+    if(recovered)return {...recovered,available:true,availability:'available',recoveredBy:'location-filter'};
     const appearances=await findMemberAppearances({
       env,org,webexFetch,phonismReader,locationId:row.locationId,targetMemberId:row.id,excludeDeviceId:deviceId
     }).catch(()=>[]);
@@ -546,31 +584,32 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       if(part==='members'){
         const deviceId=id(url.searchParams.get('deviceId'));
         if(!deviceId)throw new DeviceManagementError('device-required');
-        const query=display(url.searchParams.get('q')||'',160).toLowerCase();
+        const query=display(url.searchParams.get('q')||'',160);
         const limit=memberResultLimit(url.searchParams.get('limit'));
-        const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
-        const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
-        const all=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
-        const eligibleMatches=all.filter(m=>!query||memberSearchText(m).includes(query))
+        const searched=await searchEligibleMembers({webexFetch,env,org,deviceId,query});
+        const eligibleMatches=searched.members
           .map(m=>({...m,available:true,availability:'available'}))
           .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
-        const eligibleIds=new Set(all.map(m=>String(m.id)));
-        const unavailableMatches=query?await findUnavailableMemberMatches({
+        const eligibleIds=new Set(eligibleMatches.map(m=>String(m.id)));
+        const fallbackMatches=query?await findUnavailableMemberMatches({
           env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit:Math.min(limit,5)
         }):[];
-        const matches=[...eligibleMatches,...unavailableMatches]
+        const recoveredEligible=fallbackMatches.filter(m=>m.available!==false);
+        const unavailableMatches=fallbackMatches.filter(m=>m.available===false);
+        const allEligible=[...eligibleMatches,...recoveredEligible];
+        const matches=[...allEligible,...unavailableMatches]
           .sort((a,b)=>Number(a.available===false)-Number(b.available===false)||
             String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
         const members=matches.slice(0,limit);
-        return output({success:true,members,totalMatches:matches.length,eligibleMatches:eligibleMatches.length,
-          unavailableMatches:unavailableMatches.length,truncated:page.truncated||matches.length>members.length,
-          deviceId,scope:'organization',query,limit,readOnly:true},200,headers);
+        return output({success:true,members,totalMatches:matches.length,eligibleMatches:allEligible.length,
+          unavailableMatches:unavailableMatches.length,truncated:searched.truncated||matches.length>members.length,
+          deviceId,scope:'organization',query,limit,searchMode:query?'webex-upstream':'default',readOnly:true},200,headers);
       }
 
       if(part==='preview'){
         const session=await requireOperatorSession(env,request);
         const body=await readSmallJson(request,4096);
-        const allowed=new Set(['deviceId','locationId','phonismPhoneId','targetLine2MemberId','durationMinutes','reason']);
+        const allowed=new Set(['deviceId','locationId','phonismPhoneId','targetLine2MemberId','targetLine2Search','targetLine2LocationId','durationMinutes','reason']);
         if(!body||Object.keys(body).some(k=>!allowed.has(k)))throw new DeviceManagementError('invalid-preview-request');
         const deviceId=id(body.deviceId),locationId=id(body.locationId),phonismPhoneId=id(String(body.phonismPhoneId||''));
         if(!deviceId||!locationId||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
@@ -579,10 +618,12 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
         let targetMember=null;
         if(body.targetLine2MemberId){
-          const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
-          const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
-          const candidates=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
-          targetMember=candidates.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
+          const lookup=display(body.targetLine2Search||'',160);
+          if(!lookup)throw new DeviceManagementError('target-member-search-required',409);
+          const searched=await searchEligibleMembers({
+            webexFetch,env,org,deviceId,query:lookup,locationId:id(body.targetLine2LocationId)
+          });
+          targetMember=searched.members.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
           if(!targetMember)throw new DeviceManagementError('target-member-not-available',409);
         }
 

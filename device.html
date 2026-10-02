@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261002-v5">
+  <link rel="stylesheet" href="device.css?v=20261002-v6">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -185,65 +185,89 @@
         <div><span class="device-eyebrow">Change extension assignment</span><h2 id="deviceEditorTitle">Phone</h2><p id="deviceEditorMeta"></p></div>
         <button id="deviceEditorClose" class="device-icon-btn" value="cancel" aria-label="Close">×</button>
       </div>
-      <div class="device-editor-grid">
-        <section class="device-line-card locked">
-          <div class="device-line-title"><span>Line 1</span><span class="device-badge neutral">Primary · protected</span></div>
-          <strong id="deviceLine1Name">—</strong>
-          <span id="deviceLine1Extension">—</span>
-          <span id="deviceLine1Status" class="device-status unknown">Unknown</span>
+      <div class="device-editor-body">
+        <section class="device-current-phone">
+          <div class="device-section-heading">
+            <div><span class="device-section-kicker">Current phone</span><h3>Primary line</h3></div>
+            <span class="device-badge neutral">Line 1 · protected</span>
+          </div>
+          <div class="device-current-line">
+            <div class="device-current-line-identity">
+              <strong id="deviceLine1Name">—</strong>
+              <span id="deviceLine1Extension" class="device-line-extension">—</span>
+            </div>
+            <span id="deviceLine1Status" class="device-status unknown">Unknown</span>
+          </div>
         </section>
-        <section class="device-line-card">
-          <div class="device-line-title"><span>Line 2</span><span class="device-badge">Managed</span></div>
+
+        <section class="device-line2-workspace">
+          <div class="device-section-heading">
+            <div><span class="device-section-kicker">Secondary line</span><h3>Choose temporary Line 2</h3></div>
+            <span class="device-badge">Managed</span>
+          </div>
           <div class="device-member-field">
-            <span class="device-member-label">Secondary extension</span>
+            <span class="device-member-label">Search or select a secondary extension</span>
             <div class="device-member-picker">
               <button id="deviceLine2PickerButton" class="device-member-picker-button" type="button" aria-haspopup="listbox" aria-expanded="false">
-                <span id="deviceLine2PickerValue">None</span>
-                <span aria-hidden="true">⌄</span>
+                <span class="device-member-picker-copy"><span class="device-member-picker-hint">Line 2</span><strong id="deviceLine2PickerValue">None</strong></span>
+                <span class="device-member-chevron" aria-hidden="true">⌄</span>
               </button>
               <div id="deviceLine2PickerPanel" class="device-member-picker-panel" hidden>
                 <div class="device-member-search-wrap">
+                  <span class="device-search-icon" aria-hidden="true">⌕</span>
                   <input id="deviceLine2Search" type="search" autocomplete="off" placeholder="Search name, extension, number, workspace, or location" aria-label="Search secondary extension">
                 </div>
-                <div id="deviceLine2Results" class="device-member-results" role="listbox" aria-label="Available users and workspaces"></div>
+                <div id="deviceLine2Results" class="device-member-results" role="listbox" aria-label="Available users and workspaces" aria-live="polite"></div>
               </div>
               <select id="deviceLine2Select" hidden aria-hidden="true"><option value="">None</option></select>
             </div>
           </div>
-          <label class="device-duration-label">Temporary duration
-            <select id="deviceLeaseDuration">
-              <option value="30">30 minutes</option>
-              <option value="60" selected>1 hour</option>
-              <option value="120">2 hours</option>
-              <option value="240">4 hours</option>
-              <option value="480">8 hours</option>
-              <option value="720">12 hours (maximum)</option>
-            </select>
-          </label>
-          <div id="deviceLine2CandidateMeta" class="device-helper">Users and workspaces across all VisionBank Webex locations are available. Changes made here are always temporary.</div>
-          <label class="device-reason-label">Change reason / note
-            <textarea id="deviceChangeReason" rows="3" maxlength="500" placeholder="Optional: desk move, temporary coverage, testing, etc."></textarea>
+
+          <div class="device-editor-two-col">
+            <label class="device-duration-label">Temporary for
+              <select id="deviceLeaseDuration">
+                <option value="30">30 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="240">4 hours</option>
+                <option value="480">8 hours</option>
+                <option value="720">12 hours (maximum)</option>
+              </select>
+            </label>
+            <div class="device-expiry-card" aria-live="polite">
+              <span>Estimated restore</span>
+              <strong id="deviceLeaseExpiryPreview">About 1 hour after save</strong>
+              <small>Exact time is confirmed on Review Change.</small>
+            </div>
+          </div>
+
+          <div id="deviceLine2CandidateMeta" class="device-helper device-candidate-meta">Search across all VisionBank Webex locations. Changes made here are temporary.</div>
+          <label class="device-reason-label">Change reason <span class="device-optional">Optional</span>
+            <textarea id="deviceChangeReason" rows="2" maxlength="500" placeholder="Example: temporary coverage, testing, desk move"></textarea>
           </label>
         </section>
+
+        <details id="deviceChangePreview" class="device-change-preview device-change-details">
+          <summary>
+            <span><strong>What happens after I save?</strong><small>Webex update · phone sync · automatic reboot · verification · automatic restore</small></span>
+            <span class="device-details-chevron" aria-hidden="true">›</span>
+          </summary>
+          <div class="device-change-details-body">
+            <ol>
+              <li>Revalidate the phone, selected extension, location, and current assignments.</li>
+              <li>Save Line 2 in Webex Calling, then trigger Phonism Sync.</li>
+              <li>Automatically reboot the phone so the updated configuration is applied.</li>
+              <li>Verify Line 2 and record the result in Change History.</li>
+              <li>At expiration, restore the permanent Webex baseline, sync again, and reboot.</li>
+              <li>Preserve newer external Webex changes and existing BLF / Line Monitoring settings.</li>
+            </ol>
+            <p id="deviceEditorWarning" class="device-warning">Save & Sync automatically queues the phone update and reboot. Review the final plan before anything changes.</p>
+          </div>
+        </details>
       </div>
-      <section class="device-change-preview">
-        <h3>What will happen</h3>
-        <ol>
-          <li>Revalidate the phone, selected extension, location, and current assignments.</li>
-          <li>Save the supported line association in Webex Calling.</li>
-          <li>Trigger Phonism Sync so the phone receives the updated Webex configuration.</li>
-          <li>Automatically reboot the phone through Phonism TR-069 so the temporary line is applied to the handset.</li>
-          <li>Recheck Line 2 state and record the result in Change History.</li>
-          <li>At the selected expiration time (maximum 12 hours), restore the permanent Webex baseline and force another Phonism Sync.</li>
-          <li>If Webex changed outside this platform during the temporary lease, preserve the newer external state instead of overwriting it.</li>
-          <li>Preserve existing Webex BLF / Line Monitoring entries. This workflow does not modify monitoring settings or monitored keys.</li>
-          <li>If verification still needs attention, allow Reboot & Reverify again.</li>
-        </ol>
-        <p id="deviceEditorWarning" class="device-warning">Save & Sync automatically queues a phone reboot after the Webex change and Phonism Sync.</p>
-      </section>
-      <div class="device-dialog-actions">
+      <div class="device-dialog-actions device-dialog-actions-sticky">
         <button class="device-btn secondary" value="cancel">Cancel</button>
-        <button id="devicePreviewChange" class="device-btn" type="button" disabled>Review Change</button>
+        <button id="devicePreviewChange" class="device-btn device-primary-action" type="button" disabled>Review Change →</button>
       </div>
     </form>
   </dialog>
@@ -278,6 +302,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v15"></script>
+  <script src="device.js?v=20261002-v16"></script>
 </body>
 </html>

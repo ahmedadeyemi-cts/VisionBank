@@ -90,17 +90,6 @@ export function registrationConvergence({webex,phonism}={}){
   return {webexStatus,phonismStatus,state,healthy:state==="completed"};
 }
 
-export function validateFactoryResetRecovery(value){
-  if(!value||typeof value!=="object")throw new DeviceManagementError("recovery-request-required");
-  if(!UUID.test(String(value.recoveryId||"")))throw new DeviceManagementError("invalid-recovery-id");
-  if(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0)throw new DeviceManagementError("invalid-expected-version");
-  if(value.syncAttempted!==true)throw new DeviceManagementError("sync-required-before-factory-reset",409);
-  if(!["mismatch","unknown"].includes(String(value.verificationState||"")))throw new DeviceManagementError("factory-reset-not-eligible",409);
-  if(value.endpointVerified!==true)throw new DeviceManagementError("factory-reset-endpoint-not-verified",409);
-  if(value.explicitConfirmation!==true)throw new DeviceManagementError("factory-reset-confirmation-required",409);
-  return {recoveryId:value.recoveryId,expectedVersion:value.expectedVersion};
-}
-
 export function buildChangePlan({device,targetMember,currentLine2=null,version=0,mutationId,durationMinutes=60,now=Date.now(),capabilities={},postSaveAction=null}){
   assertDevice(device);
   const member=assertAssignableMember(targetMember,device);

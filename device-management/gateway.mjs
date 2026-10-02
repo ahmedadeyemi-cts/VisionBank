@@ -242,7 +242,7 @@ function summaryPhoneRow(phone,tenant){
 
 async function activeLeaseIndex(env){
   const leases=await listLeases(env,{limit:1000});
-  const active=leases.filter(l=>['active','pending-verification','restore-sync-pending'].includes(String(l?.status||'')));
+  const active=leases.filter(l=>['active','pending-verification','restore-sync-pending','restore-reboot-pending'].includes(String(l?.status||'')));
   const byDevice=new Map(),byMac=new Map();
   for(const lease of active){
     if(lease?.device?.id)byDevice.set(String(lease.device.id),lease);
@@ -347,7 +347,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
       const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status']);
-      const postRoutes=new Set(['operator-session','preview','apply','reboot','factory-reset']);
+      const postRoutes=new Set(['operator-session','preview','apply','reboot']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
@@ -355,7 +355,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       const rules=await bounded(loadIpRules(env),8000);
       if(!Array.isArray(rules)||!rules.some(v=>typeof v==='string'&&v.trim()))throw new DeviceManagementError('approved-network-required',403);
 
-      const writeParts=new Set(['preview','apply','reboot','factory-reset']);
+      const writeParts=new Set(['preview','apply','reboot']);
       if(writeParts.has(part)&&!String(env.DEVICE_WRITE_PILOT_MACS||'').trim())throw new DeviceManagementError('read-only-phase',405);
 
       if(part==='operator-session'){
@@ -533,8 +533,10 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!body||typeof body.mutationId!=='string'||Object.keys(body).some(k=>!['mutationId'].includes(k)))throw new DeviceManagementError('invalid-apply-request');
         try{
           const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
-          return output({success:true,message:'Webex updated and Phonism Sync queued. Verifying provider state.',leaseId:result.lease.leaseId,
-            expiresAt:result.lease.expiresAt,verification:result.lease.verification,rebootAvailable:Boolean(result.lease.phonismPhoneId),factoryResetAvailable:false},200,headers);
+          return output({success:true,
+            message:result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
+            leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt,verification:result.lease.verification,
+            rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId),rebootError:result.rebootError||null},200,headers);
         }catch(error){
           if(error?.code==='target-appearance-limit'&&error?.targetMember?.memberId&&error?.location?.id){
             const appearances=await findMemberAppearances({
@@ -554,18 +556,16 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const result=await verifyLease({env,webexFetch,orgId:org,leaseId,phonismReader});
         return output({success:true,leaseId,state:result.state,verification:result.lease.verification,
           expiresAt:result.lease.expiresAt,rebootAvailable:Boolean(result.lease.phonismPhoneId),
-          factoryResetAvailable:result.lease.recovery?.rebootAttempted===true},200,headers);
+          automaticReboot:result.lease.recovery?.automaticReboot===true,rebootAttempted:result.lease.recovery?.rebootAttempted===true},200,headers);
       }
 
-      if(part==='reboot'||part==='factory-reset'){
+      if(part==='reboot'){
         const session=await requireOperatorSession(env,request);
         const body=await readSmallJson(request,2048);
-        const allowed=new Set(['leaseId','explicitConfirmation']);
-        if(!body||Object.keys(body).some(k=>!allowed.has(k))||typeof body.leaseId!=='string')throw new DeviceManagementError('invalid-recovery-request');
-        const action=part==='reboot'?'Reboot':'FactoryReset';
-        const result=await runRecoveryAction({env,request,session,leaseId:body.leaseId,action,explicitConfirmation:body.explicitConfirmation===true,phonismReader});
-        return output({success:true,message:action==='Reboot'?'Reboot queued in Phonism; re-verification required.':'Factory Reset queued in Phonism; phone must reprovision before verification.',
-          leaseId:result.lease.leaseId,rebootAvailable:true,factoryResetAvailable:result.lease.recovery?.rebootAttempted===true},200,headers);
+        if(!body||Object.keys(body).some(k=>!['leaseId'].includes(k))||typeof body.leaseId!=='string')throw new DeviceManagementError('invalid-recovery-request');
+        const result=await runRecoveryAction({env,request,session,leaseId:body.leaseId,phonismReader});
+        return output({success:true,message:'Reboot queued in Phonism; re-verification required.',
+          leaseId:result.lease.leaseId,rebootAvailable:true},200,headers);
       }
 
       throw new DeviceManagementError('not-found',404);

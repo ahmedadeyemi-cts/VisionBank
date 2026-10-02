@@ -90,9 +90,25 @@ test('available members include users and workspaces across Webex locations',asy
   const f=fixture(),r=await request(f.handler,'members?deviceId=call-1');
   assert.equal(r.status,200);
   assert.equal(r.data.scope,'organization');
+  assert.equal(r.data.totalMatches,2);
   assert.deepEqual(r.data.members.map(x=>x.id),['user-2','user-x']);
   assert.deepEqual(r.data.members.map(x=>x.locationId),['loc-a','loc-b']);
   assert.deepEqual(r.data.members.map(x=>x.locationName),['Dallas','Austin']);
+});
+
+test('available-member search filters server-side and bounds browser results',async()=>{
+  const f=fixture();
+  const byLocation=await request(f.handler,'members?deviceId=call-1&q=Austin&limit=50');
+  assert.equal(byLocation.status,200);
+  assert.equal(byLocation.data.totalMatches,1);
+  assert.deepEqual(byLocation.data.members.map(x=>x.id),['user-x']);
+  assert.equal(byLocation.data.truncated,false);
+
+  const bounded=await request(f.handler,'members?deviceId=call-1&limit=1');
+  assert.equal(bounded.status,200);
+  assert.equal(bounded.data.totalMatches,2);
+  assert.deepEqual(bounded.data.members.map(x=>x.id),['user-2']);
+  assert.equal(bounded.data.truncated,true);
 });
 
 test('capabilities reports scoped Webex and Phonism reads while leaving writes disabled',async()=>{

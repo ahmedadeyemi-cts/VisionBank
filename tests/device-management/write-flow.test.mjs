@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  composeMembers,membersFingerprint,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases
+  composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases
 } from '../../device-management/write.mjs';
 
 class MemoryKV{
@@ -76,6 +76,15 @@ test('member composition preserves primary line and changes only port 2',()=>{
   assert.equal(members[1].id,'user-ryan');
   assert.equal(members[1].port,2);
   assert.equal(members[1].lineType,'SHARED_CALL_APPEARANCE');
+  assert.equal(Object.prototype.hasOwnProperty.call(members[1],'lineLabel'),false);
+});
+
+test('Webex appearance-limit response becomes a user-actionable conflict',async()=>{
+  const fetch=async()=>Response.json({message:'[Error 4495] Exceeded maximum number of allowed appearances.'},{status:400});
+  await assert.rejects(
+    ()=>writeWebexMembers(fetch,{},ORG,'call-1',[PRIMARY]),
+    error=>error.code==='target-appearance-limit'&&error.status===409&&error.upstreamStatus===400
+  );
 });
 
 test('preview is restricted to pilot MAC and records the baseline',async()=>{

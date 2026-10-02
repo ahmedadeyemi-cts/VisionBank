@@ -18,6 +18,11 @@ function fixture({phonismReader}={}){
       serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',
       webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Partner Managed Phone - Yealink'
     }]:[],truncated:false};},
+    async phone(_env,phoneId,tenant){return {
+      id:String(phoneId),tenantId:String(tenant?.id||'101'),tenantName:tenant?.name||'DUFF',mac:'00:11:22:33:44:55',state:'1',
+      serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',
+      webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Partner Managed Phone - Yealink'
+    };},
     async lines(_env,phoneId){return phoneId==='9001'?[
       {lineNumber:1,username:'4101',alias:'Alex User',registrationStatus:'registered'},
       {lineNumber:2,username:'4190',alias:'Open Desk',registrationStatus:'unregistered'}
@@ -69,6 +74,16 @@ test('inventory correlates calling device, primary line and Line 2 without write
   assert.equal(d.line1.webexRegistrationStatus,'registered');
   assert.equal(d.line1.phonismRegistrationStatus,'registered');
   assert.ok(f.calls.every(c=>c.method==='GET'));
+});
+
+test('single-device detail enriches one summary phone without loading the whole location',async()=>{
+  const f=fixture(),r=await request(f.handler,'device-detail?locationId=loc-a&phonismPhoneId=9001');
+  assert.equal(r.status,200);
+  assert.equal(r.data.device.id,'call-1');
+  assert.equal(r.data.device.phonismPhoneId,'9001');
+  assert.equal(r.data.device.detailsLoaded,true);
+  assert.equal(r.data.device.line1.extension,'4101');
+  assert.equal(r.data.device.line2.extension,'4190');
 });
 
 test('available members are backend-filtered to the device location',async()=>{

@@ -218,6 +218,15 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       return {phones:page.rows.map(x=>phoneRow(x,names)).filter(x=>x.id),truncated:page.truncated};
     },
 
+    async phone(env,phoneId,tenant=null){
+      const response=await fetcher(env,'/phones/'+encodeURIComponent(phoneId),{method:'GET'});
+      const body=await readJson(response);
+      const data=Array.isArray(body.data)?body.data[0]:body.data;
+      if(!data)throw new DeviceManagementError('phonism-phone-not-found',404);
+      const names=new Map(tenant?.id?[[String(tenant.id),tenant.name||'']]:[]);
+      return phoneRow(data,names);
+    },
+
     async lines(env,phoneId){
       const response=await fetcher(env,'/phones/'+encodeURIComponent(phoneId)+'/lines',{method:'GET'});
       const body=await readJson(response);

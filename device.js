@@ -43,10 +43,24 @@
     });
     let data={};try{data=await res.json();}catch{}
     if(!res.ok||data.success===false){
-      const e=new Error(data.error||data.message||("HTTP "+res.status));
-      e.status=res.status;throw e;
+      const code=data.error||null;
+      const e=new Error(code||data.message||("HTTP "+res.status));
+      e.code=code;e.status=res.status;throw e;
     }
     return data;
+  }
+
+  function friendlyDeviceError(error){
+    const code=error?.code||error?.message||"";
+    const messages={
+      "target-appearance-limit":"This extension has reached its Webex shared-line appearance limit. Choose another line or free an appearance in Control Hub.",
+      "partner-managed-line-label-unsupported":"Webex rejected a line-label setting that is not supported on this partner-managed phone. Refresh and retry.",
+      "device-state-changed-review-again":"The device changed after review. Refresh the device and review the change again.",
+      "webex-members-conflict":"Webex reports that the device membership changed. Refresh and review the change again.",
+      "webex-members-write-failed":"Webex rejected the line assignment. Choose another line or refresh and try again.",
+      "phonism-write-failed":"Webex could not complete the Save & Sync transaction because Phonism Sync was not accepted. Any partial Webex change was rolled back."
+    };
+    return messages[code]||("Save & Sync was not completed: "+code);
   }
 
   function renderOperator(){
@@ -274,14 +288,31 @@
       '<td>'+leaseCell(d)+'</td>'+
       '<td><span class="device-status '+syncClass(d.syncStatus)+'">'+esc(d.syncStatusLabel||d.syncStatus||"Unknown")+'</span><small>'+esc(d.syncMessage||"")+'</small></td>'+
       '<td>'+esc(d.lastProvision||"Not reported")+'<small>'+esc(d.phonismStatus||"")+'</small></td>'+
-      '<td>'+(d.detailsLoaded===false?'<button class="device-row-action" type="button" data-device-location="'+esc(d.locationId||"")+'">Open location</button>':'<button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage lines</button>')+'</td></tr>').join("");
+      '<td>'+(d.detailsLoaded===false?'<button class="device-row-action" type="button" data-device-summary="'+esc(d.phonismPhoneId||"")+'">Manage Device</button>':'<button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage Device</button>')+'</td></tr>').join("");
     body.querySelectorAll("[data-device-edit]").forEach(btn=>btn.addEventListener("click",()=>openEditor(btn.dataset.deviceEdit)));
-    body.querySelectorAll("[data-device-location]").forEach(btn=>btn.addEventListener("click",async()=>{
-      const locationId=btn.dataset.deviceLocation||"";
-      if(!locationId)return;
-      const filter=$("deviceLocationFilter");if(filter)filter.value=locationId;
-      await loadInventory(true);
-    }));
+    body.querySelectorAll("[data-device-summary]").forEach(btn=>btn.addEventListener("click",()=>void loadSummaryDevice(btn)));
+  }
+
+  async function loadSummaryDevice(button){
+    const phonismPhoneId=button?.dataset?.deviceSummary||"";
+    const summary=state.devices.find(d=>String(d.phonismPhoneId||"")===String(phonismPhoneId));
+    if(!summary?.locationId||!phonismPhoneId)return;
+    const original=button.textContent;
+    button.disabled=true;button.textContent="Loading device details…";
+    text("deviceInventoryStatus","Loading "+(summary.displayName||"device")+" from Webex and Phonism…");
+    try{
+      const q=new URLSearchParams({locationId:String(summary.locationId),phonismPhoneId:String(phonismPhoneId)});
+      const data=await api("/device-detail?"+q.toString());
+      const detailed=data.device;
+      const index=state.devices.findIndex(d=>String(d.phonismPhoneId||"")===String(phonismPhoneId));
+      if(index>=0)state.devices[index]=detailed;
+      applyFilters();
+      text("deviceInventoryStatus","Device details loaded.");
+      await openEditor(detailed.id);
+    }catch(error){
+      text("deviceInventoryStatus","Unable to load device details: "+friendlyDeviceError(error));
+      if(button.isConnected){button.disabled=false;button.textContent=original;}
+    }
   }
 
   async function loadMembers(device){
@@ -391,6 +422,8 @@
   async function applyChange(){
     if(!state.preview)return;
     const btn=$("deviceApplyChange");btn.disabled=true;btn.textContent="Saving & Syncing…";
+    const host=$("deviceConfirmBody");
+    host?.querySelector(".device-apply-error")?.remove();
     try{
       const result=await api("/apply",{method:"POST",body:{mutationId:state.preview.mutationId}});
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
@@ -398,10 +431,23 @@
       text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism state…");
       await pollLeaseVerification(result.leaseId);
     }catch(error){
-      const host=$("deviceConfirmBody");
-      if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Save & Sync was not completed: '+esc(error.message)+'</p>');
+      const message=friendlyDeviceError(error);
+      if((error.code||error.message)==="target-appearance-limit"){
+        const targetId=state.preview?.after?.line2?.id||"";
+        const select=$("deviceLine2Select");
+        const option=select?[...select.options].find(o=>String(o.value)===String(targetId)):null;
+        if(option){option.disabled=true;if(!option.textContent.includes("appearance limit"))option.textContent+=" — unavailable (appearance limit reached)";}
+        if(select)select.value="";
+        state.preview=null;
+        $("deviceConfirm")?.close();
+        text("deviceEditorWarning",message);
+        renderCandidate();
+      }else{
+        if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning device-apply-error">'+esc(message)+'</p>');
+      }
     }finally{
       btn.textContent="Save & Sync";
+      btn.disabled=state.preview?.executable!==true;
     }
   }
 

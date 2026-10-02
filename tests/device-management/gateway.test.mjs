@@ -44,7 +44,8 @@ function fixture({phonismReader}={}){
     ]});
     if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers')return json({members:[
       {id:'user-2',displayName:'Taylor User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'Dallas'}},
-      {id:'user-x',displayName:'Wrong Location',memberType:'PEOPLE',extension:'5102',location:{id:'loc-b',name:'Austin'}}
+      {id:'user-x',displayName:'Wrong Location',memberType:'PEOPLE',extension:'5102',location:{id:'loc-b',name:'Austin'}},
+      {id:'space-x',firstName:'Zeta Workspace',memberType:'PLACE',extension:'5199',location:{id:'loc-a',name:'Dallas'}}
     ]});
     return json({message:'not found'},404);
   };
@@ -90,10 +91,10 @@ test('available members include users and workspaces across Webex locations',asy
   const f=fixture(),r=await request(f.handler,'members?deviceId=call-1');
   assert.equal(r.status,200);
   assert.equal(r.data.scope,'organization');
-  assert.equal(r.data.totalMatches,2);
-  assert.deepEqual(r.data.members.map(x=>x.id),['user-2','user-x']);
-  assert.deepEqual(r.data.members.map(x=>x.locationId),['loc-a','loc-b']);
-  assert.deepEqual(r.data.members.map(x=>x.locationName),['Dallas','Austin']);
+  assert.equal(r.data.totalMatches,3);
+  assert.deepEqual(r.data.members.map(x=>x.id),['user-2','user-x','space-x']);
+  assert.deepEqual(r.data.members.map(x=>x.locationId),['loc-a','loc-b','loc-a']);
+  assert.deepEqual(r.data.members.map(x=>x.locationName),['Dallas','Austin','Dallas']);
 });
 
 test('available-member search filters server-side and bounds browser results',async()=>{
@@ -104,9 +105,16 @@ test('available-member search filters server-side and bounds browser results',as
   assert.deepEqual(byLocation.data.members.map(x=>x.id),['user-x']);
   assert.equal(byLocation.data.truncated,false);
 
+  const workspace=await request(f.handler,'members?deviceId=call-1&q=Zeta%20Workspace&limit=50');
+  assert.equal(workspace.status,200);
+  assert.equal(workspace.data.totalMatches,1);
+  assert.equal(workspace.data.members[0].id,'space-x');
+  assert.equal(workspace.data.members[0].name,'Zeta Workspace');
+  assert.equal(workspace.data.members[0].type,'PLACE');
+
   const bounded=await request(f.handler,'members?deviceId=call-1&limit=1');
   assert.equal(bounded.status,200);
-  assert.equal(bounded.data.totalMatches,2);
+  assert.equal(bounded.data.totalMatches,3);
   assert.deepEqual(bounded.data.members.map(x=>x.id),['user-2']);
   assert.equal(bounded.data.truncated,true);
 });

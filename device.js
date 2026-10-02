@@ -2,7 +2,8 @@
   "use strict";
   const SECURITY_BASE="https://visionbank-security.ahmedadeyemi.workers.dev";
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],preview:null,recovery:null};
+  const OPERATOR_KEY="visionbankDeviceOperatorV1";
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -33,9 +34,10 @@
   async function api(path,options={}){
     const method=options.method||"GET",body=options.body;
     if(window.VB_SECURITY?.allowed!==true)throw new Error("Dashboard access is not approved.");
+    const sessionId=state.operatorSession?.sessionId||"";
     const res=await fetch(API_BASE+path,{
       method,mode:"cors",credentials:"omit",cache:"no-store",
-      headers:{Accept:"application/json",...(body!==undefined?{"Content-Type":"application/json"}:{})},
+      headers:{Accept:"application/json",...(sessionId?{"X-VB-Operator-Session":sessionId}:{}),...(body!==undefined?{"Content-Type":"application/json"}:{})},
       ...(body!==undefined?{body:JSON.stringify(body)}:{})
     });
     let data={};try{data=await res.json();}catch{}
@@ -44,6 +46,62 @@
       e.status=res.status;throw e;
     }
     return data;
+  }
+
+  function renderOperator(){
+    const session=state.operatorSession,operator=session?.operator;
+    text("deviceOperatorName",operator?.name||"Not identified");
+    text("deviceOperatorEmail",operator?.email||"Required before changes");
+    text("deviceOperatorButton",operator?"Change Operator":"Identify Operator");
+    const chip=$("deviceOperatorChip");if(chip)chip.classList.toggle("identified",Boolean(operator));
+  }
+
+  function saveOperatorSession(session){
+    state.operatorSession=session||null;
+    try{
+      if(session)sessionStorage.setItem(OPERATOR_KEY,JSON.stringify(session));
+      else sessionStorage.removeItem(OPERATOR_KEY);
+    }catch{}
+    renderOperator();
+  }
+
+  async function restoreOperatorSession(){
+    let saved=null;
+    try{saved=JSON.parse(sessionStorage.getItem(OPERATOR_KEY)||"null");}catch{}
+    if(!saved?.sessionId){renderOperator();return;}
+    state.operatorSession=saved;
+    try{
+      const data=await api("/operator-session");
+      saveOperatorSession({sessionId:data.sessionId,operator:data.operator,startedAt:data.startedAt,expiresAt:data.expiresAt});
+    }catch{
+      saveOperatorSession(null);
+    }
+  }
+
+  function showOperatorDialog(pendingAction=null){
+    state.pendingOperatorAction=pendingAction;
+    const operator=state.operatorSession?.operator||{};
+    const name=$("deviceOperatorFullName"),email=$("deviceOperatorWorkEmail");
+    if(name)name.value=operator.name||"";
+    if(email)email.value=operator.email||"";
+    text("deviceOperatorMessage","This identity is kept for this browser session. IP address and browser information are captured server-side for audited changes.");
+    $("deviceOperatorDialog")?.showModal();
+    setTimeout(()=>name?.focus(),0);
+  }
+
+  async function submitOperator(event){
+    event.preventDefault();
+    const button=$("deviceOperatorSave");if(button)button.disabled=true;
+    const name=$("deviceOperatorFullName")?.value||"",email=$("deviceOperatorWorkEmail")?.value||"";
+    try{
+      const data=await api("/operator-session",{method:"POST",body:{name,email}});
+      saveOperatorSession({sessionId:data.sessionId,operator:data.operator,startedAt:data.startedAt,expiresAt:data.expiresAt});
+      $("deviceOperatorDialog")?.close();
+      const pending=state.pendingOperatorAction;state.pendingOperatorAction=null;
+      if(pending?.type==="edit"&&pending.id)await openEditor(pending.id);
+    }catch(error){
+      text("deviceOperatorMessage","Unable to identify operator: "+error.message);
+    }finally{if(button)button.disabled=false;}
   }
 
   function healthDot(id,status){
@@ -243,9 +301,11 @@
   }
 
   async function openEditor(id){
+    if(!state.operatorSession){showOperatorDialog({type:"edit",id});return;}
     const device=state.devices.find(d=>String(d.id)===String(id));if(!device)return;
     state.selected=device;state.preview=null;state.recovery=null;
     const duration=$("deviceLeaseDuration");if(duration)duration.value="60";
+    const reason=$("deviceChangeReason");if(reason)reason.value="";
     text("deviceEditorTitle",device.displayName||device.model||"Phone");
     text("deviceEditorMeta",[device.locationName,device.mac].filter(Boolean).join(" · "));
     text("deviceLine1Name",device.line1?.name||device.owner?.name||"Primary line");
@@ -282,7 +342,8 @@
         deviceId:state.selected.id,
         locationId:state.selected.locationId,
         targetLine2MemberId:memberId,
-        durationMinutes
+        durationMinutes,
+        reason:($("deviceChangeReason")?.value||"").trim()
       }});
       state.preview=data.plan||data;
       renderConfirm(state.preview);
@@ -299,6 +360,7 @@
     const before=plan.before?.line2||state.selected?.line2;
     const after=plan.after?.line2;
     host.innerHTML=
+      '<div class="device-confirm-row"><span>Operator</span><strong>'+esc(state.operatorSession?.operator?.name||"Unknown")+' · '+esc(state.operatorSession?.operator?.email||"")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Phone</span><strong>'+esc(plan.device?.displayName||state.selected?.displayName||"Phone")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Location</span><strong>'+esc(plan.location?.name||state.selected?.locationName||"Location")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+'</strong></div>'+
@@ -306,6 +368,7 @@
       '<div class="device-confirm-row"><span>Temporary duration</span><strong>'+esc(plan.lease?.durationMinutes?String(plan.lease.durationMinutes)+" minutes":"Temporary")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Auto-revert</span><strong>'+esc(plan.lease?.expiresAt?new Date(plan.lease.expiresAt).toLocaleString():"At lease expiry")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Phonism Sync + registration verification")+'</strong></div>'+
+      (($("deviceChangeReason")?.value||"").trim()?'<div class="device-confirm-row"><span>Reason</span><strong>'+esc(($("deviceChangeReason")?.value||"").trim())+'</strong></div>':"")+
       '<p class="device-helper">'+esc(plan.summary||"The backend will revalidate current state before any write.")+'</p>';
     $("deviceApplyChange").disabled=plan.executable!==true;
   }
@@ -317,7 +380,8 @@
       const result=await api("/apply",{method:"POST",body:{
         mutationId:state.preview.mutationId,
         expectedVersion:state.preview.expectedVersion,
-        durationMinutes:state.preview.lease?.durationMinutes||Number($("deviceLeaseDuration")?.value||60)
+        durationMinutes:state.preview.lease?.durationMinutes||Number($("deviceLeaseDuration")?.value||60),
+        reason:($("deviceChangeReason")?.value||"").trim()
       }});
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
       text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism registration…");
@@ -358,21 +422,23 @@
 
   async function loadHistory(){
     const body=$("deviceHistoryRows");
-    if(body)body.innerHTML='<tr><td colspan="7" class="device-empty">Loading history…</td></tr>';
+    if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading history…</td></tr>';
     try{
-      const data=await api("/history");
+      const data=await api("/history?limit=100");
       const rows=Array.isArray(data.rows)?data.rows:[];
       if(body)body.innerHTML=rows.length?rows.map(r=>
-        '<tr><td>'+esc(r.when||r.at||"")+'</td>'+
-        '<td>'+esc(r.deviceName||r.mac||"")+'</td>'+
+        '<tr><td>'+esc(r.at?new Date(r.at).toLocaleString():"")+'</td>'+
+        '<td><strong>'+esc(r.operatorName||"Unknown")+'</strong><small>'+esc(r.operatorEmail||"")+'</small></td>'+
+        '<td>'+esc(r.sourceIp||"—")+'</td>'+
+        '<td>'+esc(r.deviceName||"")+'</td>'+
         '<td>'+esc(r.locationName||"")+'</td>'+
-        '<td>'+esc(r.change||r.summary||"")+'</td>'+
+        '<td>'+esc(r.action||r.eventType||"")+'</td>'+
         '<td>'+esc(r.webexStatus||"—")+'</td>'+
         '<td>'+esc(r.phonismStatus||"—")+'</td>'+
         '<td><span class="device-status '+statusClass(r.result)+'">'+esc(r.result||"Unknown")+'</span></td></tr>'
-      ).join(""):'<tr><td colspan="7" class="device-empty">No device-management changes have been recorded yet.</td></tr>';
+      ).join(""):'<tr><td colspan="9" class="device-empty">No device-management changes have been recorded yet.</td></tr>';
     }catch(error){
-      if(body)body.innerHTML='<tr><td colspan="7" class="device-empty">History is not active yet. '+esc(error.status===404?"Backend audit storage is being prepared.":error.message)+'</td></tr>';
+      if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">History is not available: '+esc(error.message)+'</td></tr>';
     }
   }
 
@@ -392,6 +458,10 @@
       $("deviceSearch").value="";$("deviceOwnerFilter").value="";$("deviceWebexRegistrationFilter").value="";$("devicePhonismRegistrationFilter").value="";applyFilters();
     });
     $("deviceRefresh")?.addEventListener("click",async()=>{await loadCapabilities();await loadLocations();await loadInventory(true);});
+    $("deviceOperatorButton")?.addEventListener("click",()=>showOperatorDialog(null));
+    $("deviceOperatorForm")?.addEventListener("submit",event=>void submitOperator(event));
+    $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
+    $("deviceOperatorCancel")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
     $("devicePreviewChange")?.addEventListener("click",()=>void previewChange());
     $("deviceApplyChange")?.addEventListener("click",()=>void applyChange());
@@ -407,7 +477,9 @@
 
   async function init(){
     bind();
+    renderOperator();
     if(!await securityCheck())return;
+    await restoreOperatorSession();
     await loadCapabilities();
     await loadLocations();
     await loadInventory(false);

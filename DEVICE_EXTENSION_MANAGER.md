@@ -175,3 +175,33 @@ For production write enablement, use durable server-side lease state plus a sche
 ### User experience
 
 The editor offers common durations: 30 minutes, 1 hour, 2 hours, 4 hours, 8 hours, and 12 hours maximum. The final confirmation displays the exact auto-revert timestamp, and the inventory shows active temporary leases and their expiration time.
+
+## Operator identity and audit trail
+
+Browsing device inventory does not require operator identification. Before a user can enter the line-change workflow, the platform requires:
+- Full name
+- Work email address
+
+The browser stores only the server-issued operator session in session storage for the current browser session. The server stores the namespaced operator session in the existing `SESSIONS` KV namespace.
+
+Every executed change must write an audit record to the existing `LOGS` KV namespace under the `device-audit:` prefix. Audit identity must never be accepted solely from change-request form fields; the backend resolves it from the validated operator session.
+
+Server-captured audit evidence includes:
+- Operator name and work email
+- Source IP from Cloudflare request headers
+- User agent/browser
+- Timestamp
+- Device name, IDs, and MAC where available
+- Location
+- Action type
+- Previous and requested Line 2 state
+- Temporary duration and expiration
+- Change reason/note
+- Webex result
+- Phonism result
+- Overall result
+- Unique audit/mutation identifier
+
+Automatic lease expiration/reconciliation uses actor `VisionBank Device Manager – Automated` and retains a link to the original human operator. Factory Reset recovery must be audited as its own action.
+
+The Change History UI exposes operator, source IP, device, location, action, provider results, and final result. Operator sessions expire after 12 hours and are namespaced so they do not collide with existing VisionBank authentication sessions.

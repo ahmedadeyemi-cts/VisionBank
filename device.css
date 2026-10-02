@@ -37,3 +37,15 @@ button,input,select{font:inherit}.device-shell{min-height:100vh}.device-shell.ac
 .device-btn.danger:disabled{background:#b42318;border-color:#b42318;opacity:.38}
 .device-recovery-confirm{display:flex;align-items:flex-start;gap:10px;margin:18px 0;padding:13px;border:1px solid #f0c7c4;background:#fff7f6;border-radius:12px;line-height:1.45;font-size:13px}
 .device-recovery-confirm input{margin-top:3px;flex:0 0 auto}
+
+.device-operator-chip{display:flex;flex-direction:column;gap:1px;min-width:190px;padding:8px 11px;border:1px solid rgba(255,255,255,.24);border-radius:11px;background:rgba(255,255,255,.08)}
+.device-operator-chip.identified{background:rgba(255,255,255,.14)}
+.device-operator-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;opacity:.65;font-weight:800}
+.device-operator-chip strong{font-size:12px;line-height:1.25}.device-operator-chip small{font-size:10px;opacity:.72}
+.device-operator-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:20px 22px}
+.device-operator-form label,.device-reason-label{font-size:12px;font-weight:800;color:#34423d}
+.device-operator-form input,.device-reason-label textarea{width:100%;margin-top:6px;border:1px solid #cbd8d3;border-radius:10px;background:#fff;padding:10px 11px;color:var(--vb-text);outline:none}
+.device-operator-form input:focus,.device-reason-label textarea:focus{border-color:var(--vb-green);box-shadow:0 0 0 3px rgba(24,83,66,.12)}
+.device-operator-form .device-helper{grid-column:1/-1;margin:0}
+.device-reason-label{display:block;margin-top:14px}.device-reason-label textarea{resize:vertical;min-height:76px}
+@media(max-width:900px){.device-header-actions{flex-wrap:wrap}.device-operator-chip{width:100%}.device-operator-form{grid-template-columns:1fr}}

@@ -468,10 +468,24 @@
         '. Refine '+(query?'your search':'by name, extension, number, workspace, or location')+' to narrow the list.</div>';
     }
     host.innerHTML=html;
-    host.querySelectorAll("[data-member-choice]").forEach(btn=>btn.addEventListener("click",()=>{
-      if(btn.disabled)return;
-      chooseMember(btn.dataset.memberChoice||"");
-    }));
+    const choices=[...host.querySelectorAll("[data-member-choice]")];
+    choices.forEach((btn,index)=>{
+      btn.addEventListener("click",()=>{
+        if(btn.disabled)return;
+        chooseMember(btn.dataset.memberChoice||"");
+      });
+      btn.addEventListener("keydown",event=>{
+        if(!["ArrowDown","ArrowUp","Home","End"].includes(event.key))return;
+        event.preventDefault();
+        const enabled=choices.filter(choice=>!choice.disabled);
+        if(!enabled.length)return;
+        const current=enabled.indexOf(btn);
+        const next=event.key==="Home"?enabled[0]:event.key==="End"?enabled.at(-1):
+          event.key==="ArrowDown"?enabled[(Math.max(current,0)+1)%enabled.length]:
+          enabled[(Math.max(current,0)-1+enabled.length)%enabled.length];
+        next?.focus();
+      });
+    });
   }
 
   function openMemberPicker(){

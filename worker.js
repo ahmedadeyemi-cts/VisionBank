@@ -24,7 +24,7 @@ export default {
         ? origin
         : ALLOWED_ORIGINS[0],
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-AUTH-TOKEN, X-VB-Operator-Session",
       "Cache-Control": "no-store"
     };
 

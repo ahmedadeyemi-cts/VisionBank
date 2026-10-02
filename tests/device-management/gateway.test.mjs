@@ -66,7 +66,7 @@ test('inventory correlates calling device, primary line and Line 2 without write
   const d=r.data.devices[0];
   assert.equal(d.id,'call-1');assert.equal(d.mac,'00:11:22:33:44:55');
   assert.equal(d.locationId,'loc-a');assert.equal(d.line1.extension,'4101');assert.equal(d.line2.extension,'4190');
-  assert.equal(d.line1.webexRegistrationStatus,'unknown');
+  assert.equal(d.line1.webexRegistrationStatus,'registered');
   assert.equal(d.line1.phonismRegistrationStatus,'registered');
   assert.ok(f.calls.every(c=>c.method==='GET'));
 });
@@ -124,9 +124,9 @@ test('inventory merges Phonism line registration by Webex device ID',async()=>{
   const d=r.data.devices[0];
   assert.equal(d.phonismMatch,'webex-device-id');
   assert.equal(d.phonismTenantName,'DUFF');
-  assert.equal(d.line1.webexRegistrationStatus,'unknown');
+  assert.equal(d.line1.webexRegistrationStatus,'registered');
   assert.equal(d.line1.phonismRegistrationStatus,'registered');
-  assert.equal(d.line2.webexRegistrationStatus,'unknown');
+  assert.equal(d.line2.webexRegistrationStatus,'registered');
   assert.equal(d.line2.phonismRegistrationStatus,'unregistered');
   assert.equal(d.lastProvision,'2026-10-01 12:10:00');
   assert.equal(r.data.phonism.ready,true);

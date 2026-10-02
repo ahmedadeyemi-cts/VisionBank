@@ -140,11 +140,13 @@ function phoneRow(value,tenantNames=new Map()){
 
 function lineRow(value){
   const number=Number(value?.line_number);
+  const hasRegistration=Object.prototype.hasOwnProperty.call(value||{},'registration_status');
   return {
     lineNumber:Number.isSafeInteger(number)&&number>0?number:null,
     voipCredentialId:id(value?.voip_credential_id),
     username:clean(value?.username,100),alias:clean(value?.alias,160),
-    registrationStatus:normalizeRegistration(value?.registration_status),
+    registrationStatus:hasRegistration?normalizeRegistration(value?.registration_status):'not-monitored',
+    registrationMonitored:hasRegistration,
     broadworksUserId:clean(value?.broadworks_user_id,200)||null
   };
 }

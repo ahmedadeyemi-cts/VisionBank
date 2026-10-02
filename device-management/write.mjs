@@ -145,8 +145,8 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     webexSaved=true;
 
     const pc=preview.phonismContext||{};
-    await phonismReader.syncIntegration(env,pc.integrationId,{
-      companyId:pc.companyId,tenantId:pc.tenantId,
+    await phonismReader.syncHierarchyIntegration(env,pc.companyId,{
+      tenantId:pc.tenantId,
       assetTypes:['People','Workspace','Device']
     });
     phonismQueued=true;
@@ -178,10 +178,9 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     device:preview.device,location:preview.location,baselineLine2:preview.baselineLine2,
     temporaryLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,
     operator:session.operator,auditId:audit.auditId,phonismPhoneId:pc.phoneId,
-    phonismTenantId:pc.tenantId,phonismIntegrationId:pc.integrationId
+    phonismTenantId:pc.tenantId,phonismCompanyId:pc.companyId
   });
   lease.baselineMember=preview.baselineMember||null;
-  lease.phonismCompanyId=pc.companyId||null;
   await putLease(env,lease);
   if(env?.SESSIONS?.delete)await env.SESSIONS.delete(PREVIEW_PREFIX+preview.mutationId);
 
@@ -248,8 +247,8 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
 
     if(lease.status==='restore-sync-pending'){
       try{
-        await phonismReader.syncIntegration(env,lease.phonismIntegrationId,{
-          companyId:lease.phonismCompanyId,tenantId:lease.phonismTenantId,
+        await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
+          tenantId:lease.phonismTenantId,
           assetTypes:['People','Workspace','Device']
         });
         lease.status='restored';
@@ -298,8 +297,8 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
       const restored=restoreMembers(current.members,lease.baselineMember||null);
       await writeWebexMembers(webexFetch,env,orgId,lease.device.id,restored);
       try{
-        await phonismReader.syncIntegration(env,lease.phonismIntegrationId,{
-          companyId:lease.phonismCompanyId,tenantId:lease.phonismTenantId,
+        await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
+          tenantId:lease.phonismTenantId,
           assetTypes:['People','Workspace','Device']
         });
         lease.status='restored';

@@ -60,7 +60,7 @@ function phonismFixture(){
   return {
     calls,
     reader:{
-      async syncIntegration(_env,id,body){calls.push({type:'sync',id,body});return {accepted:true,status:202};},
+      async syncHierarchyIntegration(_env,companyId,body){calls.push({type:'sync',companyId,body});return {accepted:true,status:202};},
       async lines(){const current=calls.find(x=>x.type==='target');return current?.lines||[{lineNumber:2,alias:'Ryan Dea - (test)',registrationStatus:'not-monitored'}];},
       async tr069Action(_env,phoneId,action){calls.push({type:'tr069',phoneId,action});return {accepted:true,status:200,action};}
     }

@@ -1,5 +1,6 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
+import {createOperatorSession,readOperatorSession,listAuditRecords} from './audit.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
 const PREFIX='/api/webex/device-management/';
@@ -12,6 +13,16 @@ function validIp(ip){
   if(typeof ip!=='string'||ip.length>45||! /^[\da-f:.]+$/i.test(ip))return false;
   if(ip.includes(':')){try{return new URL('http://['+ip+']/').hostname.length>2;}catch{return false;}}
   const parts=ip.split('.');return parts.length===4&&parts.every(p=>/^\d{1,3}$/.test(p)&&Number(p)<=255);
+}
+
+async function readSmallJson(request,maxBytes=2048){
+  const type=request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase();
+  if(type!=='application/json')throw new DeviceManagementError('json-required',415);
+  const length=Number(request.headers.get('Content-Length')||0);
+  if(Number.isFinite(length)&&length>maxBytes)throw new DeviceManagementError('body-too-large',413);
+  const text=await request.text();
+  if(new TextEncoder().encode(text).byteLength>maxBytes)throw new DeviceManagementError('body-too-large',413);
+  try{return JSON.parse(text);}catch{throw new DeviceManagementError('invalid-json');}
 }
 
 async function responseJson(response){
@@ -264,15 +275,32 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
     try{
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      if(request.method!=='GET'||!['capabilities','locations','inventory','members','history'].includes(part))throw new DeviceManagementError('read-only-phase',405);
+      const readRoutes=new Set(['capabilities','locations','inventory','members','history','operator-session']);
+      const postRoutes=new Set(['operator-session']);
+      if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
       if((await bounded(checkAccess(request,env),8000))?.allowed!==true)throw new DeviceManagementError('access-denied',403);
       const rules=await bounded(loadIpRules(env),8000);
       if(!Array.isArray(rules)||!rules.some(v=>typeof v==='string'&&v.trim()))throw new DeviceManagementError('approved-network-required',403);
-      const org=String(env.WEBEX_ORG_ID||'').trim();if(!org)throw new DeviceManagementError('webex-org-not-configured',503);
 
-      if(part==='history')return output({success:true,rows:[],readOnly:true,message:'Device-management writes are not enabled yet.'},200,headers);
+      if(part==='operator-session'){
+        if(request.method==='POST'){
+          const body=await readSmallJson(request,2048);
+          const session=await createOperatorSession(env,request,body);
+          return output({success:true,sessionId:session.id,operator:session.operator,startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
+        }
+        const session=await readOperatorSession(env,request.headers.get('X-VB-Operator-Session'));
+        if(!session)throw new DeviceManagementError('operator-session-required',401);
+        return output({success:true,sessionId:session.id,operator:session.operator,startedAt:session.startedAt,expiresAt:session.expiresAt},200,headers);
+      }
+
+      if(part==='history'){
+        const history=await listAuditRecords(env,{limit:url.searchParams.get('limit')||100});
+        return output({success:true,rows:history.rows,complete:history.complete,readOnly:true},200,headers);
+      }
+
+      const org=String(env.WEBEX_ORG_ID||'').trim();if(!org)throw new DeviceManagementError('webex-org-not-configured',503);
 
       if(part==='locations'){
         const page=await readPaged(webexFetch,env,WEBEX+'/locations?orgId='+encodeURIComponent(org),['items','locations']);

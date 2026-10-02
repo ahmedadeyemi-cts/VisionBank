@@ -133,6 +133,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   if(!preview)throw new DeviceManagementError('preview-expired',409);
   if(preview.sessionId!==session.id)throw new DeviceManagementError('preview-operator-mismatch',403);
   if(!isPilotDevice(env,preview.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
+  if(!preview.phonismContext?.companyId)throw new DeviceManagementError('phonism-enterprise-sync-company-required',409);
 
   const current=await readWebexMembers(webexFetch,env,orgId,preview.device.id);
   const freshHash=await membersFingerprint(current.members);

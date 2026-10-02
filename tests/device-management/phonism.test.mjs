@@ -21,6 +21,14 @@ function fixture(){
       {id:101,company_id:40,name:'DUFF',metadata:[{name:'webex_location_id',value:'loc-a'}]},
       {id:102,company_id:40,name:'CLIVE',metadata:[{name:'webex_location_id',value:'loc-b'}]}
     ]);
+    if(path==='/hierarchy/40?children=false')return ok({
+      id:40,name:'VisionBank Iowa',type:'Domain',
+      parents:[
+        {id:10,name:'US Signal',type:'Account'},
+        {id:20,name:'US Signal',type:'Service Provider'},
+        {id:30,name:'US Signal',type:'Enterprise'}
+      ]
+    });
     if(path.startsWith('/hierarchy/40/integrations'))return ok([
       {id:501,company_id:40,type:'Webex',name:'Webex',last_connected_at:'2026-10-01 12:00:00'}
     ]);
@@ -46,6 +54,8 @@ test('discovers VisionBank Iowa and Webex tenant metadata',async()=>{
   assert.equal(d.tenants.length,2);
   assert.equal(d.tenants[0].webexLocationId,'loc-a');
   assert.equal(d.webexIntegration.id,'501');
+  assert.equal(d.syncCompany.id,'30');
+  assert.equal(d.syncCompany.type,'Enterprise');
   assert.ok(calls.every(c=>c.method==='GET'));
 });
 

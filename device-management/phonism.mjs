@@ -191,7 +191,18 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       const integrations=integrationsPage.rows.map(integrationRow).filter(x=>x.id);
       const webexIntegrations=integrations.filter(x=>(x.type+' '+x.name).toLowerCase().includes('webex'));
       const integration=webexIntegrations.length===1?webexIntegrations[0]:webexIntegrations[0]||null;
-      return {domain,tenants,integrations,webexIntegration:integration,
+
+      let syncCompany=null;
+      try{
+        const detailResponse=await fetcher(env,'/hierarchy/'+encodeURIComponent(domain.id)+'?children=false',{method:'GET'});
+        const detailBody=await readJson(detailResponse);
+        const detail=Array.isArray(detailBody.data)?detailBody.data[0]:detailBody.data;
+        const parents=Array.isArray(detail?.parents)?detail.parents:[];
+        const enterprise=parents.find(x=>String(x?.type||'').trim().toLowerCase()==='enterprise');
+        if(enterprise?.id)syncCompany={id:id(enterprise.id),name:clean(enterprise.name,160),type:clean(enterprise.type,80)};
+      }catch{}
+
+      return {domain,tenants,integrations,webexIntegration:integration,syncCompany,
         truncated:hierarchy.truncated||tenantsPage.truncated||integrationsPage.truncated};
     },
 

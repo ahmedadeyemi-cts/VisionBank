@@ -149,7 +149,8 @@ test('appearance-limit failure carries the reviewed target and device context',a
   });
   await assert.rejects(
     ()=>applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader}),
-    error=>error.code==='target-appearance-limit'&&error.targetMember?.memberId==='user-ryan'&&error.location?.id==='loc-a'&&error.device?.id==='call-1'
+    error=>error.code==='target-appearance-limit'&&error.targetMember?.memberId==='user-ryan'&&
+      error.targetMember?.locationId==='loc-b'&&error.location?.id==='loc-a'&&error.device?.id==='call-1'
   );
 });
 

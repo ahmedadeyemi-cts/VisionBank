@@ -88,7 +88,8 @@ async function readCallingDevice(webexFetch,env,org,base){
   const loc=locationOf(detail);const locationId=loc.id||primary?.locationId||null,locationName=loc.name||primary?.locationName||'';
   const owner=primary?{id:primary.id,name:primary.name,type:primary.type,extension:primary.extension,phoneNumber:primary.phoneNumber}:base.personId?{id:base.personId,name:'',type:'PEOPLE'}:base.workspaceId?{id:base.workspaceId,name:'',type:'PLACE'}:null;
   const overall=normalizeRegistration(detail?.registrationStatus||detail?.status||base.connectionStatus);
-  const line=x=>x?{id:x.id,memberId:x.id,name:x.name,type:x.type,extension:x.extension,phoneNumber:x.phoneNumber,registrationStatus:x.registrationStatus==='unknown'?overall:x.registrationStatus,port:x.port}:null;
+  const line=x=>x?{id:x.id,memberId:x.id,name:x.name,type:x.type,extension:x.extension,phoneNumber:x.phoneNumber,
+    locationId:x.locationId,locationName:x.locationName,registrationStatus:x.registrationStatus==='unknown'?overall:x.registrationStatus,port:x.port}:null;
   return {...base,id:base.callingDeviceId,locationId,locationName,owner,line1:line(primary),line2:line(second),
     syncStatus:detail._error||detail._membersError?'attention':'in-sync',syncStatusLabel:detail._error?'Device details limited':detail._membersError?'Line membership unavailable':'Read-only Webex data',syncMessage:detail._error||detail._membersError||'',lastProvision:'Not reported',phonismStatus:'Not connected'};
 }
@@ -202,7 +203,7 @@ async function scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader){
   const second=members.find(m=>m!==primary&&(m.port===2||m.lineType.toUpperCase()!=='PRIMARY'))||null;
   const overall=normalizeRegistration(base.connectionStatus);
   const webexLine=x=>x?{id:x.id,memberId:x.id,name:x.name,type:x.type,extension:x.extension,phoneNumber:x.phoneNumber,
-    registrationStatus:x.registrationStatus==='unknown'?overall:x.registrationStatus,port:x.port}:null;
+    locationId:x.locationId,locationName:x.locationName,registrationStatus:x.registrationStatus==='unknown'?overall:x.registrationStatus,port:x.port}:null;
   const w1=webexLine(primary),w2=webexLine(second);
   const owner=primary?{id:primary.id,name:primary.name,type:primary.type,extension:primary.extension,phoneNumber:primary.phoneNumber}:
     p1?{id:null,name:p1.alias||p1.username||phone.alias||'Assigned line',type:null,extension:p1.username||'',phoneNumber:''}:null;
@@ -483,12 +484,12 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
 
       if(part==='members'){
-        const deviceId=id(url.searchParams.get('deviceId')),locationId=id(url.searchParams.get('locationId'));
-        if(!deviceId||!locationId)throw new DeviceManagementError('device-and-location-required');
-        const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&locationId='+encodeURIComponent(locationId)+'&usageType=SHARED_LINE';
-        const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,1000);
-        const members=page.rows.map(memberRow).filter(m=>m.id&&m.type&&String(m.locationId||'')===locationId);
-        return output({success:true,members,truncated:page.truncated,locationId,deviceId,readOnly:true},200,headers);
+        const deviceId=id(url.searchParams.get('deviceId'));
+        if(!deviceId)throw new DeviceManagementError('device-required');
+        const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
+        const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
+        const members=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
+        return output({success:true,members,truncated:page.truncated,deviceId,scope:'organization',readOnly:true},200,headers);
       }
 
       if(part==='preview'){
@@ -503,9 +504,9 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
         let targetMember=null;
         if(body.targetLine2MemberId){
-          const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&locationId='+encodeURIComponent(locationId)+'&usageType=SHARED_LINE';
-          const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,1000);
-          const candidates=page.rows.map(memberRow).filter(m=>m.id&&m.type&&String(m.locationId||'')===locationId);
+          const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
+          const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
+          const candidates=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
           targetMember=candidates.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
           if(!targetMember)throw new DeviceManagementError('target-member-not-available',409);
         }

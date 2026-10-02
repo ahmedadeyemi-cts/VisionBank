@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261002-v4">
+  <link rel="stylesheet" href="device.css?v=20261002-v5">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -194,9 +194,22 @@
         </section>
         <section class="device-line-card">
           <div class="device-line-title"><span>Line 2</span><span class="device-badge">Managed</span></div>
-          <label>Secondary extension
-            <select id="deviceLine2Select"><option value="">None</option></select>
-          </label>
+          <div class="device-member-field">
+            <span class="device-member-label">Secondary extension</span>
+            <div class="device-member-picker">
+              <button id="deviceLine2PickerButton" class="device-member-picker-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+                <span id="deviceLine2PickerValue">None</span>
+                <span aria-hidden="true">⌄</span>
+              </button>
+              <div id="deviceLine2PickerPanel" class="device-member-picker-panel" hidden>
+                <div class="device-member-search-wrap">
+                  <input id="deviceLine2Search" type="search" autocomplete="off" placeholder="Search name, extension, number, workspace, or location" aria-label="Search secondary extension">
+                </div>
+                <div id="deviceLine2Results" class="device-member-results" role="listbox" aria-label="Available users and workspaces"></div>
+              </div>
+              <select id="deviceLine2Select" hidden aria-hidden="true"><option value="">None</option></select>
+            </div>
+          </div>
           <label class="device-duration-label">Temporary duration
             <select id="deviceLeaseDuration">
               <option value="30">30 minutes</option>
@@ -207,7 +220,7 @@
               <option value="720">12 hours (maximum)</option>
             </select>
           </label>
-          <div id="deviceLine2CandidateMeta" class="device-helper">Only users and workspaces in this phone's location will be available. Changes made here are always temporary.</div>
+          <div id="deviceLine2CandidateMeta" class="device-helper">Users and workspaces across all VisionBank Webex locations are available. Changes made here are always temporary.</div>
           <label class="device-reason-label">Change reason / note
             <textarea id="deviceChangeReason" rows="3" maxlength="500" placeholder="Optional: desk move, temporary coverage, testing, etc."></textarea>
           </label>
@@ -265,6 +278,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v11"></script>
+  <script src="device.js?v=20261002-v12"></script>
 </body>
 </html>

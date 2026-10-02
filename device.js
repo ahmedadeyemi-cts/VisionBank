@@ -338,27 +338,122 @@
     }
   }
 
+  function memberKind(member){
+    return member?.type==="PLACE"?"Workspace":"User";
+  }
+
+  function memberSearchText(member){
+    return normalize([
+      member?.name,member?.extension,member?.phoneNumber,memberKind(member),
+      member?.locationName,member?.locationId
+    ].filter(Boolean).join(" "));
+  }
+
+  function selectedMember(){
+    const id=$("deviceLine2Select")?.value||"";
+    return state.members.find(x=>String(x.id)===String(id))||null;
+  }
+
+  function memberOptionDisabled(id){
+    const select=$("deviceLine2Select");
+    const option=select?[...select.options].find(o=>String(o.value)===String(id)):null;
+    return option?.disabled===true;
+  }
+
+  function renderMemberPickerValue(){
+    const member=selectedMember();
+    const value=$("deviceLine2PickerValue");
+    if(!value)return;
+    if(!member){value.textContent="None";return;}
+    value.textContent=[member.name||"Member",member.extension||member.phoneNumber||"",member.locationName||""].filter(Boolean).join(" · ");
+  }
+
+  function renderMemberSearchResults(){
+    const host=$("deviceLine2Results");if(!host)return;
+    const query=normalize($("deviceLine2Search")?.value||"");
+    const selectedId=$("deviceLine2Select")?.value||"";
+    const filtered=state.members.filter(m=>!query||memberSearchText(m).includes(query));
+    const noneSelected=!selectedId;
+    let html='<button class="device-member-option none" type="button" data-member-choice="" role="option" aria-selected="'+(noneSelected?"true":"false")+'"><strong>None — remove temporary Line 2</strong></button>';
+    if(filtered.length){
+      html+=filtered.map(m=>{
+        const disabled=memberOptionDisabled(m.id);
+        const label=[memberKind(m),m.locationName||"Location unavailable",m.phoneNumber||""].filter(Boolean).join(" · ");
+        return '<button class="device-member-option" type="button" data-member-choice="'+esc(m.id)+'" role="option" aria-selected="'+(String(selectedId)===String(m.id)?"true":"false")+'" '+(disabled?"disabled aria-disabled=\"true\"":"")+'>'+
+          '<strong>'+esc(m.name||"Member")+'</strong><span class="device-member-ext">'+esc(m.extension||m.phoneNumber||"No extension")+'</span>'+
+          '<small>'+esc(label)+(disabled?' · Unavailable for this session':'')+'</small></button>';
+      }).join("");
+    }else{
+      html+='<div class="device-member-empty">No users or workspaces match this search.</div>';
+    }
+    host.innerHTML=html;
+    host.querySelectorAll("[data-member-choice]").forEach(btn=>btn.addEventListener("click",()=>{
+      if(btn.disabled)return;
+      chooseMember(btn.dataset.memberChoice||"");
+    }));
+  }
+
+  function openMemberPicker(){
+    const button=$("deviceLine2PickerButton"),panel=$("deviceLine2PickerPanel"),search=$("deviceLine2Search");
+    if(!button||button.disabled||!panel)return;
+    panel.hidden=false;button.setAttribute("aria-expanded","true");
+    if(search){search.value="";setTimeout(()=>search.focus(),0);}
+    renderMemberSearchResults();
+  }
+
+  function closeMemberPicker(){
+    const button=$("deviceLine2PickerButton"),panel=$("deviceLine2PickerPanel");
+    if(panel)panel.hidden=true;
+    if(button)button.setAttribute("aria-expanded","false");
+  }
+
+  function chooseMember(id){
+    const select=$("deviceLine2Select");
+    if(!select)return;
+    const option=[...select.options].find(o=>String(o.value)===String(id));
+    if(option?.disabled)return;
+    select.value=id;
+    renderMemberPickerValue();
+    closeMemberPicker();
+    renderCandidate();
+  }
+
   async function loadMembers(device){
     state.members=[];state.memberLoadError=null;
-    const select=$("deviceLine2Select");
+    const select=$("deviceLine2Select"),picker=$("deviceLine2PickerButton");
     if(select){select.disabled=true;select.innerHTML='<option value="">Loading eligible lines…</option>';}
-    text("deviceLine2CandidateMeta","Loading eligible users and workspaces from Webex…");
+    if(picker){picker.disabled=true;text("deviceLine2PickerValue","Loading available users & workspaces…");}
+    closeMemberPicker();
+    text("deviceLine2CandidateMeta","Loading eligible users and workspaces across VisionBank Webex…");
     try{
-      const q=new URLSearchParams();
-      q.set("locationId",device.locationId||"");
-      q.set("deviceId",device.id);
+      const q=new URLSearchParams({deviceId:String(device.id||"")});
       const data=await api("/members?"+q.toString());
       state.members=Array.isArray(data.members)?data.members:[];
+      state.members.sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""))||String(a.extension||"").localeCompare(String(b.extension||"")));
+
+      const currentId=device.line2?.memberId||device.line2?.id||"";
+      if(currentId&&!state.members.some(m=>String(m.id)===String(currentId))){
+        state.members.unshift({
+          id:currentId,name:device.line2?.name||"Current Line 2",type:device.line2?.type||"PEOPLE",
+          extension:device.line2?.extension||"",phoneNumber:device.line2?.phoneNumber||"",
+          locationId:device.line2?.locationId||device.locationId||null,
+          locationName:device.line2?.locationName||device.locationName||"",
+          currentAssignment:true
+        });
+      }
+
       if(select){
         select.disabled=false;
         select.innerHTML='<option value="">None</option>'+state.members.map(m=>
-          '<option value="'+esc(m.id)+'">'+esc(m.name||"Member")+' · '+esc(m.extension||m.phoneNumber||"No extension")+' · '+esc(m.type||"")+'</option>'
+          '<option value="'+esc(m.id)+'">'+esc(m.name||"Member")+' · '+esc(m.extension||m.phoneNumber||"No extension")+' · '+esc(memberKind(m))+' · '+esc(m.locationName||"Location unavailable")+'</option>'
         ).join("");
       }
-      text("deviceLine2CandidateMeta",state.members.length?state.members.length+" eligible same-location line"+(state.members.length===1?"":"s")+" available.":"No eligible same-location lines were returned by Webex.");
+      if(picker)picker.disabled=false;
+      text("deviceLine2CandidateMeta",state.members.length?state.members.length+" eligible organization-wide line"+(state.members.length===1?"":"s")+" available across VisionBank Webex.":"No eligible users or workspaces were returned by Webex.");
     }catch(error){
       state.memberLoadError=error.message||"member-search-failed";
       if(select){select.disabled=true;select.innerHTML='<option value="">Unable to load available lines</option>';}
+      if(picker){picker.disabled=true;text("deviceLine2PickerValue","Unable to load available lines");}
       text("deviceLine2CandidateMeta","Unable to load available lines: "+state.memberLoadError);
       if(error.status!==404)console.debug("Member search unavailable:",error.message);
     }
@@ -379,10 +474,8 @@
     if(status){status.textContent="Webex: "+registrationLabel(wx)+" · Phonism: "+registrationLabel(ph);status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
     await loadMembers(device);
     const select=$("deviceLine2Select");
-    if(select){
-      select.value=device.line2?.memberId||device.line2?.id||"";
-      select.onchange=renderCandidate;
-    }
+    if(select)select.value=device.line2?.memberId||device.line2?.id||"";
+    renderMemberPickerValue();
     renderCandidate();
     const reviewEnabled=state.capabilities?.writes?.previewReady===true&&device.writeEligible===true;
     const saveEnabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
@@ -393,10 +486,15 @@
 
   function renderCandidate(){
     if(state.memberLoadError){text("deviceLine2CandidateMeta","Unable to load available lines: "+state.memberLoadError);return;}
-    const id=$("deviceLine2Select")?.value||"";
-    const m=state.members.find(x=>String(x.id)===String(id));
-    if(m){text("deviceLine2CandidateMeta",String(m.name||"Member")+" · "+String(m.extension||m.phoneNumber||"No extension")+" · "+String(m.type||"")+" · same location validated by backend");return;}
-    text("deviceLine2CandidateMeta","None — Line 2 will be unassigned. "+state.members.length+" eligible same-location line"+(state.members.length===1?"":"s")+" available.");
+    const m=selectedMember();
+    if(m){
+      text("deviceLine2CandidateMeta",
+        String(m.name||"Member")+" · "+String(m.extension||m.phoneNumber||"No extension")+" · "+
+        memberKind(m)+" · "+String(m.locationName||"Location unavailable")+
+        (m.currentAssignment?" · current assignment":""));
+      return;
+    }
+    text("deviceLine2CandidateMeta","None — Line 2 will be unassigned. "+state.members.length+" eligible organization-wide line"+(state.members.length===1?"":"s")+" available across VisionBank Webex.");
   }
 
   async function previewChange(){
@@ -430,9 +528,10 @@
     host.innerHTML=
       '<div class="device-confirm-row"><span>Operator</span><strong>'+esc(state.operatorSession?.operator?.name||"Unknown")+' · '+esc(state.operatorSession?.operator?.email||"")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Phone</span><strong>'+esc(plan.device?.displayName||state.selected?.displayName||"Phone")+'</strong></div>'+
-      '<div class="device-confirm-row"><span>Location</span><strong>'+esc(plan.location?.name||state.selected?.locationName||"Location")+'</strong></div>'+
-      '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Phone location</span><strong>'+esc(plan.location?.name||state.selected?.locationName||"Location")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+(before?.locationName?' · '+esc(before.locationName):'')+'</strong></div>'+
       '<div class="device-confirm-row"><span>New Line 2</span><strong>'+esc(after?.name||"None")+' '+esc(after?.extension||"")+'</strong></div>'+
+      (after?'<div class="device-confirm-row"><span>Selected line location</span><strong>'+esc(after.locationName||"Location unavailable")+'</strong></div>':"")+
       '<div class="device-confirm-row"><span>Temporary duration</span><strong>'+esc(plan.lease?.durationMinutes?String(plan.lease.durationMinutes)+" minutes":"Temporary")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Auto-revert</span><strong>'+esc(plan.lease?.expiresAt?new Date(plan.lease.expiresAt).toLocaleString():"At lease expiry")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Phonism Sync + registration verification")+'</strong></div>'+
@@ -484,6 +583,8 @@
         state.preview=null;
         $("deviceConfirm")?.close();
         text("deviceEditorWarning",message);
+        renderMemberPickerValue();
+        renderMemberSearchResults();
         renderCandidate();
       }else{
         if(host)host.insertAdjacentHTML("beforeend",'<p class="device-warning device-apply-error">'+esc(message)+'</p>');
@@ -603,6 +704,15 @@
     $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
     $("deviceOperatorCancel")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
+    $("deviceLine2PickerButton")?.addEventListener("click",()=>{
+      const panel=$("deviceLine2PickerPanel");
+      if(panel?.hidden===false)closeMemberPicker();else openMemberPicker();
+    });
+    $("deviceLine2Search")?.addEventListener("input",renderMemberSearchResults);
+    $("deviceLine2Search")?.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){event.preventDefault();closeMemberPicker();$("deviceLine2PickerButton")?.focus();}
+    });
+    $("deviceEditor")?.addEventListener("close",closeMemberPicker);
     $("devicePreviewChange")?.addEventListener("click",()=>void previewChange());
     $("deviceApplyChange")?.addEventListener("click",()=>void applyChange());
     $("deviceConfirmClose")?.addEventListener("click",()=>$("deviceConfirm")?.close());

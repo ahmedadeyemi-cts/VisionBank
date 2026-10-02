@@ -185,22 +185,28 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
     async discover(env,webexOrgId){
       const hierarchy=await paged(env,'/hierarchy/?limit=100',fetcher,20,2000);
       const domain=chooseDomain(flattenCompanies(hierarchy.rows),webexOrgId,domainName);
-      const tenantsPage=await paged(env,'/hierarchy/'+encodeURIComponent(domain.id)+'/tenants/?limit=100',fetcher,30,3000);
+      const domainPath='/hierarchy/'+encodeURIComponent(domain.id);
+
+      const tenantsPromise=paged(env,domainPath+'/tenants/?limit=100',fetcher,30,3000);
+      const integrationsPromise=paged(env,domainPath+'/integrations?limit=100',fetcher,10,500);
+      const detailPromise=(async()=>{
+        try{
+          const detailResponse=await fetcher(env,domainPath+'?children=false',{method:'GET'});
+          const detailBody=await readJson(detailResponse);
+          return Array.isArray(detailBody.data)?detailBody.data[0]:detailBody.data;
+        }catch{return null;}
+      })();
+
+      const [tenantsPage,integrationsPage,detail]=await Promise.all([tenantsPromise,integrationsPromise,detailPromise]);
       const tenants=tenantsPage.rows.map(tenantRow).filter(x=>x.id);
-      const integrationsPage=await paged(env,'/hierarchy/'+encodeURIComponent(domain.id)+'/integrations?limit=100',fetcher,10,500);
       const integrations=integrationsPage.rows.map(integrationRow).filter(x=>x.id);
       const webexIntegrations=integrations.filter(x=>(x.type+' '+x.name).toLowerCase().includes('webex'));
       const integration=webexIntegrations.length===1?webexIntegrations[0]:webexIntegrations[0]||null;
 
       let syncCompany=null;
-      try{
-        const detailResponse=await fetcher(env,'/hierarchy/'+encodeURIComponent(domain.id)+'?children=false',{method:'GET'});
-        const detailBody=await readJson(detailResponse);
-        const detail=Array.isArray(detailBody.data)?detailBody.data[0]:detailBody.data;
-        const parents=Array.isArray(detail?.parents)?detail.parents:[];
-        const enterprise=parents.find(x=>String(x?.type||'').trim().toLowerCase()==='enterprise');
-        if(enterprise?.id)syncCompany={id:id(enterprise.id),name:clean(enterprise.name,160),type:clean(enterprise.type,80)};
-      }catch{}
+      const parents=Array.isArray(detail?.parents)?detail.parents:[];
+      const enterprise=parents.find(x=>String(x?.type||'').trim().toLowerCase()==='enterprise');
+      if(enterprise?.id)syncCompany={id:id(enterprise.id),name:clean(enterprise.name,160),type:clean(enterprise.type,80)};
 
       return {domain,tenants,integrations,webexIntegration:integration,syncCompany,
         truncated:hierarchy.truncated||tenantsPage.truncated||integrationsPage.truncated};

@@ -59,6 +59,39 @@ test('discovers VisionBank Iowa and Webex tenant metadata',async()=>{
   assert.ok(calls.every(c=>c.method==='GET'));
 });
 
+
+test('discovery reads tenant, integration, and parent metadata concurrently',async()=>{
+  let active=0,maxActive=0;
+  const wait=async(body)=>{
+    active++;maxActive=Math.max(maxActive,active);
+    await new Promise(resolve=>setTimeout(resolve,12));
+    active--;return ok(body);
+  };
+  const fetcher=async(_env,path)=>{
+    if(path.startsWith('/hierarchy/?'))return ok([
+      {id:10,name:'US Signal',type:'Account',children:[{id:30,name:'US Signal',type:'Enterprise',children:[
+        {id:40,name:'VisionBank Iowa',type:'Domain',metadata:{webex_organization_id:'org-1'}}
+      ]}]}
+    ]);
+    if(path.startsWith('/hierarchy/40/tenants/'))return wait([
+      {id:101,company_id:40,name:'DUFF',metadata:[{name:'webex_location_id',value:'loc-a'}]}
+    ]);
+    if(path.startsWith('/hierarchy/40/integrations'))return wait([
+      {id:501,company_id:40,type:'Webex',name:'Webex'}
+    ]);
+    if(path==='/hierarchy/40?children=false')return wait({
+      id:40,name:'VisionBank Iowa',type:'Domain',parents:[{id:30,name:'US Signal',type:'Enterprise'}]
+    });
+    return Response.json({data:null},{status:404});
+  };
+  const reader=createPhonismReader({fetcher});
+  const d=await reader.discover({},'org-1');
+  assert.equal(d.tenants.length,1);
+  assert.equal(d.webexIntegration.id,'501');
+  assert.equal(d.syncCompany.id,'30');
+  assert.ok(maxActive>=2);
+});
+
 test('normalizes Phonism phone metadata, MAC and TR-069 state',async()=>{
   const {reader}=fixture();
   const d=await reader.discover({},'org-1');

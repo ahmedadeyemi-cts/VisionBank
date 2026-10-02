@@ -619,9 +619,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         let targetMember=null;
         if(body.targetLine2MemberId){
           const lookup=display(body.targetLine2Search||'',160);
-          if(!lookup)throw new DeviceManagementError('target-member-search-required',409);
           const searched=await searchEligibleMembers({
-            webexFetch,env,org,deviceId,query:lookup,locationId:id(body.targetLine2LocationId)
+            webexFetch,env,org,deviceId,query:lookup,locationId:lookup?id(body.targetLine2LocationId):null
           });
           targetMember=searched.members.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
           if(!targetMember)throw new DeviceManagementError('target-member-not-available',409);

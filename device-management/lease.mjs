@@ -8,9 +8,17 @@ export function pilotMacs(env){
   return new Set(String(env?.DEVICE_WRITE_PILOT_MACS||'').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean));
 }
 
+export function deviceWriteScope(env){
+  const configured=String(env?.DEVICE_WRITE_SCOPE||'').trim().toLowerCase();
+  if(['organization','org','all'].includes(configured))return 'organization';
+  return pilotMacs(env).size?'pilot':'disabled';
+}
+
 export function isPilotDevice(env,mac){
   const value=String(mac||'').trim().toUpperCase();
-  return Boolean(value)&&pilotMacs(env).has(value);
+  if(!value)return false;
+  if(deviceWriteScope(env)==='organization')return true;
+  return pilotMacs(env).has(value);
 }
 
 export async function putLease(env,lease){

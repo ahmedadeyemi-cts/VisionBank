@@ -1,7 +1,7 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,listAuditRecords} from './audit.mjs';
-import {isPilotDevice,listLeases} from './lease.mjs';
+import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -79,6 +79,51 @@ function memberSearchText(member){
 function memberResultLimit(value){
   const parsed=Number.parseInt(String(value||''),10);
   return Number.isFinite(parsed)&&parsed>0?Math.min(parsed,100):50;
+}
+
+function numberOwnerRow(value){
+  const owner=value?.owner||{},location=locationOf({location:value?.location});
+  const type=ownerType({memberType:owner.type||owner.ownerType});
+  const extension=display(value?.extension||owner?.extension||'',32);
+  const rawName=display(owner?.displayName||owner?.name||[owner?.firstName,owner?.lastName].filter(Boolean).join(' '),160);
+  const name=rawName||(type==='PLACE'?(extension?'Workspace '+extension:'Workspace'):(extension?'Extension '+extension:'Member'));
+  return {
+    id:id(owner?.id),name,type,extension,phoneNumber:display(value?.phoneNumber||owner?.phoneNumber||'',64),
+    locationId:location.id,locationName:location.name,available:false,availability:'unavailable',
+    unavailableReason:'webex-not-available',appearances:[]
+  };
+}
+
+function numberFallbackEndpoints(org,query){
+  const clean=display(query,160);
+  if(!clean)return [];
+  const base=WEBEX+'/telephony/config/numbers?orgId='+encodeURIComponent(org)+'&max=50';
+  const urls=[base+'&ownerName='+encodeURIComponent(clean)];
+  if(/[0-9]/.test(clean))urls.push(base+'&extension='+encodeURIComponent(clean));
+  if(/^\+?[\d\s().-]{7,}$/.test(clean))urls.push(base+'&phoneNumber='+encodeURIComponent(clean));
+  return [...new Set(urls)];
+}
+
+async function findUnavailableMemberMatches({env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit=5}){
+  if(!query||String(query).trim().length<3)return [];
+  const pages=await Promise.all(numberFallbackEndpoints(org,query).map(async endpoint=>{
+    try{return (await readPaged(webexFetch,env,endpoint,['phoneNumbers'],2,100)).rows;}catch{return [];}
+  }));
+  const unique=new Map();
+  for(const raw of pages.flat()){
+    const row=numberOwnerRow(raw);
+    if(!row.id||!row.type||!row.locationId||eligibleIds.has(String(row.id)))continue;
+    if(!memberSearchText(row).includes(String(query).toLowerCase()))continue;
+    unique.set(String(row.id),row);
+  }
+  const candidates=[...unique.values()].slice(0,Math.min(Math.max(Number(limit)||5,1),5));
+  return mapLimit(candidates,3,async row=>{
+    const appearances=await findMemberAppearances({
+      env,org,webexFetch,phonismReader,locationId:row.locationId,targetMemberId:row.id,excludeDeviceId:deviceId
+    }).catch(()=>[]);
+    return {...row,appearances,
+      unavailableReason:appearances.length?'webex-not-available-existing-appearance':'webex-not-available'};
+  });
 }
 
 function deviceBase(value){
@@ -367,7 +412,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       if(!Array.isArray(rules)||!rules.some(v=>typeof v==='string'&&v.trim()))throw new DeviceManagementError('approved-network-required',403);
 
       const writeParts=new Set(['preview','apply','reboot']);
-      if(writeParts.has(part)&&!String(env.DEVICE_WRITE_PILOT_MACS||'').trim())throw new DeviceManagementError('read-only-phase',405);
+      const writeScope=deviceWriteScope(env);
+      if(writeParts.has(part)&&writeScope==='disabled')throw new DeviceManagementError('read-only-phase',405);
 
       if(part==='operator-session'){
         if(request.method==='POST'){
@@ -425,15 +471,19 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
 
         const ready=locationsOk&&devicesOk;
-        const pilotConfigured=String(env.DEVICE_WRITE_PILOT_MACS||'').trim().length>0;
+        const writeConfigured=writeScope!=='disabled';
         const syncHierarchyReady=phonism?.syncCompanyAvailable===true;
-        const writesEnabled=pilotConfigured&&phonism?.ready===true&&syncHierarchyReady;
+        const writesEnabled=writeConfigured&&phonism?.ready===true&&syncHierarchyReady;
+        const writeMessage=writesEnabled
+          ?(writeScope==='organization'?'Save & Sync enabled for VisionBank devices':'Pilot Save & Sync enabled for approved devices')
+          :writeConfigured?'Review enabled; Enterprise Phonism Sync owner could not be resolved':'Device writes are not configured';
         return output({success:true,webex:{detected:true,ready,
           message:ready?'Webex discovery available':'Webex discovery is incomplete',
           detail:ready?'Webex locations and VisionBank-scoped partner-managed devices can be read through Phonism-stored Webex device IDs.':'Webex location access works, but the VisionBank-scoped device enrichment probe did not complete.',
           checks,deviceCount,callingDeviceCount:callingCount,memberRead,deviceScope:'phonism-visionbank-iowa'},phonism,
-          writes:{enabled:writesEnabled,previewReady:pilotConfigured,pilot:pilotConfigured,syncHierarchyReady,
-            message:writesEnabled?'Pilot Save & Sync enabled for approved devices':pilotConfigured?'Review enabled; Enterprise Phonism Sync owner could not be resolved':'Pilot writes are not configured'},readOnly:!writesEnabled},200,headers);
+          writes:{enabled:writesEnabled,previewReady:writeConfigured,pilot:writeScope==='pilot',
+            organizationWide:writeScope==='organization',scope:writeScope,syncHierarchyReady,message:writeMessage},
+          readOnly:!writesEnabled},200,headers);
       }
 
       if(part==='inventory'){
@@ -501,10 +551,19 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
         const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
         const all=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
-        const matches=all.filter(m=>!query||memberSearchText(m).includes(query))
+        const eligibleMatches=all.filter(m=>!query||memberSearchText(m).includes(query))
+          .map(m=>({...m,available:true,availability:'available'}))
           .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
+        const eligibleIds=new Set(all.map(m=>String(m.id)));
+        const unavailableMatches=query?await findUnavailableMemberMatches({
+          env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit:Math.min(limit,5)
+        }):[];
+        const matches=[...eligibleMatches,...unavailableMatches]
+          .sort((a,b)=>Number(a.available===false)-Number(b.available===false)||
+            String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
         const members=matches.slice(0,limit);
-        return output({success:true,members,totalMatches:matches.length,truncated:page.truncated||matches.length>members.length,
+        return output({success:true,members,totalMatches:matches.length,eligibleMatches:eligibleMatches.length,
+          unavailableMatches:unavailableMatches.length,truncated:page.truncated||matches.length>members.length,
           deviceId,scope:'organization',query,limit,readOnly:true},200,headers);
       }
 

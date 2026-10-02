@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases
 } from '../../device-management/write.mjs';
+import {deviceWriteScope,isPilotDevice} from '../../device-management/lease.mjs';
 
 class MemoryKV{
   constructor(){this.map=new Map();}
@@ -87,7 +88,16 @@ test('Webex appearance-limit response becomes a user-actionable conflict',async(
   );
 });
 
-test('preview is restricted to pilot MAC and records the baseline',async()=>{
+test('organization write scope enables VisionBank devices while preserving the pilot fallback',()=>{
+  assert.equal(deviceWriteScope({DEVICE_WRITE_PILOT_MACS:MAC}),'pilot');
+  assert.equal(isPilotDevice({DEVICE_WRITE_PILOT_MACS:MAC},MAC),true);
+  assert.equal(isPilotDevice({DEVICE_WRITE_PILOT_MACS:MAC},'AA:BB:CC:DD:EE:FF'),false);
+  assert.equal(deviceWriteScope({DEVICE_WRITE_SCOPE:'organization',DEVICE_WRITE_PILOT_MACS:MAC}),'organization');
+  assert.equal(isPilotDevice({DEVICE_WRITE_SCOPE:'organization',DEVICE_WRITE_PILOT_MACS:MAC},'AA:BB:CC:DD:EE:FF'),true);
+  assert.equal(deviceWriteScope({}),'disabled');
+});
+
+test('preview is restricted to configured write scope and records the baseline',async()=>{
   const e=env();
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY,BASELINE],

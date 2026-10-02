@@ -4,7 +4,7 @@
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
   const OPERATOR_KEY="visionbankDeviceOperatorV1";
   const POST_SAVE_KEY="visionbankDevicePostSaveV1";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,memberSearchTimer:null,memberSearchSeq:0,memberTotalMatches:0,memberResultsTruncated:false,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,memberSearchTimer:null,memberSearchSeq:0,memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -361,6 +361,20 @@
     value.textContent=[member.name||"Member",member.extension||member.phoneNumber||"",member.locationName||""].filter(Boolean).join(" · ");
   }
 
+  function unavailableMemberDetail(member){
+    const appearances=Array.isArray(member?.appearances)?member.appearances:[];
+    if(appearances.length){
+      const a=appearances[0]||{};
+      const device=[a.deviceName,a.model].filter(Boolean).join(" · ")||"another phone";
+      const owner=a.ownerName?(" · Primary "+a.ownerName+(a.ownerExtension?" "+a.ownerExtension:"")):"";
+      const line=a.port?(" · Line "+a.port):"";
+      const mac=a.mac?(" · "+a.mac):"";
+      const more=appearances.length>1?(" · +"+(appearances.length-1)+" more appearance"+(appearances.length===2?"":"s")):"";
+      return "Unavailable for another shared line in Webex · Existing: "+device+owner+line+mac+more;
+    }
+    return "Webex is not offering this line as an available shared line.";
+  }
+
   function renderMemberSearchResults(){
     const host=$("deviceLine2Results");if(!host)return;
     const query=normalize($("deviceLine2Search")?.value||"");
@@ -370,11 +384,13 @@
     let html='<button class="device-member-option none" type="button" data-member-choice="" role="option" aria-selected="'+(noneSelected?"true":"false")+'"><strong>None — remove temporary Line 2</strong></button>';
     if(filtered.length){
       html+=filtered.map(m=>{
-        const disabled=memberOptionDisabled(m.id);
+        const unavailable=m.available===false;
+        const disabled=unavailable||memberOptionDisabled(m.id);
         const label=[memberKind(m),m.locationName||"Location unavailable",m.phoneNumber||""].filter(Boolean).join(" · ");
-        return '<button class="device-member-option" type="button" data-member-choice="'+esc(m.id)+'" role="option" aria-selected="'+(String(selectedId)===String(m.id)?"true":"false")+'" '+(disabled?"disabled aria-disabled=\"true\"":"")+'>'+
+        const detail=unavailable?unavailableMemberDetail(m):label;
+        return '<button class="device-member-option'+(unavailable?' unavailable':'')+'" type="button" data-member-choice="'+esc(m.id)+'" role="option" aria-selected="'+(String(selectedId)===String(m.id)?"true":"false")+'" '+(disabled?"disabled aria-disabled=\"true\"":"")+'>'+
           '<strong>'+esc(m.name||"Member")+'</strong><span class="device-member-ext">'+esc(m.extension||m.phoneNumber||"No extension")+'</span>'+
-          '<small>'+esc(label)+(disabled?' · Unavailable for this session':'')+'</small></button>';
+          '<small>'+esc(detail)+'</small></button>';
       }).join("");
     }else{
       html+='<div class="device-member-empty">No users or workspaces match this search.</div>';
@@ -431,7 +447,7 @@
     if(!select)return;
     select.disabled=false;
     select.innerHTML='<option value="">None</option>'+state.members.map(m=>
-      '<option value="'+esc(m.id)+'">'+esc(m.name||"Member")+' · '+esc(m.extension||m.phoneNumber||"No extension")+' · '+esc(memberKind(m))+' · '+esc(m.locationName||"Location unavailable")+'</option>'
+      '<option value="'+esc(m.id)+'" '+(m.available===false?'disabled':'')+'>'+esc(m.name||"Member")+' · '+esc(m.extension||m.phoneNumber||"No extension")+' · '+esc(memberKind(m))+' · '+esc(m.locationName||"Location unavailable")+(m.available===false?' · Unavailable':'')+'</option>'
     ).join("");
     if(selectedId&&state.members.some(m=>String(m.id)===String(selectedId)))select.value=selectedId;
   }
@@ -457,6 +473,8 @@
       if(preserved&&!rows.some(m=>String(m.id)===String(preserved.id)))rows.unshift(preserved);
       state.members=rows;
       state.memberTotalMatches=Number.isFinite(Number(data.totalMatches))?Number(data.totalMatches):rows.length;
+      state.memberEligibleMatches=Number.isFinite(Number(data.eligibleMatches))?Number(data.eligibleMatches):rows.filter(m=>m.available!==false).length;
+      state.memberUnavailableMatches=Number.isFinite(Number(data.unavailableMatches))?Number(data.unavailableMatches):rows.filter(m=>m.available===false).length;
       state.memberResultsTruncated=Boolean(data.truncated);
       state.memberLoadError=null;
       populateMemberOptions(selectedId);
@@ -465,10 +483,16 @@
       renderMemberSearchResults();
       if(selectedId)renderCandidate();
       else if(state.memberTotalMatches){
-        const matches=state.memberTotalMatches===1?"matches":"match";
-        text("deviceLine2CandidateMeta",state.memberTotalMatches+" eligible organization-wide line"+(state.memberTotalMatches===1?"":"s")+" "+
-          (cleanQuery?(matches+" this search"):"available across VisionBank Webex")+(state.memberResultsTruncated?". Refine the search to narrow the list.":"."));
-      }else text("deviceLine2CandidateMeta","No eligible users or workspaces were returned by Webex.");
+        if(cleanQuery&&state.memberUnavailableMatches){
+          text("deviceLine2CandidateMeta",
+            state.memberEligibleMatches+" eligible · "+state.memberUnavailableMatches+
+            " found but unavailable for another shared line in Webex.");
+        }else{
+          const matches=state.memberTotalMatches===1?"matches":"match";
+          text("deviceLine2CandidateMeta",state.memberTotalMatches+" eligible organization-wide line"+(state.memberTotalMatches===1?"":"s")+" "+
+            (cleanQuery?(matches+" this search"):"available across VisionBank Webex")+(state.memberResultsTruncated?". Refine the search to narrow the list.":"."));
+        }
+      }else text("deviceLine2CandidateMeta","No users or workspaces match this search.");
     }catch(error){
       if(seq!==state.memberSearchSeq)return;
       if(initial){
@@ -485,7 +509,7 @@
   }
 
   async function loadMembers(device){
-    state.members=[];state.memberLoadError=null;state.memberTotalMatches=0;state.memberResultsTruncated=false;
+    state.members=[];state.memberLoadError=null;state.memberTotalMatches=0;state.memberEligibleMatches=0;state.memberUnavailableMatches=0;state.memberResultsTruncated=false;
     closeMemberPicker();
     text("deviceLine2CandidateMeta","Loading eligible users and workspaces across VisionBank Webex…");
     await searchMembers(device,"",{initial:true});
@@ -519,8 +543,12 @@
     renderCandidate();
     const reviewEnabled=state.capabilities?.writes?.previewReady===true&&device.writeEligible===true;
     const saveEnabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
+    const orgWide=state.capabilities?.writes?.scope==="organization";
     $("devicePreviewChange").disabled=!reviewEnabled||Boolean(state.memberLoadError);
-    text("deviceEditorWarning",saveEnabled?"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":reviewEnabled?"Review is enabled for this pilot device. Save & Sync will remain locked until the Enterprise Phonism Sync owner is resolved.":(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until the write pilot is configured."));
+    text("deviceEditorWarning",saveEnabled
+      ?(orgWide?"Save & Sync is enabled for this VisionBank device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.")
+      :reviewEnabled?"Review is enabled, but Save & Sync will remain locked until the Enterprise Phonism Sync owner is resolved."
+      :(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until device writes are configured."));
     $("deviceEditor")?.showModal();
   }
 

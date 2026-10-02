@@ -58,7 +58,8 @@ function fixture({phonismReader}={}){
       {id:'space-1',displayName:'Open Desk',memberType:'PLACE',extension:'4190',location:{id:'loc-a',name:'Dallas'},lineType:'SHARED_CALL_APPEARANCE',port:2}
     ]});
     if(u.pathname==='/v1/telephony/config/devices/call-2/members')return json({members:[
-      {id:'space-y',firstName:'Test',memberType:'PLACE',extension:'4000',location:{id:'loc-b',name:'Austin'},lineType:'PRIMARY',port:1}
+      {id:'space-y',firstName:'Test',memberType:'PLACE',extension:'4000',location:{id:'loc-b',name:'Austin'},lineType:'PRIMARY',port:1},
+      {id:'space-z',firstName:'Blocked Test',memberType:'PLACE',extension:'4999',location:{id:'loc-b',name:'Austin'},lineType:'SHARED_CALL_APPEARANCE',port:2}
     ]});
     if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers'){
       const base=[
@@ -171,9 +172,18 @@ test('available-member search filters server-side and bounds browser results',as
   assert.equal(unavailable.status,200);
   assert.equal(unavailable.data.eligibleMatches,0);
   assert.equal(unavailable.data.unavailableMatches,1);
+  assert.equal(unavailable.data.detailsPending,true);
   assert.equal(unavailable.data.members[0].id,'space-z');
   assert.equal(unavailable.data.members[0].available,false);
   assert.equal(unavailable.data.members[0].unavailableReason,'webex-not-available');
+  assert.deepEqual(unavailable.data.members[0].appearances,[]);
+
+  const detailedUnavailable=await request(f.handler,'members?deviceId=call-1&q=4999&limit=50&details=1');
+  assert.equal(detailedUnavailable.status,200);
+  assert.equal(detailedUnavailable.data.detailsPending,false);
+  assert.equal(detailedUnavailable.data.members[0].unavailableReason,'webex-not-available-existing-appearance');
+  assert.equal(detailedUnavailable.data.members[0].appearances[0].deviceName,'Test Phone');
+  assert.equal(detailedUnavailable.data.members[0].appearances[0].port,2);
 
   const bounded=await request(f.handler,'members?deviceId=call-1&limit=1');
   assert.equal(bounded.status,200);
@@ -190,6 +200,37 @@ test('capabilities reports scoped Webex and Phonism reads while leaving writes d
   assert.equal(r.data.phonism.ready,true);
   assert.equal(r.data.writes.enabled,false);
   assert.equal(r.data.writes.scope,'disabled');
+});
+
+
+test('capabilities reuses one Phonism discovery while probing providers in parallel',async()=>{
+  let discoverCalls=0;
+  const phonismReader={
+    async discover(){discoverCalls++;return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'DUFF',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
+    async tenantPhones(){return {phones:[{id:'9001',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1'}],truncated:false};},
+    async lines(){return [{lineNumber:1,registrationStatus:'registered'}];}
+  };
+  const f=fixture({phonismReader});
+  const r=await request(f.handler,'capabilities');
+  assert.equal(r.status,200);
+  assert.equal(r.data.webex.ready,true);
+  assert.equal(r.data.phonism.ready,true);
+  assert.equal(discoverCalls,1);
+});
+
+test('member search sends only relevant upstream filters',async()=>{
+  const numeric=fixture();
+  await request(numeric.handler,'members?deviceId=call-1&q=4000&limit=50');
+  const numericUrls=numeric.calls.map(x=>new URL(x.url)).filter(u=>u.pathname.endsWith('/availableMembers'));
+  assert.ok(numericUrls.some(u=>u.searchParams.get('extension')==='4000'));
+  assert.ok(!numericUrls.some(u=>u.searchParams.get('memberName')==='4000'));
+  assert.ok(!numericUrls.some(u=>u.searchParams.get('phoneNumber')==='4000'));
+
+  const textSearch=fixture();
+  await request(textSearch.handler,'members?deviceId=call-1&q=Test&limit=50');
+  const textUrls=textSearch.calls.map(x=>new URL(x.url)).filter(u=>u.pathname.endsWith('/availableMembers'));
+  assert.ok(textUrls.some(u=>u.searchParams.get('memberName')==='Test'));
+  assert.ok(!textUrls.some(u=>u.searchParams.get('extension')==='Test'));
 });
 
 test('organization write scope marks a non-pilot VisionBank phone as write eligible',async()=>{

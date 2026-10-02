@@ -95,9 +95,10 @@ async function searchEligibleMembers({webexFetch,env,org,deviceId,query='',locat
   const baseFilters=locationId?{locationId}:{};
   const urls=[availableMembersUrl(deviceId,org,baseFilters)];
   if(q){
-    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,memberName:q}));
-    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,extension:q}));
-    urls.push(availableMembersUrl(deviceId,org,{...baseFilters,phoneNumber:q}));
+    const hasAlpha=/[a-z]/i.test(q),hasDigit=/\d/.test(q);
+    if(hasAlpha||!hasDigit)urls.push(availableMembersUrl(deviceId,org,{...baseFilters,memberName:q}));
+    if(hasDigit)urls.push(availableMembersUrl(deviceId,org,{...baseFilters,extension:q}));
+    if(/^\+?[\d\s().-]{7,}$/.test(q))urls.push(availableMembersUrl(deviceId,org,{...baseFilters,phoneNumber:q}));
   }
   const attempts=await Promise.all(urls.map(async endpoint=>{
     try{return {...await readPaged(webexFetch,env,endpoint,['members','items'],6,600),error:null};}
@@ -136,7 +137,7 @@ function numberFallbackEndpoints(org,query){
   return [...new Set(urls)];
 }
 
-async function findUnavailableMemberMatches({env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit=5}){
+async function findUnavailableMemberMatches({env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit=5,includeAppearances=false}){
   if(!query||String(query).trim().length<3)return [];
   const pages=await Promise.all(numberFallbackEndpoints(org,query).map(async endpoint=>{
     try{return (await readPaged(webexFetch,env,endpoint,['phoneNumbers'],2,100)).rows;}catch{return [];}
@@ -156,6 +157,7 @@ async function findUnavailableMemberMatches({env,org,webexFetch,phonismReader,de
     }).catch(()=>({members:[]})): {members:[]};
     const recovered=eligible.members.find(m=>String(m.id)===String(row.id));
     if(recovered)return {...recovered,available:true,availability:'available',recoveredBy:'location-filter'};
+    if(!includeAppearances)return {...row,appearances:[],unavailableReason:'webex-not-available'};
     const appearances=await findMemberAppearances({
       env,org,webexFetch,phonismReader,locationId:row.locationId,targetMemberId:row.id,excludeDeviceId:deviceId
     }).catch(()=>[]);
@@ -400,11 +402,11 @@ async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,lo
   };
 }
 
-async function readPhonismCapabilities(env,org,phonismReader){
+async function readPhonismCapabilities(env,org,phonismReader,discoveryOverride=null){
   const checks=[];
   if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
   try{
-    const discovery=await phonismReader.discover(env,org);
+    const discovery=discoveryOverride||await phonismReader.discover(env,org);
     checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found'});
     checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available'});
     checks.push({label:'Webex integration hierarchy',status:discovery.syncCompany?((discovery.syncCompany.name||'Enterprise')+' · '+(discovery.syncCompany.type||'Enterprise')):'Enterprise parent not resolved'});
@@ -478,34 +480,39 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
       if(part==='capabilities'){
         const checks=[];let locationsOk=false,devicesOk=false,memberRead='not-tested',callingCount=0,deviceCount=0;
-        try{
-          const p=await readPaged(webexFetch,env,WEBEX+'/locations?orgId='+encodeURIComponent(org),['items','locations'],3,500);
-          locationsOk=true;checks.push({label:'Webex locations read',status:'Available ('+p.rows.length+')'});
-        }catch{checks.push({label:'Webex locations read',status:'Unavailable'});}
+        const locationsProbe=(async()=>{
+          try{
+            const p=await readPaged(webexFetch,env,WEBEX+'/locations?orgId='+encodeURIComponent(org),['items','locations'],3,500);
+            locationsOk=true;checks.push({label:'Webex locations read',status:'Available ('+p.rows.length+')'});
+          }catch{checks.push({label:'Webex locations read',status:'Unavailable'});}
+        })();
 
-        const phonism=await readPhonismCapabilities(env,org,phonismReader);
-        try{
-          const discovery=await phonismReader.discover(env,org);
-          let samplePhone=null;
-          for(const tenant of discovery.tenants.slice(0,4)){
-            const sample=await phonismReader.tenantPhones(env,tenant.id,tenant.name);
-            if(sample.phones.length){samplePhone=sample.phones[0];break;}
-          }
-          if(samplePhone){
+        let discovery=null;
+        try{discovery=await phonismReader.discover(env,org);}catch{}
+        const phonismPromise=readPhonismCapabilities(env,org,phonismReader,discovery);
+        const deviceProbe=(async()=>{
+          if(!discovery)return;
+          try{
+            const samples=await Promise.all(discovery.tenants.slice(0,4).map(async tenant=>{
+              try{return await phonismReader.tenantPhones(env,tenant.id,tenant.name);}catch{return {phones:[]};}
+            }));
+            const samplePhone=samples.find(sample=>sample?.phones?.length)?.phones?.[0]||null;
+            if(!samplePhone)return;
             const found=await firstWebexDeviceForPhone(webexFetch,env,samplePhone);
-            if(found){
-              devicesOk=true;deviceCount=1;
-              const base=deviceBase(found.data);
-              callingCount=base.callingDeviceId?1:0;
-              checks.push({label:'VisionBank Webex device lookup',status:'Available'});
-              if(base.callingDeviceId)try{
-                const data=await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(base.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),12000));
-                memberRead=Array.isArray(data.members)||Array.isArray(data.items)?'available':'unavailable';
-                checks.push({label:'Calling device members read',status:memberRead==='available'?'Available':'Unavailable'});
-              }catch{memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
-            }
-          }
-        }catch{}
+            if(!found)return;
+            devicesOk=true;deviceCount=1;
+            const base=deviceBase(found.data);
+            callingCount=base.callingDeviceId?1:0;
+            checks.push({label:'VisionBank Webex device lookup',status:'Available'});
+            if(base.callingDeviceId)try{
+              const data=await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(base.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),12000));
+              memberRead=Array.isArray(data.members)||Array.isArray(data.items)?'available':'unavailable';
+              checks.push({label:'Calling device members read',status:memberRead==='available'?'Available':'Unavailable'});
+            }catch{memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
+          }catch{}
+        })();
+
+        const [phonism]=await Promise.all([phonismPromise,locationsProbe,deviceProbe]);
         if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
 
         const ready=locationsOk&&devicesOk;
@@ -586,13 +593,14 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!deviceId)throw new DeviceManagementError('device-required');
         const query=display(url.searchParams.get('q')||'',160);
         const limit=memberResultLimit(url.searchParams.get('limit'));
+        const includeAppearances=url.searchParams.get('details')==='1';
         const searched=await searchEligibleMembers({webexFetch,env,org,deviceId,query});
         const eligibleMatches=searched.members
           .map(m=>({...m,available:true,availability:'available'}))
           .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
         const eligibleIds=new Set(eligibleMatches.map(m=>String(m.id)));
         const fallbackMatches=query?await findUnavailableMemberMatches({
-          env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit:Math.min(limit,5)
+          env,org,webexFetch,phonismReader,deviceId,query,eligibleIds,limit:Math.min(limit,5),includeAppearances
         }):[];
         const recoveredEligible=fallbackMatches.filter(m=>m.available!==false);
         const unavailableMatches=fallbackMatches.filter(m=>m.available===false);
@@ -603,7 +611,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const members=matches.slice(0,limit);
         return output({success:true,members,totalMatches:matches.length,eligibleMatches:allEligible.length,
           unavailableMatches:unavailableMatches.length,truncated:searched.truncated||matches.length>members.length,
-          deviceId,scope:'organization',query,limit,searchMode:query?'webex-upstream':'default',readOnly:true},200,headers);
+          detailsPending:Boolean(query&&!includeAppearances&&unavailableMatches.length),deviceId,scope:'organization',query,limit,
+          searchMode:query?'webex-upstream':'default',readOnly:true},200,headers);
       }
 
       if(part==='preview'){

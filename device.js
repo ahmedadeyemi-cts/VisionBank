@@ -4,7 +4,12 @@
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
   const OPERATOR_KEY="visionbankDeviceOperatorV1";
   const POST_SAVE_KEY="visionbankDevicePostSaveV1";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,memberSearchTimer:null,memberSearchSeq:0,memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
+  const READ_CACHE_PREFIX="visionbankDeviceReadCacheV2:";
+  const CACHE_TTL={capabilities:90_000,locations:600_000,inventory:45_000};
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,
+    memberSearchTimer:null,memberSearchController:null,memberDetailController:null,memberSearchSeq:0,memberLoadedForDevice:null,memberLoadedAt:0,
+    memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,
+    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -14,6 +19,22 @@
   const statusClass=value=>{const s=normalize(value);return s.includes("register")&&!s.includes("unregister")?"registered":s.includes("unregister")||s.includes("failed")?"unregistered":s.includes("pending")||s.includes("connecting")?"pending":"unknown";};
   const registrationLabel=value=>{const s=normalize(value);if(s==="registered")return "Registered";if(s==="unregistered")return "Unregistered";if(s==="pending")return "Pending";if(s==="not-monitored")return "Not monitored";if(s==="connected")return "Connected";return "Unknown";};
   const syncClass=value=>{const s=normalize(value);return s==="in-sync"||s==="synced"?"registered":s.includes("mismatch")||s.includes("attention")?"mismatch":s.includes("pending")?"pending":"unknown";};
+
+  function readCache(key,ttl){
+    try{
+      const raw=sessionStorage.getItem(READ_CACHE_PREFIX+key);
+      if(!raw)return null;
+      const entry=JSON.parse(raw);
+      if(!entry?.savedAt||Date.now()-Number(entry.savedAt)>ttl)return null;
+      return entry.data??null;
+    }catch{return null;}
+  }
+
+  function writeCache(key,data){
+    try{sessionStorage.setItem(READ_CACHE_PREFIX+key,JSON.stringify({savedAt:Date.now(),data}));}catch{}
+  }
+
+  function inventoryCacheKey(locationId){return "inventory:"+(locationId||"all");}
 
   async function securityCheck(){
     const overlay=$("deviceAccessOverlay"),message=$("deviceAccessMessage");
@@ -34,13 +55,14 @@
   }
 
   async function api(path,options={}){
-    const method=options.method||"GET",body=options.body;
+    const method=options.method||"GET",body=options.body,signal=options.signal;
     if(window.VB_SECURITY?.allowed!==true)throw new Error("Dashboard access is not approved.");
     const sessionId=state.operatorSession?.sessionId||"";
     const res=await fetch(API_BASE+path,{
       method,mode:"cors",credentials:"omit",cache:"no-store",
       headers:{Accept:"application/json",...(sessionId?{"X-VB-Operator-Session":sessionId}:{}),...(body!==undefined?{"Content-Type":"application/json"}:{})},
-      ...(body!==undefined?{body:JSON.stringify(body)}:{})
+      ...(body!==undefined?{body:JSON.stringify(body)}:{}),
+      ...(signal?{signal}:{})
     });
     let data={};try{data=await res.json();}catch{}
     if(!res.ok||data.success===false){
@@ -155,21 +177,47 @@
     healthDot("deviceWebexDot",webex.ready?"ready":webex.detected?"warning":"blocked");
     healthDot("devicePhonismDot",phonism.ready?"ready":phonism.detected?"warning":"blocked");
     healthDot("deviceWriteDot",writes.enabled?"ready":(data?.readOnly===true||writes.previewReady)?"warning":"blocked");
-    text("deviceWebexHealth",webex.message||(webex.ready?"Connected":"Not ready"));
-    text("devicePhonismHealth",phonism.message||(phonism.ready?"Connected":"Not configured"));
-    text("deviceWriteHealth",writes.message||(writes.enabled?"Changes enabled":writes.previewReady?"Review enabled — Save & Sync locked":"Read-only until validated"));
+    text("deviceWebexHealth",webex.ready?"Connected":webex.detected?"Attention":"Unavailable");
+    text("devicePhonismHealth",phonism.ready?"Connected":phonism.detected?"Attention":"Unavailable");
+    text("deviceWriteHealth",writes.enabled?(writes.organizationWide?"Enabled · all VisionBank phones":"Enabled"):writes.previewReady?"Review only":"Read-only");
     text("deviceHealthWebexText",webex.detail||webex.message||"Webex capability check pending.");
     text("deviceHealthPhonismText",phonism.detail||phonism.message||"Phonism capability check pending.");
     renderCheckList("deviceHealthWebexChecks",webex.checks||[]);
     renderCheckList("deviceHealthPhonismChecks",phonism.checks||[]);
   }
 
+  function applyLocationsData(data){
+    state.locations=Array.isArray(data?.locations)?data.locations:[];
+    const select=$("deviceLocationFilter");if(!select)return;
+    const current=select.value;
+    select.innerHTML='<option value="">All VisionBank locations</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
+    if([...select.options].some(o=>o.value===current))select.value=current;
+  }
+
+  function applyInventoryData(data,{cached=false}={}){
+    state.devices=Array.isArray(data?.devices)?data.devices:[];
+    text("deviceSyncStamp",cached?"Recent inventory · refreshing…":data?.generatedAt?("Updated "+new Date(data.generatedAt).toLocaleTimeString()):"Inventory updated");
+    applyFilters();
+    const message=cached?"Showing recent inventory while live data refreshes…":
+      data?.message||(data?.summaryOnly?("Showing "+state.devices.length+" VisionBank phones. Select a location for line details."):
+        ("Loaded "+state.devices.length+" phones with detailed provider data."));
+    text("deviceInventoryStatus",message);
+  }
+
+  function hydrateReadCache(){
+    const capabilities=readCache("capabilities",CACHE_TTL.capabilities);if(capabilities)setCapabilities(capabilities);
+    const locations=readCache("locations",CACHE_TTL.locations);if(locations)applyLocationsData(locations);
+    const inventory=readCache(inventoryCacheKey(""),CACHE_TTL.inventory);if(inventory)applyInventoryData(inventory,{cached:true});
+  }
+
   async function loadCapabilities(){
     try{
       const data=await api("/capabilities");
       setCapabilities(data);
+      writeCache("capabilities",data);
       return data;
     }catch(error){
+      if(state.capabilities)return state.capabilities;
       setCapabilities({
         webex:{detected:true,ready:false,message:"Backend discovery pending",detail:"The /device page is installed; Webex device-management API discovery has not been activated yet."},
         phonism:{detected:false,ready:false,message:"API details required",detail:"Provide the Phonism API base URL/documentation and an API credential with device read/write permissions plus the exact reprovision/reset action."},
@@ -183,35 +231,52 @@
   async function loadLocations(){
     try{
       const data=await api("/locations");
-      state.locations=Array.isArray(data.locations)?data.locations:[];
-      const select=$("deviceLocationFilter"),current=select.value;
-      select.innerHTML='<option value="">All VisionBank locations</option>'+state.locations.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||"Location")+'</option>').join("");
-      if([...select.options].some(o=>o.value===current))select.value=current;
+      applyLocationsData(data);
+      writeCache("locations",data);
+      return data;
     }catch(error){
-      state.locations=[];
+      if(!state.locations.length)state.locations=[];
       if(error.status!==404)console.debug("Location inventory unavailable:",error.message);
+      return null;
     }
   }
 
   async function loadInventory(force=false){
     const body=$("deviceInventoryRows");
     const locationId=$("deviceLocationFilter")?.value||"";
-    text("deviceInventoryStatus",locationId?"Loading detailed phone and line assignments…":"Loading VisionBank Iowa phone inventory…");
-    if(body&&!state.devices.length)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading inventory…</td></tr>';
+    const cacheKey=inventoryCacheKey(locationId);
+    const sameScope=state.inventoryLocation===locationId;
+    const cached=!force?readCache(cacheKey,CACHE_TTL.inventory):null;
+
+    if(cached){
+      applyInventoryData(cached,{cached:true});
+      state.inventoryLocation=locationId;
+    }else{
+      text("deviceInventoryStatus",locationId?"Loading detailed phone and line assignments…":"Loading VisionBank Iowa phone inventory…");
+      if(body&&(!state.devices.length||!sameScope)){
+        body.innerHTML='<tr><td colspan="9" class="device-empty"><div class="device-loading-line"></div><div class="device-loading-line" style="margin-top:10px;width:72%"></div></td></tr>';
+      }
+    }
+
     try{
       const q=new URLSearchParams();
       if(locationId)q.set("locationId",locationId);
       if(force)q.set("refresh","1");
       const data=await api("/inventory"+(q.size?"?"+q.toString():""));
-      state.devices=Array.isArray(data.devices)?data.devices:[];
-      text("deviceSyncStamp",data.generatedAt?("Updated "+new Date(data.generatedAt).toLocaleTimeString()):"Inventory updated");
-      text("deviceInventoryStatus",data.message||(data.summaryOnly?("Showing "+state.devices.length+" VisionBank phones. Select a location for line details."):("Loaded "+state.devices.length+" phones with detailed provider data.")));
-      applyFilters();
+      state.inventoryLocation=locationId;
+      applyInventoryData(data);
+      writeCache(cacheKey,data);
+      return data;
     }catch(error){
+      if(state.devices.length&&(cached||sameScope)){
+        text("deviceInventoryStatus","Live refresh is delayed. Showing the most recent inventory available.");
+        return null;
+      }
       state.devices=[];state.filtered=[];
       if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Device inventory could not be loaded. '+esc(error.status===404?"Backend integration is being prepared.":error.message)+'</td></tr>';
       text("deviceInventoryStatus","No live inventory has been loaded.");
       renderKpis();
+      return null;
     }
   }
 
@@ -284,9 +349,11 @@
   function leaseCell(device){
     const lease=device?.temporaryLease;
     if(!lease||lease.status!=="active"||!lease.expiresAt)return '<span class="device-badge neutral">Permanent</span>';
-    const when=new Date(lease.expiresAt);
+    const when=new Date(lease.expiresAt),remaining=when.getTime()-Date.now();
     const label=Number.isNaN(when.getTime())?lease.expiresAt:when.toLocaleString();
-    return '<span class="device-status pending">Temporary</span><small>Expires '+esc(label)+'</small>';
+    const minutes=Math.max(0,Math.ceil(remaining/60_000));
+    const countdown=minutes>=60?(Math.floor(minutes/60)+"h "+(minutes%60)+"m"):(minutes+"m");
+    return '<span class="device-status pending">Temporary · '+esc(countdown)+'</span><small>Restores '+esc(label)+'</small>';
   }
 
   function renderInventory(){
@@ -370,9 +437,9 @@
       const line=a.port?(" · Line "+a.port):"";
       const mac=a.mac?(" · "+a.mac):"";
       const more=appearances.length>1?(" · +"+(appearances.length-1)+" more appearance"+(appearances.length===2?"":"s")):"";
-      return "Unavailable for another shared line in Webex · Existing: "+device+owner+line+mac+more;
+      return "Webex appearance limit · Existing: "+device+owner+line+mac+more;
     }
-    return "Webex is not offering this line as an available shared line.";
+    return "Webex is not offering another shared-line appearance for this line.";
   }
 
   function renderMemberSearchResults(){
@@ -390,6 +457,7 @@
         const detail=unavailable?unavailableMemberDetail(m):label;
         return '<button class="device-member-option'+(unavailable?' unavailable':'')+'" type="button" data-member-choice="'+esc(m.id)+'" role="option" aria-selected="'+(String(selectedId)===String(m.id)?"true":"false")+'" '+(disabled?"disabled aria-disabled=\"true\"":"")+'>'+
           '<strong>'+esc(m.name||"Member")+'</strong><span class="device-member-ext">'+esc(m.extension||m.phoneNumber||"No extension")+'</span>'+
+          '<span class="device-member-state '+(unavailable?'unavailable':'available')+'">'+(unavailable?'Unavailable':'Available')+'</span>'+
           '<small>'+esc(detail)+'</small></button>';
       }).join("");
     }else{
@@ -411,7 +479,10 @@
     if(!button||button.disabled||!panel)return;
     panel.hidden=false;button.setAttribute("aria-expanded","true");
     if(search){search.value="";setTimeout(()=>search.focus(),0);}
-    if(state.selected)void searchMembers(state.selected,"");else renderMemberSearchResults();
+    const hasFreshDefault=state.selected&&state.memberLoadedForDevice===String(state.selected.id||"")&&Date.now()-state.memberLoadedAt<30_000;
+    if(hasFreshDefault)renderMemberSearchResults();
+    else if(state.selected)void searchMembers(state.selected,"");
+    else renderMemberSearchResults();
   }
 
   function closeMemberPicker(){
@@ -452,8 +523,33 @@
     if(selectedId&&state.members.some(m=>String(m.id)===String(selectedId)))select.value=selectedId;
   }
 
+  async function enrichUnavailableMemberDetails(device,query,seq){
+    state.memberDetailController?.abort();
+    const controller=new AbortController();
+    state.memberDetailController=controller;
+    try{
+      const q=new URLSearchParams({deviceId:String(device.id||""),q:String(query||""),limit:"50",details:"1"});
+      const data=await api("/members?"+q.toString(),{signal:controller.signal});
+      if(seq!==state.memberSearchSeq)return;
+      const detailed=new Map((Array.isArray(data.members)?data.members:[]).map(row=>[String(row.id),row]));
+      state.members=state.members.map(row=>{
+        const replacement=detailed.get(String(row.id));
+        return row.available===false&&replacement?replacement:row;
+      });
+      renderMemberSearchResults();
+    }catch(error){
+      if(error?.name!=="AbortError"&&seq===state.memberSearchSeq)console.debug("Member availability detail delayed:",error.message);
+    }finally{
+      if(state.memberDetailController===controller)state.memberDetailController=null;
+    }
+  }
+
   async function searchMembers(device,query="",{initial=false}={}){
     const seq=++state.memberSearchSeq;
+    state.memberSearchController?.abort();
+    state.memberDetailController?.abort();
+    const controller=new AbortController();
+    state.memberSearchController=controller;
     const select=$("deviceLine2Select"),picker=$("deviceLine2PickerButton");
     const current=currentLine2Member(device);
     const selectedId=initial?(current?.id||""):String(select?.value??current?.id??"");
@@ -467,7 +563,7 @@
       const q=new URLSearchParams({deviceId:String(device.id||""),limit:"50"});
       const cleanQuery=String(query||"").trim();
       if(cleanQuery)q.set("q",cleanQuery);
-      const data=await api("/members?"+q.toString());
+      const data=await api("/members?"+q.toString(),{signal:controller.signal});
       if(seq!==state.memberSearchSeq)return;
       const rows=Array.isArray(data.members)?data.members:[];
       if(preserved&&!rows.some(m=>String(m.id)===String(preserved.id)))rows.unshift(preserved);
@@ -477,16 +573,18 @@
       state.memberUnavailableMatches=Number.isFinite(Number(data.unavailableMatches))?Number(data.unavailableMatches):rows.filter(m=>m.available===false).length;
       state.memberResultsTruncated=Boolean(data.truncated);
       state.memberLoadError=null;
+      if(!cleanQuery){state.memberLoadedForDevice=String(device.id||"");state.memberLoadedAt=Date.now();}
       populateMemberOptions(selectedId);
       if(picker)picker.disabled=false;
       renderMemberPickerValue();
       renderMemberSearchResults();
+      if(cleanQuery&&data.detailsPending)void enrichUnavailableMemberDetails(device,cleanQuery,seq);
       if(selectedId)renderCandidate();
       else if(state.memberTotalMatches){
         if(cleanQuery&&state.memberUnavailableMatches){
           text("deviceLine2CandidateMeta",
             state.memberEligibleMatches+" eligible · "+state.memberUnavailableMatches+
-            " found but unavailable for another shared line in Webex.");
+            " found but unavailable in Webex.");
         }else{
           const matches=state.memberTotalMatches===1?"matches":"match";
           text("deviceLine2CandidateMeta",state.memberTotalMatches+" eligible organization-wide line"+(state.memberTotalMatches===1?"":"s")+" "+
@@ -494,7 +592,7 @@
         }
       }else text("deviceLine2CandidateMeta","No users or workspaces match this search.");
     }catch(error){
-      if(seq!==state.memberSearchSeq)return;
+      if(error?.name==="AbortError"||seq!==state.memberSearchSeq)return;
       if(initial){
         state.memberLoadError=error.message||"member-search-failed";
         if(select){select.disabled=true;select.innerHTML='<option value="">Unable to load available lines</option>';}
@@ -505,11 +603,14 @@
         if(host)host.innerHTML='<div class="device-member-empty">Search is temporarily unavailable. Try again.</div>';
       }
       if(error.status!==404)console.debug("Member search unavailable:",error.message);
+    }finally{
+      if(state.memberSearchController===controller)state.memberSearchController=null;
     }
   }
 
   async function loadMembers(device){
-    state.members=[];state.memberLoadError=null;state.memberTotalMatches=0;state.memberEligibleMatches=0;state.memberUnavailableMatches=0;state.memberResultsTruncated=false;
+    state.members=[];state.memberLoadError=null;state.memberLoadedForDevice=null;state.memberLoadedAt=0;
+    state.memberTotalMatches=0;state.memberEligibleMatches=0;state.memberUnavailableMatches=0;state.memberResultsTruncated=false;
     closeMemberPicker();
     text("deviceLine2CandidateMeta","Loading eligible users and workspaces across VisionBank Webex…");
     await searchMembers(device,"",{initial:true});
@@ -523,33 +624,55 @@
     state.memberSearchTimer=setTimeout(()=>{if(state.selected)void searchMembers(state.selected,query);},250);
   }
 
+  function renderLeaseExpiryPreview(){
+    const minutes=Number($("deviceLeaseDuration")?.value||60);
+    const when=new Date(Date.now()+minutes*60_000);
+    let label;
+    try{
+      label=new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZoneName:"short"}).format(when);
+    }catch{label=when.toLocaleString();}
+    text("deviceLeaseExpiryPreview",label+" (estimated)");
+  }
+
+  function updateEditorActionState(device,{loading=false}={}){
+    const reviewEnabled=!loading&&state.capabilities?.writes?.previewReady===true&&device?.writeEligible===true;
+    const saveEnabled=state.capabilities?.writes?.enabled===true&&device?.writeEligible===true;
+    const orgWide=state.capabilities?.writes?.scope==="organization";
+    const button=$("devicePreviewChange");
+    if(button)button.disabled=!reviewEnabled||Boolean(state.memberLoadError);
+    text("deviceEditorWarning",loading?"Loading eligible Line 2 choices from Webex…":saveEnabled
+      ?(orgWide?"Save & Sync is enabled for this VisionBank device. Current Webex state is revalidated before any write.":"Pilot Save & Sync is enabled for this device. Current Webex state is revalidated before any write.")
+      :reviewEnabled?"Review is enabled, but Save & Sync remains locked until Enterprise Phonism Sync is ready."
+      :(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until device writes are configured."));
+  }
+
   async function openEditor(id){
     if(!state.operatorSession){showOperatorDialog({type:"edit",id});return;}
     const device=state.devices.find(d=>String(d.id)===String(id));if(!device)return;
     state.selected=device;state.preview=null;state.recovery=null;
     const duration=$("deviceLeaseDuration");if(duration)duration.value="60";
     const reason=$("deviceChangeReason");if(reason)reason.value="";
+    const details=$("deviceChangePreview");if(details)details.open=false;
     text("deviceEditorTitle",device.displayName||device.model||"Phone");
-    text("deviceEditorMeta",[device.locationName,device.mac].filter(Boolean).join(" · "));
+    text("deviceEditorMeta",[device.model,device.locationName,device.mac].filter(Boolean).join(" · "));
     text("deviceLine1Name",device.line1?.name||device.owner?.name||"Primary line");
     text("deviceLine1Extension",device.line1?.extension||device.owner?.extension||"No extension");
     const wx=registrationValue(device.line1,"webex"),ph=registrationValue(device.line1,"phonism");
     const status=$("deviceLine1Status");
-    if(status){status.textContent="Webex: "+registrationLabel(wx)+" · Phonism: "+registrationLabel(ph);status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
+    if(status){status.textContent="Webex "+registrationLabel(wx)+" · Phonism "+registrationLabel(ph);status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
+    renderLeaseExpiryPreview();
+    text("deviceLine2PickerValue","Loading Line 2 choices…");
+    text("deviceLine2CandidateMeta","Loading eligible users and workspaces across VisionBank Webex…");
+    updateEditorActionState(device,{loading:true});
+    $("deviceEditor")?.showModal();
+
     await loadMembers(device);
+    if(state.selected!==device)return;
     const select=$("deviceLine2Select");
     if(select)select.value=device.line2?.memberId||device.line2?.id||"";
     renderMemberPickerValue();
     renderCandidate();
-    const reviewEnabled=state.capabilities?.writes?.previewReady===true&&device.writeEligible===true;
-    const saveEnabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
-    const orgWide=state.capabilities?.writes?.scope==="organization";
-    $("devicePreviewChange").disabled=!reviewEnabled||Boolean(state.memberLoadError);
-    text("deviceEditorWarning",saveEnabled
-      ?(orgWide?"Save & Sync is enabled for this VisionBank device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.")
-      :reviewEnabled?"Review is enabled, but Save & Sync will remain locked until the Enterprise Phonism Sync owner is resolved."
-      :(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until device writes are configured."));
-    $("deviceEditor")?.showModal();
+    updateEditorActionState(device,{loading:false});
   }
 
   function renderCandidate(){
@@ -767,11 +890,15 @@
     $("deviceOwnerFilter")?.addEventListener("change",applyFilters);
     $("deviceWebexRegistrationFilter")?.addEventListener("change",applyFilters);
     $("devicePhonismRegistrationFilter")?.addEventListener("change",applyFilters);
-    $("deviceLocationFilter")?.addEventListener("change",()=>void loadInventory(true));
+    $("deviceLocationFilter")?.addEventListener("change",()=>void loadInventory(false));
     $("deviceClearFilters")?.addEventListener("click",()=>{
       $("deviceSearch").value="";$("deviceOwnerFilter").value="";$("deviceWebexRegistrationFilter").value="";$("devicePhonismRegistrationFilter").value="";applyFilters();
     });
-    $("deviceRefresh")?.addEventListener("click",async()=>{await loadCapabilities();await loadLocations();await loadInventory(true);});
+    $("deviceRefresh")?.addEventListener("click",async()=>{
+      const button=$("deviceRefresh");if(button){button.disabled=true;button.textContent="Refreshing…";}
+      try{await Promise.allSettled([loadCapabilities(),loadLocations(),loadInventory(true)]);}
+      finally{if(button){button.disabled=false;button.textContent="Refresh";}}
+    });
     $("deviceOperatorButton")?.addEventListener("click",()=>showOperatorDialog(null));
     $("deviceOperatorForm")?.addEventListener("submit",event=>void submitOperator(event));
     $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
@@ -783,9 +910,14 @@
     });
     $("deviceLine2Search")?.addEventListener("input",scheduleMemberSearch);
     $("deviceLine2Search")?.addEventListener("keydown",event=>{
-      if(event.key==="Escape"){event.preventDefault();closeMemberPicker();$("deviceLine2PickerButton")?.focus();}
+      if(event.key==="Escape"){event.preventDefault();closeMemberPicker();$("deviceLine2PickerButton")?.focus();return;}
+      if(event.key==="ArrowDown"){
+        const first=[...document.querySelectorAll("#deviceLine2Results [data-member-choice]")].find(btn=>!btn.disabled);
+        if(first){event.preventDefault();first.focus();}
+      }
     });
-    $("deviceEditor")?.addEventListener("close",closeMemberPicker);
+    $("deviceLeaseDuration")?.addEventListener("change",renderLeaseExpiryPreview);
+    $("deviceEditor")?.addEventListener("close",()=>{closeMemberPicker();state.memberSearchController?.abort();state.memberDetailController?.abort();});
     $("devicePreviewChange")?.addEventListener("click",()=>void previewChange());
     $("deviceApplyChange")?.addEventListener("click",()=>void applyChange());
     $("deviceConfirmClose")?.addEventListener("click",()=>$("deviceConfirm")?.close());
@@ -814,10 +946,13 @@
     bind();
     renderOperator();
     if(!await securityCheck())return;
-    await restoreOperatorSession();
-    await loadCapabilities();
-    await loadLocations();
-    await loadInventory(false);
+    hydrateReadCache();
+    await Promise.allSettled([
+      restoreOperatorSession(),
+      loadCapabilities(),
+      loadLocations(),
+      loadInventory(false)
+    ]);
     await resumePostSave();
   }
 

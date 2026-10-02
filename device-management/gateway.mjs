@@ -254,12 +254,10 @@ async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,lo
   const resolvedId=base.callingDeviceId||base.webexDeviceId;
   if(!resolvedId||String(resolvedId)!==String(deviceId||''))throw new DeviceManagementError('device-identity-mismatch',409);
   if(String(found.data?.locationId||locationId)!==String(locationId))throw new DeviceManagementError('device-location-mismatch',409);
-  const integration=discovery.webexIntegration;
-  if(!integration?.id)throw new DeviceManagementError('phonism-webex-integration-not-found',409);
   return {
     device:{...base,id:resolvedId,displayName:base.displayName||phone.alias||'Partner-managed phone',mac:phone.mac||base.mac},
     location:{id:locationId,name:tenant.name||''},
-    phone,tenant,domain:discovery.domain,integration
+    phone,tenant,domain:discovery.domain
   };
 }
 
@@ -447,7 +445,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const preview=await createWritePreview({
           env,session,device:ctx.device,location:ctx.location,currentMembers:current.members,targetMember,
           durationMinutes:body.durationMinutes,reason:body.reason,
-          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.domain.id,integrationId:ctx.integration.id}
+          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.domain.id}
         });
         const expiresAt=new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
         return output({success:true,plan:{

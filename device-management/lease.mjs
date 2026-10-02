@@ -45,7 +45,7 @@ export async function listLeases(env,{limit=200}={}){
   return leases.sort((a,b)=>String(a.expiresAt||'').localeCompare(String(b.expiresAt||'')));
 }
 
-export function createLease({device,location,baselineLine2,temporaryLine2,durationMinutes,operator,auditId,phonismPhoneId,phonismTenantId,phonismIntegrationId,now=Date.now()}){
+export function createLease({device,location,baselineLine2,temporaryLine2,durationMinutes,operator,auditId,phonismPhoneId,phonismTenantId,phonismCompanyId,now=Date.now()}){
   const leaseId=crypto.randomUUID(),startsAt=new Date(now).toISOString(),expiresAt=new Date(now+Number(durationMinutes)*60000).toISOString();
   return {
     leaseId,status:'active',startsAt,expiresAt,durationMinutes:Number(durationMinutes),
@@ -53,7 +53,7 @@ export function createLease({device,location,baselineLine2,temporaryLine2,durati
     location:{id:location.id,name:location.name||''},
     baselineLine2:baselineLine2||null,temporaryLine2:temporaryLine2||null,
     operator:{name:operator?.name||'',email:operator?.email||''},auditId:auditId||null,
-    phonismPhoneId:phonismPhoneId||null,phonismTenantId:phonismTenantId||null,phonismIntegrationId:phonismIntegrationId||null,
+    phonismPhoneId:phonismPhoneId||null,phonismTenantId:phonismTenantId||null,phonismCompanyId:phonismCompanyId||null,
     verification:{webex:'saved',phonism:'sync-queued',state:'pending-verification',lastCheckedAt:null}
   };
 }

@@ -214,16 +214,14 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       return data.map(lineRow).filter(x=>x.lineNumber);
     },
 
-    async syncIntegration(env,integrationId,{companyId,tenantId,assetTypes=['People','Workspace','Device']}={}){
-      if(!integrationId)throw new DeviceManagementError('phonism-integration-required',409);
+    async syncHierarchyIntegration(env,companyId,{tenantId,assetTypes=['People','Workspace','Device']}={}){
+      if(!companyId)throw new DeviceManagementError('phonism-company-required',409);
       const allowed=new Set(['Organization','Location','People','Workspace','Device']);
       const assets=(Array.isArray(assetTypes)?assetTypes:[assetTypes]).map(x=>String(x||'')).filter(x=>allowed.has(x));
       if(!assets.length)throw new DeviceManagementError('phonism-sync-assets-required');
-      const body={};
-      if(companyId)body.company_id=Number(companyId)||companyId;
+      const body={asset_type:assets};
       if(tenantId)body.tenant_id=Number(tenantId)||tenantId;
-      body.asset_type=assets;
-      const result=await phonismWrite(env,'/integrations/'+encodeURIComponent(integrationId)+'/sync',{method:'PUT',body});
+      const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body});
       if(result.status!==202&&result.status!==200)throw new DeviceManagementError('phonism-sync-not-accepted',502);
       return {accepted:true,status:result.status};
     },

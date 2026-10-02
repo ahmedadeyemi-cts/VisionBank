@@ -17,12 +17,23 @@ function fixture({phonismReader}={}){
       id:'9001',tenantId:'101',tenantName:tenantName||'DUFF',mac:'00:11:22:33:44:55',state:'1',
       serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',
       webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Partner Managed Phone - Yealink'
+    }]:tenantId==='102'?[{
+      id:'9002',tenantId:'102',tenantName:tenantName||'AUSTIN',mac:'AA:BB:CC:DD:EE:FF',state:'1',
+      serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:11:00',
+      webexDeviceIds:['webex-2'],webexDeviceId:'webex-2',webexDeviceType:'Partner Managed Phone - Yealink'
     }]:[],truncated:false};},
-    async phone(_env,phoneId,tenant){return {
-      id:String(phoneId),tenantId:String(tenant?.id||'101'),tenantName:tenant?.name||'DUFF',mac:'00:11:22:33:44:55',state:'1',
-      serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',
-      webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Partner Managed Phone - Yealink'
-    };},
+    async phone(_env,phoneId,tenant){
+      if(String(phoneId)==='9002')return {
+        id:'9002',tenantId:String(tenant?.id||'102'),tenantName:tenant?.name||'AUSTIN',mac:'AA:BB:CC:DD:EE:FF',state:'1',
+        serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:11:00',
+        webexDeviceIds:['webex-2'],webexDeviceId:'webex-2',webexDeviceType:'Partner Managed Phone - Yealink'
+      };
+      return {
+        id:String(phoneId),tenantId:String(tenant?.id||'101'),tenantName:tenant?.name||'DUFF',mac:'00:11:22:33:44:55',state:'1',
+        serviceState:['tr069'],tr069:true,lastProvision:'2026-10-01 12:10:00',
+        webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Partner Managed Phone - Yealink'
+      };
+    },
     async lines(_env,phoneId){return phoneId==='9001'?[
       {lineNumber:1,username:'4101',alias:'Alex User',registrationStatus:'registered'},
       {lineNumber:2,username:'4190',alias:'Open Desk',registrationStatus:'unregistered'}
@@ -37,16 +48,29 @@ function fixture({phonismReader}={}){
       id:'webex-1',callingDeviceId:'call-1',displayName:'Lobby Phone',product:'Yealink T57W',
       mac:'001122334455',connectionStatus:'connected',personId:'user-1',locationId:'loc-a',managedBy:'PARTNER',type:'phone'
     });
+    if(u.pathname==='/v1/devices/webex-2')return json({
+      id:'webex-2',callingDeviceId:'call-2',displayName:'Test Phone',product:'Yealink T53W',
+      mac:'AABBCCDDEEFF',connectionStatus:'connected',workspaceId:'space-y',locationId:'loc-b',managedBy:'PARTNER',type:'phone'
+    });
     if(u.pathname==='/v1/telephony/config/devices/call-1')return json({location:{id:'loc-a',name:'Dallas'},status:'registered'});
     if(u.pathname==='/v1/telephony/config/devices/call-1/members')return json({members:[
       {id:'user-1',displayName:'Alex User',memberType:'PEOPLE',extension:'4101',location:{id:'loc-a',name:'Dallas'},lineType:'PRIMARY',port:1},
       {id:'space-1',displayName:'Open Desk',memberType:'PLACE',extension:'4190',location:{id:'loc-a',name:'Dallas'},lineType:'SHARED_CALL_APPEARANCE',port:2}
+    ]});
+    if(u.pathname==='/v1/telephony/config/devices/call-2/members')return json({members:[
+      {id:'space-y',firstName:'Test',memberType:'PLACE',extension:'4000',location:{id:'loc-b',name:'Austin'},lineType:'PRIMARY',port:1}
     ]});
     if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers')return json({members:[
       {id:'user-2',displayName:'Taylor User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'Dallas'}},
       {id:'user-x',displayName:'Wrong Location',memberType:'PEOPLE',extension:'5102',location:{id:'loc-b',name:'Austin'}},
       {id:'space-x',firstName:'Zeta Workspace',memberType:'PLACE',extension:'5199',location:{id:'loc-a',name:'Dallas'}}
     ]});
+    if(u.pathname==='/v1/telephony/config/numbers'){
+      const match=u.searchParams.get('extension')==='4000'||String(u.searchParams.get('ownerName')||'').toLowerCase()==='test';
+      return json({phoneNumbers:match?[{
+        extension:'4000',phoneNumber:'',owner:{id:'space-y',firstName:'Test',type:'PLACE'},location:{id:'loc-b',name:'Austin'}
+      }]:[]});
+    }
     return json({message:'not found'},404);
   };
   const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['198.51.100.0/24'],phonismReader});
@@ -111,6 +135,20 @@ test('available-member search filters server-side and bounds browser results',as
   assert.equal(workspace.data.members[0].id,'space-x');
   assert.equal(workspace.data.members[0].name,'Zeta Workspace');
   assert.equal(workspace.data.members[0].type,'PLACE');
+  assert.equal(workspace.data.members[0].available,true);
+
+  const unavailable=await request(f.handler,'members?deviceId=call-1&q=4000&limit=50');
+  assert.equal(unavailable.status,200);
+  assert.equal(unavailable.data.eligibleMatches,0);
+  assert.equal(unavailable.data.unavailableMatches,1);
+  assert.equal(unavailable.data.members[0].id,'space-y');
+  assert.equal(unavailable.data.members[0].name,'Test');
+  assert.equal(unavailable.data.members[0].extension,'4000');
+  assert.equal(unavailable.data.members[0].locationName,'Austin');
+  assert.equal(unavailable.data.members[0].available,false);
+  assert.equal(unavailable.data.members[0].unavailableReason,'webex-not-available-existing-appearance');
+  assert.equal(unavailable.data.members[0].appearances[0].deviceName,'Test Phone');
+  assert.equal(unavailable.data.members[0].appearances[0].port,1);
 
   const bounded=await request(f.handler,'members?deviceId=call-1&limit=1');
   assert.equal(bounded.status,200);
@@ -126,6 +164,22 @@ test('capabilities reports scoped Webex and Phonism reads while leaving writes d
   assert.equal(r.data.webex.deviceScope,'phonism-visionbank-iowa');
   assert.equal(r.data.phonism.ready,true);
   assert.equal(r.data.writes.enabled,false);
+  assert.equal(r.data.writes.scope,'disabled');
+});
+
+test('organization write scope marks a non-pilot VisionBank phone as write eligible',async()=>{
+  const f=fixture();
+  const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',DEVICE_WRITE_PILOT_MACS:'00:11:22:33:44:55'};
+  const cap=await request(f.handler,'capabilities',{env});
+  assert.equal(cap.status,200);
+  assert.equal(cap.data.writes.scope,'organization');
+  assert.equal(cap.data.writes.organizationWide,true);
+  assert.equal(cap.data.writes.previewReady,true);
+  const detail=await request(f.handler,'device-detail?locationId=loc-b&phonismPhoneId=9002',{env});
+  assert.equal(detail.status,200);
+  assert.equal(detail.data.device.mac,'AA:BB:CC:DD:EE:FF');
+  assert.equal(detail.data.device.writeEligible,true);
+  assert.equal(detail.data.device.line1.extension,'4000');
 });
 test('untrusted origin, unverifiable source and empty allowlist fail closed',async()=>{
   const f=fixture();

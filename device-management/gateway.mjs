@@ -71,6 +71,16 @@ function memberRow(value){
     registrationStatus:normalizeRegistration(value?.registrationStatus||value?.status)};
 }
 
+function memberSearchText(member){
+  return [member?.name,member?.extension,member?.phoneNumber,member?.locationName,member?.locationId,member?.type==='PLACE'?'workspace':'user']
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+function memberResultLimit(value){
+  const parsed=Number.parseInt(String(value||''),10);
+  return Number.isFinite(parsed)&&parsed>0?Math.min(parsed,100):50;
+}
+
 function deviceBase(value){
   return {webexDeviceId:id(value?.id),callingDeviceId:id(value?.callingDeviceId),displayName:display(value?.displayName||value?.name||value?.model,160),
     model:display(value?.model||value?.product||value?.type,120),mac:macOrNull(value?.mac||value?.macAddress),
@@ -486,10 +496,16 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       if(part==='members'){
         const deviceId=id(url.searchParams.get('deviceId'));
         if(!deviceId)throw new DeviceManagementError('device-required');
+        const query=display(url.searchParams.get('q')||'',160).toLowerCase();
+        const limit=memberResultLimit(url.searchParams.get('limit'));
         const endpoint=WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/availableMembers?orgId='+encodeURIComponent(org)+'&usageType=SHARED_LINE';
         const page=await readPaged(webexFetch,env,endpoint,['members','items'],10,2000);
-        const members=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
-        return output({success:true,members,truncated:page.truncated,deviceId,scope:'organization',readOnly:true},200,headers);
+        const all=page.rows.map(memberRow).filter(m=>m.id&&m.type&&m.locationId);
+        const matches=all.filter(m=>!query||memberSearchText(m).includes(query))
+          .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
+        const members=matches.slice(0,limit);
+        return output({success:true,members,totalMatches:matches.length,truncated:page.truncated||matches.length>members.length,
+          deviceId,scope:'organization',query,limit,readOnly:true},200,headers);
       }
 
       if(part==='preview'){
@@ -541,7 +557,9 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         }catch(error){
           if(error?.code==='target-appearance-limit'&&error?.targetMember?.memberId&&error?.location?.id){
             const appearances=await findMemberAppearances({
-              env,org,webexFetch,phonismReader,locationId:error.location.id,targetMemberId:error.targetMember.memberId,
+              env,org,webexFetch,phonismReader,
+              locationId:error.targetMember.locationId||error.location.id,
+              targetMemberId:error.targetMember.memberId,
               excludeDeviceId:error.device?.id
             }).catch(()=>[]);
             return output({success:false,error:'target-appearance-limit',target:error.targetMember,appearances,readOnly:false},409,headers);

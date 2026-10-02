@@ -11,6 +11,7 @@ Initial release scope:
 - Search by person/workspace name, extension, phone number, or MAC.
 - Filter by location, owner type, and registration status.
 - Allow Line 2 to be added, replaced, or removed with an eligible user/workspace from any VisionBank Webex Calling location. Preserve both the phone location and selected line location in preview, audit, and history.
+- When a real VisionBank user/workspace is excluded from Webex `availableMembers`, surface it as a disabled result from the Webex organization number directory with any discoverable existing appearance context. Never allow that fallback result to bypass Webex eligibility during Preview.
 - Protect Line 1 from changes in the first release.
 - Preview every change before execution.
 - Maintain durable audit history and per-system result status.
@@ -88,7 +89,7 @@ Front end contract:
 - `GET /api/webex/device-management/capabilities`
 - `GET /api/webex/device-management/locations`
 - `GET /api/webex/device-management/inventory?locationId=...`
-- `GET /api/webex/device-management/members?deviceId=...&q=...&limit=50` — bounded organization-wide eligible users/workspaces, searchable by name, extension, number, workspace/user type, or location.
+- `GET /api/webex/device-management/members?deviceId=...&q=...&limit=50` — bounded organization-wide search by name, extension, number, workspace/user type, or location. Eligible lines come from Webex `availableMembers`; known but ineligible lines may be returned disabled with appearance context from the Webex organization number directory.
 - `GET /api/webex/device-management/history`
 - `POST /api/webex/device-management/preview`
 - `POST /api/webex/device-management/apply` — Save in Webex, force Phonism Sync, queue reboot, then verify both systems.
@@ -98,7 +99,7 @@ All endpoints must retain the existing VisionBank approved-network and trusted-o
 
 ## Write enablement gates
 
-The UI must remain read-only until all are true:
+The UI must remain read-only until all are true. Organization-wide writes require the explicit server-side `DEVICE_WRITE_SCOPE=organization` switch; if that switch is absent, the existing MAC pilot allowlist remains the fallback scope:
 - Existing Webex OAuth can enumerate locations and partner-managed devices.
 - Required Webex read scopes are confirmed.
 - Any Webex write path is proven against the customer's device type.

@@ -124,6 +124,27 @@ test('apply writes Webex first, queues Phonism sync, creates lease and audit',as
   assert.equal(auditKeys.length,1);
 });
 
+test('appearance-limit failure carries the reviewed target and device context',async()=>{
+  const e=env(),ph=phonismFixture();
+  const fetch=async(_env,url,options={})=>{
+    const u=new URL(url);
+    if(u.pathname==='/v1/telephony/config/devices/call-1/members'){
+      if((options.method||'GET')==='GET')return Response.json({members:[PRIMARY],maxLineCount:20});
+      if(options.method==='PUT')return Response.json({message:'[Error 4495] Exceeded maximum number of allowed appearances.'},{status:400});
+    }
+    return Response.json({message:'not found'},{status:404});
+  };
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
+    targetMember:TARGET,durationMinutes:60,reason:'',
+    phonismContext:{phoneId:'313135',tenantId:'90126',companyId:'84712'}
+  });
+  await assert.rejects(
+    ()=>applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader}),
+    error=>error.code==='target-appearance-limit'&&error.targetMember?.memberId==='user-ryan'&&error.location?.id==='loc-a'&&error.device?.id==='call-1'
+  );
+});
+
 test('apply rejects stale Webex state before any write',async()=>{
   const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
   const preview=await createWritePreview({

@@ -3,7 +3,8 @@
   const SECURITY_BASE="https://visionbank-security.ahmedadeyemi.workers.dev";
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
   const OPERATOR_KEY="visionbankDeviceOperatorV1";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null};
+  const POST_SAVE_KEY="visionbankDevicePostSaveV1";
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -45,13 +46,29 @@
     if(!res.ok||data.success===false){
       const code=data.error||null;
       const e=new Error(code||data.message||("HTTP "+res.status));
-      e.code=code;e.status=res.status;throw e;
+      e.code=code;e.status=res.status;e.details=data;throw e;
     }
     return data;
   }
 
   function friendlyDeviceError(error){
     const code=error?.code||error?.message||"";
+    if(code==="target-appearance-limit"){
+      const target=error?.details?.target||{};
+      const appearances=Array.isArray(error?.details?.appearances)?error.details.appearances:[];
+      const label=[target.name,target.extension].filter(Boolean).join(" · ")||"This extension";
+      if(appearances.length){
+        const phones=appearances.map(a=>{
+          const device=[a.deviceName,a.model].filter(Boolean).join(" · ");
+          const owner=a.ownerName?(" — primary owner "+a.ownerName+(a.ownerExtension?" "+a.ownerExtension:"")):"";
+          const port=a.port?(" — line "+a.port):"";
+          const mac=a.mac?(" — "+a.mac):"";
+          return device+owner+port+mac;
+        }).join("; ");
+        return label+" has reached its Webex shared-line appearance limit. Existing appearance"+(appearances.length===1?"":"s")+": "+phones+". Remove an appearance or choose another extension.";
+      }
+      return label+" has reached its Webex shared-line appearance limit. Choose another line or free an appearance in Control Hub.";
+    }
     const messages={
       "target-appearance-limit":"This extension has reached its Webex shared-line appearance limit. Choose another line or free an appearance in Control Hub.",
       "partner-managed-line-label-unsupported":"Webex rejected a line-label setting that is not supported on this partner-managed phone. Refresh and retry.",
@@ -293,6 +310,17 @@
     body.querySelectorAll("[data-device-summary]").forEach(btn=>btn.addEventListener("click",()=>void loadSummaryDevice(btn)));
   }
 
+  async function refreshDeviceDetail(locationId,phonismPhoneId){
+    const q=new URLSearchParams({locationId:String(locationId||""),phonismPhoneId:String(phonismPhoneId||"")});
+    const data=await api("/device-detail?"+q.toString());
+    const detailed=data.device;
+    const index=state.devices.findIndex(d=>String(d.phonismPhoneId||"")===String(phonismPhoneId));
+    if(index>=0)state.devices[index]=detailed;
+    else state.devices.unshift(detailed);
+    applyFilters();
+    return detailed;
+  }
+
   async function loadSummaryDevice(button){
     const phonismPhoneId=button?.dataset?.deviceSummary||"";
     const summary=state.devices.find(d=>String(d.phonismPhoneId||"")===String(phonismPhoneId));
@@ -301,12 +329,7 @@
     button.disabled=true;button.textContent="Loading device details…";
     text("deviceInventoryStatus","Loading "+(summary.displayName||"device")+" from Webex and Phonism…");
     try{
-      const q=new URLSearchParams({locationId:String(summary.locationId),phonismPhoneId:String(phonismPhoneId)});
-      const data=await api("/device-detail?"+q.toString());
-      const detailed=data.device;
-      const index=state.devices.findIndex(d=>String(d.phonismPhoneId||"")===String(phonismPhoneId));
-      if(index>=0)state.devices[index]=detailed;
-      applyFilters();
+      const detailed=await refreshDeviceDetail(summary.locationId,phonismPhoneId);
       text("deviceInventoryStatus","Device details loaded.");
       await openEditor(detailed.id);
     }catch(error){
@@ -419,6 +442,25 @@
     if(plan.executable!==true)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Review is complete, but Save & Sync is locked until the Enterprise Phonism Sync owner is resolved.</p>');
   }
 
+  function storePostSaveContext(result){
+    const context={
+      leaseId:result?.leaseId||"",
+      locationId:state.selected?.locationId||"",
+      phonismPhoneId:state.selected?.phonismPhoneId||"",
+      deviceName:state.selected?.displayName||"",
+      search:$("deviceSearch")?.value||state.selected?.displayName||"",
+      savedAt:new Date().toISOString()
+    };
+    state.postSave=context;
+    try{sessionStorage.setItem(POST_SAVE_KEY,JSON.stringify(context));}catch{}
+    return context;
+  }
+
+  function clearPostSaveContext(){
+    state.postSave=null;
+    try{sessionStorage.removeItem(POST_SAVE_KEY);}catch{}
+  }
+
   async function applyChange(){
     if(!state.preview)return;
     const btn=$("deviceApplyChange");btn.disabled=true;btn.textContent="Saving & Syncing…";
@@ -426,10 +468,11 @@
     host?.querySelector(".device-apply-error")?.remove();
     try{
       const result=await api("/apply",{method:"POST",body:{mutationId:state.preview.mutationId}});
+      storePostSaveContext(result);
       $("deviceConfirm")?.close();$("deviceEditor")?.close();
-      state.recovery={leaseId:result.leaseId,rebootAvailable:result.rebootAvailable===true,factoryResetAvailable:false};
-      text("deviceInventoryStatus",result.message||"Save & Sync accepted. Verifying Webex and Phonism state…");
-      await pollLeaseVerification(result.leaseId);
+      text("deviceInventoryStatus",result.message||"Save & Sync accepted. Refreshing the page to show the new temporary line…");
+      window.location.reload();
+      return;
     }catch(error){
       const message=friendlyDeviceError(error);
       if((error.code||error.message)==="target-appearance-limit"){
@@ -462,7 +505,12 @@
         if(last.state==="applied"){
           text("deviceInventoryStatus","Save & Sync completed. Webex is confirmed and the Phonism line is present. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
           $("deviceRecovery")?.close();state.recovery=null;
-          await loadInventory(true);
+          if(state.postSave?.locationId&&state.postSave?.phonismPhoneId){
+            await refreshDeviceDetail(state.postSave.locationId,state.postSave.phonismPhoneId).catch(()=>null);
+          }else{
+            await loadInventory(true);
+          }
+          clearPostSaveContext();
           return last;
         }
       }catch(error){
@@ -570,6 +618,21 @@
     $("deviceFactoryReset")?.addEventListener("click",()=>void factoryResetRecovery());
   }
 
+  async function resumePostSave(){
+    let saved=null;
+    try{saved=JSON.parse(sessionStorage.getItem(POST_SAVE_KEY)||"null");}catch{}
+    if(!saved?.leaseId)return;
+    const savedAt=Date.parse(saved.savedAt||"");
+    if(Number.isFinite(savedAt)&&Date.now()-savedAt>24*60*60*1000){clearPostSaveContext();return;}
+    state.postSave=saved;
+    if(saved.search&&$("deviceSearch"))$("deviceSearch").value=saved.search;
+    if(saved.locationId&&saved.phonismPhoneId){
+      await refreshDeviceDetail(saved.locationId,saved.phonismPhoneId).catch(()=>null);
+    }
+    text("deviceInventoryStatus","Change saved. Showing the refreshed device state while Webex and Phonism verification continues…");
+    await pollLeaseVerification(saved.leaseId);
+  }
+
   async function init(){
     bind();
     renderOperator();
@@ -578,6 +641,7 @@
     await loadCapabilities();
     await loadLocations();
     await loadInventory(false);
+    await resumePostSave();
   }
 
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});

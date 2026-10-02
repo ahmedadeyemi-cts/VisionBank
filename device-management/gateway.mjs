@@ -1,7 +1,7 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,listAuditRecords} from './audit.mjs';
-import {isPilotDevice} from './lease.mjs';
+import {isPilotDevice,listLeases} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -240,6 +240,51 @@ function summaryPhoneRow(phone,tenant){
   };
 }
 
+async function activeLeaseIndex(env){
+  const leases=await listLeases(env,{limit:1000});
+  const active=leases.filter(l=>['active','pending-verification','restore-sync-pending'].includes(String(l?.status||'')));
+  const byDevice=new Map(),byMac=new Map();
+  for(const lease of active){
+    if(lease?.device?.id)byDevice.set(String(lease.device.id),lease);
+    if(lease?.device?.mac)byMac.set(String(lease.device.mac).toUpperCase(),lease);
+  }
+  return {byDevice,byMac};
+}
+
+function attachLease(device,index){
+  const lease=index?.byDevice?.get(String(device?.id||''))||index?.byMac?.get(String(device?.mac||'').toUpperCase())||null;
+  return {...device,temporaryLease:lease?{
+    leaseId:lease.leaseId,status:lease.status,startsAt:lease.startsAt,expiresAt:lease.expiresAt,
+    durationMinutes:lease.durationMinutes,temporaryLine2:lease.temporaryLine2,baselineLine2:lease.baselineLine2
+  }:null};
+}
+
+async function findMemberAppearances({env,org,webexFetch,phonismReader,locationId,targetMemberId,excludeDeviceId}){
+  const discovery=await phonismReader.discover(env,org);
+  const tenant=discovery.tenants.find(t=>String(t.webexLocationId||'')===String(locationId||''));
+  if(!tenant)return [];
+  const inventory=await phonismReader.tenantPhones(env,tenant.id,tenant.name);
+  const hits=await mapLimit(inventory.phones,4,async phone=>{
+    try{
+      const found=await firstWebexDeviceForPhone(webexFetch,env,phone);
+      if(!found)return null;
+      const base=deviceBase(found.data),deviceId=base.callingDeviceId||base.webexDeviceId;
+      if(!deviceId||String(deviceId)===String(excludeDeviceId||''))return null;
+      const data=await readWebexMembers(webexFetch,env,org,deviceId);
+      const match=(data.members||[]).find(m=>String(m?.id||'')===String(targetMemberId||''));
+      if(!match)return null;
+      const primary=(data.members||[]).find(m=>Number(m?.port)===1||String(m?.lineType||'').toUpperCase()==='PRIMARY')||null;
+      const primaryRow=primary?memberRow(primary):null;
+      return {
+        deviceId,deviceName:base.displayName||phone.alias||'Phone',model:base.model||phone.webexDeviceType||'',
+        mac:phone.mac||base.mac||'',ownerName:primaryRow?.name||'',ownerExtension:primaryRow?.extension||'',
+        port:Number(match?.port)||null,lineType:display(match?.lineType||'',40),locationName:tenant.name||''
+      };
+    }catch{return null;}
+  });
+  return hits.filter(Boolean).sort((a,b)=>(a.port??99)-(b.port??99)||String(a.deviceName).localeCompare(String(b.deviceName))).slice(0,20);
+}
+
 async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,locationId,phonismPhoneId}){
   const discovery=await phonismReader.discover(env,org);
   const tenant=discovery.tenants.find(t=>String(t.webexLocationId||'')===String(locationId||''));
@@ -390,7 +435,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!requestedLocation){
           const all=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
           const tenantById=new Map(discovery.tenants.map(t=>[String(t.id),t]));
-          const devices=all.phones.map(phone=>({...summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null),writeEligible:isPilotDevice(env,phone.mac)}));
+          const leaseIndex=await activeLeaseIndex(env).catch(()=>null);
+          const devices=all.phones.map(phone=>attachLease({...summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null),writeEligible:isPilotDevice(env,phone.mac)},leaseIndex));
           return output({success:true,devices,summaryOnly:true,truncated:all.truncated,
             phonism:{ready:true,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:devices.length},
             message:'Showing all VisionBank Iowa phones. Select a location for Webex and line details.',
@@ -413,7 +459,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           for(const phone of inventory.phones)scoped.push({tenant,phone});
         }
         const detailed=await mapLimit(scoped,4,entry=>scopedPhoneRow(webexFetch,env,org,entry.tenant,entry.phone,phonismReader));
-        const devices=detailed.map(d=>({...d,writeEligible:isPilotDevice(env,d.mac)}));
+        const leaseIndex=await activeLeaseIndex(env).catch(()=>null);
+        const devices=detailed.map(d=>attachLease({...d,writeEligible:isPilotDevice(env,d.mac)},leaseIndex));
         return output({success:true,devices,truncated,
           phonism:{ready:true,domainName:discovery.domain.name,tenantMatched:true,
             tenantCount:tenants.length,phoneCount:scoped.length},
@@ -430,7 +477,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const phone=await phonismReader.phone(env,phonismPhoneId,tenant);
         if(String(phone.tenantId||'')!==String(tenant.id))throw new DeviceManagementError('phonism-phone-location-mismatch',409);
         const device=await scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader);
-        return output({success:true,device:{...device,detailsLoaded:true,writeEligible:isPilotDevice(env,device.mac)},
+        const leaseIndex=await activeLeaseIndex(env).catch(()=>null);
+        return output({success:true,device:attachLease({...device,detailsLoaded:true,writeEligible:isPilotDevice(env,device.mac)},leaseIndex),
           generatedAt:new Date().toISOString(),readOnly:true},200,headers);
       }
 
@@ -483,9 +531,20 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const session=await requireOperatorSession(env,request);
         const body=await readSmallJson(request,2048);
         if(!body||typeof body.mutationId!=='string'||Object.keys(body).some(k=>!['mutationId'].includes(k)))throw new DeviceManagementError('invalid-apply-request');
-        const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
-        return output({success:true,message:'Webex updated and Phonism Sync queued. Verifying provider state.',leaseId:result.lease.leaseId,
-          expiresAt:result.lease.expiresAt,verification:result.lease.verification,rebootAvailable:Boolean(result.lease.phonismPhoneId),factoryResetAvailable:false},200,headers);
+        try{
+          const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
+          return output({success:true,message:'Webex updated and Phonism Sync queued. Verifying provider state.',leaseId:result.lease.leaseId,
+            expiresAt:result.lease.expiresAt,verification:result.lease.verification,rebootAvailable:Boolean(result.lease.phonismPhoneId),factoryResetAvailable:false},200,headers);
+        }catch(error){
+          if(error?.code==='target-appearance-limit'&&error?.targetMember?.memberId&&error?.location?.id){
+            const appearances=await findMemberAppearances({
+              env,org,webexFetch,phonismReader,locationId:error.location.id,targetMemberId:error.targetMember.memberId,
+              excludeDeviceId:error.device?.id
+            }).catch(()=>[]);
+            return output({success:false,error:'target-appearance-limit',target:error.targetMember,appearances,readOnly:false},409,headers);
+          }
+          throw error;
+        }
       }
 
       if(part==='lease-status'){

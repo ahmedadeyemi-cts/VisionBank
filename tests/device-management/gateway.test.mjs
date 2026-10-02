@@ -86,10 +86,13 @@ test('single-device detail enriches one summary phone without loading the whole 
   assert.equal(r.data.device.line2.extension,'4190');
 });
 
-test('available members are backend-filtered to the device location',async()=>{
-  const f=fixture(),r=await request(f.handler,'members?deviceId=call-1&locationId=loc-a');
-  assert.equal(r.status,200);assert.deepEqual(r.data.members.map(x=>x.id),['user-2']);
-  assert.equal(r.data.members[0].locationId,'loc-a');
+test('available members include users and workspaces across Webex locations',async()=>{
+  const f=fixture(),r=await request(f.handler,'members?deviceId=call-1');
+  assert.equal(r.status,200);
+  assert.equal(r.data.scope,'organization');
+  assert.deepEqual(r.data.members.map(x=>x.id),['user-2','user-x']);
+  assert.deepEqual(r.data.members.map(x=>x.locationId),['loc-a','loc-b']);
+  assert.deepEqual(r.data.members.map(x=>x.locationName),['Dallas','Austin']);
 });
 
 test('capabilities reports scoped Webex and Phonism reads while leaving writes disabled',async()=>{

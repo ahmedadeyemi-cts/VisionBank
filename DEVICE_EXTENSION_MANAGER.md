@@ -2,7 +2,7 @@
 
 ## Objective
 
-Provide a nontechnical, location-scoped workspace at `/device` for managing secondary phone-line assignments across VisionBank Webex Calling phones that are physically provisioned through Phonism by InLayer.
+Provide a nontechnical workspace at `/device` for managing temporary secondary phone-line assignments across VisionBank Webex Calling phones that are physically provisioned through Phonism by InLayer. Phone inventory can be filtered by location, while secondary-line candidates are organization-wide to match Webex Control Hub behavior.
 
 Initial release scope:
 - Show Webex Calling locations.
@@ -10,7 +10,7 @@ Initial release scope:
 - Show primary owner, Line 1, optional Line 2, and independent Webex + Phonism registration/sync health.
 - Search by person/workspace name, extension, phone number, or MAC.
 - Filter by location, owner type, and registration status.
-- Allow Line 2 to be added, replaced, or removed only with a user/workspace from the same location.
+- Allow Line 2 to be added, replaced, or removed with an eligible user/workspace from any VisionBank Webex Calling location. Preserve both the phone location and selected line location in preview, audit, and history.
 - Protect Line 1 from changes in the first release.
 - Preview every change before execution.
 - Maintain durable audit history and per-system result status.
@@ -60,29 +60,27 @@ Never use display name as the primary correlation key.
 
 1. User selects a phone and Line 2 candidate.
 2. Backend reloads the device, current line state, candidate member, and location.
-3. Backend rejects cross-location assignments.
+3. Backend permits eligible organization-wide Webex users/workspaces and records the selected member's source location. The phone's own location remains the Phonism provisioning/sync scope.
 4. Backend creates a one-time mutation ID and preview.
 5. User reviews current vs proposed assignment.
 6. Backend revalidates version/state before any write.
 7. Perform only the supported Webex association write.
 8. Immediately invoke the verified Phonism Sync action so the Webex change is pulled into Phonism without waiting for the normal periodic synchronization.
-9. Re-read Webex registration and Phonism line-registration status independently.
-10. Mark Completed only when the desired Line 2 assignment is present and both systems report healthy registration.
-11. If Sync was attempted but Line 2 remains unhealthy, create a recovery-eligible record. Factory Reset remains a separate, explicit recovery action and is never automatic.
-12. Record complete, mismatch, pending-verification, recovery-eligible, failed, or unknown result in audit history.
+9. Queue a Phonism TR-069 reboot so the handset applies the updated configuration.
+10. Re-read Webex and Phonism Line 2 state independently. When Phonism does not expose registration telemetry, report the configuration as present but registration telemetry unavailable.
+11. If the handset still needs attention, allow Reboot & Reverify. Factory Reset is not part of this workflow.
+12. Record complete, applied-unverified, mismatch, pending-verification, reboot-failed, failed, or unknown result in audit history.
 
 Never blindly retry a write after an unknown network response. Reconcile first.
 ## Phonism action safety
 
-Do not wire these actions as normal post-save behavior:
-- Factory Reset
-- Reset Config / Reset Configuration
+Normal production behavior is:
 
-Public Phonism documentation describes those as destructive or configuration-clearing actions.
+`Save in Webex → force Phonism Sync → queue TR-069 Reboot → reverify`
 
-Normal production behavior is Save in Webex → force Phonism Sync → verify both registration states. The exact Phonism API endpoint behind the existing Sync action must be verified rather than guessed.
+Factory Reset and configuration-clearing actions are not part of this workflow. If another reboot is needed, `Reboot & Reverify` can be invoked and is audited separately.
 
-Factory Reset is permitted only as a supervised recovery action after Sync has already been attempted and Line 2 is still unhealthy. The backend must verify the factory-reset endpoint, create a recovery record, require explicit confirmation, audit the operation separately, then wait for reprovisioning and re-check both systems.
+Existing Webex BLF / Line Monitoring settings are a separate configuration domain and are not modified by the temporary shared-line workflow.
 
 ## Required backend endpoints
 
@@ -90,11 +88,11 @@ Front end contract:
 - `GET /api/webex/device-management/capabilities`
 - `GET /api/webex/device-management/locations`
 - `GET /api/webex/device-management/inventory?locationId=...`
-- `GET /api/webex/device-management/members?locationId=...&deviceId=...`
+- `GET /api/webex/device-management/members?deviceId=...` — organization-wide eligible users/workspaces with each member's source location.
 - `GET /api/webex/device-management/history`
 - `POST /api/webex/device-management/preview`
-- `POST /api/webex/device-management/apply` — Save in Webex, force Phonism Sync, then verify both systems.
-- `POST /api/webex/device-management/factory-reset` — recovery-only; requires server-issued recovery eligibility and explicit confirmation.
+- `POST /api/webex/device-management/apply` — Save in Webex, force Phonism Sync, queue reboot, then verify both systems.
+- `POST /api/webex/device-management/reboot` — optional Reboot & Reverify recovery action.
 
 All endpoints must retain the existing VisionBank approved-network and trusted-origin checks.
 

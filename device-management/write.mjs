@@ -118,6 +118,7 @@ export async function createWritePreview({env,session,device,location,currentMem
     targetMember:targetMember?{
       id:targetMember.id,name:targetMember.name||targetMember.displayName||'',displayName:targetMember.name||targetMember.displayName||'',
       extension:targetMember.extension||'',phoneNumber:targetMember.phoneNumber||'',type:targetMember.type||targetMember.memberType||'',
+      locationId:targetMember.locationId||null,locationName:targetMember.locationName||'',
       lineWeight:targetMember.lineWeight,allowCallDeclineEnabled:targetMember.allowCallDeclineEnabled,
       t38FaxCompressionEnabled:targetMember.t38FaxCompressionEnabled
     }:null,
@@ -135,7 +136,11 @@ function restoreMembers(currentMembers,baselineMember){
 }
 
 function targetSummary(target){
-  return target?{memberId:String(target.id),name:clean(target.name||target.displayName||'',160),extension:clean(target.extension||'',32),phoneNumber:clean(target.phoneNumber||'',64),type:clean(target.type||target.memberType||'',40)}:null;
+  return target?{
+    memberId:String(target.id),name:clean(target.name||target.displayName||'',160),extension:clean(target.extension||'',32),
+    phoneNumber:clean(target.phoneNumber||'',64),type:clean(target.type||target.memberType||'',40),
+    locationId:clean(target.locationId||'',180)||null,locationName:clean(target.locationName||'',120)
+  }:null;
 }
 
 export async function applyWritePreview({env,request,session,webexFetch,orgId,mutationId,phonismReader=createPhonismReader()}){

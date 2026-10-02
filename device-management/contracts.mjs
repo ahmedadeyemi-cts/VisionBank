@@ -42,7 +42,6 @@ export function assertAssignableMember(member,device){
   if(!member||typeof member!=="object"||!member.id)throw new DeviceManagementError("member-required");
   normalizeOwnerType(member.type);
   if(!member.locationId)throw new DeviceManagementError("member-location-required");
-  if(String(member.locationId)!==String(device.locationId))throw new DeviceManagementError("cross-location-assignment-denied",409);
   if(!String(member.extension||member.phoneNumber||"").trim())throw new DeviceManagementError("member-number-required");
   return member;
 }

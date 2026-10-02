@@ -30,7 +30,7 @@ const BASELINE={
   hotlineEnabled:false,allowCallDeclineEnabled:true,t38FaxCompressionEnabled:false,
   firstName:'Old',lastName:'Line',extension:'1999',memberType:'PLACE',lineLabel:'Old Line'
 };
-const TARGET={id:'user-ryan',name:'Ryan Dea',displayName:'Ryan Dea',extension:'1806',type:'PEOPLE'};
+const TARGET={id:'user-ryan',name:'Ryan Dea',displayName:'Ryan Dea',extension:'1806',type:'PEOPLE',locationId:'loc-b',locationName:'DUFF'};
 
 function request(){
   return new Request('https://worker.example/api/webex/device-management/apply',{headers:{'CF-Connecting-IP':'198.51.100.12','User-Agent':'Test Browser'}});
@@ -96,6 +96,10 @@ test('preview is restricted to pilot MAC and records the baseline',async()=>{
   });
   assert.equal(preview.baselineLine2.memberId,'space-old');
   assert.equal(preview.targetMember.id,'user-ryan');
+  assert.equal(preview.targetMember.locationId,'loc-b');
+  assert.equal(preview.targetMember.locationName,'DUFF');
+  assert.equal(preview.location.id,'loc-a');
+  assert.equal(preview.phonismContext.tenantId,'123');
   assert.ok(await e.SESSIONS.get('device-preview:'+preview.mutationId));
   await assert.rejects(()=>createWritePreview({
     env:{...e,DEVICE_WRITE_PILOT_MACS:'00:00:00:00:00:00'},session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],

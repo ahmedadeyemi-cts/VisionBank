@@ -34,11 +34,9 @@ test('same-location user and workspace are assignable',()=>{
   assert.equal(assertAssignableMember(WORKSPACE,DEVICE).id,'space-1');
 });
 
-test('cross-location assignment is denied by the backend contract',()=>{
-  assert.throws(
-    ()=>assertAssignableMember({...USER,locationId:'loc-b'},DEVICE),
-    error=>error instanceof DeviceManagementError&&error.code==='cross-location-assignment-denied'
-  );
+test('cross-location user and workspace assignments are allowed by the backend contract',()=>{
+  assert.equal(assertAssignableMember({...USER,locationId:'loc-b',locationName:'DUFF'},DEVICE).id,'user-1');
+  assert.equal(assertAssignableMember({...WORKSPACE,locationId:'loc-c',locationName:'AMES-MAIN'},DEVICE).id,'space-1');
 });
 
 test('destructive Phonism reset actions are never accepted as post-save automation',()=>{

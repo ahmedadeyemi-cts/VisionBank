@@ -72,3 +72,7 @@ button,input,select{font:inherit}.device-shell{min-height:100vh}.device-shell.ac
 
 .device-member-option:disabled{cursor:not-allowed;opacity:.5;background:#f7f8f8}
 .device-member-option:disabled:hover{background:#f7f8f8}
+.device-member-option.unavailable:disabled{opacity:1;background:#f7f8f8;border:1px solid #d9e1de}
+.device-member-option.unavailable strong{color:#44534e}
+.device-member-option.unavailable .device-member-ext{color:#687872}
+.device-member-option.unavailable small{color:#596963}

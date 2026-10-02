@@ -7,7 +7,7 @@ Provide a nontechnical, location-scoped workspace at `/device` for managing seco
 Initial release scope:
 - Show Webex Calling locations.
 - Show partner-managed phones correlated to Phonism by MAC address.
-- Show primary owner, Line 1, optional Line 2, and registration/sync health.
+- Show primary owner, Line 1, optional Line 2, and independent Webex + Phonism registration/sync health.
 - Search by person/workspace name, extension, phone number, or MAC.
 - Filter by location, owner type, and registration status.
 - Allow Line 2 to be added, replaced, or removed only with a user/workspace from the same location.
@@ -29,7 +29,7 @@ Phonism is authoritative for:
 - Vendor/model/firmware and last provisioning metadata.
 - Physical Line 2 configuration on partner-managed phones.
 - Phonism line-registration monitoring when available.
-- The verified non-destructive post-save reprovision action.
+- The normal post-save action is Phonism Sync, followed immediately by Webex + Phonism Line 2 registration verification.
 ## Important partner-managed-device limitation
 
 Cisco documents that partner-managed devices may have a Webex Calling device ID but standard Webex Calling device configuration is not available for partner-managed devices.
@@ -64,11 +64,12 @@ Never use display name as the primary correlation key.
 4. Backend creates a one-time mutation ID and preview.
 5. User reviews current vs proposed assignment.
 6. Backend revalidates version/state before any write.
-7. Perform only supported Webex association write.
-8. Update the corresponding Phonism phone/line configuration.
-9. Trigger the specifically verified non-destructive Phonism post-save action.
-10. Re-read both systems and line registration status.
-11. Record complete, partial, failed, or pending-verification result in audit history.
+7. Perform only the supported Webex association write.
+8. Immediately invoke the verified Phonism Sync action so the Webex change is pulled into Phonism without waiting for the normal periodic synchronization.
+9. Re-read Webex registration and Phonism line-registration status independently.
+10. Mark Completed only when the desired Line 2 assignment is present and both systems report healthy registration.
+11. If Sync was attempted but Line 2 remains unhealthy, create a recovery-eligible record. Factory Reset remains a separate, explicit recovery action and is never automatic.
+12. Record complete, mismatch, pending-verification, recovery-eligible, failed, or unknown result in audit history.
 
 Never blindly retry a write after an unknown network response. Reconcile first.
 ## Phonism action safety
@@ -79,7 +80,9 @@ Do not wire these actions as normal post-save behavior:
 
 Public Phonism documentation describes those as destructive or configuration-clearing actions.
 
-The adapter must identify the exact action VisionBank currently uses after a line change and confirm from the API documentation that it is non-destructive. Likely safe categories include a vendor reprovision, refresh-config, auto-provision-now, or ordinary reboot, but the production action must be verified rather than guessed.
+Normal production behavior is Save in Webex → force Phonism Sync → verify both registration states. The exact Phonism API endpoint behind the existing Sync action must be verified rather than guessed.
+
+Factory Reset is permitted only as a supervised recovery action after Sync has already been attempted and Line 2 is still unhealthy. The backend must verify the factory-reset endpoint, create a recovery record, require explicit confirmation, audit the operation separately, then wait for reprovisioning and re-check both systems.
 
 ## Required backend endpoints
 
@@ -90,7 +93,8 @@ Front end contract:
 - `GET /api/webex/device-management/members?locationId=...&deviceId=...`
 - `GET /api/webex/device-management/history`
 - `POST /api/webex/device-management/preview`
-- `POST /api/webex/device-management/apply`
+- `POST /api/webex/device-management/apply` — Save in Webex, force Phonism Sync, then verify both systems.
+- `POST /api/webex/device-management/factory-reset` — recovery-only; requires server-issued recovery eligibility and explicit confirmation.
 
 All endpoints must retain the existing VisionBank approved-network and trusted-origin checks.
 
@@ -103,8 +107,10 @@ The UI must remain read-only until all are true:
 - Phonism API authentication is configured server-side.
 - Device lookup by MAC is proven.
 - Line read/write endpoint is proven.
-- Exact non-destructive post-save action is proven.
-- Line registration status read is proven from Webex, Phonism, or both.
+- Exact Phonism Sync API action is proven and can be triggered immediately after a Webex save.
+- Webex registration status read is proven for the customer device/line type.
+- Phonism line-registration status read is proven.
+- Factory-reset API action is separately verified before any recovery control can be enabled.
 - Audit/idempotency storage is ready.
 ## Information needed from VisionBank / Phonism
 
@@ -124,8 +130,10 @@ The existing Webex OAuth integration should be reused. Its current scopes will b
 ## Failure presentation
 
 A change is not simply Success/Failure. The UI should distinguish:
-- Completed — Webex/desired-state, Phonism configuration, post-save action, and verification all succeeded.
-- Pending verification — configuration accepted, registration not yet reconfirmed.
+- Completed — desired Line 2 is present, Phonism Sync completed, and both Webex and Phonism report healthy registration.
+- Pending verification — Save & Sync was accepted but one or both registration states are still converging.
+- Mismatch — Webex and Phonism disagree about Line 2 or its registration state.
+- Recovery eligible — Sync was attempted, verification still failed, and Factory Reset may be offered as a separate supervised action.
 - Partial — one system updated and another did not.
 - Rejected — validation blocked the request before writes.
 - Failed — provider returned a terminal failure.

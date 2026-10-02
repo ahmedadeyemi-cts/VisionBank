@@ -5,6 +5,8 @@ import {
   normalizeMac,
   assertAssignableMember,
   validatePostSaveAction,
+  registrationConvergence,
+  validateFactoryResetRecovery,
   buildChangePlan,
   validateApplyRequest
 } from '../../device-management/contracts.mjs';
@@ -53,11 +55,12 @@ test('preview becomes executable only with both write paths and a verified non-d
   const plan=buildChangePlan({
     device:DEVICE,targetMember:WORKSPACE,version:7,mutationId:MID,
     capabilities:{webexWrite:true,phonismWrite:true},
-    postSaveAction:{id:'reprovision',label:'Reprovision phone',verifiedNonDestructive:true}
+    postSaveAction:{id:'sync',label:'Phonism Sync',verifiedNonDestructive:true}
   });
   assert.equal(plan.executable,true);
   assert.equal(plan.expectedVersion,7);
-  assert.equal(plan.phonismActionLabel,'Reprovision phone');
+  assert.equal(plan.phonismActionLabel,'Phonism Sync');
+  assert.match(plan.summary,/Phonism Sync/);
 });
 
 test('apply request accepts only mutation ID and optimistic version',()=>{
@@ -65,5 +68,56 @@ test('apply request accepts only mutation ID and optimistic version',()=>{
   assert.throws(
     ()=>validateApplyRequest({mutationId:MID,expectedVersion:3,deviceId:'dev-1'}),
     error=>error.code==='unknown-apply-field'
+  );
+});
+
+test('registration convergence requires both Webex and Phonism to be registered',()=>{
+  assert.deepEqual(
+    registrationConvergence({webex:'registered',phonism:'registered'}),
+    {webexStatus:'registered',phonismStatus:'registered',state:'completed',healthy:true}
+  );
+  const mismatch=registrationConvergence({webex:'registered',phonism:'unregistered'});
+  assert.equal(mismatch.state,'mismatch');
+  assert.equal(mismatch.healthy,false);
+});
+
+test('factory reset recovery requires an earlier sync and failed verification',()=>{
+  assert.throws(
+    ()=>validateFactoryResetRecovery({
+      recoveryId:MID,expectedVersion:2,syncAttempted:false,
+      verificationState:'mismatch',endpointVerified:true,explicitConfirmation:true
+    }),
+    error=>error.code==='sync-required-before-factory-reset'
+  );
+  assert.throws(
+    ()=>validateFactoryResetRecovery({
+      recoveryId:MID,expectedVersion:2,syncAttempted:true,
+      verificationState:'completed',endpointVerified:true,explicitConfirmation:true
+    }),
+    error=>error.code==='factory-reset-not-eligible'
+  );
+});
+
+test('factory reset recovery needs verified endpoint and explicit confirmation',()=>{
+  assert.throws(
+    ()=>validateFactoryResetRecovery({
+      recoveryId:MID,expectedVersion:2,syncAttempted:true,
+      verificationState:'mismatch',endpointVerified:false,explicitConfirmation:true
+    }),
+    error=>error.code==='factory-reset-endpoint-not-verified'
+  );
+  assert.throws(
+    ()=>validateFactoryResetRecovery({
+      recoveryId:MID,expectedVersion:2,syncAttempted:true,
+      verificationState:'mismatch',endpointVerified:true,explicitConfirmation:false
+    }),
+    error=>error.code==='factory-reset-confirmation-required'
+  );
+  assert.deepEqual(
+    validateFactoryResetRecovery({
+      recoveryId:MID,expectedVersion:2,syncAttempted:true,
+      verificationState:'mismatch',endpointVerified:true,explicitConfirmation:true
+    }),
+    {recoveryId:MID,expectedVersion:2}
   );
 });

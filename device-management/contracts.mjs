@@ -22,9 +22,9 @@ export function normalizeOwnerType(value){
 
 export function normalizeRegistration(value){
   const status=String(value||"unknown").trim().toLowerCase();
-  if(["registered","online","active"].includes(status))return "registered";
-  if(["unregistered","offline","failed","inactive"].includes(status))return "unregistered";
-  if(["pending","registering","provisioning"].includes(status))return "pending";
+  if(["registered","online","active","connected"].includes(status))return "registered";
+  if(["unregistered","offline","failed","inactive","disconnected"].includes(status))return "unregistered";
+  if(["pending","registering","provisioning","connecting"].includes(status))return "pending";
   return "unknown";
 }
 

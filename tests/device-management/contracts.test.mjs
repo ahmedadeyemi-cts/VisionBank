@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DeviceManagementError,
   normalizeMac,
+  normalizeRegistration,
   assertAssignableMember,
   validatePostSaveAction,
   validateTemporaryDuration,
@@ -21,6 +22,12 @@ const MID='11111111-1111-4111-8111-111111111111';
 test('MAC normalization is stable across common formats',()=>{
   assert.equal(normalizeMac('00-11-22-33-44-55'),'00:11:22:33:44:55');
   assert.equal(normalizeMac('0011.2233.4455'),'00:11:22:33:44:55');
+});
+
+test('Webex connection states normalize to registration health',()=>{
+  assert.equal(normalizeRegistration('connected'),'registered');
+  assert.equal(normalizeRegistration('disconnected'),'unregistered');
+  assert.equal(normalizeRegistration('connecting'),'pending');
 });
 
 test('same-location user and workspace are assignable',()=>{

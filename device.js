@@ -3,14 +3,15 @@
   const SECURITY_BASE="https://visionbank-security.ahmedadeyemi.workers.dev";
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
   const OPERATOR_KEY="visionbankDeviceOperatorV1";
-  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null};
+  const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
   const text=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
   const normalize=value=>String(value??"").trim().toLowerCase();
   const lineStatus=line=>normalize(line?.registrationStatus||line?.status||"unknown");
-  const statusClass=value=>{const s=normalize(value);return s.includes("register")&&!s.includes("unregister")?"registered":s.includes("unregister")||s.includes("failed")?"unregistered":s.includes("pending")?"pending":"unknown";};
+  const statusClass=value=>{const s=normalize(value);return s.includes("register")&&!s.includes("unregister")?"registered":s.includes("unregister")||s.includes("failed")?"unregistered":s.includes("pending")||s.includes("connecting")?"pending":"unknown";};
+  const registrationLabel=value=>{const s=normalize(value);if(s==="registered")return "Registered";if(s==="unregistered")return "Unregistered";if(s==="pending")return "Pending";if(s==="not-monitored")return "Not monitored";if(s==="connected")return "Connected";return "Unknown";};
   const syncClass=value=>{const s=normalize(value);return s==="in-sync"||s==="synced"?"registered":s.includes("mismatch")||s.includes("attention")?"mismatch":s.includes("pending")?"pending":"unknown";};
 
   async function securityCheck(){
@@ -213,9 +214,12 @@
     let registered=0,attention=0,pending=0;
     state.filtered.forEach(d=>{
       for(const line of [d.line1,d.line2]){
-        if(line&&lineHealthy(line))registered++;
+        if(!line)continue;
+        const wx=statusClass(registrationValue(line,"webex"));
+        const ph=statusClass(registrationValue(line,"phonism"));
+        if(wx==="registered"||ph==="registered")registered++;
       }
-      if([d.line1,d.line2].some(l=>l&&!lineHealthy(l))||syncClass(d.syncStatus)==="mismatch")attention++;
+      if([d.line1,d.line2].some(l=>l&&(statusClass(registrationValue(l,"webex"))==="unregistered"||statusClass(registrationValue(l,"phonism"))==="unregistered"))||syncClass(d.syncStatus)==="mismatch")attention++;
       if(d.temporaryLease?.status==="active")pending++;
     });
     text("deviceKpiRegistered",registered.toLocaleString());
@@ -242,8 +246,8 @@
     const webex=registrationValue(line,"webex"),phonism=registrationValue(line,"phonism");
     return '<strong>'+esc(line.name||line.displayName||"Assigned line")+'</strong>'+
       '<small>'+esc(line.extension||line.phoneNumber||"No extension")+'</small>'+
-      '<div class="device-dual-status"><span>Webex <b class="device-status '+statusClass(webex)+'">'+esc(webex)+'</b></span>'+
-      '<span>Phonism <b class="device-status '+statusClass(phonism)+'">'+esc(phonism)+'</b></span></div>';
+      '<div class="device-dual-status"><span>Webex <b class="device-status '+statusClass(webex)+'">'+esc(registrationLabel(webex))+'</b></span>'+
+      '<span>Phonism <b class="device-status '+statusClass(phonism)+'">'+esc(registrationLabel(phonism))+'</b></span></div>';
   }
 
   function leaseCell(device){
@@ -281,9 +285,10 @@
   }
 
   async function loadMembers(device){
-    state.members=[];
+    state.members=[];state.memberLoadError=null;
     const select=$("deviceLine2Select");
-    if(select)select.innerHTML='<option value="">None</option>';
+    if(select){select.disabled=true;select.innerHTML='<option value="">Loading eligible lines…</option>';}
+    text("deviceLine2CandidateMeta","Loading eligible users and workspaces from Webex…");
     try{
       const q=new URLSearchParams();
       q.set("locationId",device.locationId||"");
@@ -291,11 +296,16 @@
       const data=await api("/members?"+q.toString());
       state.members=Array.isArray(data.members)?data.members:[];
       if(select){
+        select.disabled=false;
         select.innerHTML='<option value="">None</option>'+state.members.map(m=>
           '<option value="'+esc(m.id)+'">'+esc(m.name||"Member")+' · '+esc(m.extension||m.phoneNumber||"No extension")+' · '+esc(m.type||"")+'</option>'
         ).join("");
       }
+      text("deviceLine2CandidateMeta",state.members.length?state.members.length+" eligible same-location line"+(state.members.length===1?"":"s")+" available.":"No eligible same-location lines were returned by Webex.");
     }catch(error){
+      state.memberLoadError=error.message||"member-search-failed";
+      if(select){select.disabled=true;select.innerHTML='<option value="">Unable to load available lines</option>';}
+      text("deviceLine2CandidateMeta","Unable to load available lines: "+state.memberLoadError);
       if(error.status!==404)console.debug("Member search unavailable:",error.message);
     }
   }
@@ -312,7 +322,7 @@
     text("deviceLine1Extension",device.line1?.extension||device.owner?.extension||"No extension");
     const wx=registrationValue(device.line1,"webex"),ph=registrationValue(device.line1,"phonism");
     const status=$("deviceLine1Status");
-    if(status){status.textContent="Webex: "+wx+" · Phonism: "+ph;status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
+    if(status){status.textContent="Webex: "+registrationLabel(wx)+" · Phonism: "+registrationLabel(ph);status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
     await loadMembers(device);
     const select=$("deviceLine2Select");
     if(select){
@@ -327,9 +337,11 @@
   }
 
   function renderCandidate(){
+    if(state.memberLoadError){text("deviceLine2CandidateMeta","Unable to load available lines: "+state.memberLoadError);return;}
     const id=$("deviceLine2Select")?.value||"";
     const m=state.members.find(x=>String(x.id)===String(id));
-    text("deviceLine2CandidateMeta",m?(String(m.name||"Member")+" · "+String(m.extension||m.phoneNumber||"No extension")+" · "+String(m.type||"")+" · same location validated by backend"):"None — Line 2 will be unassigned.");
+    if(m){text("deviceLine2CandidateMeta",String(m.name||"Member")+" · "+String(m.extension||m.phoneNumber||"No extension")+" · "+String(m.type||"")+" · same location validated by backend");return;}
+    text("deviceLine2CandidateMeta","None — Line 2 will be unassigned. "+state.members.length+" eligible same-location line"+(state.members.length===1?"":"s")+" available.");
   }
 
   async function previewChange(){

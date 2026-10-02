@@ -60,10 +60,11 @@ function ownerType(value){
   try{return normalizeOwnerType(raw);}catch{return null;}
 }
 function memberRow(value){
-  const location=locationOf(value);
+  const location=locationOf(value),type=ownerType(value),extension=display(value?.extension||'',32);
+  const rawName=display(value?.firstName&&value?.lastName?value.firstName+' '+value.lastName:value?.displayName||value?.name,160);
+  const name=rawName||(type==='PLACE'?(extension?'Workspace '+extension:'Workspace'):(extension?'Extension '+extension:'Member'));
   return {id:id(value?.id||value?.memberId||value?.personId||value?.workspaceId),
-    name:display(value?.firstName&&value?.lastName?value.firstName+' '+value.lastName:value?.displayName||value?.name,160),
-    type:ownerType(value),extension:display(value?.extension||'',32),phoneNumber:display(value?.phoneNumber||value?.number||'',64),
+    name,type,extension,phoneNumber:display(value?.phoneNumber||value?.number||'',64),
     locationId:location.id,locationName:location.name,lineType:display(value?.lineType||'',40),port:Number.isSafeInteger(value?.port)?value.port:null,
     registrationStatus:normalizeRegistration(value?.registrationStatus||value?.status)};
 }
@@ -252,7 +253,7 @@ async function readPhonismCapabilities(env,org,phonismReader){
       const sample=sampleInventory.phones[0];
       if(sample)try{
         const lines=await phonismReader.lines(env,sample.id);lineRead='available';
-        registrationMonitoring=lines.some(x=>x.registrationStatus!=='unknown')?'available':'not-reported-on-sample';
+        registrationMonitoring=lines.some(x=>['registered','unregistered','pending'].includes(x.registrationStatus))?'available':'not-reported-on-sample';
         checks.push({label:'Phone line status read',status:'Available'});
         checks.push({label:'Line registration monitoring',status:registrationMonitoring});
       }catch{lineRead='unavailable';checks.push({label:'Phone line status read',status:'Unavailable'});}

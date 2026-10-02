@@ -60,16 +60,30 @@ function fixture({phonismReader}={}){
     if(u.pathname==='/v1/telephony/config/devices/call-2/members')return json({members:[
       {id:'space-y',firstName:'Test',memberType:'PLACE',extension:'4000',location:{id:'loc-b',name:'Austin'},lineType:'PRIMARY',port:1}
     ]});
-    if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers')return json({members:[
-      {id:'user-2',displayName:'Taylor User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'Dallas'}},
-      {id:'user-x',displayName:'Wrong Location',memberType:'PEOPLE',extension:'5102',location:{id:'loc-b',name:'Austin'}},
-      {id:'space-x',firstName:'Zeta Workspace',memberType:'PLACE',extension:'5199',location:{id:'loc-a',name:'Dallas'}}
-    ]});
+    if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers'){
+      const base=[
+        {id:'user-2',displayName:'Taylor User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'Dallas'}},
+        {id:'user-x',displayName:'Wrong Location',memberType:'PEOPLE',extension:'5102',location:{id:'loc-b',name:'Austin'}},
+        {id:'space-x',firstName:'Zeta Workspace',memberType:'PLACE',extension:'5199',location:{id:'loc-a',name:'Dallas'}}
+      ];
+      const memberName=String(u.searchParams.get('memberName')||'').toLowerCase();
+      const extension=String(u.searchParams.get('extension')||'');
+      const locationId=String(u.searchParams.get('locationId')||'');
+      if(locationId==='loc-b'&&(memberName==='test'||extension==='4000'))return json({members:[
+        {id:'space-y',firstName:'Test',memberType:'PLACE',extension:'4000',location:{id:'loc-b',name:'Austin'}}
+      ]});
+      return json({members:base});
+    }
     if(u.pathname==='/v1/telephony/config/numbers'){
-      const match=u.searchParams.get('extension')==='4000'||String(u.searchParams.get('ownerName')||'').toLowerCase()==='test';
-      return json({phoneNumbers:match?[{
+      const extension=String(u.searchParams.get('extension')||'');
+      const ownerName=String(u.searchParams.get('ownerName')||'').toLowerCase();
+      if(extension==='4000'||ownerName==='test')return json({phoneNumbers:[{
         extension:'4000',phoneNumber:'',owner:{id:'space-y',firstName:'Test',type:'PLACE'},location:{id:'loc-b',name:'Austin'}
-      }]:[]});
+      }]});
+      if(extension==='4999'||ownerName==='blocked test')return json({phoneNumbers:[{
+        extension:'4999',phoneNumber:'',owner:{id:'space-z',firstName:'Blocked Test',type:'PLACE'},location:{id:'loc-b',name:'Austin'}
+      }]});
+      return json({phoneNumbers:[]});
     }
     return json({message:'not found'},404);
   };
@@ -137,18 +151,29 @@ test('available-member search filters server-side and bounds browser results',as
   assert.equal(workspace.data.members[0].type,'PLACE');
   assert.equal(workspace.data.members[0].available,true);
 
-  const unavailable=await request(f.handler,'members?deviceId=call-1&q=4000&limit=50');
+  const upstreamExtension=await request(f.handler,'members?deviceId=call-1&q=4000&limit=50');
+  assert.equal(upstreamExtension.status,200);
+  assert.equal(upstreamExtension.data.searchMode,'webex-upstream');
+  assert.equal(upstreamExtension.data.eligibleMatches,1);
+  assert.equal(upstreamExtension.data.unavailableMatches,0);
+  assert.equal(upstreamExtension.data.members[0].id,'space-y');
+  assert.equal(upstreamExtension.data.members[0].name,'Test');
+  assert.equal(upstreamExtension.data.members[0].extension,'4000');
+  assert.equal(upstreamExtension.data.members[0].locationName,'Austin');
+  assert.equal(upstreamExtension.data.members[0].available,true);
+
+  const upstreamName=await request(f.handler,'members?deviceId=call-1&q=Test&limit=50');
+  assert.equal(upstreamName.status,200);
+  assert.equal(upstreamName.data.eligibleMatches,1);
+  assert.equal(upstreamName.data.members[0].id,'space-y');
+
+  const unavailable=await request(f.handler,'members?deviceId=call-1&q=4999&limit=50');
   assert.equal(unavailable.status,200);
   assert.equal(unavailable.data.eligibleMatches,0);
   assert.equal(unavailable.data.unavailableMatches,1);
-  assert.equal(unavailable.data.members[0].id,'space-y');
-  assert.equal(unavailable.data.members[0].name,'Test');
-  assert.equal(unavailable.data.members[0].extension,'4000');
-  assert.equal(unavailable.data.members[0].locationName,'Austin');
+  assert.equal(unavailable.data.members[0].id,'space-z');
   assert.equal(unavailable.data.members[0].available,false);
-  assert.equal(unavailable.data.members[0].unavailableReason,'webex-not-available-existing-appearance');
-  assert.equal(unavailable.data.members[0].appearances[0].deviceName,'Test Phone');
-  assert.equal(unavailable.data.members[0].appearances[0].port,1);
+  assert.equal(unavailable.data.members[0].unavailableReason,'webex-not-available');
 
   const bounded=await request(f.handler,'members?deviceId=call-1&limit=1');
   assert.equal(bounded.status,200);

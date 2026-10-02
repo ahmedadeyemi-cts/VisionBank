@@ -569,6 +569,8 @@
   async function previewChange(){
     if(!state.selected)return;
     const memberId=$("deviceLine2Select")?.value||null;
+    const member=memberId?selectedMember():null;
+    const memberSearch=member?[member.extension,member.phoneNumber,member.name].find(Boolean)||"":null;
     const button=$("devicePreviewChange");button.disabled=true;
     try{
       const durationMinutes=Number($("deviceLeaseDuration")?.value||60);
@@ -577,6 +579,8 @@
         locationId:state.selected.locationId,
         phonismPhoneId:state.selected.phonismPhoneId,
         targetLine2MemberId:memberId,
+        targetLine2Search:memberSearch,
+        targetLine2LocationId:member?.locationId||null,
         durationMinutes,
         reason:($("deviceChangeReason")?.value||"").trim()
       }});

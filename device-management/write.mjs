@@ -41,8 +41,7 @@ export function composeMembers(currentMembers=[],target=null){
       lineWeight:numberOr(target.lineWeight,1),
       hotlineEnabled:false,
       allowCallDeclineEnabled:target.allowCallDeclineEnabled!==false,
-      t38FaxCompressionEnabled:Boolean(target.t38FaxCompressionEnabled),
-      lineLabel:clean(target.displayName||target.name||target.extension||'Temporary line',80)
+      t38FaxCompressionEnabled:Boolean(target.t38FaxCompressionEnabled)
     });
   }
   return keep.sort((a,b)=>a.port-b.port);
@@ -77,7 +76,18 @@ export async function writeWebexMembers(webexFetch,env,orgId,deviceId,members){
     method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({members})
   });
   if(response.status!==204){
-    const error=new DeviceManagementError('webex-members-write-failed',response.status===401||response.status===403?503:502);
+    const data=await readJsonMaybe(response);
+    const message=String(data?.message||data?.error||'');
+    let code='webex-members-write-failed';
+    let status=response.status===401||response.status===403?503:502;
+    if(/(?:error\s*4495|maximum number of allowed appearances)/i.test(message)){
+      code='target-appearance-limit';status=409;
+    }else if(/line label can only be configured for mpp device/i.test(message)){
+      code='partner-managed-line-label-unsupported';status=409;
+    }else if(response.status===409||response.status===410){
+      code='webex-members-conflict';status=409;
+    }
+    const error=new DeviceManagementError(code,status);
     error.upstreamStatus=response.status;throw error;
   }
   return true;

@@ -301,7 +301,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
     try{
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','members','history','operator-session','lease-status']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status']);
       const postRoutes=new Set(['operator-session','preview','apply','reboot','factory-reset']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
@@ -419,6 +419,21 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
             tenantCount:tenants.length,phoneCount:scoped.length},
           generatedAt:new Date().toISOString(),readOnly:true},200,headers);
       }
+      if(part==='device-detail'){
+        const locationId=id(url.searchParams.get('locationId')),phonismPhoneId=id(url.searchParams.get('phonismPhoneId'));
+        if(!locationId||!phonismPhoneId)throw new DeviceManagementError('location-and-phonism-phone-required');
+        let discovery;
+        try{discovery=await phonismReader.discover(env,org);}
+        catch{throw new DeviceManagementError('phonism-read-unavailable',503);}
+        const tenant=discovery.tenants.find(t=>String(t.webexLocationId||'')===String(locationId));
+        if(!tenant)throw new DeviceManagementError('phonism-tenant-location-mismatch',409);
+        const phone=await phonismReader.phone(env,phonismPhoneId,tenant);
+        if(String(phone.tenantId||'')!==String(tenant.id))throw new DeviceManagementError('phonism-phone-location-mismatch',409);
+        const device=await scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader);
+        return output({success:true,device:{...device,detailsLoaded:true,writeEligible:isPilotDevice(env,device.mac)},
+          generatedAt:new Date().toISOString(),readOnly:true},200,headers);
+      }
+
       if(part==='members'){
         const deviceId=id(url.searchParams.get('deviceId')),locationId=id(url.searchParams.get('locationId'));
         if(!deviceId||!locationId)throw new DeviceManagementError('device-and-location-required');

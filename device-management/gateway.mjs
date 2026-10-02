@@ -257,7 +257,7 @@ async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,lo
   return {
     device:{...base,id:resolvedId,displayName:base.displayName||phone.alias||'Partner-managed phone',mac:phone.mac||base.mac},
     location:{id:locationId,name:tenant.name||''},
-    phone,tenant,domain:discovery.domain
+    phone,tenant,domain:discovery.domain,syncCompany:discovery.syncCompany||null
   };
 }
 
@@ -268,6 +268,7 @@ async function readPhonismCapabilities(env,org,phonismReader){
     const discovery=await phonismReader.discover(env,org);
     checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found'});
     checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available'});
+    checks.push({label:'Webex integration hierarchy',status:discovery.syncCompany?((discovery.syncCompany.name||'Enterprise')+' · '+(discovery.syncCompany.type||'Enterprise')):'Enterprise parent not resolved'});
     const sampleTenant=discovery.tenants[0]||null;
     let sampleInventory={phones:[]},lineRead='not-tested',registrationMonitoring='unknown';
     if(sampleTenant){
@@ -285,6 +286,7 @@ async function readPhonismCapabilities(env,org,phonismReader){
       detail:'VisionBank Iowa, its tenants, phone inventory, and line status APIs are reachable. Writes and Sync remain disabled.',
       checks,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,
       sampleTenantPhoneCount:sampleInventory.phones.length,webexIntegrationAvailable:Boolean(discovery.webexIntegration),
+      syncCompanyAvailable:Boolean(discovery.syncCompany?.id),syncCompanyName:discovery.syncCompany?.name||null,
       lineRead,registrationMonitoring};
   }catch(error){
     return {detected:true,ready:false,message:'Phonism read failed',
@@ -367,12 +369,15 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
 
         const ready=locationsOk&&devicesOk;
-        const pilotEnabled=String(env.DEVICE_WRITE_PILOT_MACS||'').trim().length>0;
+        const pilotConfigured=String(env.DEVICE_WRITE_PILOT_MACS||'').trim().length>0;
+        const syncHierarchyReady=phonism?.syncCompanyAvailable===true;
+        const writesEnabled=pilotConfigured&&phonism?.ready===true&&syncHierarchyReady;
         return output({success:true,webex:{detected:true,ready,
           message:ready?'Webex discovery available':'Webex discovery is incomplete',
           detail:ready?'Webex locations and VisionBank-scoped partner-managed devices can be read through Phonism-stored Webex device IDs.':'Webex location access works, but the VisionBank-scoped device enrichment probe did not complete.',
           checks,deviceCount,callingDeviceCount:callingCount,memberRead,deviceScope:'phonism-visionbank-iowa'},phonism,
-          writes:{enabled:pilotEnabled,previewReady:pilotEnabled,pilot:true,message:pilotEnabled?'Pilot Save & Sync enabled for approved devices':'Pilot writes are not configured'},readOnly:!pilotEnabled},200,headers);
+          writes:{enabled:writesEnabled,previewReady:pilotConfigured,pilot:pilotConfigured,syncHierarchyReady,
+            message:writesEnabled?'Pilot Save & Sync enabled for approved devices':pilotConfigured?'Review enabled; Enterprise Phonism Sync owner could not be resolved':'Pilot writes are not configured'},readOnly:!writesEnabled},200,headers);
       }
 
       if(part==='inventory'){
@@ -445,16 +450,17 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const preview=await createWritePreview({
           env,session,device:ctx.device,location:ctx.location,currentMembers:current.members,targetMember,
           durationMinutes:body.durationMinutes,reason:body.reason,
-          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.domain.id}
+          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null}
         });
         const expiresAt=new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
+        const executable=Boolean(ctx.syncCompany?.id);
         return output({success:true,plan:{
-          mutationId:preview.mutationId,expectedVersion:0,executable:true,
+          mutationId:preview.mutationId,expectedVersion:0,executable,
           device:preview.device,location:preview.location,
           before:{line2:preview.baselineLine2},after:{line2:preview.targetMember},
           lease:{temporary:true,durationMinutes:preview.durationMinutes,startsAt:preview.createdAt,expiresAt,baselineLine2:preview.baselineLine2},
           phonismActionLabel:'Force Phonism Webex Sync',
-          summary:'Webex Line 2 will be saved first, Phonism Sync will be forced immediately, and both systems will be re-read before the temporary lease is considered healthy.'
+          summary:executable?'Webex Line 2 will be saved first, Phonism Sync will be forced immediately through the Enterprise integration, and both systems will be re-read before the temporary lease is considered healthy.':'Review is valid, but Save & Sync remains locked until the Enterprise-level Phonism Sync owner is resolved.'
         },readOnly:false},200,headers);
       }
 

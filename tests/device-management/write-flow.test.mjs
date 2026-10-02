@@ -83,7 +83,7 @@ test('preview is restricted to pilot MAC and records the baseline',async()=>{
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY,BASELINE],
     targetMember:TARGET,durationMinutes:60,reason:'Testing',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   assert.equal(preview.baselineLine2.memberId,'space-old');
   assert.equal(preview.targetMember.id,'user-ryan');
@@ -99,7 +99,7 @@ test('apply writes Webex first, queues Phonism sync, creates lease and audit',as
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
     targetMember:TARGET,durationMinutes:60,reason:'Temporary seating',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const result=await applyWritePreview({
     env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,
@@ -120,7 +120,7 @@ test('apply rejects stale Webex state before any write',async()=>{
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
     targetMember:TARGET,durationMinutes:60,reason:'',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   wx.state.members=[PRIMARY,BASELINE];
   await assert.rejects(()=>applyWritePreview({
@@ -136,7 +136,7 @@ test('verification confirms Webex and Phonism convergence',async()=>{
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
     targetMember:TARGET,durationMinutes:60,reason:'',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   const verified=await verifyLease({env:e,webexFetch:wx.fetch,orgId:ORG,leaseId:applied.lease.leaseId,phonismReader:ph.reader});
@@ -150,7 +150,7 @@ test('reboot is allowed before factory reset, and factory reset requires reboot 
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
     targetMember:TARGET,durationMinutes:60,reason:'',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   await assert.rejects(()=>runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,action:'FactoryReset',explicitConfirmation:true,phonismReader:ph.reader}),err=>err.code==='reboot-required-before-factory-reset');
@@ -167,7 +167,7 @@ test('expiry restores baseline and queues another Phonism sync',async()=>{
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY,BASELINE],
     targetMember:TARGET,durationMinutes:15,reason:'',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   const due=Date.parse(applied.lease.expiresAt)+1;
@@ -182,11 +182,27 @@ test('expiry preserves a newer external Webex change',async()=>{
   const preview=await createWritePreview({
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
     targetMember:TARGET,durationMinutes:15,reason:'',
-    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40',integrationId:'501'}
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(applied.lease.expiresAt)+1});
   assert.equal(results[0].status,'external-change-detected');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
+});
+
+test('apply fails before Webex write when Enterprise Phonism sync owner is missing',async()=>{
+  const e=env();
+  const wx=webexFixture([PRIMARY]),ph=phonismFixture();
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
+    targetMember:TARGET,durationMinutes:60,reason:'',
+    phonismContext:{phoneId:'313135',tenantId:'90126',companyId:null}
+  });
+  await assert.rejects(()=>applyWritePreview({
+    env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,
+    mutationId:preview.mutationId,phonismReader:ph.reader
+  }),err=>err.code==='phonism-enterprise-sync-company-required');
+  assert.equal(wx.state.puts.length,0);
+  assert.equal(ph.calls.length,0);
 });

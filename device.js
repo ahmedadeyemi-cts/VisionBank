@@ -126,7 +126,7 @@
     healthDot("deviceWriteDot",writes.enabled?"ready":(data?.readOnly===true||writes.previewReady)?"warning":"blocked");
     text("deviceWebexHealth",webex.message||(webex.ready?"Connected":"Not ready"));
     text("devicePhonismHealth",phonism.message||(phonism.ready?"Connected":"Not configured"));
-    text("deviceWriteHealth",writes.enabled?(writes.message||"Changes enabled"):(data?.readOnly===true?"Read-only pilot — changes disabled":(writes.message||"Read-only until validated")));
+    text("deviceWriteHealth",writes.message||(writes.enabled?"Changes enabled":writes.previewReady?"Review enabled — Save & Sync locked":"Read-only until validated"));
     text("deviceHealthWebexText",webex.detail||webex.message||"Webex capability check pending.");
     text("deviceHealthPhonismText",phonism.detail||phonism.message||"Phonism capability check pending.");
     renderCheckList("deviceHealthWebexChecks",webex.checks||[]);
@@ -330,9 +330,10 @@
       select.onchange=renderCandidate;
     }
     renderCandidate();
-    const enabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
-    $("devicePreviewChange").disabled=!enabled||Boolean(state.memberLoadError);
-    text("deviceEditorWarning",enabled?"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":(state.capabilities?.writes?.enabled===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until the write pilot is configured."));
+    const reviewEnabled=state.capabilities?.writes?.previewReady===true&&device.writeEligible===true;
+    const saveEnabled=state.capabilities?.writes?.enabled===true&&device.writeEligible===true;
+    $("devicePreviewChange").disabled=!reviewEnabled||Boolean(state.memberLoadError);
+    text("deviceEditorWarning",saveEnabled?"Pilot Save & Sync is enabled for this device. Review the proposed Line 2 change before the write. Current Webex state will be revalidated first.":reviewEnabled?"Review is enabled for this pilot device. Save & Sync will remain locked until the Enterprise Phonism Sync owner is resolved.":(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until the write pilot is configured."));
     $("deviceEditor")?.showModal();
   }
 
@@ -364,7 +365,7 @@
     }catch(error){
       text("deviceEditorWarning","Unable to prepare change: "+error.message);
     }finally{
-      button.disabled=!(state.capabilities?.writes?.enabled===true&&state.selected?.writeEligible===true)||Boolean(state.memberLoadError);
+      button.disabled=!(state.capabilities?.writes?.previewReady===true&&state.selected?.writeEligible===true)||Boolean(state.memberLoadError);
     }
   }
 
@@ -384,6 +385,7 @@
       (($("deviceChangeReason")?.value||"").trim()?'<div class="device-confirm-row"><span>Reason</span><strong>'+esc(($("deviceChangeReason")?.value||"").trim())+'</strong></div>':"")+
       '<p class="device-helper">'+esc(plan.summary||"The backend will revalidate current state before any write.")+'</p>';
     $("deviceApplyChange").disabled=plan.executable!==true;
+    if(plan.executable!==true)host.insertAdjacentHTML("beforeend",'<p class="device-warning">Review is complete, but Save & Sync is locked until the Enterprise Phonism Sync owner is resolved.</p>');
   }
 
   async function applyChange(){

@@ -140,3 +140,38 @@ A change is not simply Success/Failure. The UI should distinguish:
 - Unknown — response was lost; reconciliation required before retry.
 
 No partial or unknown state may be presented as completed.
+
+## Temporary assignment lease model
+
+Changes made through `/device` are temporary by definition. The user must select a duration between 15 minutes and 12 hours; 12 hours is a hard server-side maximum.
+
+Each successful platform change will create a server-side lease containing:
+- Lease/mutation ID
+- Webex Calling device ID and Phonism phone ID
+- Webex location / Phonism tenant
+- Permanent Line 2 baseline captured immediately before the change
+- Temporary Line 2 assignment created by the platform
+- Start and expiration timestamps
+- Webex and Phonism verification status
+- Audit actor/source metadata
+- Lease status: active, expiring, restored, external-change-detected, failed, or reconciled
+
+The browser is not responsible for expiration. Expiration must execute from backend state even when no user has the page open.
+
+### Expiration behavior
+
+At lease expiration:
+1. Re-read the current Webex Line 2 state.
+2. If it still matches the temporary assignment created by this lease, restore the captured permanent baseline.
+3. Force Phonism Sync immediately.
+4. Re-read Webex and Phonism registration and record the final result.
+5. If the current Webex Line 2 differs from the lease's temporary assignment, treat it as external drift (for example, a later Control Hub change), preserve the current Webex state, and do not blindly restore the old baseline.
+6. Record the external-change decision in Change History.
+
+A Control Hub change is not automatically converted into a temporary lease. Control Hub remains the path for permanent assignments.
+
+For production write enablement, use durable server-side lease state plus a scheduled/alarm-based expiry executor. The existing periodic maintenance schedule may be used as a reconciliation safety sweep, but the browser must never be the timer.
+
+### User experience
+
+The editor offers common durations: 30 minutes, 1 hour, 2 hours, 4 hours, 8 hours, and 12 hours maximum. The final confirmation displays the exact auto-revert timestamp, and the inventory shows active temporary leases and their expiration time.

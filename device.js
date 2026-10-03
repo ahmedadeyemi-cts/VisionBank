@@ -105,6 +105,7 @@
       "webex-members-write-failed":"Webex rejected the line assignment. Choose another line or refresh and try again.",
       "phonism-write-failed":"Webex could not complete the Save & Sync transaction because Phonism Sync was not accepted. Any partial Webex change was rolled back.",
       "operator-verification-required":"Verify your work email before making device changes.",
+      "operator-email-not-authorized":"Use an authorized VisionBank or US Signal work email address.",
       "verification-challenge-expired":"That verification code expired. Request a new code.",
       "verification-code-invalid":"The verification code is not correct.",
       "verification-attempts-exceeded":"Too many incorrect attempts. Request a new verification code.",

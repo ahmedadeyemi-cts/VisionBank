@@ -48,6 +48,14 @@ const themeToggleText = document.getElementById("themeToggleText");
 let ACTIVE_SESSION = null;
 let ACTIVE_USERNAME = null;
 let ACTIVE_ROLE = null;
+let ACTIVE_MFA_SETUP_TOKEN = null;
+
+function authHeaders(extra = {}) {
+    return {
+        ...extra,
+        ...(ACTIVE_SESSION ? { Authorization: `Bearer ${ACTIVE_SESSION}` } : {})
+    };
+}
 
 let statusTimer = null;
 let userPanelInitialized = false;
@@ -157,7 +165,7 @@ loginForm.addEventListener("submit", async (e) => {
 
         // MFA not yet configured for a user that requires MFA
         if (data.requireMfaSetup) {
-            await beginMfaEnrollment(username);
+            await beginMfaEnrollment(username, data.setupToken);
             return;
         }
 
@@ -206,12 +214,13 @@ overrideForm.addEventListener("submit", async (e) => {
    3.  MFA SETUP FLOW
    ============================================================= */
 
-async function beginMfaEnrollment(username) {
+async function beginMfaEnrollment(username, setupToken) {
     try {
+        ACTIVE_MFA_SETUP_TOKEN = setupToken || null;
         const res = await fetch(`${WORKER_BASE}/api/setup-mfa`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username }),
+            body: JSON.stringify({ username, setupToken: ACTIVE_MFA_SETUP_TOKEN }),
         });
 
         const data = await res.json();
@@ -256,7 +265,7 @@ mfaConfirmBtn.addEventListener("click", async () => {
         const res = await fetch(`${WORKER_BASE}/api/confirm-mfa`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: ACTIVE_USERNAME, code }),
+            body: JSON.stringify({ username: ACTIVE_USERNAME, code, setupToken: ACTIVE_MFA_SETUP_TOKEN }),
         });
 
         const data = await res.json();
@@ -267,6 +276,7 @@ mfaConfirmBtn.addEventListener("click", async () => {
         }
 
         // MFA confirmed: send user back to login to authenticate with password + TOTP
+        ACTIVE_MFA_SETUP_TOKEN = null;
         mfaMsg.textContent = "MFA confirmed. Please log in with your password and 6-digit code.";
         setTimeout(() => {
             mfaSetupView.classList.add("hidden");
@@ -281,6 +291,7 @@ mfaConfirmBtn.addEventListener("click", async () => {
 });
 
 mfaCancelBtn.addEventListener("click", () => {
+    ACTIVE_MFA_SETUP_TOKEN = null;
     mfaSetupView.classList.add("hidden");
     loginView.classList.remove("hidden");
 });
@@ -469,7 +480,7 @@ function startAuditLogAutoRefresh() {
 
 async function loadBusinessHours() {
     try {
-        const res = await fetch(`${WORKER_BASE}/api/get-hours`);
+        const res = await fetch(`${WORKER_BASE}/api/get-hours`, { headers: authHeaders() });
         const hours = await res.json();
 
         hoursStart.value = hours.start || "";
@@ -501,7 +512,7 @@ hoursForm.addEventListener("submit", async (e) => {
     try {
         const res = await fetch(`${WORKER_BASE}/api/set-hours`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: authHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ start, end, days }),
         });
 
@@ -549,14 +560,20 @@ function renderIpList() {
     const div = document.createElement("div");
     div.className = "ip-item fade-in";
 
-    div.innerHTML = `
-      <div>
-        <span class="ip-item-icon">${ruleIcon(rule)}</span>
-        ${rule}
-      </div>
-      <button class="ip-remove-btn" data-index="${index}">Remove</button>
-    `;
+    const label = document.createElement("div");
+    const icon = document.createElement("span");
+    icon.className = "ip-item-icon";
+    icon.textContent = ruleIcon(rule);
+    label.appendChild(icon);
+    label.appendChild(document.createTextNode(" " + rule));
 
+    const button = document.createElement("button");
+    button.className = "ip-remove-btn";
+    button.dataset.index = String(index);
+    button.textContent = "Remove";
+
+    div.appendChild(label);
+    div.appendChild(button);
     container.appendChild(div);
   });
 
@@ -564,6 +581,9 @@ function renderIpList() {
     btn.addEventListener("click", e => {
       const i = Number(e.target.dataset.index);
 
+      if (IP_RULES.length <= 1) {
+        return showStatus("At least one approved network rule must remain.", "error");
+      }
       if (!confirm(`Remove rule: ${IP_RULES[i]} ?`)) return;
 
       IP_RULES.splice(i, 1);
@@ -582,7 +602,7 @@ async function addRule() {
 
   const res = await fetch(`${WORKER_BASE}/api/validate-ip`, {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
+    headers: authHeaders({"Content-Type":"application/json"}),
     body: JSON.stringify({ rule })
   });
 
@@ -610,14 +630,15 @@ document.getElementById("ip-add-btn").onclick = () => {
 
 
 async function autoSaveRules() {
-  if (saving) return; 
+  if (saving) return;
+  if (!IP_RULES.length) return showStatus("At least one approved network rule is required.", "error");
   saving = true;
 
   showStatus("Saving...", "info");
 
   const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
     method:"POST",
-    headers:{ "Content-Type":"application/json" },
+    headers:authHeaders({ "Content-Type":"application/json" }),
     body: JSON.stringify({ rules: IP_RULES })
   });
 
@@ -630,7 +651,7 @@ async function autoSaveRules() {
 }
 
 async function loadIpRulesUI() {
-  const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`);
+  const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`, { headers: authHeaders() });
   const data = await res.json();
 
   IP_RULES = Array.isArray(data.rules) ? data.rules : [];
@@ -652,7 +673,7 @@ async function loadIpRulesUI() {
 
 async function loadAuditLog() {
     try {
-        const res = await fetch(`${WORKER_BASE}/api/logs`);
+        const res = await fetch(`${WORKER_BASE}/api/logs`, { headers: authHeaders() });
         const data = await res.json();
 
         const events = Array.isArray(data.events) ? data.events : [];
@@ -780,7 +801,7 @@ function initUserManagement() {
         try {
             const res = await fetch(`${WORKER_BASE}/api/users/save`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
         username,
         password,
@@ -818,11 +839,11 @@ function initUserManagement() {
         if (!confirm(`Delete user "${username}"?`)) return;
 
         try {
-            LAST_DELETED_USER = { username };
+            LAST_DELETED_USER = null;
 
             const res = await fetch(`${WORKER_BASE}/api/users/delete`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authHeaders({ "Content-Type": "application/json" }),
                 body: JSON.stringify({ username }),
             });
             const data = await res.json();
@@ -832,8 +853,8 @@ function initUserManagement() {
                 return;
             }
 
-            showToast(`User "${username}" deleted.`, "success");
-            undoBtn.classList.remove("hidden");
+            showToast(`User "${username}" deleted. Recreate the account manually if restoration is needed.`, "success");
+            undoBtn.classList.add("hidden");
 
             usernameInput.value = "";
             passwordInput.value = "";
@@ -858,7 +879,7 @@ function initUserManagement() {
         try {
             const res = await fetch(`${WORKER_BASE}/api/users/save`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authHeaders({ "Content-Type": "application/json" }),
                 body: JSON.stringify({
                     username,
                     password: "ChangeMeNow!",
@@ -897,7 +918,7 @@ function initUserManagement() {
         try {
             const res = await fetch(`${WORKER_BASE}/api/users/reset-mfa`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authHeaders({ "Content-Type": "application/json" }),
                 body: JSON.stringify({ username }),
             });
             const data = await res.json();
@@ -918,7 +939,7 @@ function initUserManagement() {
         loadingIndicator.classList.remove("hidden");
 
         try {
-            const res = await fetch(`${WORKER_BASE}/api/users/list`);
+            const res = await fetch(`${WORKER_BASE}/api/users/list`, { headers: authHeaders() });
             const data = await res.json();
 
             if ((!data || !Array.isArray(data.users)) && retry < 3) {
@@ -931,15 +952,21 @@ function initUserManagement() {
             users.forEach((u) => {
                 const tr = document.createElement("tr");
                 tr.style.opacity = "0";
-                tr.innerHTML = `
-                    <td>${u.username}</td>
-                    <td>${u.email || "—"}</td>
-                    <td>${u.role}</td>
-                    <td>${u.mfaEnabled ? "Yes" : "No"}</td>
-                    
-                `;
+
+                const values = [
+                    u.username || "",
+                    u.email || "—",
+                    u.role || "view",
+                    u.mfaEnabled ? "Yes" : "No"
+                ];
+                values.forEach((value) => {
+                    const td = document.createElement("td");
+                    td.textContent = String(value);
+                    tr.appendChild(td);
+                });
+
                 tr.addEventListener("click", () => {
-                    usernameInput.value = u.username;
+                    usernameInput.value = u.username || "";
                     roleSelect.value = u.role || "view";
                     mfaCheckbox.checked = !!u.mfaEnabled;
                     passwordInput.value = "";
@@ -1209,7 +1236,18 @@ document.addEventListener("DOMContentLoaded", () => {
    9.  LOGOUT
    ============================================================= */
 
-logoutBtn.addEventListener("click", () => {
+logoutBtn.addEventListener("click", async () => {
+    const sessionToRevoke = ACTIVE_SESSION;
+    if (sessionToRevoke) {
+        try {
+            await fetch(`${WORKER_BASE}/api/logout`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${sessionToRevoke}` }
+            });
+        } catch (err) {
+            console.debug("Server-side logout cleanup failed:", err);
+        }
+    }
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
@@ -1281,15 +1319,29 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
         }
     });
 });
-(function restoreSharedSession() {
+(async function restoreSharedSession() {
   const existingSession = localStorage.getItem(VB_SESSION_KEY);
   const existingUser = localStorage.getItem(VB_USER_KEY);
   const existingRole = localStorage.getItem(VB_ROLE_KEY);
 
-  if (existingSession) {
-    ACTIVE_SESSION = existingSession;
-    ACTIVE_USERNAME = existingUser || "";
-    ACTIVE_ROLE = existingRole || "view";
-    showAdminView();
+  if (!existingSession) return;
+
+  ACTIVE_SESSION = existingSession;
+  ACTIVE_USERNAME = existingUser || "";
+  ACTIVE_ROLE = existingRole || "view";
+
+  try {
+    const res = await fetch(`${WORKER_BASE}/api/get-hours`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("stored-session-invalid");
+    await showAdminView();
+  } catch {
+    ACTIVE_SESSION = null;
+    ACTIVE_USERNAME = null;
+    ACTIVE_ROLE = null;
+    localStorage.removeItem(VB_SESSION_KEY);
+    localStorage.removeItem(VB_USER_KEY);
+    localStorage.removeItem(VB_ROLE_KEY);
+    loginView.classList.remove("hidden");
+    adminView.classList.add("hidden");
   }
 })();

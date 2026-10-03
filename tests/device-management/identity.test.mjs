@@ -51,6 +51,23 @@ test('verification code is emailed, hashed at rest, and creates a verified opera
   assert.match(confirmed.verifiedAt,/2026-10-03T12:01:00.000Z/);
 });
 
+test('operator verification accepts approved corporate domains and rejects outside domains',async()=>{
+  const fetcher=async()=>new Response('{}',{status:201});
+  const e1=env();
+  const visionbank=await requestVerificationCode(e1,req(),{name:'VisionBank User',email:'user@visionbank.com'},{fetcher});
+  assert.equal(visionbank.required,true);
+
+  const e2=env();
+  const ussignal=await requestVerificationCode(e2,req(),{name:'US Signal User',email:'user@ussignal.com'},{fetcher});
+  assert.equal(ussignal.required,true);
+
+  const e3=env();
+  await assert.rejects(
+    ()=>requestVerificationCode(e3,req(),{name:'Outside User',email:'user@example.com'},{fetcher}),
+    error=>error.code==='operator-email-not-authorized'&&error.status===403
+  );
+});
+
 test('verification challenge is bound to the requesting network address',async()=>{
   const e=env();let code='';
   const fetcher=async(_url,options)=>{code=JSON.parse(options.body).textContent.match(/\b(\d{6})\b/)[1];return new Response('{}',{status:201});};

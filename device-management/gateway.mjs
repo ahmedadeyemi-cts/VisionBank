@@ -318,7 +318,32 @@ async function scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader){
   };
 }
 
-function summaryPhoneRow(phone,tenant){
+function summaryNumberDirectory(rows){
+  const groups=new Map();
+  for(const raw of Array.isArray(rows)?rows:[]){
+    const row=numberOwnerRow(raw);
+    if(!row.id||!row.name||!row.locationId||!row.extension)continue;
+    const key=String(row.locationId)+'|'+String(row.name).trim().toLowerCase().replace(/\s+/g,' ');
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(row);
+  }
+  const unique=new Map();
+  for(const [key,items] of groups){
+    const ownerIds=new Set(items.map(x=>String(x.id)));
+    const extensions=new Set(items.map(x=>String(x.extension)).filter(Boolean));
+    if(ownerIds.size===1&&extensions.size===1)unique.set(key,items[0]);
+  }
+  return unique;
+}
+
+function summaryPhoneRow(phone,tenant,numberDirectory=null){
+  const locationId=tenant?.webexLocationId||null;
+  const alias=phone.alias||'Partner-managed phone';
+  const directoryKey=locationId?String(locationId)+'|'+String(alias).trim().toLowerCase().replace(/\s+/g,' '):'';
+  const match=directoryKey&&numberDirectory?.get?.(directoryKey)||null;
+  const owner=match?{
+    id:match.id,name:alias,type:match.type,extension:match.extension,phoneNumber:match.phoneNumber
+  }:phone.alias?{id:null,name:phone.alias,type:null,extension:'',phoneNumber:''}:null;
   return {
     id:'phonism:'+phone.id,
     webexDeviceId:phone.webexDeviceId||null,
@@ -326,9 +351,10 @@ function summaryPhoneRow(phone,tenant){
     displayName:phone.alias||'Partner-managed phone',
     model:phone.webexDeviceType||'Partner-managed phone',
     mac:phone.mac||null,
-    locationId:tenant?.webexLocationId||null,
+    locationId,
     locationName:tenant?.name||phone.tenantName||'',
-    owner:phone.alias?{id:null,name:phone.alias,type:null,extension:'',phoneNumber:''}:null,
+    owner,
+    summaryExtension:match?.extension||'',
     line1:null,line2:null,detailsLoaded:false,
     phonismPhoneId:phone.id,phonismTenantId:phone.tenantId,phonismTenantName:tenant?.name||phone.tenantName||'',
     phonismMatch:'summary',
@@ -643,13 +669,22 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         catch{throw new DeviceManagementError('phonism-read-unavailable',503);}
 
         if(!requestedLocation){
-          const all=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
+          const [all,numberPage,leaseIndex]=await Promise.all([
+            phonismReader.phones(env,discovery.domain.id,discovery.tenants),
+            readPaged(webexFetch,env,WEBEX+'/telephony/config/numbers?orgId='+encodeURIComponent(org)+'&max=1000',['phoneNumbers'],10,10000)
+              .catch(()=>({rows:[],pages:0,truncated:false})),
+            activeLeaseIndex(env).catch(()=>null)
+          ]);
           const tenantById=new Map(discovery.tenants.map(t=>[String(t.id),t]));
-          const leaseIndex=await activeLeaseIndex(env).catch(()=>null);
-          const devices=all.phones.map(phone=>attachLease({...summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null),writeEligible:isPilotDevice(env,phone.mac)},leaseIndex));
-          return output({success:true,devices,summaryOnly:true,truncated:all.truncated,
+          const numberDirectory=summaryNumberDirectory(numberPage.rows);
+          const devices=all.phones.map(phone=>attachLease({
+            ...summaryPhoneRow(phone,tenantById.get(String(phone.tenantId))||null,numberDirectory),
+            writeEligible:isPilotDevice(env,phone.mac)
+          },leaseIndex));
+          return output({success:true,devices,summaryOnly:true,truncated:all.truncated||numberPage.truncated,
             phonism:{ready:true,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,phoneCount:devices.length},
-            message:'Showing all VisionBank Iowa phones. Select a location for Webex and line details.',
+            summaryExtensionSource:numberPage.rows.length?'webex-number-directory':'unavailable',
+            message:'Showing all VisionBank Iowa phones with available primary extension summaries. Select a location for full Webex and line details.',
             generatedAt:new Date().toISOString(),readOnly:true},200,headers);
         }
 

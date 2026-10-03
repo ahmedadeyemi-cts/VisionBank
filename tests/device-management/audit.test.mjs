@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  validateOperator,createOperatorSession,readOperatorSession,requireOperatorSession,
+  validateOperator,createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,
   buildAuditRecord,writeAuditRecord,listAuditRecords,automatedActor
 } from '../../device-management/audit.mjs';
 
@@ -38,6 +38,17 @@ test('operator session is namespaced, expires and captures start source server-s
   assert.ok(env.SESSIONS.map.has('device-operator:'+session.id));
   assert.equal((await readOperatorSession(env,session.id,{now:now+1000})).operator.email,'ahmed@example.com');
   assert.equal(await readOperatorSession(env,session.id,{now:now+12*60*60*1000+1}),null);
+});
+
+test('verified operator session can use a custom multi-day TTL and can be explicitly deleted',async()=>{
+  const env={SESSIONS:new MemoryKV()};
+  const now=Date.parse('2026-10-03T12:00:00Z');
+  const session=await createOperatorSession(env,req(),{name:'Ahmed Adeyemi',email:'ahmed@example.com'},{now,verified:true,verificationMethod:'email-code',ttlSeconds:80*60*60});
+  assert.equal(session.ttlSeconds,80*60*60);
+  assert.equal(session.expiresAt,'2026-10-06T20:00:00.000Z');
+  assert.ok(await readOperatorSession(env,session.id,{now:now+79*60*60*1000}));
+  await deleteOperatorSession(env,session.id);
+  assert.equal(await readOperatorSession(env,session.id,{now:now+1000}),null);
 });
 
 test('required operator session rejects missing or unknown session IDs',async()=>{

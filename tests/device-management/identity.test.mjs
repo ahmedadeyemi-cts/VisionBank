@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_DEVICE_ADMINS,SHARED_ADMIN_MAILBOXES,loadIdentityConfig,identityPolicy,getAdminSettings,
-  setVerificationEnabled,addDeviceAdmin,removeDeviceAdmin,requestVerificationCode,confirmVerificationCode
+  setVerificationEnabled,setDefaultVerificationHours,setUserVerificationHours,removeUserVerificationHours,verificationHoursFor,
+  addDeviceAdmin,removeDeviceAdmin,requestVerificationCode,confirmVerificationCode
 } from '../../device-management/identity.mjs';
+import {createOperatorSession} from '../../device-management/audit.mjs';
 
 class MemoryKV{
   constructor(){this.map=new Map();}
@@ -22,6 +24,8 @@ const env=()=>({SESSIONS:new MemoryKV(),LOGS:new MemoryKV(),ADMIN:new MemoryKV()
 test('default policy starts with verification enabled and seeded admins',async()=>{
   const e=env(),config=await loadIdentityConfig(e);
   assert.equal(config.verificationEnabled,true);
+  assert.equal(config.defaultVerificationHours,24);
+  assert.deepEqual(config.verificationHoursByEmail,{});
   assert.deepEqual(new Set(config.admins),new Set(DEFAULT_DEVICE_ADMINS));
   assert.deepEqual(SHARED_ADMIN_MAILBOXES,['infotech@visionbank.com']);
 });
@@ -70,6 +74,33 @@ test('admin authorization requires a valid VisionBank Security session and seede
   assert.equal(settings.verificationEnabled,true);
   assert.ok(settings.admins.includes('infotech@visionbank.com'));
   assert.ok(settings.sharedMailboxes.includes('infotech@visionbank.com'));
+});
+
+test('verified Device Manager operator on the admin list can manage settings without a separate Security login',async()=>{
+  const e=env();
+  const request=req();
+  const session=await createOperatorSession(e,request,{name:'Ahmed Adeyemi',email:'ahmed.adeyemi@ussignal.com'},{verified:true,verificationMethod:'email-code',ttlSeconds:24*3600});
+  const policy=await identityPolicy(e,req({'X-VB-Operator-Session':session.id}));
+  assert.equal(policy.adminAuthorized,true);
+  assert.equal(policy.admin.email,'ahmed.adeyemi@ussignal.com');
+  const settings=await getAdminSettings(e,req({'X-VB-Operator-Session':session.id}));
+  assert.equal(settings.currentAdmin.authMethod,'verified-email');
+});
+
+test('verification duration defaults to 24 hours and supports per-user overrides',async()=>{
+  const e=env(),token='security-session-duration';
+  await e.SESSIONS.put(token,JSON.stringify({username:'ahmed.adeyemi@ussignal.com',role:'superadmin',expires:Date.now()+3600000}));
+  await e.ADMIN.put('ahmed.adeyemi@ussignal.com',JSON.stringify({username:'ahmed.adeyemi@ussignal.com',email:'ahmed.adeyemi@ussignal.com',role:'superadmin'}));
+  const request=req({Authorization:'Bearer '+token});
+  let config=await loadIdentityConfig(e);
+  assert.equal(verificationHoursFor(config,'operator@visionbank.com'),24);
+  config=await setDefaultVerificationHours(e,request,40);
+  assert.equal(config.defaultVerificationHours,40);
+  assert.equal(verificationHoursFor(config,'operator@visionbank.com'),40);
+  config=await setUserVerificationHours(e,request,'operator@visionbank.com',80);
+  assert.equal(verificationHoursFor(config,'operator@visionbank.com'),80);
+  config=await removeUserVerificationHours(e,request,'operator@visionbank.com');
+  assert.equal(verificationHoursFor(config,'operator@visionbank.com'),40);
 });
 
 test('listed identity still requires an admin or superadmin Security role',async()=>{

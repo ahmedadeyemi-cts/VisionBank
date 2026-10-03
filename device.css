@@ -168,3 +168,10 @@ button,input,select{font:inherit}.device-shell{min-height:100vh}.device-shell.ac
 @media(max-width:620px){.device-verification-help,.device-admin-setting{align-items:flex-start;flex-direction:column}.device-admin-add{grid-template-columns:1fr}.device-admin-add .device-btn{width:100%}}
 
 .device-admin-note{margin:10px 0 0;padding:9px 10px;border-radius:9px;background:#f7faf9;color:var(--vb-muted);font-size:10px;line-height:1.45}
+
+.device-duration-admin-grid{display:grid;grid-template-columns:minmax(160px,220px) auto;gap:10px;align-items:end;margin-top:13px}
+.device-duration-admin-grid label{font-size:11px;font-weight:800;color:#34423d}.device-duration-admin-grid input,.device-duration-override-add input{width:100%;margin-top:6px;border:1px solid #cbd8d3;border-radius:10px;padding:10px 11px;min-height:42px;outline:none}
+.device-duration-admin-grid input:focus,.device-duration-override-add input:focus{border-color:var(--vb-green);box-shadow:var(--vb-focus)}
+.device-duration-override-add{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:9px;margin-top:13px;align-items:end}
+.device-admin-dialog .device-admin-body{max-height:72vh;overflow:auto}
+@media(max-width:620px){.device-duration-admin-grid,.device-duration-override-add{grid-template-columns:1fr}.device-duration-admin-grid .device-btn,.device-duration-override-add .device-btn{width:100%}}

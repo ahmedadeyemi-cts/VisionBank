@@ -2,7 +2,8 @@
   "use strict";
   const SECURITY_BASE="https://visionbank-security.ahmedadeyemi.workers.dev";
   const API_BASE=SECURITY_BASE+"/api/webex/device-management";
-  const OPERATOR_KEY="visionbankDeviceOperatorV1";
+  const OPERATOR_KEY="visionbankDeviceOperatorV2";
+  const LEGACY_OPERATOR_KEY="visionbankDeviceOperatorV1";
   const POST_SAVE_KEY="visionbankDevicePostSaveV1";
   const READ_CACHE_PREFIX="visionbankDeviceReadCacheV2:";
   const CACHE_TTL={capabilities:90_000,locations:600_000,inventory:45_000};
@@ -126,18 +127,26 @@
     const verification=$("deviceOperatorVerification");
     if(verification){
       const required=state.identityPolicy?.verificationEnabled!==false;
-      verification.textContent=!operator?"Verification pending":session?.verified===true?"Email verified":required?"Email verification required":"Verification not required";
+      const until=session?.verified===true&&session?.expiresAt?new Date(session.expiresAt).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+      verification.textContent=!operator?"Verification pending":session?.verified===true?("Email verified"+(until?" · "+until:"")):required?"Email verification required":"Verification not required";
       verification.className="device-operator-verification "+(session?.verified===true?"verified":operator&&!required?"disabled":"pending");
     }
     const chip=$("deviceOperatorChip");if(chip)chip.classList.toggle("identified",Boolean(operator));
     const adminButton=$("deviceAdminButton");if(adminButton)adminButton.hidden=state.identityPolicy?.adminAuthorized!==true;
+    const signOut=$("deviceSignOutButton");if(signOut)signOut.hidden=!operator;
   }
 
   function saveOperatorSession(session){
     state.operatorSession=session||null;
     try{
-      if(session)sessionStorage.setItem(OPERATOR_KEY,JSON.stringify(session));
-      else sessionStorage.removeItem(OPERATOR_KEY);
+      sessionStorage.removeItem(OPERATOR_KEY);
+      sessionStorage.removeItem(LEGACY_OPERATOR_KEY);
+      localStorage.removeItem(OPERATOR_KEY);
+      if(session){
+        const serialized=JSON.stringify(session);
+        if(session.verified===true)localStorage.setItem(OPERATOR_KEY,serialized);
+        else sessionStorage.setItem(OPERATOR_KEY,serialized);
+      }
     }catch{}
     renderOperator();
   }
@@ -159,14 +168,17 @@
 
   async function restoreOperatorSession(){
     let saved=null;
-    try{saved=JSON.parse(sessionStorage.getItem(OPERATOR_KEY)||"null");}catch{}
+    try{
+      saved=JSON.parse(localStorage.getItem(OPERATOR_KEY)||sessionStorage.getItem(OPERATOR_KEY)||sessionStorage.getItem(LEGACY_OPERATOR_KEY)||"null");
+    }catch{}
     if(!saved?.sessionId){renderOperator();return;}
     state.operatorSession=saved;
     try{
       const data=await api("/operator-session");
       saveOperatorSession({sessionId:data.sessionId,operator:data.operator,verified:data.verified===true,
-        verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,
+        verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,sessionHours:data.sessionHours||null,
         startedAt:data.startedAt,expiresAt:data.expiresAt});
+      await loadIdentityPolicy();
     }catch{
       saveOperatorSession(null);
     }
@@ -198,11 +210,25 @@
 
   async function finishOperatorSession(data){
     saveOperatorSession({sessionId:data.sessionId,operator:data.operator,verified:data.verified===true,
-      verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,
+      verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,sessionHours:data.sessionHours||null,
       startedAt:data.startedAt,expiresAt:data.expiresAt});
+    await loadIdentityPolicy();
     $("deviceOperatorDialog")?.close();
     const pending=state.pendingOperatorAction;state.pendingOperatorAction=null;
     if(pending?.type==="edit"&&pending.id)await openEditor(pending.id);
+  }
+
+  async function signOutOperator(){
+    const button=$("deviceSignOutButton");if(button)button.disabled=true;
+    try{if(state.operatorSession?.sessionId)await api("/operator-session/logout",{method:"POST",body:{}});}
+    catch(error){console.debug("Device Manager sign out cleanup:",error.message);}
+    finally{
+      saveOperatorSession(null);
+      state.identityPolicy={...state.identityPolicy,adminAuthorized:false,admin:null};
+      state.adminSettings=null;
+      renderOperator();
+      if(button)button.disabled=false;
+    }
   }
 
   async function sendVerificationCode(){
@@ -256,6 +282,23 @@
     const toggle=$("deviceVerificationToggle"),label=$("deviceVerificationToggleLabel");
     if(toggle)toggle.checked=settings.verificationEnabled!==false;
     if(label)label.textContent=settings.verificationEnabled!==false?"On":"Off";
+
+    const defaultHours=$("deviceDefaultVerificationHours");
+    if(defaultHours)defaultHours.value=String(settings.defaultVerificationHours||24);
+
+    const overrides=settings.verificationHoursByEmail&&typeof settings.verificationHoursByEmail==="object"?
+      settings.verificationHoursByEmail:{};
+    const durationList=$("deviceDurationOverrideList");
+    if(durationList){
+      const rows=Object.entries(overrides).sort(([a],[b])=>a.localeCompare(b));
+      durationList.innerHTML=rows.length?rows.map(([mail,value])=>
+        '<div class="device-admin-row"><div><strong>'+esc(mail)+'</strong>'+
+        '<span class="device-admin-meta">'+esc(value)+' hour'+(Number(value)===1?'':'s')+' before re-verification</span></div>'+
+        '<button class="device-link-btn" type="button" data-duration-remove="'+esc(mail)+'">Use Default</button></div>'
+      ).join(""):'<div class="device-member-empty">No per-user duration overrides. Everyone uses the default.</div>';
+      durationList.querySelectorAll("[data-duration-remove]").forEach(btn=>btn.addEventListener("click",()=>void removeUserDuration(btn.dataset.durationRemove||"")));
+    }
+
     const list=$("deviceAdminList");
     if(list){
       const shared=new Set(Array.isArray(settings.sharedMailboxes)?settings.sharedMailboxes:[]);
@@ -287,7 +330,7 @@
     }catch(error){
       if(error.code==="device-admin-session-required"){
         state.identityPolicy={...state.identityPolicy,adminAuthorized:false,admin:null};renderOperator();
-        alert("Open VisionBank Security and sign in with an authorized admin account before changing Device Manager admin settings.");
+        alert("Verify an email that is on the Device Manager admin list, or sign in to VisionBank Security with an authorized admin account.");
       }else alert("Admin settings are not available: "+error.message);
     }
   }
@@ -306,6 +349,43 @@
       toggle.checked=previous;
       text("deviceAdminMessage","Unable to change verification: "+friendlyDeviceError(error));
     }finally{toggle.disabled=false;}
+  }
+
+  async function updateDefaultVerificationHours(){
+    const input=$("deviceDefaultVerificationHours"),button=$("deviceDefaultVerificationSave");
+    const value=Number(input?.value||24);
+    if(!Number.isFinite(value)||value<1||value>720){text("deviceAdminMessage","Default verification duration must be between 1 and 720 hours.");return;}
+    if(button)button.disabled=true;
+    try{
+      const data=await api("/admin-settings/default-hours",{method:"POST",body:{hours:value}});
+      state.adminSettings={...state.adminSettings,...data};
+      renderAdminSettings();
+    }catch(error){text("deviceAdminMessage","Unable to save default duration: "+friendlyDeviceError(error));}
+    finally{if(button)button.disabled=false;}
+  }
+
+  async function setUserDuration(){
+    const emailInput=$("deviceDurationEmailInput"),hoursInput=$("deviceDurationHoursInput"),button=$("deviceDurationSaveButton");
+    const mail=emailInput?.value?.trim()||"",value=Number(hoursInput?.value||0);
+    if(!mail){text("deviceAdminMessage","Enter the user email for the duration override.");return;}
+    if(!Number.isFinite(value)||value<1||value>720){text("deviceAdminMessage","User verification duration must be between 1 and 720 hours.");return;}
+    if(button)button.disabled=true;
+    try{
+      const data=await api("/admin-settings/durations/set",{method:"POST",body:{email:mail,hours:value}});
+      state.adminSettings={...state.adminSettings,...data};
+      if(emailInput)emailInput.value="";if(hoursInput)hoursInput.value="";
+      renderAdminSettings();
+    }catch(error){text("deviceAdminMessage","Unable to set user duration: "+friendlyDeviceError(error));}
+    finally{if(button)button.disabled=false;}
+  }
+
+  async function removeUserDuration(mail){
+    if(!mail)return;
+    try{
+      const data=await api("/admin-settings/durations/remove",{method:"POST",body:{email:mail}});
+      state.adminSettings={...state.adminSettings,...data};
+      renderAdminSettings();
+    }catch(error){text("deviceAdminMessage","Unable to remove user duration: "+friendlyDeviceError(error));}
   }
 
   async function addAdmin(){
@@ -1090,6 +1170,7 @@
       finally{if(button){button.disabled=false;button.textContent="Refresh";}}
     });
     $("deviceOperatorButton")?.addEventListener("click",()=>showOperatorDialog(null));
+    $("deviceSignOutButton")?.addEventListener("click",()=>void signOutOperator());
     $("deviceOperatorForm")?.addEventListener("submit",event=>void submitOperator(event));
     $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;resetVerificationStep();$("deviceOperatorDialog")?.close();});
     $("deviceOperatorCancel")?.addEventListener("click",()=>{state.pendingOperatorAction=null;resetVerificationStep();$("deviceOperatorDialog")?.close();});
@@ -1097,6 +1178,10 @@
     $("deviceAdminButton")?.addEventListener("click",()=>void openAdminSettings());
     $("deviceAdminClose")?.addEventListener("click",()=>$("deviceAdminDialog")?.close());
     $("deviceVerificationToggle")?.addEventListener("change",()=>void updateVerificationSetting());
+    $("deviceDefaultVerificationSave")?.addEventListener("click",()=>void updateDefaultVerificationHours());
+    $("deviceDurationSaveButton")?.addEventListener("click",()=>void setUserDuration());
+    $("deviceDurationEmailInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void setUserDuration();}});
+    $("deviceDurationHoursInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void setUserDuration();}});
     $("deviceAdminAddButton")?.addEventListener("click",()=>void addAdmin());
     $("deviceAdminEmailInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void addAdmin();}});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());

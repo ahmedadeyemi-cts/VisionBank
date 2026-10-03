@@ -182,11 +182,11 @@ Browsing device inventory does not require operator identification. Before a use
 - Work email address
 - When email verification is enabled, a six-digit code delivered to that work email.
 
-Email verification is enabled by default. Verification codes expire after 10 minutes, are hashed in server-side challenge state, are rate-limited, and are bound to the requesting network address. The browser stores only the server-issued operator session in session storage for the current browser session. The server stores the namespaced operator session in the existing `SESSIONS` KV namespace.
+Email verification is enabled by default. Verification codes expire after 10 minutes, are hashed in server-side challenge state, are rate-limited, and are bound to the requesting network address. After a successful code, the verified Device Manager operator session defaults to 24 hours and can be customized by admins globally or per user (1–720 hours). Verified sessions may persist on the same browser until their server-side expiration; an explicit Device Manager Sign Out revokes the server session early.
 
-Device Manager admins can enable or disable email verification and add/remove Device Manager admins. Admin controls require both:
-1. A current VisionBank Security login session with the `admin` or `superadmin` role.
-2. An email identity present in the Device Manager admin list.
+Device Manager admins can enable or disable email verification, set the default verified-session duration, create per-user duration overrides, and add/remove Device Manager admins. Admin controls are available through either:
+1. A verified Device Manager operator session whose email is on the Device Manager admin list, or
+2. A current VisionBank Security login session with the `admin` or `superadmin` role and a matching admin-list email identity.
 
 The initial Device Manager admin list is seeded with the approved US Signal/VisionBank identities. `infotech@visionbank.com` is treated as a shared Tech Admin mailbox: it can be an admin identity, but it cannot be the only remaining admin. Admin policy and admin-change audit records are stored under namespaced `device-identity:` keys in `LOGS`, never in the Security user-account namespace.
 

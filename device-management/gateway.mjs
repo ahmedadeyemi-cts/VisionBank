@@ -1,11 +1,12 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
-import {createOperatorSession,readOperatorSession,requireOperatorSession,listAuditRecords} from './audit.mjs';
+import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords} from './audit.mjs';
 import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
 import {
-  identityPolicy,getAdminSettings,setVerificationEnabled,addDeviceAdmin,removeDeviceAdmin,
-  requestVerificationCode,confirmVerificationCode,verificationRequired
+  identityPolicy,getAdminSettings,setVerificationEnabled,setDefaultVerificationHours,
+  setUserVerificationHours,removeUserVerificationHours,addDeviceAdmin,removeDeviceAdmin,
+  requestVerificationCode,confirmVerificationCode,verificationRequired,loadIdentityConfig,verificationHoursFor
 } from './identity.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -453,7 +454,9 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
       const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings']);
-      const postRoutes=new Set(['operator-session','verification-request','verification-confirm','admin-settings/verification','admin-settings/admins/add','admin-settings/admins/remove','preview','apply','reboot']);
+      const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
+        'admin-settings/verification','admin-settings/default-hours','admin-settings/durations/set','admin-settings/durations/remove',
+        'admin-settings/admins/add','admin-settings/admins/remove','preview','apply','reboot']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
@@ -480,12 +483,21 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const body=await readSmallJson(request,1024);
         if(!body||Object.keys(body).some(k=>!['challengeId','code'].includes(k)))throw new DeviceManagementError('invalid-verification-confirmation');
         const verified=await confirmVerificationCode(env,request,body);
+        const config=await loadIdentityConfig(env);
+        const sessionHours=verificationHoursFor(config,verified.operator.email);
         const session=await createOperatorSession(env,request,verified.operator,{
-          verified:true,verificationMethod:'email-code',verifiedAt:verified.verifiedAt
+          verified:true,verificationMethod:'email-code',verifiedAt:verified.verifiedAt,
+          ttlSeconds:sessionHours*60*60
         });
         return output({success:true,sessionId:session.id,operator:session.operator,verified:true,
           verificationMethod:session.verificationMethod,verifiedAt:session.verifiedAt,
-          startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
+          sessionHours,startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
+      }
+
+      if(part==='operator-session/logout'){
+        const sessionId=request.headers.get('X-VB-Operator-Session');
+        await deleteOperatorSession(env,sessionId);
+        return output({success:true},200,headers);
       }
 
       if(part==='operator-session'){
@@ -500,6 +512,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!session)throw new DeviceManagementError('operator-session-required',401);
         return output({success:true,sessionId:session.id,operator:session.operator,verified:session.verified===true,
           verificationMethod:session.verificationMethod||'none',verifiedAt:session.verifiedAt||null,
+          sessionHours:Math.max(1,Math.round(Number(session.ttlSeconds||0)/3600)),
           startedAt:session.startedAt,expiresAt:session.expiresAt},200,headers);
       }
 
@@ -511,7 +524,36 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const body=await readSmallJson(request,1024);
         if(!body||typeof body.enabled!=='boolean'||Object.keys(body).some(k=>k!=='enabled'))throw new DeviceManagementError('invalid-admin-setting');
         const settings=await setVerificationEnabled(env,request,body.enabled);
-        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,
+          defaultVerificationHours:settings.defaultVerificationHours,verificationHoursByEmail:settings.verificationHoursByEmail,
+          updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+      }
+
+      if(part==='admin-settings/default-hours'){
+        const body=await readSmallJson(request,1024);
+        if(!body||!Number.isFinite(Number(body.hours))||Object.keys(body).some(k=>k!=='hours'))throw new DeviceManagementError('invalid-admin-setting');
+        const settings=await setDefaultVerificationHours(env,request,body.hours);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,
+          defaultVerificationHours:settings.defaultVerificationHours,verificationHoursByEmail:settings.verificationHoursByEmail,
+          updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+      }
+
+      if(part==='admin-settings/durations/set'){
+        const body=await readSmallJson(request,1024);
+        if(!body||typeof body.email!=='string'||!Number.isFinite(Number(body.hours))||Object.keys(body).some(k=>!['email','hours'].includes(k)))throw new DeviceManagementError('invalid-admin-setting');
+        const settings=await setUserVerificationHours(env,request,body.email,body.hours);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,
+          defaultVerificationHours:settings.defaultVerificationHours,verificationHoursByEmail:settings.verificationHoursByEmail,
+          updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+      }
+
+      if(part==='admin-settings/durations/remove'){
+        const body=await readSmallJson(request,1024);
+        if(!body||typeof body.email!=='string'||Object.keys(body).some(k=>k!=='email'))throw new DeviceManagementError('invalid-admin-setting');
+        const settings=await removeUserVerificationHours(env,request,body.email);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,
+          defaultVerificationHours:settings.defaultVerificationHours,verificationHoursByEmail:settings.verificationHoursByEmail,
+          updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
       }
 
       if(part==='admin-settings/admins/add'){

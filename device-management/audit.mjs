@@ -2,7 +2,8 @@ import {DeviceManagementError} from './contracts.mjs';
 
 const SESSION_PREFIX='device-operator:';
 const AUDIT_PREFIX='device-audit:';
-const SESSION_TTL_SECONDS=12*60*60;
+const DEFAULT_SESSION_TTL_SECONDS=12*60*60;
+const MAX_SESSION_TTL_SECONDS=720*60*60;
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 const clean=(value,max)=>String(value??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').slice(0,max);
@@ -23,16 +24,18 @@ export function requestSource(request){
   return {ip:ip||'unknown',userAgent:userAgent||'unknown'};
 }
 
-export async function createOperatorSession(env,request,value,{now=Date.now(),verified=false,verificationMethod='none',verifiedAt=null}={}){
+export async function createOperatorSession(env,request,value,{now=Date.now(),verified=false,verificationMethod='none',verifiedAt=null,ttlSeconds=DEFAULT_SESSION_TTL_SECONDS}={}){
   if(!env?.SESSIONS?.put)throw new DeviceManagementError('operator-session-store-unavailable',503);
   const operator=validateOperator(value),sessionId=crypto.randomUUID(),source=requestSource(request);
-  const startedAt=new Date(now).toISOString(),expiresAt=new Date(now+SESSION_TTL_SECONDS*1000).toISOString();
+  const ttl=Math.min(Math.max(Number(ttlSeconds)||DEFAULT_SESSION_TTL_SECONDS,15*60),MAX_SESSION_TTL_SECONDS);
+  const startedAt=new Date(now).toISOString(),expiresAt=new Date(now+ttl*1000).toISOString();
   const session={
     id:sessionId,operator,startedAt,expiresAt,startedFrom:source,
     verified:verified===true,verificationMethod:clean(verificationMethod||'none',40),
-    verifiedAt:verified===true?clean(verifiedAt||startedAt,40):null
+    verifiedAt:verified===true?clean(verifiedAt||startedAt,40):null,
+    ttlSeconds:ttl
   };
-  await env.SESSIONS.put(SESSION_PREFIX+sessionId,JSON.stringify(session),{expirationTtl:SESSION_TTL_SECONDS});
+  await env.SESSIONS.put(SESSION_PREFIX+sessionId,JSON.stringify(session),{expirationTtl:ttl});
   return session;
 }
 
@@ -55,6 +58,11 @@ export async function requireOperatorSession(env,request){
   const session=await readOperatorSession(env,request.headers.get('X-VB-Operator-Session'));
   if(!session)throw new DeviceManagementError('operator-session-required',401);
   return session;
+}
+
+export async function deleteOperatorSession(env,sessionId){
+  const id=String(sessionId||'').trim();
+  if(UUID.test(id)&&env?.SESSIONS?.delete)await env.SESSIONS.delete(SESSION_PREFIX+id);
 }
 
 export function buildAuditRecord({eventType,action,request,session=null,systemActor=null,device={},location={},change={},webexStatus='not-run',phonismStatus='not-run',result='pending',reason='',originalAuditId=null,now=Date.now()}){

@@ -1,4 +1,5 @@
 import {DeviceManagementError} from './contracts.mjs';
+import {readOperatorSession} from './audit.mjs';
 
 const CONFIG_KEY='device-identity:config:v1';
 const ADMIN_AUDIT_PREFIX='device-identity-audit:';
@@ -8,6 +9,8 @@ const CODE_TTL_SECONDS=10*60;
 const RESEND_SECONDS=60;
 const MAX_ATTEMPTS=5;
 const MAX_SENDS_PER_HOUR=5;
+const DEFAULT_VERIFICATION_HOURS=24;
+const MAX_VERIFICATION_HOURS=720;
 
 export const SHARED_ADMIN_MAILBOXES=['infotech@visionbank.com'];
 
@@ -27,6 +30,17 @@ const email=value=>clean(value,254).toLowerCase();
 const validEmail=value=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email(value));
 const validAdminEmail=value=>validEmail(value)&&['visionbank.com','ussignal.com'].includes(email(value).split('@')[1]||'');
 const uniqueEmails=values=>[...new Set((Array.isArray(values)?values:[]).map(email).filter(validEmail))].sort();
+const hours=value=>Math.min(Math.max(Number.parseInt(String(value??''),10)||DEFAULT_VERIFICATION_HOURS,1),MAX_VERIFICATION_HOURS);
+const cleanOverrides=value=>{
+  const out={};
+  if(value&&typeof value==='object'&&!Array.isArray(value)){
+    for(const [key,val] of Object.entries(value)){
+      const mail=email(key);
+      if(validEmail(mail))out[mail]=hours(val);
+    }
+  }
+  return out;
+};
 
 export async function loadIdentityConfig(env){
   let saved=null;
@@ -37,6 +51,8 @@ export async function loadIdentityConfig(env){
   return {
     verificationEnabled:saved?.verificationEnabled!==false,
     admins:uniqueEmails(saved?.admins?.length?saved.admins:DEFAULT_DEVICE_ADMINS),
+    defaultVerificationHours:hours(saved?.defaultVerificationHours??DEFAULT_VERIFICATION_HOURS),
+    verificationHoursByEmail:cleanOverrides(saved?.verificationHoursByEmail),
     updatedAt:saved?.updatedAt||null,
     updatedBy:saved?.updatedBy||null
   };
@@ -47,6 +63,8 @@ async function saveIdentityConfig(env,config,actor){
   const next={
     verificationEnabled:config.verificationEnabled!==false,
     admins:uniqueEmails(config.admins),
+    defaultVerificationHours:hours(config.defaultVerificationHours),
+    verificationHoursByEmail:cleanOverrides(config.verificationHoursByEmail),
     updatedAt:new Date().toISOString(),
     updatedBy:actor?.email||actor?.username||'unknown'
   };
@@ -78,6 +96,17 @@ async function readSecuritySession(env,request){
 
 export async function resolveDeviceAdmin(env,request,configOverride=null){
   const config=configOverride||await loadIdentityConfig(env);
+
+  const operatorSession=await readOperatorSession(env,request.headers.get('X-VB-Operator-Session'));
+  const operatorEmail=email(operatorSession?.operator?.email);
+  if(operatorSession?.verified===true&&config.admins.includes(operatorEmail)){
+    return {
+      username:clean(operatorSession.operator.name||operatorEmail,160),
+      email:operatorEmail,role:'verified-operator',sessionId:operatorSession.id,
+      authMethod:'verified-email'
+    };
+  }
+
   const session=await readSecuritySession(env,request);
   if(!session||!['superadmin','admin'].includes(String(session.role||'').toLowerCase()))return null;
   const identities=uniqueEmails([
@@ -86,7 +115,7 @@ export async function resolveDeviceAdmin(env,request,configOverride=null){
   ]);
   const adminEmail=identities.find(value=>config.admins.includes(value));
   if(!adminEmail)return null;
-  return {username:session.username,email:adminEmail,role:session.role,sessionId:session.token};
+  return {username:session.username,email:adminEmail,role:session.role,sessionId:session.token,authMethod:'security-session'};
 }
 
 export async function requireDeviceAdmin(env,request){
@@ -122,15 +151,55 @@ export async function getAdminSettings(env,request){
     verificationEnabled:config.verificationEnabled,
     admins:config.admins,
     sharedMailboxes:SHARED_ADMIN_MAILBOXES.filter(value=>config.admins.includes(value)),
+    defaultVerificationHours:config.defaultVerificationHours,
+    verificationHoursByEmail:config.verificationHoursByEmail,
     updatedAt:config.updatedAt,updatedBy:config.updatedBy,
-    currentAdmin:{email:admin.email,username:admin.username,role:admin.role,sharedMailbox:SHARED_ADMIN_MAILBOXES.includes(admin.email)}
+    currentAdmin:{
+      email:admin.email,username:admin.username,role:admin.role,authMethod:admin.authMethod,
+      sharedMailbox:SHARED_ADMIN_MAILBOXES.includes(admin.email)
+    }
   };
+}
+
+export function verificationHoursFor(config,emailValue){
+  const mail=email(emailValue);
+  return hours(config?.verificationHoursByEmail?.[mail]??config?.defaultVerificationHours??DEFAULT_VERIFICATION_HOURS);
 }
 
 export async function setVerificationEnabled(env,request,enabled){
   const {config,admin}=await requireDeviceAdmin(env,request);
   const next=await saveIdentityConfig(env,{...config,verificationEnabled:enabled===true},admin);
   await writeAdminAudit(env,request,admin,'verification-setting-changed',{enabled:next.verificationEnabled});
+  return next;
+}
+
+export async function setDefaultVerificationHours(env,request,value){
+  const {config,admin}=await requireDeviceAdmin(env,request);
+  const nextHours=hours(value);
+  const next=await saveIdentityConfig(env,{...config,defaultVerificationHours:nextHours},admin);
+  await writeAdminAudit(env,request,admin,'verification-default-hours-changed',{hours:nextHours});
+  return next;
+}
+
+export async function setUserVerificationHours(env,request,emailValue,value){
+  const {config,admin}=await requireDeviceAdmin(env,request);
+  const mail=email(emailValue);
+  if(!validEmail(mail))throw new DeviceManagementError('verification-duration-email-invalid');
+  const nextHours=hours(value);
+  const overrides={...config.verificationHoursByEmail,[mail]:nextHours};
+  const next=await saveIdentityConfig(env,{...config,verificationHoursByEmail:overrides},admin);
+  await writeAdminAudit(env,request,admin,'verification-user-hours-changed',{email:mail,hours:nextHours});
+  return next;
+}
+
+export async function removeUserVerificationHours(env,request,emailValue){
+  const {config,admin}=await requireDeviceAdmin(env,request);
+  const mail=email(emailValue);
+  if(!validEmail(mail))throw new DeviceManagementError('verification-duration-email-invalid');
+  const overrides={...config.verificationHoursByEmail};
+  delete overrides[mail];
+  const next=await saveIdentityConfig(env,{...config,verificationHoursByEmail:overrides},admin);
+  await writeAdminAudit(env,request,admin,'verification-user-hours-removed',{email:mail});
   return next;
 }
 

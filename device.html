@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261003-v7">
+  <link rel="stylesheet" href="device.css?v=20261003-v8">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -36,6 +36,7 @@
       <span id="deviceSyncStamp" class="device-sync-stamp">Waiting for inventory</span>
       <button id="deviceAdminButton" class="device-btn secondary" type="button" hidden>Admin Settings</button>
       <button id="deviceOperatorButton" class="device-btn secondary" type="button">Identify Operator</button>
+      <button id="deviceSignOutButton" class="device-btn secondary" type="button" hidden>Sign Out</button>
       <button id="deviceRefresh" class="device-btn secondary" type="button">Refresh</button>
     </div>
   </header>
@@ -209,9 +210,28 @@
           </label>
         </section>
 
+        <section class="device-admin-list-section device-verification-duration-section">
+          <div class="device-admin-section-heading">
+            <div><strong>Verified session duration</strong><p>The six-digit code still expires after 10 minutes. This controls how long a successful verification remains trusted on that browser.</p></div>
+          </div>
+          <div class="device-duration-admin-grid">
+            <label>Default hours
+              <input id="deviceDefaultVerificationHours" type="number" min="1" max="720" step="1" value="24">
+            </label>
+            <button id="deviceDefaultVerificationSave" class="device-btn" type="button">Save Default</button>
+          </div>
+          <div class="device-duration-override-add">
+            <input id="deviceDurationEmailInput" type="email" maxlength="254" placeholder="user@visionbank.com" aria-label="User email for verification duration override">
+            <input id="deviceDurationHoursInput" type="number" min="1" max="720" step="1" placeholder="Hours" aria-label="Verification duration hours">
+            <button id="deviceDurationSaveButton" class="device-btn" type="button">Set User Duration</button>
+          </div>
+          <div id="deviceDurationOverrideList" class="device-admin-list"></div>
+          <p class="device-admin-note">Default is 24 hours. Per-user overrides can be set from 1 to 720 hours. Changes apply the next time that user verifies; an existing verified session keeps its current expiration.</p>
+        </section>
+
         <section class="device-admin-list-section">
           <div class="device-admin-section-heading">
-            <div><strong>Device Manager admins</strong><p>Admins must also have a valid VisionBank Security login session.</p></div>
+            <div><strong>Device Manager admins</strong><p>A verified Device Manager admin can manage these settings directly. Existing VisionBank Security admin sessions are also accepted.</p></div>
           </div>
           <div class="device-admin-add">
             <input id="deviceAdminEmailInput" type="email" maxlength="254" placeholder="name@visionbank.com" aria-label="Admin email">
@@ -220,7 +240,7 @@
           <div id="deviceAdminList" class="device-admin-list"></div>
           <p class="device-admin-note"><strong>infotech@visionbank.com</strong> is treated as the shared Tech Admin mailbox. It can remain an admin, but it cannot be the only remaining admin.</p>
         </section>
-        <p id="deviceAdminMessage" class="device-helper">Only authenticated admins can change these settings.</p>
+        <p id="deviceAdminMessage" class="device-helper">Only verified Device Manager admins or authenticated VisionBank Security admins can change these settings.</p>
       </div>
     </div>
   </dialog>
@@ -348,6 +368,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261003-v18"></script>
+  <script src="device.js?v=20261003-v19"></script>
 </body>
 </html>

@@ -53,6 +53,16 @@ test('operator-session GET validates the current session header',async()=>{
   assert.equal(r.data.operator.name,'Test Operator');
 });
 
+test('operator-session logout revokes the server-side Device Manager session',async()=>{
+  const created=await request('operator-session',{method:'POST',body:{name:'Logout Operator',email:'logout@example.com'}});
+  assert.equal(created.status,201);
+  const loggedOut=await request('operator-session/logout',{method:'POST',body:{},sessionId:created.data.sessionId});
+  assert.equal(loggedOut.status,200);
+  const after=await request('operator-session',{sessionId:created.data.sessionId});
+  assert.equal(after.status,401);
+  assert.equal(after.data.error,'operator-session-required');
+});
+
 test('operator-session GET rejects missing sessions',async()=>{
   const r=await request('operator-session');
   assert.equal(r.status,401);

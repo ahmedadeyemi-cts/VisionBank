@@ -534,17 +534,29 @@
     }
   }
 
-  function deviceSearchText(d){
-    return [d.displayName,d.model,d.mac,d.locationName,d.owner?.name,d.owner?.extension,
-      d.line1?.name,d.line1?.extension,d.line2?.name,d.line2?.extension].map(normalize).join(" ");
+  function deviceSearchFields(d){
+    return [d.displayName,d.model,d.mac,d.locationName,d.owner?.name,d.owner?.extension,d.owner?.phoneNumber,d.summaryExtension,
+      d.line1?.name,d.line1?.extension,d.line1?.phoneNumber,d.line2?.name,d.line2?.extension,d.line2?.phoneNumber].filter(Boolean);
   }
+
+  function deviceSearchText(d){return deviceSearchFields(d).map(normalize).join(" ");}
+
+  function compactSearch(value){return normalize(value).replace(/[^a-z0-9]/g,"");}
+
+  function deviceSearchCompact(d){return compactSearch(deviceSearchFields(d).join(" "));}
+
   function applyFilters(){
     const term=normalize($("deviceSearch")?.value);
+    const compactTerm=compactSearch(term);
     const owner=$("deviceOwnerFilter")?.value||"";
     const webexFilter=$("deviceWebexRegistrationFilter")?.value||"";
     const phonismFilter=$("devicePhonismRegistrationFilter")?.value||"";
     state.filtered=state.devices.filter(d=>{
-      if(term&&!deviceSearchText(d).includes(term))return false;
+      if(term){
+        const plainMatch=deviceSearchText(d).includes(term);
+        const compactMatch=compactTerm.length>=2&&deviceSearchCompact(d).includes(compactTerm);
+        if(!plainMatch&&!compactMatch)return false;
+      }
       if(owner&&String(d.owner?.type||"").toUpperCase()!==owner)return false;
       if(webexFilter){
         const statuses=[d.line1,d.line2].filter(Boolean).map(l=>statusClass(registrationValue(l,"webex")));
@@ -610,6 +622,14 @@
     return '<span class="device-status pending">Temporary · '+esc(countdown)+'</span><small>Restores '+esc(label)+'</small>';
   }
 
+  function ownerCell(owner){
+    if(!owner)return '<strong>Unassigned</strong>';
+    const type=String(owner.type||"").toUpperCase()==="PLACE"?"Workspace":
+      String(owner.type||"").toUpperCase()==="PEOPLE"?"User":"";
+    const meta=[type,owner.extension?("Ext. "+owner.extension):"",owner.phoneNumber||""].filter(Boolean).join(" · ");
+    return '<strong>'+esc(owner.name||"Unassigned")+'</strong>'+(meta?'<small>'+esc(meta)+'</small>':'');
+  }
+
   function renderInventory(){
     const body=$("deviceInventoryRows");if(!body)return;
     text("deviceInventoryCount",state.filtered.length+" device"+(state.filtered.length===1?"":"s"));
@@ -621,7 +641,7 @@
     body.innerHTML=state.filtered.map(d=>'<tr>'+
       '<td><strong>'+esc(d.displayName||d.model||"Phone")+'</strong><small>'+esc(d.model||"Unknown model")+' · '+esc(d.mac||"MAC unavailable")+'</small></td>'+
       '<td>'+esc(d.locationName||"Unknown")+'<small>'+esc(d.locationCode||"")+'</small></td>'+
-      '<td><strong>'+esc(d.owner?.name||"Unassigned")+'</strong><small>'+esc(d.owner?.type||"")+' '+esc(d.owner?.extension||"")+'</small></td>'+
+      '<td>'+ownerCell(d.owner)+'</td>'+
       '<td>'+lineCell(d.line1,d.detailsLoaded!==false)+'</td><td>'+lineCell(d.line2,d.detailsLoaded!==false)+'</td>'+
       '<td>'+leaseCell(d)+'</td>'+
       '<td><span class="device-status '+syncClass(d.syncStatus)+'">'+esc(d.syncStatusLabel||d.syncStatus||"Unknown")+'</span><small>'+esc(d.syncMessage||"")+'</small></td>'+

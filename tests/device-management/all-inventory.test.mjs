@@ -20,6 +20,10 @@ test('inventory without location returns VisionBank summary phones instead of an
   const webexFetch=async(_env,url)=>{
     const u=new URL(url);
     if(u.pathname==='/v1/locations')return json({items:[{id:'loc-a',name:'DUFF'},{id:'loc-b',name:'CLIVE'}]});
+    if(u.pathname==='/v1/telephony/config/numbers')return json({phoneNumbers:[
+      {extension:'4102',phoneNumber:'+15555554102',owner:{id:'user-1',firstName:'Test',lastName:'User',type:'PEOPLE'},location:{id:'loc-a',name:'DUFF'}},
+      {extension:'4200',phoneNumber:'+15555554200',owner:{id:'space-1',firstName:'Open Workspace',type:'PLACE'},location:{id:'loc-b',name:'CLIVE'}}
+    ]});
     return json({},404);
   };
   const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
@@ -34,5 +38,11 @@ test('inventory without location returns VisionBank summary phones instead of an
   assert.equal(data.devices.length,2);
   assert.equal(data.devices[0].detailsLoaded,false);
   assert.equal(data.devices[0].locationName,'DUFF');
+  assert.equal(data.devices[0].owner.extension,'4102');
+  assert.equal(data.devices[0].owner.type,'PEOPLE');
+  assert.equal(data.devices[0].summaryExtension,'4102');
   assert.equal(data.devices[1].locationName,'CLIVE');
+  assert.equal(data.devices[1].owner.extension,'4200');
+  assert.equal(data.devices[1].owner.type,'PLACE');
+  assert.equal(data.summaryExtensionSource,'webex-number-directory');
 });

@@ -9,7 +9,8 @@
   const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,
     memberSearchTimer:null,memberSearchController:null,memberDetailController:null,memberSearchSeq:0,memberLoadedForDevice:null,memberLoadedAt:0,
     memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,
-    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null};
+    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,
+    identityPolicy:{verificationEnabled:true,adminAuthorized:false,admin:null},verificationChallenge:null,adminSettings:null};
 
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -58,9 +59,13 @@
     const method=options.method||"GET",body=options.body,signal=options.signal;
     if(window.VB_SECURITY?.allowed!==true)throw new Error("Dashboard access is not approved.");
     const sessionId=state.operatorSession?.sessionId||"";
+    let securitySession="";try{securitySession=localStorage.getItem("vb_session")||"";}catch{}
     const res=await fetch(API_BASE+path,{
       method,mode:"cors",credentials:"omit",cache:"no-store",
-      headers:{Accept:"application/json",...(sessionId?{"X-VB-Operator-Session":sessionId}:{}),...(body!==undefined?{"Content-Type":"application/json"}:{})},
+      headers:{Accept:"application/json",
+        ...(sessionId?{"X-VB-Operator-Session":sessionId}:{}),
+        ...(securitySession?{Authorization:"Bearer "+securitySession}:{}),
+        ...(body!==undefined?{"Content-Type":"application/json"}:{})},
       ...(body!==undefined?{body:JSON.stringify(body)}:{}),
       ...(signal?{signal}:{})
     });
@@ -97,7 +102,18 @@
       "device-state-changed-review-again":"The device changed after review. Refresh the device and review the change again.",
       "webex-members-conflict":"Webex reports that the device membership changed. Refresh and review the change again.",
       "webex-members-write-failed":"Webex rejected the line assignment. Choose another line or refresh and try again.",
-      "phonism-write-failed":"Webex could not complete the Save & Sync transaction because Phonism Sync was not accepted. Any partial Webex change was rolled back."
+      "phonism-write-failed":"Webex could not complete the Save & Sync transaction because Phonism Sync was not accepted. Any partial Webex change was rolled back.",
+      "operator-verification-required":"Verify your work email before making device changes.",
+      "verification-challenge-expired":"That verification code expired. Request a new code.",
+      "verification-code-invalid":"The verification code is not correct.",
+      "verification-attempts-exceeded":"Too many incorrect attempts. Request a new verification code.",
+      "verification-resend-too-soon":"A code was just sent. Wait a moment before requesting another.",
+      "verification-rate-limited":"Too many verification codes were requested. Try again later.",
+      "verification-source-changed":"The verification request came from a different network address. Request a new code.",
+      "device-admin-session-required":"Sign in to VisionBank Security with an authorized Device Manager admin account.",
+      "device-admin-self-remove-denied":"You cannot remove the admin identity you are currently using.",
+      "device-individual-admin-required":"At least one individual admin must remain. The shared Tech Admin mailbox cannot be the only admin.",
+      "device-admin-email-invalid":"Enter a valid admin email address."
     };
     return messages[code]||("Save & Sync was not completed: "+code);
   }
@@ -107,7 +123,14 @@
     text("deviceOperatorName",operator?.name||"Not identified");
     text("deviceOperatorEmail",operator?.email||"Required before changes");
     text("deviceOperatorButton",operator?"Change Operator":"Identify Operator");
+    const verification=$("deviceOperatorVerification");
+    if(verification){
+      const required=state.identityPolicy?.verificationEnabled!==false;
+      verification.textContent=!operator?"Verification pending":session?.verified===true?"Email verified":required?"Email verification required":"Verification not required";
+      verification.className="device-operator-verification "+(session?.verified===true?"verified":operator&&!required?"disabled":"pending");
+    }
     const chip=$("deviceOperatorChip");if(chip)chip.classList.toggle("identified",Boolean(operator));
+    const adminButton=$("deviceAdminButton");if(adminButton)adminButton.hidden=state.identityPolicy?.adminAuthorized!==true;
   }
 
   function saveOperatorSession(session){
@@ -119,6 +142,21 @@
     renderOperator();
   }
 
+  async function loadIdentityPolicy(){
+    try{
+      const data=await api("/identity-policy");
+      state.identityPolicy={verificationEnabled:data.verificationEnabled!==false,adminAuthorized:data.adminAuthorized===true,admin:data.admin||null};
+      if(state.identityPolicy.verificationEnabled&&state.operatorSession&&state.operatorSession.verified!==true)saveOperatorSession(null);
+      renderOperator();
+      return data;
+    }catch(error){
+      state.identityPolicy={verificationEnabled:true,adminAuthorized:false,admin:null};
+      renderOperator();
+      console.debug("Identity policy unavailable:",error.message);
+      return null;
+    }
+  }
+
   async function restoreOperatorSession(){
     let saved=null;
     try{saved=JSON.parse(sessionStorage.getItem(OPERATOR_KEY)||"null");}catch{}
@@ -126,10 +164,22 @@
     state.operatorSession=saved;
     try{
       const data=await api("/operator-session");
-      saveOperatorSession({sessionId:data.sessionId,operator:data.operator,startedAt:data.startedAt,expiresAt:data.expiresAt});
+      saveOperatorSession({sessionId:data.sessionId,operator:data.operator,verified:data.verified===true,
+        verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,
+        startedAt:data.startedAt,expiresAt:data.expiresAt});
     }catch{
       saveOperatorSession(null);
     }
+  }
+
+  function resetVerificationStep(){
+    state.verificationChallenge=null;
+    const panel=$("deviceVerificationPanel"),code=$("deviceVerificationCode");
+    if(panel)panel.hidden=true;
+    if(code)code.value="";
+    const name=$("deviceOperatorFullName"),email=$("deviceOperatorWorkEmail");
+    if(name)name.disabled=false;if(email)email.disabled=false;
+    text("deviceOperatorSave",state.identityPolicy?.verificationEnabled!==false?"Send Verification Code":"Continue");
   }
 
   function showOperatorDialog(pendingAction=null){
@@ -138,24 +188,148 @@
     const name=$("deviceOperatorFullName"),email=$("deviceOperatorWorkEmail");
     if(name)name.value=operator.name||"";
     if(email)email.value=operator.email||"";
-    text("deviceOperatorMessage","This identity is kept for this browser session. IP address and browser information are captured server-side for audited changes.");
+    resetVerificationStep();
+    text("deviceOperatorMessage",state.identityPolicy?.verificationEnabled!==false?
+      "Enter your work email. A six-digit verification code will be emailed before device changes are allowed.":
+      "Email verification is currently disabled by a Device Manager admin. Your identity is still recorded for auditing.");
     $("deviceOperatorDialog")?.showModal();
     setTimeout(()=>name?.focus(),0);
+  }
+
+  async function finishOperatorSession(data){
+    saveOperatorSession({sessionId:data.sessionId,operator:data.operator,verified:data.verified===true,
+      verificationMethod:data.verificationMethod||"none",verifiedAt:data.verifiedAt||null,
+      startedAt:data.startedAt,expiresAt:data.expiresAt});
+    $("deviceOperatorDialog")?.close();
+    const pending=state.pendingOperatorAction;state.pendingOperatorAction=null;
+    if(pending?.type==="edit"&&pending.id)await openEditor(pending.id);
+  }
+
+  async function sendVerificationCode(){
+    const name=$("deviceOperatorFullName")?.value||"",email=$("deviceOperatorWorkEmail")?.value||"";
+    const data=await api("/verification-request",{method:"POST",body:{name,email}});
+    if(data.required===false){
+      const session=await api("/operator-session",{method:"POST",body:{name,email}});
+      await finishOperatorSession(session);return;
+    }
+    state.verificationChallenge={challengeId:data.challengeId,emailMasked:data.emailMasked,expiresAt:data.expiresAt};
+    const panel=$("deviceVerificationPanel"),nameEl=$("deviceOperatorFullName"),emailEl=$("deviceOperatorWorkEmail"),code=$("deviceVerificationCode");
+    if(panel)panel.hidden=false;if(nameEl)nameEl.disabled=true;if(emailEl)emailEl.disabled=true;
+    text("deviceVerificationHint","Code sent to "+(data.emailMasked||"your work email")+" · expires in 10 minutes");
+    text("deviceOperatorMessage","Enter the six-digit code to verify this operator.");
+    text("deviceOperatorSave","Verify Code");
+    setTimeout(()=>code?.focus(),0);
   }
 
   async function submitOperator(event){
     event.preventDefault();
     const button=$("deviceOperatorSave");if(button)button.disabled=true;
-    const name=$("deviceOperatorFullName")?.value||"",email=$("deviceOperatorWorkEmail")?.value||"";
     try{
-      const data=await api("/operator-session",{method:"POST",body:{name,email}});
-      saveOperatorSession({sessionId:data.sessionId,operator:data.operator,startedAt:data.startedAt,expiresAt:data.expiresAt});
-      $("deviceOperatorDialog")?.close();
-      const pending=state.pendingOperatorAction;state.pendingOperatorAction=null;
-      if(pending?.type==="edit"&&pending.id)await openEditor(pending.id);
+      if(state.verificationChallenge){
+        const code=$("deviceVerificationCode")?.value||"";
+        const data=await api("/verification-confirm",{method:"POST",body:{challengeId:state.verificationChallenge.challengeId,code}});
+        await finishOperatorSession(data);
+      }else if(state.identityPolicy?.verificationEnabled!==false){
+        await sendVerificationCode();
+      }else{
+        const name=$("deviceOperatorFullName")?.value||"",email=$("deviceOperatorWorkEmail")?.value||"";
+        const data=await api("/operator-session",{method:"POST",body:{name,email}});
+        await finishOperatorSession(data);
+      }
     }catch(error){
-      text("deviceOperatorMessage","Unable to identify operator: "+error.message);
+      text("deviceOperatorMessage",friendlyDeviceError(error));
     }finally{if(button)button.disabled=false;}
+  }
+
+  async function resendVerificationCode(){
+    const button=$("deviceVerificationResend");if(button)button.disabled=true;
+    state.verificationChallenge=null;
+    const name=$("deviceOperatorFullName"),email=$("deviceOperatorWorkEmail");
+    if(name)name.disabled=false;if(email)email.disabled=false;
+    try{await sendVerificationCode();}
+    catch(error){text("deviceOperatorMessage",friendlyDeviceError(error));}
+    finally{if(button)button.disabled=false;}
+  }
+
+  function renderAdminSettings(){
+    const settings=state.adminSettings||{};
+    const toggle=$("deviceVerificationToggle"),label=$("deviceVerificationToggleLabel");
+    if(toggle)toggle.checked=settings.verificationEnabled!==false;
+    if(label)label.textContent=settings.verificationEnabled!==false?"On":"Off";
+    const list=$("deviceAdminList");
+    if(list){
+      const shared=new Set(Array.isArray(settings.sharedMailboxes)?settings.sharedMailboxes:[]);
+      const current=settings.currentAdmin?.email||"";
+      const admins=Array.isArray(settings.admins)?settings.admins:[];
+      list.innerHTML=admins.length?admins.map(mail=>{
+        const isShared=shared.has(mail),isCurrent=mail===current;
+        return '<div class="device-admin-row"><div><strong>'+esc(mail)+'</strong>'+
+          '<span class="device-admin-meta">'+(isShared?'Shared Tech Admin mailbox':'Individual admin')+(isCurrent?' · Current admin':'')+'</span></div>'+
+          '<button class="device-link-btn device-admin-remove" type="button" data-admin-remove="'+esc(mail)+'" '+(isCurrent?'disabled':'')+'>Remove</button></div>';
+      }).join(""):'<div class="device-member-empty">No Device Manager admins are configured.</div>';
+      list.querySelectorAll("[data-admin-remove]").forEach(btn=>btn.addEventListener("click",()=>void removeAdmin(btn.dataset.adminRemove||"")));
+    }
+    text("deviceAdminMessage",settings.updatedAt?
+      "Last updated "+new Date(settings.updatedAt).toLocaleString()+" by "+(settings.updatedBy||"an admin")+".":"Initial Device Manager admin policy.");
+  }
+
+  async function loadAdminSettings(){
+    const data=await api("/admin-settings");
+    state.adminSettings=data;
+    renderAdminSettings();
+    return data;
+  }
+
+  async function openAdminSettings(){
+    try{
+      await loadAdminSettings();
+      $("deviceAdminDialog")?.showModal();
+    }catch(error){
+      if(error.code==="device-admin-session-required"){
+        state.identityPolicy={...state.identityPolicy,adminAuthorized:false,admin:null};renderOperator();
+        alert("Open VisionBank Security and sign in with an authorized admin account before changing Device Manager admin settings.");
+      }else alert("Admin settings are not available: "+error.message);
+    }
+  }
+
+  async function updateVerificationSetting(){
+    const toggle=$("deviceVerificationToggle");if(!toggle)return;
+    const previous=state.adminSettings?.verificationEnabled!==false;
+    toggle.disabled=true;
+    try{
+      const data=await api("/admin-settings/verification",{method:"POST",body:{enabled:toggle.checked}});
+      state.adminSettings={...state.adminSettings,...data};
+      state.identityPolicy={...state.identityPolicy,verificationEnabled:data.verificationEnabled!==false};
+      if(state.identityPolicy.verificationEnabled&&state.operatorSession?.verified!==true)saveOperatorSession(null);
+      renderAdminSettings();renderOperator();
+    }catch(error){
+      toggle.checked=previous;
+      text("deviceAdminMessage","Unable to change verification: "+friendlyDeviceError(error));
+    }finally{toggle.disabled=false;}
+  }
+
+  async function addAdmin(){
+    const input=$("deviceAdminEmailInput"),button=$("deviceAdminAddButton");
+    const mail=input?.value?.trim()||"";
+    if(!mail)return;
+    if(button)button.disabled=true;
+    try{
+      const data=await api("/admin-settings/admins/add",{method:"POST",body:{email:mail}});
+      state.adminSettings={...state.adminSettings,...data};
+      if(input)input.value="";
+      renderAdminSettings();
+    }catch(error){text("deviceAdminMessage","Unable to add admin: "+friendlyDeviceError(error));}
+    finally{if(button)button.disabled=false;}
+  }
+
+  async function removeAdmin(mail){
+    if(!mail||!confirm("Remove "+mail+" from Device Manager admins?"))return;
+    try{
+      const data=await api("/admin-settings/admins/remove",{method:"POST",body:{email:mail}});
+      state.adminSettings={...state.adminSettings,...data};
+      renderAdminSettings();
+      await loadIdentityPolicy();
+    }catch(error){text("deviceAdminMessage","Unable to remove admin: "+friendlyDeviceError(error));}
   }
 
   function healthDot(id,status){
@@ -879,7 +1053,9 @@
       const rows=Array.isArray(data.rows)?data.rows:[];
       if(body)body.innerHTML=rows.length?rows.map(r=>
         '<tr><td>'+esc(r.at?new Date(r.at).toLocaleString():"")+'</td>'+
-        '<td><strong>'+esc(r.operatorName||"Unknown")+'</strong><small>'+esc(r.operatorEmail||"")+'</small></td>'+
+        '<td><strong>'+esc(r.operatorName||"Unknown")+'</strong><small>'+esc(r.operatorEmail||"")+'</small>'+
+          (r.operatorVerified===true?'<span class="device-audit-identity verified">Email verified</span>':
+            r.verificationMethod==="disabled"?'<span class="device-audit-identity disabled">Verification off</span>':'')+'</td>'+
         '<td>'+esc(r.sourceIp||"—")+'</td>'+
         '<td>'+esc(r.deviceName||"")+'</td>'+
         '<td>'+esc(r.locationName||"")+'</td>'+
@@ -910,13 +1086,19 @@
     });
     $("deviceRefresh")?.addEventListener("click",async()=>{
       const button=$("deviceRefresh");if(button){button.disabled=true;button.textContent="Refreshing…";}
-      try{await Promise.allSettled([loadCapabilities(),loadLocations(),loadInventory(true)]);}
+      try{await Promise.allSettled([loadIdentityPolicy(),loadCapabilities(),loadLocations(),loadInventory(true)]);}
       finally{if(button){button.disabled=false;button.textContent="Refresh";}}
     });
     $("deviceOperatorButton")?.addEventListener("click",()=>showOperatorDialog(null));
     $("deviceOperatorForm")?.addEventListener("submit",event=>void submitOperator(event));
-    $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
-    $("deviceOperatorCancel")?.addEventListener("click",()=>{state.pendingOperatorAction=null;$("deviceOperatorDialog")?.close();});
+    $("deviceOperatorClose")?.addEventListener("click",()=>{state.pendingOperatorAction=null;resetVerificationStep();$("deviceOperatorDialog")?.close();});
+    $("deviceOperatorCancel")?.addEventListener("click",()=>{state.pendingOperatorAction=null;resetVerificationStep();$("deviceOperatorDialog")?.close();});
+    $("deviceVerificationResend")?.addEventListener("click",()=>void resendVerificationCode());
+    $("deviceAdminButton")?.addEventListener("click",()=>void openAdminSettings());
+    $("deviceAdminClose")?.addEventListener("click",()=>$("deviceAdminDialog")?.close());
+    $("deviceVerificationToggle")?.addEventListener("change",()=>void updateVerificationSetting());
+    $("deviceAdminAddButton")?.addEventListener("click",()=>void addAdmin());
+    $("deviceAdminEmailInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void addAdmin();}});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
     $("deviceLine2PickerButton")?.addEventListener("click",()=>{
       const panel=$("deviceLine2PickerPanel");
@@ -939,6 +1121,7 @@
     $("deviceRecoveryClose")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceRecoveryCancel")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceReboot")?.addEventListener("click",()=>void rebootRecovery());
+    window.addEventListener("storage",event=>{if(event.key==="vb_session")void loadIdentityPolicy();});
   }
 
   async function resumePostSave(){
@@ -961,6 +1144,7 @@
     renderOperator();
     if(!await securityCheck())return;
     hydrateReadCache();
+    await loadIdentityPolicy();
     await Promise.allSettled([
       restoreOperatorSession(),
       loadCapabilities(),

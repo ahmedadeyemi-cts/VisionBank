@@ -3,6 +3,10 @@ import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,listAuditRecords} from './audit.mjs';
 import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
+import {
+  identityPolicy,getAdminSettings,setVerificationEnabled,addDeviceAdmin,removeDeviceAdmin,
+  requestVerificationCode,confirmVerificationCode,verificationRequired
+} from './identity.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
 const PREFIX='/api/webex/device-management/';
@@ -435,6 +439,12 @@ async function readPhonismCapabilities(env,org,phonismReader,discoveryOverride=n
   }
 }
 
+async function requireWriteOperator(env,request){
+  const session=await requireOperatorSession(env,request);
+  if(await verificationRequired(env)&&session.verified!==true)throw new DeviceManagementError('operator-verification-required',403);
+  return session;
+}
+
 export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRules,phonismReader=createPhonismReader()}){
   if(typeof webexFetch!=='function'||typeof checkAccess!=='function'||typeof loadIpRules!=='function'||!phonismReader)throw new Error('device-management-dependencies-required');
   return async function handler(request,env,cors={}){
@@ -442,8 +452,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
     try{
       const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status']);
-      const postRoutes=new Set(['operator-session','preview','apply','reboot']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings']);
+      const postRoutes=new Set(['operator-session','verification-request','verification-confirm','admin-settings/verification','admin-settings/admins/add','admin-settings/admins/remove','preview','apply','reboot']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
@@ -455,15 +465,67 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       const writeScope=deviceWriteScope(env);
       if(writeParts.has(part)&&writeScope==='disabled')throw new DeviceManagementError('read-only-phase',405);
 
+      if(part==='identity-policy'){
+        return output({success:true,...await identityPolicy(env,request)},200,headers);
+      }
+
+      if(part==='verification-request'){
+        const body=await readSmallJson(request,2048);
+        if(!body||Object.keys(body).some(k=>!['name','email'].includes(k)))throw new DeviceManagementError('invalid-verification-request');
+        const result=await requestVerificationCode(env,request,body);
+        return output({success:true,...result},result.required===false?200:201,headers);
+      }
+
+      if(part==='verification-confirm'){
+        const body=await readSmallJson(request,1024);
+        if(!body||Object.keys(body).some(k=>!['challengeId','code'].includes(k)))throw new DeviceManagementError('invalid-verification-confirmation');
+        const verified=await confirmVerificationCode(env,request,body);
+        const session=await createOperatorSession(env,request,verified.operator,{
+          verified:true,verificationMethod:'email-code',verifiedAt:verified.verifiedAt
+        });
+        return output({success:true,sessionId:session.id,operator:session.operator,verified:true,
+          verificationMethod:session.verificationMethod,verifiedAt:session.verifiedAt,
+          startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
+      }
+
       if(part==='operator-session'){
         if(request.method==='POST'){
+          if(await verificationRequired(env))throw new DeviceManagementError('operator-verification-required',403);
           const body=await readSmallJson(request,2048);
-          const session=await createOperatorSession(env,request,body);
-          return output({success:true,sessionId:session.id,operator:session.operator,startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
+          const session=await createOperatorSession(env,request,body,{verified:false,verificationMethod:'disabled'});
+          return output({success:true,sessionId:session.id,operator:session.operator,verified:false,
+            verificationMethod:session.verificationMethod,startedAt:session.startedAt,expiresAt:session.expiresAt},201,headers);
         }
         const session=await readOperatorSession(env,request.headers.get('X-VB-Operator-Session'));
         if(!session)throw new DeviceManagementError('operator-session-required',401);
-        return output({success:true,sessionId:session.id,operator:session.operator,startedAt:session.startedAt,expiresAt:session.expiresAt},200,headers);
+        return output({success:true,sessionId:session.id,operator:session.operator,verified:session.verified===true,
+          verificationMethod:session.verificationMethod||'none',verifiedAt:session.verifiedAt||null,
+          startedAt:session.startedAt,expiresAt:session.expiresAt},200,headers);
+      }
+
+      if(part==='admin-settings'){
+        return output({success:true,...await getAdminSettings(env,request)},200,headers);
+      }
+
+      if(part==='admin-settings/verification'){
+        const body=await readSmallJson(request,1024);
+        if(!body||typeof body.enabled!=='boolean'||Object.keys(body).some(k=>k!=='enabled'))throw new DeviceManagementError('invalid-admin-setting');
+        const settings=await setVerificationEnabled(env,request,body.enabled);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+      }
+
+      if(part==='admin-settings/admins/add'){
+        const body=await readSmallJson(request,1024);
+        if(!body||typeof body.email!=='string'||Object.keys(body).some(k=>k!=='email'))throw new DeviceManagementError('invalid-admin-request');
+        const settings=await addDeviceAdmin(env,request,body.email);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
+      }
+
+      if(part==='admin-settings/admins/remove'){
+        const body=await readSmallJson(request,1024);
+        if(!body||typeof body.email!=='string'||Object.keys(body).some(k=>k!=='email'))throw new DeviceManagementError('invalid-admin-request');
+        const settings=await removeDeviceAdmin(env,request,body.email);
+        return output({success:true,verificationEnabled:settings.verificationEnabled,admins:settings.admins,updatedAt:settings.updatedAt,updatedBy:settings.updatedBy},200,headers);
       }
 
       if(part==='history'){
@@ -616,7 +678,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
 
       if(part==='preview'){
-        const session=await requireOperatorSession(env,request);
+        const session=await requireWriteOperator(env,request);
         const body=await readSmallJson(request,4096);
         const allowed=new Set(['deviceId','locationId','phonismPhoneId','targetLine2MemberId','targetLine2Search','targetLine2LocationId','durationMinutes','reason']);
         if(!body||Object.keys(body).some(k=>!allowed.has(k)))throw new DeviceManagementError('invalid-preview-request');
@@ -653,7 +715,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
 
       if(part==='apply'){
-        const session=await requireOperatorSession(env,request);
+        const session=await requireWriteOperator(env,request);
         const body=await readSmallJson(request,2048);
         if(!body||typeof body.mutationId!=='string'||Object.keys(body).some(k=>!['mutationId'].includes(k)))throw new DeviceManagementError('invalid-apply-request');
         try{
@@ -687,7 +749,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
 
       if(part==='reboot'){
-        const session=await requireOperatorSession(env,request);
+        const session=await requireWriteOperator(env,request);
         const body=await readSmallJson(request,2048);
         if(!body||Object.keys(body).some(k=>!['leaseId'].includes(k))||typeof body.leaseId!=='string')throw new DeviceManagementError('invalid-recovery-request');
         const result=await runRecoveryAction({env,request,session,leaseId:body.leaseId,phonismReader});

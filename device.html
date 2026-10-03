@@ -6,7 +6,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261002-v6">
+  <link rel="stylesheet" href="device.css?v=20261003-v7">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -31,8 +31,10 @@
         <span class="device-operator-label">Change operator</span>
         <strong id="deviceOperatorName">Not identified</strong>
         <small id="deviceOperatorEmail">Required before changes</small>
+        <span id="deviceOperatorVerification" class="device-operator-verification">Verification pending</span>
       </div>
       <span id="deviceSyncStamp" class="device-sync-stamp">Waiting for inventory</span>
+      <button id="deviceAdminButton" class="device-btn secondary" type="button" hidden>Admin Settings</button>
       <button id="deviceOperatorButton" class="device-btn secondary" type="button">Identify Operator</button>
       <button id="deviceRefresh" class="device-btn secondary" type="button">Refresh</button>
     </div>
@@ -170,6 +172,15 @@
         <label>Work email
           <input id="deviceOperatorWorkEmail" type="email" maxlength="254" autocomplete="email" required placeholder="name@company.com">
         </label>
+        <div id="deviceVerificationPanel" class="device-verification-panel" hidden>
+          <label>Verification code
+            <input id="deviceVerificationCode" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code">
+          </label>
+          <div class="device-verification-help">
+            <span id="deviceVerificationHint">A verification code was sent to your work email.</span>
+            <button id="deviceVerificationResend" class="device-link-btn" type="button">Send another code</button>
+          </div>
+        </div>
         <p id="deviceOperatorMessage" class="device-helper">This identity is kept for this browser session. IP address and browser information are captured server-side for audited changes.</p>
       </div>
       <div class="device-dialog-actions">
@@ -177,6 +188,41 @@
         <button id="deviceOperatorSave" class="device-btn" type="submit">Continue</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="deviceAdminDialog" class="device-dialog compact device-admin-dialog" aria-labelledby="deviceAdminTitle">
+    <div class="device-dialog-shell">
+      <div class="device-dialog-heading">
+        <div><span class="device-eyebrow">Device Manager administration</span><h2 id="deviceAdminTitle">Verification & Admins</h2><p>Controls apply to the Device & Extension Manager only.</p></div>
+        <button id="deviceAdminClose" class="device-icon-btn" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="device-admin-body">
+        <section class="device-admin-setting">
+          <div>
+            <strong>Email verification</strong>
+            <p>Require a six-digit email code before an operator can Review, Save & Sync, or Reboot & Reverify.</p>
+          </div>
+          <label class="device-switch">
+            <input id="deviceVerificationToggle" type="checkbox">
+            <span class="device-switch-track"><span></span></span>
+            <span id="deviceVerificationToggleLabel">On</span>
+          </label>
+        </section>
+
+        <section class="device-admin-list-section">
+          <div class="device-admin-section-heading">
+            <div><strong>Device Manager admins</strong><p>Admins must also have a valid VisionBank Security login session.</p></div>
+          </div>
+          <div class="device-admin-add">
+            <input id="deviceAdminEmailInput" type="email" maxlength="254" placeholder="name@visionbank.com" aria-label="Admin email">
+            <button id="deviceAdminAddButton" class="device-btn" type="button">Add Admin</button>
+          </div>
+          <div id="deviceAdminList" class="device-admin-list"></div>
+          <p class="device-admin-note"><strong>infotech@visionbank.com</strong> is treated as the shared Tech Admin mailbox. It can remain an admin, but it cannot be the only remaining admin.</p>
+        </section>
+        <p id="deviceAdminMessage" class="device-helper">Only authenticated admins can change these settings.</p>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="deviceEditor" class="device-dialog" aria-labelledby="deviceEditorTitle">
@@ -302,6 +348,6 @@
     <span id="deviceSecurityStatus">Security check pending</span>
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
-  <script src="device.js?v=20261002-v17"></script>
+  <script src="device.js?v=20261003-v18"></script>
 </body>
 </html>

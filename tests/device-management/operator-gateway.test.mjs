@@ -16,7 +16,8 @@ class MemoryKV{
 
 const ORIGIN='https://visionbank-dashboard.onrender.com';
 const IP='198.51.100.12';
-const env={WEBEX_ORG_ID:'org-1',SESSIONS:new MemoryKV(),LOGS:new MemoryKV()};
+const env={WEBEX_ORG_ID:'org-1',SESSIONS:new MemoryKV(),LOGS:new MemoryKV(),ADMIN:new MemoryKV()};
+env.LOGS.map.set('device-identity:config:v1',{value:JSON.stringify({verificationEnabled:false,admins:['ahmed.adeyemi@ussignal.com']}),metadata:null});
 
 const handler=createDeviceManagementHandler({
   webexFetch:async()=>Response.json({items:[]}),
@@ -25,10 +26,11 @@ const handler=createDeviceManagementHandler({
   phonismReader:{}
 });
 
-async function request(path,{method='GET',body,sessionId}={}){
+async function request(path,{method='GET',body,sessionId,authorization}={}){
   const headers=new Headers({Origin:ORIGIN,'CF-Connecting-IP':IP,'User-Agent':'Operator Gateway Test'});
   if(body!==undefined)headers.set('Content-Type','application/json');
   if(sessionId)headers.set('X-VB-Operator-Session',sessionId);
+  if(authorization)headers.set('Authorization',authorization);
   const req=new Request('https://worker.example/api/webex/device-management/'+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
   Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
   const res=await handler(req,env,{'Access-Control-Allow-Origin':ORIGIN});
@@ -55,6 +57,23 @@ test('operator-session GET rejects missing sessions',async()=>{
   const r=await request('operator-session');
   assert.equal(r.status,401);
   assert.equal(r.data.error,'operator-session-required');
+});
+
+test('operator-session POST fails closed when email verification is enabled',async()=>{
+  const localEnv={WEBEX_ORG_ID:'org-1',SESSIONS:new MemoryKV(),LOGS:new MemoryKV(),ADMIN:new MemoryKV()};
+  const localHandler=createDeviceManagementHandler({
+    webexFetch:async()=>Response.json({items:[]}),
+    checkAccess:async()=>({allowed:true}),
+    loadIpRules:async()=>['198.51.100.0/24'],
+    phonismReader:{}
+  });
+  const headers=new Headers({Origin:ORIGIN,'CF-Connecting-IP':IP,'User-Agent':'Verification Required Test','Content-Type':'application/json'});
+  const req=new Request('https://worker.example/api/webex/device-management/operator-session',{method:'POST',headers,body:JSON.stringify({name:'Test Operator',email:'operator@visionbank.com'})});
+  Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
+  const res=await localHandler(req,localEnv,{'Access-Control-Allow-Origin':ORIGIN});
+  const data=await res.json();
+  assert.equal(res.status,403);
+  assert.equal(data.error,'operator-verification-required');
 });
 
 test('history returns server-stored operator and IP metadata newest first',async()=>{

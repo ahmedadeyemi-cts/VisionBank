@@ -180,10 +180,17 @@ The editor offers common durations: 30 minutes, 1 hour, 2 hours, 4 hours, 8 hour
 Browsing device inventory does not require operator identification. Before a user can enter the line-change workflow, the platform requires:
 - Full name
 - Work email address
+- When email verification is enabled, a six-digit code delivered to that work email.
 
-The browser stores only the server-issued operator session in session storage for the current browser session. The server stores the namespaced operator session in the existing `SESSIONS` KV namespace.
+Email verification is enabled by default. Verification codes expire after 10 minutes, are hashed in server-side challenge state, are rate-limited, and are bound to the requesting network address. The browser stores only the server-issued operator session in session storage for the current browser session. The server stores the namespaced operator session in the existing `SESSIONS` KV namespace.
 
-Every executed change must write an audit record to the existing `LOGS` KV namespace under the `device-audit:` prefix. Audit identity must never be accepted solely from change-request form fields; the backend resolves it from the validated operator session.
+Device Manager admins can enable or disable email verification and add/remove Device Manager admins. Admin controls require both:
+1. A current VisionBank Security login session with the `admin` or `superadmin` role.
+2. An email identity present in the Device Manager admin list.
+
+The initial Device Manager admin list is seeded with the approved US Signal/VisionBank identities. `infotech@visionbank.com` is treated as a shared Tech Admin mailbox: it can be an admin identity, but it cannot be the only remaining admin. Admin policy and admin-change audit records are stored under namespaced `device-identity:` keys in `LOGS`, never in the Security user-account namespace.
+
+Every executed change must write an audit record to the existing `LOGS` KV namespace under the `device-audit:` prefix. Audit identity must never be accepted solely from change-request form fields; the backend resolves it from the validated operator session and records whether email verification was completed.
 
 Server-captured audit evidence includes:
 - Operator name and work email

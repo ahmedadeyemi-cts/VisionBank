@@ -23,11 +23,15 @@ export function requestSource(request){
   return {ip:ip||'unknown',userAgent:userAgent||'unknown'};
 }
 
-export async function createOperatorSession(env,request,value,{now=Date.now()}={}){
+export async function createOperatorSession(env,request,value,{now=Date.now(),verified=false,verificationMethod='none',verifiedAt=null}={}){
   if(!env?.SESSIONS?.put)throw new DeviceManagementError('operator-session-store-unavailable',503);
   const operator=validateOperator(value),sessionId=crypto.randomUUID(),source=requestSource(request);
   const startedAt=new Date(now).toISOString(),expiresAt=new Date(now+SESSION_TTL_SECONDS*1000).toISOString();
-  const session={id:sessionId,operator,startedAt,expiresAt,startedFrom:source};
+  const session={
+    id:sessionId,operator,startedAt,expiresAt,startedFrom:source,
+    verified:verified===true,verificationMethod:clean(verificationMethod||'none',40),
+    verifiedAt:verified===true?clean(verifiedAt||startedAt,40):null
+  };
   await env.SESSIONS.put(SESSION_PREFIX+sessionId,JSON.stringify(session),{expirationTtl:SESSION_TTL_SECONDS});
   return session;
 }
@@ -64,7 +68,9 @@ export function buildAuditRecord({eventType,action,request,session=null,systemAc
     }:null
   }:{
     type:'human',name:clean(session?.operator?.name||'',100),
-    email:clean(session?.operator?.email||'',254),sessionId:clean(session?.id||'',64)
+    email:clean(session?.operator?.email||'',254),sessionId:clean(session?.id||'',64),
+    verified:session?.verified===true,verificationMethod:clean(session?.verificationMethod||'none',40),
+    verifiedAt:clean(session?.verifiedAt||'',40)||null
   };
   if(actor.type==='human'&&(!actor.name||!actor.email))throw new DeviceManagementError('operator-session-required',401);
   return {
@@ -94,6 +100,7 @@ export async function writeAuditRecord(env,record){
   const metadata={
     auditId:record.auditId,at:record.at,eventType:record.eventType,action:record.action,
     operatorName:record.actor?.name||'',operatorEmail:record.actor?.email||'',actorType:record.actor?.type||'',
+    operatorVerified:record.actor?.verified===true,verificationMethod:record.actor?.verificationMethod||'',
     sourceIp:record.sourceIp,deviceName:record.device?.name||'',locationName:record.location?.name||'',
     webexStatus:record.webexStatus,phonismStatus:record.phonismStatus,result:record.result
   };

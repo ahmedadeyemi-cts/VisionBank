@@ -143,3 +143,28 @@ button,input,select{font:inherit}.device-shell{min-height:100vh}.device-shell.ac
   .device-editor-body{padding:12px}.device-line2-workspace{padding:13px}.device-dialog:not(.compact) .device-dialog-heading{padding:14px}
   .device-dialog-actions-sticky{padding:10px 12px}.device-dialog-actions-sticky .device-btn{flex:1}
 }
+
+/* Operator verification + Device Manager administration */
+.device-operator-verification{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-top:3px;padding:2px 6px;border-radius:999px;font-size:9px;font-weight:800;letter-spacing:.02em}
+.device-operator-verification.verified{background:rgba(236,253,243,.18);color:#d1fadf}.device-operator-verification.verified::before{content:"✓"}
+.device-operator-verification.pending{background:rgba(255,250,235,.16);color:#fef0c7}.device-operator-verification.disabled{background:rgba(238,242,241,.16);color:#e1e8e5}
+.device-verification-panel{grid-column:1/-1;border:1px solid #cfe0da;border-radius:12px;padding:13px;background:#f7faf9}
+.device-verification-panel label{display:block;max-width:240px}.device-verification-panel input{font-size:20px!important;font-weight:800;letter-spacing:.18em;text-align:center}
+.device-verification-help{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:9px;color:var(--vb-muted);font-size:11px}
+.device-verification-help .device-link-btn{padding:4px 0}
+
+.device-admin-body{padding:18px 20px;display:grid;gap:16px}.device-admin-setting,.device-admin-list-section{border:1px solid var(--vb-border);border-radius:13px;background:#fff;padding:15px}
+.device-admin-setting{display:flex;justify-content:space-between;align-items:center;gap:20px}.device-admin-setting strong,.device-admin-section-heading strong{font-size:14px}.device-admin-setting p,.device-admin-section-heading p{margin:4px 0 0;color:var(--vb-muted);font-size:11px;line-height:1.4}
+.device-switch{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;color:#34423d;white-space:nowrap}.device-switch input{position:absolute;opacity:0;pointer-events:none}
+.device-switch-track{position:relative;width:44px;height:24px;border-radius:999px;background:#cbd5d1;transition:.18s ease;cursor:pointer}.device-switch-track span{position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:.18s ease}
+.device-switch input:checked+.device-switch-track{background:var(--vb-green)}.device-switch input:checked+.device-switch-track span{transform:translateX(20px)}
+.device-switch input:focus-visible+.device-switch-track{box-shadow:var(--vb-focus)}
+
+.device-admin-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;margin-top:13px}.device-admin-add input{border:1px solid #cbd8d3;border-radius:10px;padding:10px 11px;min-height:42px;outline:none}.device-admin-add input:focus{border-color:var(--vb-green);box-shadow:var(--vb-focus)}
+.device-admin-list{display:grid;gap:7px;margin-top:13px;max-height:300px;overflow:auto}.device-admin-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 10px;border:1px solid #e2ebe7;border-radius:10px;background:#fafcfb}
+.device-admin-row strong{display:block;font-size:12px;word-break:break-word}.device-admin-meta{display:block;color:var(--vb-muted);font-size:10px;margin-top:2px}.device-admin-remove{flex:0 0 auto}
+.device-admin-remove:disabled{opacity:.4;cursor:not-allowed}.device-audit-identity{display:inline-flex;margin-top:4px;padding:2px 6px;border-radius:999px;font-size:9px;font-weight:800}
+.device-audit-identity.verified{background:#ecfdf3;color:#027a48}.device-audit-identity.disabled{background:#eef2f1;color:#5d6b66}
+@media(max-width:620px){.device-verification-help,.device-admin-setting{align-items:flex-start;flex-direction:column}.device-admin-add{grid-template-columns:1fr}.device-admin-add .device-btn{width:100%}}
+
+.device-admin-note{margin:10px 0 0;padding:9px 10px;border-radius:9px;background:#f7faf9;color:var(--vb-muted);font-size:10px;line-height:1.45}

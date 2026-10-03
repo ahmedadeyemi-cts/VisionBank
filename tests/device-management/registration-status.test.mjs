@@ -15,9 +15,10 @@ test('Phonism line without registration_status is explicitly not monitored',asyn
   assert.equal(lines[0].registrationMonitored,false);
 });
 
-test('production worker CORS allows the device operator session header',()=>{
+test('production worker CORS allows operator and authenticated admin session headers',()=>{
   const source=fs.readFileSync(new URL('../../worker.js',import.meta.url),'utf8');
   const match=source.match(/Access-Control-Allow-Headers["']?\s*:\s*["']([^"']+)/);
   assert.ok(match,'CORS allow-header declaration should exist');
   assert.match(match[1],/X-VB-Operator-Session/i);
+  assert.match(match[1],/Authorization/i);
 });

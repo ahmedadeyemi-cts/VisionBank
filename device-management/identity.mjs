@@ -11,6 +11,7 @@ const MAX_ATTEMPTS=5;
 const MAX_SENDS_PER_HOUR=5;
 const DEFAULT_VERIFICATION_HOURS=24;
 const MAX_VERIFICATION_HOURS=720;
+const PRIVATE_PORTAL_EMAIL_SHA256='b8d80694889fa73ef35efc6d63ffcd481fc769f4a97fc33e25f2cbbe15ce8ae9';
 
 export const SHARED_ADMIN_MAILBOXES=['infotech@visionbank.com'];
 
@@ -29,6 +30,14 @@ const clean=(value,max=254)=>String(value??'').trim().replace(/[\u0000-\u001f\u0
 const email=value=>clean(value,254).toLowerCase();
 const validEmail=value=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email(value));
 const validAdminEmail=value=>validEmail(value)&&['visionbank.com','ussignal.com'].includes(email(value).split('@')[1]||'');
+
+async function portalOperatorEmailAllowed(value){
+  const mail=email(value);
+  if(!validEmail(mail))return false;
+  const domain=mail.split('@')[1]||'';
+  if(domain==='visionbank.com'||domain==='ussignal.com')return true;
+  return (await sha256(mail))===PRIVATE_PORTAL_EMAIL_SHA256;
+}
 const uniqueEmails=values=>[...new Set((Array.isArray(values)?values:[]).map(email).filter(validEmail))].sort();
 const hours=value=>Math.min(Math.max(Number.parseInt(String(value??''),10)||DEFAULT_VERIFICATION_HOURS,1),MAX_VERIFICATION_HOURS);
 const cleanOverrides=value=>{
@@ -273,6 +282,7 @@ export async function requestVerificationCode(env,request,operator,{now=Date.now
   const name=clean(operator?.name,100),mail=email(operator?.email);
   if(name.length<2)throw new DeviceManagementError('operator-name-required');
   if(!validEmail(mail))throw new DeviceManagementError('operator-email-invalid');
+  if(!await portalOperatorEmailAllowed(mail))throw new DeviceManagementError('operator-email-not-authorized',403);
   if(!env?.SESSIONS?.put)throw new DeviceManagementError('operator-session-store-unavailable',503);
   await checkSendRate(env,mail,requestIp(request),{now});
   const challengeId=crypto.randomUUID(),code=randomCode();

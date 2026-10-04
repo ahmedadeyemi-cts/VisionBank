@@ -44,6 +44,14 @@ test('Security participates in the common portal theme without loading the share
   assert.match(html,/security\.js\?v=20261004-console4/);
 });
 
+test('Dashboard and Webex Dashboard do not expose cross-portal navigation tabs',()=>{
+  for(const page of ['index.html','webex.html']){
+    const html=read(page);
+    assert.doesNotMatch(html,/<nav class="portal-nav"/,page+' must not show portal navigation');
+    assert.match(html,/class="header-right dashboard-header-actions"/,page+' keeps dashboard-only actions');
+  }
+});
+
 test('dashboard theme controls are in enterprise headers and remain unique',()=>{
   for(const page of ['index.html','webex.html']){
     const html=read(page);

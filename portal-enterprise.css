@@ -689,3 +689,19 @@ body.enterprise-dark .device-footer {
   color: var(--vb-shell-green) !important;
   font-weight: 800 !important;
 }
+
+/* Dashboard pages intentionally do not show the cross-portal navigation row. */
+.header .dashboard-header-actions {
+  flex: 0 1 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+.header .dashboard-header-actions .enterprise-header-tools {
+  margin-left: 0;
+}
+@media (max-width: 1180px) {
+  .header .dashboard-header-actions {
+    width: auto;
+    align-self: stretch;
+  }
+}

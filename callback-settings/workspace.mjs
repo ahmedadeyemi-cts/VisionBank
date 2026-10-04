@@ -44,6 +44,7 @@ export function createCallbackWorkspace({api,openPlan,onRecord,accessReady}) {
   let loading=false,loaded=false,planCursor=null,recordCursor=null,generation=0,lastRefresh=0,pollTimer=null,stopped=false,reconcileCursor=0;
   const action=(title,fn)=>{const b=el('button',title);b.type='button';b.addEventListener('click',async()=>{if(!accessReady())return;b.disabled=true;try{await fn();}catch(e){get('WorkspaceStatus').textContent=e.message;}finally{b.disabled=!accessReady();}});return b;};
   const actionCell=()=>{const cell=el('td','');cell.className='vb-cb-actions';return cell;};
+  const moreState=(name,cursor)=>{const b=get(name);if(!b)return;const available=!!cursor;b.disabled=!available;b.hidden=!available;};
 
   function plans(rows,append=false){
     if(!append)get('SavedPlans').replaceChildren();
@@ -89,7 +90,7 @@ export function createCallbackWorkspace({api,openPlan,onRecord,accessReady}) {
     try{
       const [p,r,a]=await Promise.all([api('plans'),api('register'),api('automation-status').catch(()=>null)]);if(run!==generation||!accessReady())return;
       const rows=reconcile?await reconcileOne(r.rows,run):r.rows;if(run!==generation||!accessReady())return;
-      plans(p.plans);records(rows);planCursor=p.nextBefore;recordCursor=r.nextBefore;get('MorePlans').disabled=!planCursor;get('MoreRecords').disabled=!recordCursor;
+      plans(p.plans);records(rows);planCursor=p.nextBefore;recordCursor=r.nextBefore;moreState('MorePlans',planCursor);moreState('MoreRecords',recordCursor);
       get('WorkspaceStatus').textContent='Showing active saved plans and callback requests for today plus confirmed future callbacks. Previous-day incomplete requests are hidden; audit history remains retained.'+
         (a?' '+a.message+(a.lastScanAt?' Last automatic check: '+new Date(a.lastScanAt).toLocaleString('en-US',{timeZone:'America/Chicago',timeZoneName:'short'})+'.':''):'');
       loaded=true;lastRefresh=Date.now();
@@ -106,7 +107,7 @@ export function createCallbackWorkspace({api,openPlan,onRecord,accessReady}) {
   function clear(){stop();document.getElementById('vbCallbackManage')?.close();generation++;loaded=false;get('SavedPlans')?.replaceChildren();get('Register')?.replaceChildren();if(get('WorkspaceStatus'))get('WorkspaceStatus').textContent='Dashboard access is not approved.';for(const b of get('Workspace')?.querySelectorAll('button')||[])b.disabled=true;}
 
   get('RefreshWorkspace')?.addEventListener('click',()=>void refresh(true));
-  get('MorePlans')?.addEventListener('click',async()=>{if(!planCursor||!accessReady()||loading)return;loading=true;const run=generation;try{const p=await api('plans?before='+encodeURIComponent(planCursor));if(run!==generation||!accessReady())return;plans(p.plans,true);planCursor=p.nextBefore;get('MorePlans').disabled=!planCursor;}catch(e){get('WorkspaceStatus').textContent=e.message;}finally{loading=false;}});
-  get('MoreRecords')?.addEventListener('click',async()=>{if(!recordCursor||!accessReady()||loading)return;loading=true;const run=generation;try{const r=await api('register?before='+encodeURIComponent(recordCursor));if(run!==generation||!accessReady())return;records(r.rows,true);recordCursor=r.nextBefore;get('MoreRecords').disabled=!recordCursor;}catch(e){get('WorkspaceStatus').textContent=e.message;}finally{loading=false;}});
+  get('MorePlans')?.addEventListener('click',async()=>{if(!planCursor||!accessReady()||loading)return;loading=true;const run=generation;try{const p=await api('plans?before='+encodeURIComponent(planCursor));if(run!==generation||!accessReady())return;plans(p.plans,true);planCursor=p.nextBefore;moreState('MorePlans',planCursor);}catch(e){get('WorkspaceStatus').textContent=e.message;}finally{loading=false;}});
+  get('MoreRecords')?.addEventListener('click',async()=>{if(!recordCursor||!accessReady()||loading)return;loading=true;const run=generation;try{const r=await api('register?before='+encodeURIComponent(recordCursor));if(run!==generation||!accessReady())return;records(r.rows,true);recordCursor=r.nextBefore;moreState('MoreRecords',recordCursor);}catch(e){get('WorkspaceStatus').textContent=e.message;}finally{loading=false;}});
   return {refresh,clear,stop,resume,firstLoad(){if(accessReady()){stopped=false;get('RefreshWorkspace').disabled=false;if(!loaded||Date.now()-lastRefresh>20000)void refresh(true);schedulePoll();}}};
 }

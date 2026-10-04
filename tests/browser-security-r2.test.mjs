@@ -18,6 +18,12 @@ test('all portal HTML entry points use a strict script CSP and referrer policy',
   }
 });
 
+test('Webex CSP permits the Cisco chat widget styles and fonts required by the launcher',()=>{
+  const source=fs.readFileSync(new URL('../webex.html',import.meta.url),'utf8');
+  assert.match(source,/style-src[^;]*https:\/\/chat-widget\.produs1\.ciscoccservice\.com/);
+  assert.match(source,/font-src[^;]*https:\/\/chat-widget\.produs1\.ciscoccservice\.com/);
+});
+
 test('Security bearer session is centralized in portal-session and no longer written directly to localStorage',()=>{
   const helper=fs.readFileSync(new URL('../portal-session.js',import.meta.url),'utf8');
   assert.match(helper,/sessionStorage\.setItem\(KEY/);

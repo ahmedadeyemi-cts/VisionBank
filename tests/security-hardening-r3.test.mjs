@@ -24,15 +24,13 @@ test('R3 Worker hardener adds server-side realtime proxy using only CC_API_TOKEN
   assert.match(hardener,/handlePortalRealtimeProxy/);
 });
 
-test('main Dashboard requires portal session while Webex preserves approved-connection access',()=>{
-  assert.match(index,/portal-session\.js/);
-  assert.match(index,/portal-auth-fetch\.js/);
-  assert.match(index,/portal-page-auth\.js/);
-
-  assert.match(webex,/portal-session\.js/);
-  assert.match(webex,/portal-auth-fetch\.js/);
-  assert.match(webex,/portal-security-precheck\.js/);
-  assert.doesNotMatch(webex,/portal-page-auth\.js/);
+test('main and Webex dashboards preserve approved-connection access without forced Security-login redirect',()=>{
+  for(const html of [index,webex]){
+    assert.match(html,/portal-session\.js/);
+    assert.match(html,/portal-auth-fetch\.js/);
+    assert.match(html,/portal-security-precheck\.js/);
+    assert.doesNotMatch(html,/portal-page-auth\.js/);
+  }
 
   assert.match(pageAuth,/\/api\/session\/status/);
   assert.match(pageAuth,/VBPortalSession\?\.clear/);

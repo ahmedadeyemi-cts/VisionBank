@@ -11,7 +11,9 @@ test('all primary portal pages carry CSP and no-referrer metadata',()=>{
     assert.match(html,/http-equiv="Content-Security-Policy"/,name+' missing CSP');
     assert.match(html,/object-src 'none'/,name+' CSP missing object-src none');
     assert.match(html,/base-uri 'self'/,name+' CSP missing base-uri');
+    assert.equal((html.match(/name="referrer"/g)||[]).length,1,name+' must have exactly one referrer policy');
     assert.match(html,/name="referrer" content="no-referrer"/,name+' missing no-referrer metadata');
+    assert.doesNotMatch(html,/strict-origin-when-cross-origin/,name+' retains conflicting legacy referrer policy');
   }
 });
 

@@ -8,6 +8,20 @@ const REPORT_API = `${SECURITY_BASE}/api/fax/cdrsearch`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function authHeaders(extra = {}) {
+  return window.VBPortalSession?.authHeaders(extra) || extra;
+}
+
+async function revokePortalSession() {
+  const session = window.VBPortalSession?.get() || "";
+  if (!session) return;
+  try {
+    await fetch(`${SECURITY_BASE}/api/logout`, { method: "POST", headers: authHeaders() });
+  } catch (err) {
+    console.debug("Portal session revoke skipped:", err?.message || err);
+  }
+}
+
 const reportBody = document.getElementById("fax-report-body");
 const reportSummary = document.getElementById("fax-summary");
 const reportRange = document.getElementById("report-range");
@@ -95,7 +109,7 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    localStorage.setItem(VB_SESSION_KEY, data.session);
+    window.VBPortalSession?.set(data.session);
     localStorage.setItem(VB_USER_KEY, username);
 
     loginView.classList.add("hidden");
@@ -110,8 +124,9 @@ loginForm?.addEventListener("submit", async function (e) {
   }
 });
 
-logoutBtn?.addEventListener("click", function () {
-  localStorage.removeItem(VB_SESSION_KEY);
+logoutBtn?.addEventListener("click", async function () {
+  await revokePortalSession();
+  window.VBPortalSession?.clear();
   localStorage.removeItem(VB_USER_KEY);
   location.href = "security.html";
 });
@@ -307,7 +322,7 @@ async function loadReport() {
   }
 
   try {
-    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`);
+    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || data.ok === false || data.success === false) {
@@ -539,7 +554,7 @@ async function loadSchedule() {
   scheduleStatus.textContent = "Loading schedules...";
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/fax/schedule/get`);
+    const res = await fetch(`${SECURITY_BASE}/api/fax/schedule/get`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || data.success === false) {
@@ -670,7 +685,7 @@ async function saveSchedule() {
 
     const res = await fetch(`${SECURITY_BASE}/api/fax/schedule/save`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
 
@@ -706,7 +721,7 @@ async function deleteSchedule(id) {
   try {
     const res = await fetch(`${SECURITY_BASE}/api/fax/schedule/delete`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ id })
     });
 
@@ -733,7 +748,8 @@ async function sendFaxReport(range) {
 
   try {
     const res = await fetch(`${SECURITY_BASE}/api/fax/send-daily?range=${encodeURIComponent(range)}`, {
-      method: "POST"
+      method: "POST",
+      headers: authHeaders()
     });
 
     const data = await res.json();
@@ -753,7 +769,7 @@ async function sendFaxReport(range) {
 // INIT
 // =====================================================
 (async function init() {
-  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingSession = window.VBPortalSession?.get();
 
   if (existingSession) {
     loginView.classList.add("hidden");

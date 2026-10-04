@@ -180,7 +180,7 @@ loginForm.addEventListener("submit", async (e) => {
         if (data.success && data.session) {
             ACTIVE_SESSION = data.session;
             ACTIVE_ROLE = data.user?.role || "view";
-            localStorage.setItem(VB_SESSION_KEY, ACTIVE_SESSION);
+            window.VBPortalSession?.set(ACTIVE_SESSION);
             localStorage.setItem(VB_USER_KEY, username);
             localStorage.setItem(VB_ROLE_KEY, ACTIVE_ROLE);
            
@@ -1251,7 +1251,7 @@ logoutBtn.addEventListener("click", async () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
-       localStorage.removeItem(VB_SESSION_KEY);
+       window.VBPortalSession?.clear();
        localStorage.removeItem(VB_USER_KEY);
        localStorage.removeItem(VB_ROLE_KEY);
     if (auditInterval) {
@@ -1320,7 +1320,7 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
     });
 });
 (async function restoreSharedSession() {
-  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingSession = window.VBPortalSession?.get();
   const existingUser = localStorage.getItem(VB_USER_KEY);
   const existingRole = localStorage.getItem(VB_ROLE_KEY);
 
@@ -1338,7 +1338,7 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
-    localStorage.removeItem(VB_SESSION_KEY);
+    window.VBPortalSession?.clear();
     localStorage.removeItem(VB_USER_KEY);
     localStorage.removeItem(VB_ROLE_KEY);
     loginView.classList.remove("hidden");

@@ -10,6 +10,20 @@ const REPORT_API = `${SECURITY_BASE}/api/voicemails/report`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function authHeaders(extra = {}) {
+  return window.VBPortalSession?.authHeaders(extra) || extra;
+}
+
+async function revokePortalSession() {
+  const session = window.VBPortalSession?.get() || "";
+  if (!session) return;
+  try {
+    await fetch(`${SECURITY_BASE}/api/logout`, { method: "POST", headers: authHeaders() });
+  } catch (err) {
+    console.debug("Portal session revoke skipped:", err?.message || err);
+  }
+}
+
 
 const reportBody = document.getElementById("voicemail-report-body");
 const reportSummary = document.getElementById("voicemail-summary");
@@ -103,7 +117,7 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    localStorage.setItem(VB_SESSION_KEY, data.session);
+    window.VBPortalSession?.set(data.session);
     localStorage.setItem(VB_USER_KEY, username);
 
     loginView.classList.add("hidden");
@@ -119,8 +133,9 @@ loginForm?.addEventListener("submit", async function (e) {
   }
 });
 
-logoutBtn?.addEventListener("click", function () {
-  localStorage.removeItem(VB_SESSION_KEY);
+logoutBtn?.addEventListener("click", async function () {
+  await revokePortalSession();
+  window.VBPortalSession?.clear();
   localStorage.removeItem(VB_USER_KEY);
   location.href = "security.html";
 });
@@ -200,7 +215,8 @@ sendDailyBtn?.addEventListener("click", async function () {
     const res = await fetch(
       `${SECURITY_BASE}/api/voicemails/send-daily?range=${encodeURIComponent(range)}`,
       {
-        method: "POST"
+        method: "POST",
+        headers: authHeaders()
       }
     );
 
@@ -441,7 +457,7 @@ async function loadReport() {
   const range = reportRange.value;
 
   try {
-    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`);
+    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`, { headers: authHeaders() });
 
     if (!res.ok) {
       throw new Error(`Report failed: HTTP ${res.status}`);
@@ -471,7 +487,7 @@ async function loadScheduleSettings() {
   try {
     scheduleStatus.textContent = "Loading schedules...";
 
-    const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/get`);
+    const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/get`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -624,9 +640,7 @@ async function saveSchedule() {
 
     const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/save`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
 
@@ -664,9 +678,7 @@ async function deleteSchedule(id) {
   try {
     const res = await fetch(`${SECURITY_BASE}/api/voicemails/schedule/delete`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ id })
     });
 
@@ -887,7 +899,7 @@ async function showCallDetails(callId) {
   `;
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/voicecall/details/${encodeURIComponent(callId)}`);
+    const res = await fetch(`${SECURITY_BASE}/api/voicecall/details/${encodeURIComponent(callId)}`, { headers: authHeaders() });
 
     const data = await res.json();
 
@@ -961,7 +973,7 @@ document.getElementById("closeCallDetailModal")?.addEventListener("click", funct
 // INIT
 // =====================================================
 (async function init() {
-  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingSession = window.VBPortalSession?.get();
 
   if (existingSession) {
     loginView.classList.add("hidden");

@@ -60,7 +60,7 @@
     const method=options.method||"GET",body=options.body,signal=options.signal;
     if(window.VB_SECURITY?.allowed!==true)throw new Error("Dashboard access is not approved.");
     const sessionId=state.operatorSession?.sessionId||"";
-    let securitySession="";try{securitySession=localStorage.getItem("vb_session")||"";}catch{}
+    let securitySession="";try{securitySession=window.VBPortalSession?.get()||"";}catch{}
     const res=await fetch(API_BASE+path,{
       method,mode:"cors",credentials:"omit",cache:"no-store",
       headers:{Accept:"application/json",

@@ -57,7 +57,7 @@ let currentSettings = null;
 let currentAgents = [];
 
 function getSession() {
-  return localStorage.getItem(VB_SESSION_KEY) || "";
+  return window.VBPortalSession?.get() || "";
 }
 
 function authHeaders(extra = {}) {
@@ -85,7 +85,7 @@ async function apiFetch(path, options = {}) {
   }
 
   if (res.status === 401 && data.error === "session-required") {
-    localStorage.removeItem(VB_SESSION_KEY);
+    window.VBPortalSession?.clear();
     localStorage.removeItem(VB_USER_KEY);
     loginView.classList.remove("hidden");
     appView.classList.add("hidden");
@@ -178,7 +178,7 @@ loginForm?.addEventListener("submit", async function (e) {
       return;
     }
 
-    localStorage.setItem(VB_SESSION_KEY, data.session);
+    window.VBPortalSession?.set(data.session);
     localStorage.setItem(VB_USER_KEY, username);
     loginView.classList.add("hidden");
     appView.classList.remove("hidden");
@@ -192,7 +192,7 @@ loginForm?.addEventListener("submit", async function (e) {
 });
 
 logoutBtn?.addEventListener("click", function () {
-  localStorage.removeItem(VB_SESSION_KEY);
+  window.VBPortalSession?.clear();
   localStorage.removeItem(VB_USER_KEY);
   location.href = "security.html";
 });

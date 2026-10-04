@@ -4,6 +4,20 @@ const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 const VB_ROLE_KEY = "vb_role";
 
+function authHeaders(extra = {}) {
+  return window.VBPortalSession?.authHeaders(extra) || extra;
+}
+
+async function revokePortalSession() {
+  const session = window.VBPortalSession?.get() || "";
+  if (!session) return;
+  try {
+    await fetch(`${SECURITY_BASE}/api/logout`, { method: "POST", headers: authHeaders() });
+  } catch (err) {
+    console.debug("Portal session revoke skipped:", err?.message || err);
+  }
+}
+
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
 
@@ -91,7 +105,7 @@ loginBtn?.addEventListener("click", async () => {
       return;
     }
 
-    localStorage.setItem(VB_SESSION_KEY, data.session);
+    window.VBPortalSession?.set(data.session);
     localStorage.setItem(VB_USER_KEY, payload.username);
     localStorage.setItem(VB_ROLE_KEY, data.user?.role || "view");
 
@@ -106,8 +120,9 @@ loginBtn?.addEventListener("click", async () => {
   }
 });
 
-logoutBtn?.addEventListener("click", () => {
-  localStorage.removeItem(VB_SESSION_KEY);
+logoutBtn?.addEventListener("click", async () => {
+  await revokePortalSession();
+  window.VBPortalSession?.clear();
   localStorage.removeItem(VB_USER_KEY);
   localStorage.removeItem(VB_ROLE_KEY);
   location.href = "security.html";
@@ -120,7 +135,7 @@ async function loadDirectory() {
   directoryStatus.textContent = "Loading directory...";
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/directory/get`);
+    const res = await fetch(`${SECURITY_BASE}/api/directory/get`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -146,9 +161,7 @@ async function saveDirectory() {
   try {
     const res = await fetch(`${SECURITY_BASE}/api/directory/save`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ contacts })
     });
 
@@ -534,7 +547,7 @@ locationFilter?.addEventListener("change", filterDirectory);
 (async function init() {
   restoreTheme();
 
-  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingSession = window.VBPortalSession?.get();
 
   if (existingSession) {
     loginView.classList.add("hidden");

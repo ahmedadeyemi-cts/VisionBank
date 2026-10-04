@@ -7,6 +7,15 @@ const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function authHeaders(extra = {}) {
   return window.VBPortalSession?.authHeaders(extra) || extra;
 }
@@ -162,14 +171,14 @@ async function runSecurityCheck() {
             <div class="access-denied-details">
               <p>
                 <strong>Primary IP:</strong>
-                <span id="restrictedIp">${primaryIp}</span> (${ipVersion})
+                <span id="restrictedIp">${escapeHtml(primaryIp)}</span> (${escapeHtml(ipVersion)})
                 <button id="copyRestrictedIpBtn" class="copy-ip-btn">Copy IP</button>
               </p>
 
-              <p><strong>Location:</strong> ${city}, ${region} ${country}</p>
-              <p><strong>Network:</strong> ${asOrg} (AS${asn})</p>
-              <p><strong>Reason:</strong> ${reason}</p>
-              <p><strong>Current CST/CDT:</strong> ${nowCst.label || "Unknown"}</p>
+              <p><strong>Location:</strong> ${escapeHtml(city)}, ${escapeHtml(region)} ${escapeHtml(country)}</p>
+              <p><strong>Network:</strong> ${escapeHtml(asOrg)} (AS${escapeHtml(asn)})</p>
+              <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+              <p><strong>Current CST/CDT:</strong> ${escapeHtml(nowCst.label || "Unknown")}</p>
             </div>
 
             <p>Please provide this information to the VisionBank IT Team.</p>
@@ -380,17 +389,17 @@ function renderAgents(agents) {
 
     return `
       <tr>
-        <td>${agent.name || "-"}</td>
-        <td class="${emailClass}">${emailText}</td>
-        <td>${agent.team || "-"}</td>
-        <td>${agent.number || "-"}</td>
-        <td>${agent.status || "-"}</td>
-        <td>${agent.duration || "-"}</td>
-        <td>${agent.inbound ?? 0}</td>
-        <td>${agent.missed ?? 0}</td>
-        <td>${agent.transferred ?? 0}</td>
-        <td>${agent.outbound ?? 0}</td>
-        <td>${agent.startDate || "-"}</td>
+        <td>${escapeHtml(agent.name || "-")}</td>
+        <td class="${emailClass}">${escapeHtml(emailText)}</td>
+        <td>${escapeHtml(agent.team || "-")}</td>
+        <td>${escapeHtml(agent.number || "-")}</td>
+        <td>${escapeHtml(agent.status || "-")}</td>
+        <td>${escapeHtml(agent.duration || "-")}</td>
+        <td>${Number(agent.inbound ?? 0)}</td>
+        <td>${Number(agent.missed ?? 0)}</td>
+        <td>${Number(agent.transferred ?? 0)}</td>
+        <td>${Number(agent.outbound ?? 0)}</td>
+        <td>${escapeHtml(agent.startDate || "-")}</td>
       </tr>
     `;
   }).join("");

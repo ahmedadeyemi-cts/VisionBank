@@ -8,6 +8,15 @@ const REPORT_API = `${SECURITY_BASE}/api/voicemails/report`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function authHeaders(extra = {}) {
   return window.VBPortalSession?.authHeaders(extra) || extra;
 }
@@ -297,28 +306,28 @@ async function runSecurityCheck() {
             <div class="access-denied-details">
               <p>
                 <strong>Primary IP:</strong>
-                <span id="restrictedIp">${primaryIp}</span> (${ipVersion})
+                <span id="restrictedIp">${escapeHtml(primaryIp)}</span> (${escapeHtml(ipVersion)})
                 <button id="copyRestrictedIpBtn" class="copy-ip-btn">Copy IP</button>
               </p>
 
               <p>
                 <strong>Location:</strong>
-                ${city}, ${region} ${country}
+                ${escapeHtml(city)}, ${escapeHtml(region)} ${escapeHtml(country)}
               </p>
 
               <p>
                 <strong>Network:</strong>
-                ${asOrg} (AS${asn})
+                ${escapeHtml(asOrg)} (AS${escapeHtml(asn)})
               </p>
 
               <p>
                 <strong>Reason:</strong>
-                ${reason}
+                ${escapeHtml(reason)}
               </p>
 
               <p>
                 <strong>Current CST/CDT:</strong>
-                ${nowCst.label || "Unknown"}
+                ${escapeHtml(nowCst.label || "Unknown")}
               </p>
             </div>
 
@@ -576,19 +585,19 @@ function renderScheduleTable(schedules) {
 
   scheduleTableBody.innerHTML = schedules.map(s => `
     <tr>
-      <td>${s.name || "-"}</td>
+      <td>${escapeHtml(s.name || "-")}</td>
       <td>${s.enabled ? "Enabled" : "Disabled"}</td>
-      <td>${s.frequency || "-"}</td>
-      <td>${rangeLabel(s.range || "-")}</td>
-      <td>${s.sendTime || "-"}</td>
-      <td>${s.monthlyRule || "-"}</td>
-      <td>${s.attachmentType || "pdf"}</td>
-      <td>${s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never"}</td>
+      <td>${escapeHtml(s.frequency || "-")}</td>
+      <td>${escapeHtml(rangeLabel(s.range || "-"))}</td>
+      <td>${escapeHtml(s.sendTime || "-")}</td>
+      <td>${escapeHtml(s.monthlyRule || "-")}</td>
+      <td>${escapeHtml(s.attachmentType || "pdf")}</td>
+      <td>${escapeHtml(s.lastSentAt ? formatCentralTime(s.lastSentAt) : "Never")}</td>
       <td>
-        <button class="btn-secondary edit-schedule-btn" data-id="${s.id}" type="button">
+        <button class="btn-secondary edit-schedule-btn" data-id="${escapeHtml(s.id || "")}" type="button">
           Edit
         </button>
-        <button class="btn-secondary delete-schedule-btn" data-id="${s.id}" type="button">
+        <button class="btn-secondary delete-schedule-btn" data-id="${escapeHtml(s.id || "")}" type="button">
           Delete
         </button>
       </td>
@@ -753,19 +762,19 @@ function renderReport(records, range) {
 
    return `
   <tr>
-    <td>${vm.VoicemailId || "-"}</td>
-    <td>${vm.CallId || "-"}</td>
-    <td>${vm.CallerName || "-"}</td>
-    <td>${vm.CallerNumber || "-"}</td>
-    <td>${vm.DestinationNumber || vm.DestinationName || "-"}</td>
-    <td>${vm.ReferenceNo || "-"}</td>
+    <td>${escapeHtml(vm.VoicemailId || "-")}</td>
+    <td>${escapeHtml(vm.CallId || "-")}</td>
+    <td>${escapeHtml(vm.CallerName || "-")}</td>
+    <td>${escapeHtml(vm.CallerNumber || "-")}</td>
+    <td>${escapeHtml(vm.DestinationNumber || vm.DestinationName || "-")}</td>
+    <td>${escapeHtml(vm.ReferenceNo || "-")}</td>
     <td>${duration}s</td>
-    <td>${formatCentralTime(vm.CreationDateUtc)}</td>
+    <td>${escapeHtml(formatCentralTime(vm.CreationDateUtc))}</td>
     <td>
       <button
         class="btn-secondary"
         type="button"
-        onclick="showCallDetails('${vm.CallId}')"
+        data-call-details="${escapeHtml(vm.CallId || "")}"
       >
         View Details
       </button>
@@ -773,6 +782,10 @@ function renderReport(records, range) {
   </tr>
 `;
   }).join("");
+
+  reportBody.querySelectorAll("[data-call-details]").forEach(button=>{
+    button.addEventListener("click",()=>void showCallDetails(button.dataset.callDetails||""));
+  });
 
   const avgDuration = Math.round(totalDuration / records.length);
   const uniqueDates = Object.keys(perDayCounts).length;
@@ -796,8 +809,8 @@ function renderReport(records, range) {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, count]) => `
         <div class="daily-card">
-          <div class="daily-date">${date}</div>
-          <div class="daily-count">${count}</div>
+          <div class="daily-date">${escapeHtml(date)}</div>
+          <div class="daily-count">${Number(count)}</div>
           <div class="daily-label">Voicemails</div>
         </div>
       `).join("");
@@ -916,36 +929,36 @@ async function showCallDetails(callId) {
 
         <div class="detail-card">
           <h3>Caller Information</h3>
-          <div class="detail-item"><strong>Caller Number:</strong> ${general.OrgNumber || callback.DestPhoneNumber || "-"}</div>
-          <div class="detail-item"><strong>Caller Name:</strong> ${general.OrgName || callback.DestContactName || "-"}</div>
-          <div class="detail-item"><strong>Destination Number:</strong> ${general.DstNumber || "-"}</div>
-          <div class="detail-item"><strong>Destination Name:</strong> ${general.DstName || "-"}</div>
+          <div class="detail-item"><strong>Caller Number:</strong> ${escapeHtml(general.OrgNumber || callback.DestPhoneNumber || "-")}</div>
+          <div class="detail-item"><strong>Caller Name:</strong> ${escapeHtml(general.OrgName || callback.DestContactName || "-")}</div>
+          <div class="detail-item"><strong>Destination Number:</strong> ${escapeHtml(general.DstNumber || "-")}</div>
+          <div class="detail-item"><strong>Destination Name:</strong> ${escapeHtml(general.DstName || "-")}</div>
         </div>
 
         <div class="detail-card">
           <h3>Voicemail</h3>
-          <div class="detail-item"><strong>Voicemail ID:</strong> ${voicemail.Id || "-"}</div>
-          <div class="detail-item"><strong>Reference No.:</strong> ${voicemail.ReferenceNo || "-"}</div>
-          <div class="detail-item"><strong>Duration:</strong> ${voicemail.SecondsDuration || 0}s</div>
-          <div class="detail-item"><strong>Created CST/CDT:</strong> ${formatCentralTime(voicemail.CreationDateUtc)}</div>
+          <div class="detail-item"><strong>Voicemail ID:</strong> ${escapeHtml(voicemail.Id || "-")}</div>
+          <div class="detail-item"><strong>Reference No.:</strong> ${escapeHtml(voicemail.ReferenceNo || "-")}</div>
+          <div class="detail-item"><strong>Duration:</strong> ${Number(voicemail.SecondsDuration || 0)}s</div>
+          <div class="detail-item"><strong>Created CST/CDT:</strong> ${escapeHtml(formatCentralTime(voicemail.CreationDateUtc))}</div>
         </div>
 
         <div class="detail-card">
           <h3>Call Information</h3>
-          <div class="detail-item"><strong>Call ID:</strong> ${general.CallId || callId}</div>
-          <div class="detail-item"><strong>Start CST/CDT:</strong> ${formatCentralTime(general.StartDateUtc)}</div>
-          <div class="detail-item"><strong>End CST/CDT:</strong> ${formatCentralTime(general.EndDateUtc)}</div>
-          <div class="detail-item"><strong>Direction:</strong> ${general.Direction || "-"}</div>
-          <div class="detail-item"><strong>Label:</strong> ${general.Label || "-"}</div>
+          <div class="detail-item"><strong>Call ID:</strong> ${escapeHtml(general.CallId || callId)}</div>
+          <div class="detail-item"><strong>Start CST/CDT:</strong> ${escapeHtml(formatCentralTime(general.StartDateUtc))}</div>
+          <div class="detail-item"><strong>End CST/CDT:</strong> ${escapeHtml(formatCentralTime(general.EndDateUtc))}</div>
+          <div class="detail-item"><strong>Direction:</strong> ${escapeHtml(general.Direction || "-")}</div>
+          <div class="detail-item"><strong>Label:</strong> ${escapeHtml(general.Label || "-")}</div>
         </div>
 
         <div class="detail-card">
           <h3>Disposition</h3>
-          <div class="detail-item"><strong>Client Type:</strong> ${disposition.ClientType || "-"}</div>
-          <div class="detail-item"><strong>Main Subject:</strong> ${disposition.MainSubject || "-"}</div>
-          <div class="detail-item"><strong>Subsubject:</strong> ${disposition.Subsubject || "-"}</div>
-          <div class="detail-item"><strong>Resolution:</strong> ${disposition.Resolution || "-"}</div>
-          <div class="detail-item"><strong>Notes:</strong> ${disposition.Notes || "-"}</div>
+          <div class="detail-item"><strong>Client Type:</strong> ${escapeHtml(disposition.ClientType || "-")}</div>
+          <div class="detail-item"><strong>Main Subject:</strong> ${escapeHtml(disposition.MainSubject || "-")}</div>
+          <div class="detail-item"><strong>Subsubject:</strong> ${escapeHtml(disposition.Subsubject || "-")}</div>
+          <div class="detail-item"><strong>Resolution:</strong> ${escapeHtml(disposition.Resolution || "-")}</div>
+          <div class="detail-item"><strong>Notes:</strong> ${escapeHtml(disposition.Notes || "-")}</div>
         </div>
 
       </div>

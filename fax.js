@@ -8,6 +8,15 @@ const REPORT_API = `${SECURITY_BASE}/api/fax/cdrsearch`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function authHeaders(extra = {}) {
   return window.VBPortalSession?.authHeaders(extra) || extra;
 }
@@ -189,13 +198,13 @@ async function runSecurityCheck() {
             <div class="access-denied-details">
               <p>
                 <strong>Primary IP:</strong>
-                <span id="restrictedIp">${primaryIp}</span> (${ipVersion})
+                <span id="restrictedIp">${escapeHtml(primaryIp)}</span> (${escapeHtml(ipVersion)})
                 <button id="copyRestrictedIpBtn" class="copy-ip-btn">Copy IP</button>
               </p>
-              <p><strong>Location:</strong> ${city}, ${region} ${country}</p>
-              <p><strong>Network:</strong> ${asOrg} (AS${asn})</p>
-              <p><strong>Reason:</strong> ${reason}</p>
-              <p><strong>Current CST/CDT:</strong> ${nowCst.label || "Unknown"}</p>
+              <p><strong>Location:</strong> ${escapeHtml(city)}, ${escapeHtml(region)} ${escapeHtml(country)}</p>
+              <p><strong>Network:</strong> ${escapeHtml(asOrg)} (AS${escapeHtml(asn)})</p>
+              <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+              <p><strong>Current CST/CDT:</strong> ${escapeHtml(nowCst.label || "Unknown")}</p>
             </div>
 
             <p class="access-denied-note">Please provide this information to the VisionBank IT Team.</p>
@@ -422,8 +431,8 @@ function renderDailyBreakdown(records) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, count]) => `
       <div class="daily-card">
-        <strong>${date}</strong>
-        <span>${count} fax records</span>
+        <strong>${escapeHtml(date)}</strong>
+        <span>${Number(count)} fax records</span>
       </div>
     `)
     .join("");
@@ -443,15 +452,15 @@ function renderTable(records) {
 
   reportBody.innerHTML = records.map(row => `
     <tr>
-      <td>${row.id || "-"}</td>
-      <td>${formatDate(row.startTime || row.createdDate)}</td>
-      <td>${getCallerNumber(row)}</td>
-      <td>${getFaxNumber(row)}</td>
-      <td>${row.termLocation || "-"}</td>
-      <td>${row.callType || "-"}</td>
-      <td>${row.callFlagType || "-"}</td>
-      <td>${formatSeconds(getFaxDuration(row))}</td>
-      <td>${row.meanOpinionScoreAverage || "-"}</td>
+      <td>${escapeHtml(row.id || "-")}</td>
+      <td>${escapeHtml(formatDate(row.startTime || row.createdDate))}</td>
+      <td>${escapeHtml(getCallerNumber(row))}</td>
+      <td>${escapeHtml(getFaxNumber(row))}</td>
+      <td>${escapeHtml(row.termLocation || "-")}</td>
+      <td>${escapeHtml(row.callType || "-")}</td>
+      <td>${escapeHtml(row.callFlagType || "-")}</td>
+      <td>${escapeHtml(formatSeconds(getFaxDuration(row)))}</td>
+      <td>${escapeHtml(row.meanOpinionScoreAverage || "-")}</td>
     </tr>
   `).join("");
 }
@@ -630,17 +639,17 @@ function renderScheduleTable(schedules) {
 
   scheduleTableBody.innerHTML = schedules.map(s => `
     <tr>
-      <td>${s.name || "-"}</td>
+      <td>${escapeHtml(s.name || "-")}</td>
       <td>${s.enabled ? "Enabled" : "Disabled"}</td>
-      <td>${s.frequency || "-"}</td>
-      <td>${rangeLabel(s.range || "-")}</td>
-      <td>${s.sendTime || "-"}</td>
-      <td>${s.monthlyRule || "-"}</td>
-      <td>${s.attachmentType || "pdf"}</td>
-      <td>${s.lastSentAt ? formatDate(s.lastSentAt) : "Never"}</td>
+      <td>${escapeHtml(s.frequency || "-")}</td>
+      <td>${escapeHtml(rangeLabel(s.range || "-"))}</td>
+      <td>${escapeHtml(s.sendTime || "-")}</td>
+      <td>${escapeHtml(s.monthlyRule || "-")}</td>
+      <td>${escapeHtml(s.attachmentType || "pdf")}</td>
+      <td>${escapeHtml(s.lastSentAt ? formatDate(s.lastSentAt) : "Never")}</td>
       <td>
-        <button class="btn-secondary edit-schedule-btn" data-id="${s.id}">Edit</button>
-        <button class="btn-secondary delete-schedule-btn" data-id="${s.id}">Delete</button>
+        <button class="btn-secondary edit-schedule-btn" data-id="${escapeHtml(s.id || "")}">Edit</button>
+        <button class="btn-secondary delete-schedule-btn" data-id="${escapeHtml(s.id || "")}">Delete</button>
       </td>
     </tr>
   `).join("");

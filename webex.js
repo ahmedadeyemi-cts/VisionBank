@@ -189,8 +189,8 @@ async function checkSecurityAccess() {
 // HELPERS
 // ===============================
 function safe(value, fallback = "--") {
-  if (value === undefined || value === null || value === "") return fallback;
-  return value;
+  if (value === undefined || value === null || value === "") return escapeHtml(fallback);
+  return escapeHtml(value);
 }
 
 function escapeHtml(value) {
@@ -1164,16 +1164,20 @@ function updateQueueToneOverrides(queues) {
     const row = document.createElement("div");
     row.className = "queue-override-row";
 
-    const id = `queue-tone-${name.replace(/\s+/g, "-")}`;
+    const id = "queue-tone-" + String(name).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0,80);
 
-    row.innerHTML = `
-      <label class="queue-override-label" for="${id}">${name}</label>
-      <select id="${id}" class="queue-override-select">${toneOptions}</select>
-    `;
+    const label = document.createElement("label");
+    label.className = "queue-override-label";
+    label.htmlFor = id;
+    label.textContent = String(name);
 
+    const select = document.createElement("select");
+    select.id = id;
+    select.className = "queue-override-select";
+    select.innerHTML = toneOptions;
+
+    row.append(label, select);
     container.appendChild(row);
-
-    const select = row.querySelector("select");
     const savedTone = alertSettings.queueTones[name];
     if (savedTone) select.value = savedTone;
 

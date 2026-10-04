@@ -4,6 +4,7 @@
    ============================================================ */
 
 const WORKER_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+const DEVICE_ADMIN_BASE = `${WORKER_BASE}/api/webex/device-management`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 const VB_ROLE_KEY = "vb_role";
@@ -62,6 +63,10 @@ let userPanelInitialized = false;
 let LAST_DELETED_USER = null;
 
 let auditInterval = null;
+let AUDIT_EVENTS = [];
+let CURRENT_CONNECTION = null;
+let DEVICE_ADMIN_SETTINGS = null;
+let ACTIVE_SECURITY_VIEW = "overview";
 
 function consumePortalReturnTarget() {
     let value = "";
@@ -105,39 +110,417 @@ function consumePortalReturnTarget() {
    STATUS BANNER
    ============================================================= */
 function showStatus(msg, type = "info") {
-    let bar = document.getElementById("admin-status");
-    if (!bar) {
-        bar = document.createElement("div");
-        bar.id = "admin-status";
-        bar.style.marginBottom = "10px";
-        bar.style.padding = "8px 12px";
-        bar.style.borderRadius = "8px";
-        bar.style.fontSize = "14px";
-        bar.style.display = "none";
-        adminView.insertBefore(bar, adminView.firstChild);
-    }
-
+    const bar = document.getElementById("security-console-status");
+    if (!bar) return;
     bar.textContent = msg;
-    bar.style.display = "block";
-
-    if (type === "success") {
-        bar.style.backgroundColor = "#d4ffd9";
-        bar.style.border = "1px solid #22c55e";
-        bar.style.color = "#14532d";
-    } else if (type === "error") {
-        bar.style.backgroundColor = "#fee2e2";
-        bar.style.border = "1px solid #ef4444";
-        bar.style.color = "#7f1d1d";
-    } else {
-        bar.style.backgroundColor = "#dbeafe";
-        bar.style.border = "1px solid #3b82f6";
-        bar.style.color = "#1e3a8a";
-    }
+    bar.className = `security-console-status visible ${type}`;
 
     if (statusTimer) clearTimeout(statusTimer);
     statusTimer = setTimeout(() => {
-        bar.style.display = "none";
-    }, 4000);
+        bar.className = "security-console-status";
+        bar.textContent = "";
+    }, 5000);
+}
+
+
+/* =============================================================
+   ENTERPRISE SECURITY CONSOLE
+   ============================================================= */
+const securityText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value == null || value === "" ? "—" : String(value);
+};
+
+function roleLabel(role = ACTIVE_ROLE) {
+    return ({
+        superadmin: "Super Admin",
+        admin: "Admin",
+        analyst: "Analyst",
+        auditor: "Auditor",
+        view: "View"
+    })[role] || "View";
+}
+
+function setSecurityView(view) {
+    const requested = String(view || "overview");
+    const button = document.querySelector('.security-nav-item[data-security-view="' + requested + '"]');
+    if (!button || button.hidden || button.disabled) {
+        if (requested !== "overview") return setSecurityView("overview");
+        return;
+    }
+
+    ACTIVE_SECURITY_VIEW = requested;
+    document.querySelectorAll("[data-security-view-panel]").forEach(panel => {
+        panel.hidden = panel.dataset.securityViewPanel !== requested;
+    });
+    document.querySelectorAll(".security-nav-item").forEach(item => {
+        const active = item.dataset.securityView === requested;
+        item.classList.toggle("active", active);
+        item.setAttribute("aria-current", active ? "page" : "false");
+    });
+}
+
+function applySecurityNavPermissions() {
+    const rules = ROLE_RULES[ACTIVE_ROLE] || ROLE_RULES.view;
+    const allowed = {
+        overview: true,
+        identity: true,
+        network: true,
+        policy: true,
+        audit: !!rules.audit,
+        tools: !!rules.cidr,
+        device: !!rules.deviceAdmin
+    };
+
+    document.querySelectorAll(".security-nav-item").forEach(item => {
+        item.hidden = !allowed[item.dataset.securityView];
+    });
+    document.querySelectorAll("[data-security-target]").forEach(item => {
+        item.hidden = !allowed[item.dataset.securityTarget];
+    });
+
+    if (!allowed[ACTIVE_SECURITY_VIEW]) setSecurityView("overview");
+}
+
+function initSecurityConsoleNavigation() {
+    document.querySelectorAll(".security-nav-item").forEach(button => {
+        button.addEventListener("click", () => setSecurityView(button.dataset.securityView));
+    });
+    document.querySelectorAll("[data-security-target]").forEach(button => {
+        button.addEventListener("click", () => setSecurityView(button.dataset.securityTarget));
+    });
+}
+
+function updateSecuritySessionSummary() {
+    securityText("security-session-user", ACTIVE_USERNAME || "Authenticated user");
+    securityText("security-session-role", roleLabel());
+    securityText("security-overview-role", roleLabel());
+    securityText("security-session-state", ACTIVE_SESSION ? "Session active" : "Session unavailable");
+}
+
+function selectedBusinessDaysLabel() {
+    const labels = {0:"Sun",1:"Mon",2:"Tue",3:"Wed",4:"Thu",5:"Fri",6:"Sat"};
+    const days = [...hoursDayChecks].filter(cb => cb.checked).map(cb => labels[Number(cb.value)]).filter(Boolean);
+    return days.length ? days.join(", ") : "No active days";
+}
+
+function updateSecurityOverview() {
+    updateSecuritySessionSummary();
+
+    const start = hoursStart?.value || "";
+    const end = hoursEnd?.value || "";
+    securityText("security-overview-hours", start && end ? start + "–" + end : "Not configured");
+    securityText("security-overview-hours-days", selectedBusinessDaysLabel());
+
+    securityText("security-overview-network", String(IP_RULES.length));
+    securityText("security-overview-denied", String(AUDIT_EVENTS.filter(event => event?.allowed === false).length));
+
+    let deviceLabel = "Restricted";
+    if (ROLE_RULES[ACTIVE_ROLE]?.deviceAdmin) {
+        deviceLabel = DEVICE_ADMIN_SETTINGS
+            ? (DEVICE_ADMIN_SETTINGS.verificationEnabled !== false ? "Required" : "Disabled")
+            : "Checking…";
+    }
+    securityText("security-overview-device", deviceLabel);
+
+    const protectedState = CURRENT_CONNECTION?.allowed === true && IP_RULES.length > 0 && !!ACTIVE_SESSION;
+    securityText("security-overview-posture", protectedState ? "Protected" : "Attention");
+    securityText(
+        "security-overview-posture-detail",
+        protectedState
+            ? "Authenticated session and network policy are active"
+            : "Review current session or network policy"
+    );
+
+    const badge = document.getElementById("security-current-access-badge");
+    const networkBadge = document.getElementById("security-network-access-badge");
+    for (const el of [badge, networkBadge]) {
+        if (!el) continue;
+        const allowed = CURRENT_CONNECTION?.allowed === true;
+        el.textContent = allowed ? "Approved" : CURRENT_CONNECTION ? "Not approved" : "Checking";
+        el.className = "security-state-badge " + (allowed ? "success" : CURRENT_CONNECTION ? "danger" : "neutral");
+    }
+}
+
+async function loadCurrentConnectionContext() {
+    try {
+        const res = await fetch(WORKER_BASE + "/security/check", {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit",
+            cache: "no-store"
+        });
+        const data = await res.json();
+        CURRENT_CONNECTION = data;
+        const info = data?.info || {};
+        securityText("security-current-ip", info.primaryIp || "Unknown");
+        securityText("security-network-current-ip", info.primaryIp || "Unknown");
+        securityText("security-current-network", [info.asOrg, info.asn ? "AS" + info.asn : ""].filter(Boolean).join(" · ") || "Unknown");
+        securityText("security-current-location", [info.geo?.city, info.geo?.region, info.geo?.country].filter(Boolean).join(", ") || "Unknown");
+        securityText("security-current-service", data.allowed === true ? "Access approved" : "Access " + (data.reason || "not approved"));
+    } catch (error) {
+        CURRENT_CONNECTION = {allowed:false, error:true};
+        securityText("security-current-ip", "Unavailable");
+        securityText("security-network-current-ip", "Unavailable");
+        securityText("security-current-network", "Unavailable");
+        securityText("security-current-location", "Unavailable");
+        securityText("security-current-service", "Security check unavailable");
+    }
+    updateSecurityOverview();
+}
+
+async function deviceAdminRequest(path, options = {}) {
+    if (!ACTIVE_SESSION) throw new Error("Security session is required.");
+    const method = options.method || "GET";
+    const body = options.body;
+    const res = await fetch(DEVICE_ADMIN_BASE + path, {
+        method,
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        headers: authHeaders({
+            Accept: "application/json",
+            ...(body !== undefined ? {"Content-Type":"application/json"} : {})
+        }),
+        ...(body !== undefined ? {body: JSON.stringify(body)} : {})
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || data.success === false) {
+        const error = new Error(data.error || data.message || "HTTP " + res.status);
+        error.code = data.error || "";
+        error.status = res.status;
+        error.details = data;
+        throw error;
+    }
+    return data;
+}
+
+function securityAdminRow(primary, secondary, buttonText, handler, disabled = false) {
+    const row = document.createElement("div");
+    row.className = "security-admin-row";
+    const copy = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = primary;
+    const meta = document.createElement("span");
+    meta.textContent = secondary;
+    copy.append(strong, meta);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn-secondary small";
+    button.textContent = buttonText;
+    button.disabled = disabled;
+    button.addEventListener("click", handler);
+    row.append(copy, button);
+    return row;
+}
+
+function renderDeviceAdminSettings() {
+    const settings = DEVICE_ADMIN_SETTINGS || {};
+    const toggle = document.getElementById("security-device-verification-toggle");
+    const toggleLabel = document.getElementById("security-device-verification-label");
+    if (toggle) toggle.checked = settings.verificationEnabled !== false;
+    if (toggleLabel) toggleLabel.textContent = settings.verificationEnabled !== false ? "On" : "Off";
+
+    const defaultHours = document.getElementById("security-device-default-hours");
+    if (defaultHours) defaultHours.value = String(settings.defaultVerificationHours || 24);
+
+    const durationList = document.getElementById("security-device-duration-list");
+    if (durationList) {
+        durationList.replaceChildren();
+        const overrides = settings.verificationHoursByEmail && typeof settings.verificationHoursByEmail === "object"
+            ? Object.entries(settings.verificationHoursByEmail).sort(([a],[b]) => a.localeCompare(b))
+            : [];
+        if (!overrides.length) {
+            const empty = document.createElement("div");
+            empty.className = "security-admin-empty";
+            empty.textContent = "No per-user duration overrides. Everyone uses the default.";
+            durationList.appendChild(empty);
+        } else {
+            for (const [email, hours] of overrides) {
+                durationList.appendChild(securityAdminRow(
+                    email,
+                    String(hours) + " hour" + (Number(hours) === 1 ? "" : "s") + " before re-verification",
+                    "Use Default",
+                    () => void removeDeviceDuration(email)
+                ));
+            }
+        }
+    }
+
+    const adminList = document.getElementById("security-device-admin-list");
+    if (adminList) {
+        adminList.replaceChildren();
+        const admins = Array.isArray(settings.admins) ? settings.admins : [];
+        const shared = new Set(Array.isArray(settings.sharedMailboxes) ? settings.sharedMailboxes : []);
+        const current = settings.currentAdmin?.email || "";
+        if (!admins.length) {
+            const empty = document.createElement("div");
+            empty.className = "security-admin-empty";
+            empty.textContent = "No Device Manager admins are configured.";
+            adminList.appendChild(empty);
+        } else {
+            for (const email of admins) {
+                const isCurrent = email === current;
+                const detail = (shared.has(email) ? "Shared Tech Admin mailbox" : "Individual admin") + (isCurrent ? " · Current admin" : "");
+                adminList.appendChild(securityAdminRow(
+                    email,
+                    detail,
+                    "Remove",
+                    () => void removeDeviceAdmin(email),
+                    isCurrent
+                ));
+            }
+        }
+    }
+
+    securityText(
+        "security-device-settings-state",
+        settings.updatedAt
+            ? "Last updated " + new Date(settings.updatedAt).toLocaleString() + " by " + (settings.updatedBy || "an admin") + "."
+            : "Device Manager security policy loaded."
+    );
+    updateSecurityOverview();
+}
+
+async function loadDeviceAdminSettings() {
+    if (!ROLE_RULES[ACTIVE_ROLE]?.deviceAdmin) {
+        DEVICE_ADMIN_SETTINGS = null;
+        updateSecurityOverview();
+        return;
+    }
+    try {
+        securityText("security-device-settings-state", "Loading Device Manager security settings…");
+        DEVICE_ADMIN_SETTINGS = await deviceAdminRequest("/admin-settings");
+        renderDeviceAdminSettings();
+    } catch (error) {
+        DEVICE_ADMIN_SETTINGS = null;
+        securityText(
+            "security-device-settings-state",
+            error.code === "device-admin-session-required"
+                ? "This Security account is not authorized in the Device Manager admin list."
+                : "Device Manager settings unavailable: " + error.message
+        );
+        updateSecurityOverview();
+    }
+}
+
+async function updateDeviceVerificationSetting() {
+    const toggle = document.getElementById("security-device-verification-toggle");
+    if (!toggle || !DEVICE_ADMIN_SETTINGS) return;
+    const desired = toggle.checked;
+    const previous = DEVICE_ADMIN_SETTINGS.verificationEnabled !== false;
+    if (!desired && !confirm("Disable Device Manager email verification? Operators will still be audited, but email verification will no longer be required.")) {
+        toggle.checked = previous;
+        return;
+    }
+    toggle.disabled = true;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/verification", {method:"POST", body:{enabled:desired}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        renderDeviceAdminSettings();
+        showStatus("Device Manager email verification " + (desired ? "enabled" : "disabled") + ".", "success");
+    } catch (error) {
+        toggle.checked = previous;
+        showStatus("Unable to update Device Manager verification: " + error.message, "error");
+    } finally {
+        toggle.disabled = false;
+    }
+}
+
+async function saveDeviceDefaultHours() {
+    const input = document.getElementById("security-device-default-hours");
+    const button = document.getElementById("security-device-default-save");
+    const hours = Number(input?.value || 0);
+    if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+        return showStatus("Device verification duration must be between 1 and 720 hours.", "error");
+    }
+    if (button) button.disabled = true;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/default-hours", {method:"POST", body:{hours}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        renderDeviceAdminSettings();
+        showStatus("Default Device Manager verification duration saved.", "success");
+    } catch (error) {
+        showStatus("Unable to save Device Manager duration: " + error.message, "error");
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+async function saveDeviceUserDuration() {
+    const emailInput = document.getElementById("security-device-duration-email");
+    const hoursInput = document.getElementById("security-device-duration-hours");
+    const button = document.getElementById("security-device-duration-save");
+    const email = emailInput?.value.trim() || "";
+    const hours = Number(hoursInput?.value || 0);
+    if (!email) return showStatus("Enter a user email for the verification-duration override.", "error");
+    if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+        return showStatus("User verification duration must be between 1 and 720 hours.", "error");
+    }
+    if (button) button.disabled = true;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/durations/set", {method:"POST", body:{email,hours}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        if (emailInput) emailInput.value = "";
+        if (hoursInput) hoursInput.value = "";
+        renderDeviceAdminSettings();
+        showStatus("Device Manager user verification duration saved.", "success");
+    } catch (error) {
+        showStatus("Unable to set user duration: " + error.message, "error");
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+async function removeDeviceDuration(email) {
+    if (!email) return;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/durations/remove", {method:"POST", body:{email}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        renderDeviceAdminSettings();
+        showStatus("Device Manager user duration returned to the default.", "success");
+    } catch (error) {
+        showStatus("Unable to remove user duration: " + error.message, "error");
+    }
+}
+
+async function addDeviceAdmin() {
+    const input = document.getElementById("security-device-admin-email");
+    const button = document.getElementById("security-device-admin-add");
+    const email = input?.value.trim() || "";
+    if (!email) return showStatus("Enter an admin email address.", "error");
+    if (button) button.disabled = true;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/admins/add", {method:"POST", body:{email}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        if (input) input.value = "";
+        renderDeviceAdminSettings();
+        showStatus("Device Manager admin added.", "success");
+    } catch (error) {
+        showStatus("Unable to add Device Manager admin: " + error.message, "error");
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+async function removeDeviceAdmin(email) {
+    if (!email || !confirm("Remove " + email + " from Device Manager admins?")) return;
+    try {
+        const data = await deviceAdminRequest("/admin-settings/admins/remove", {method:"POST", body:{email}});
+        DEVICE_ADMIN_SETTINGS = {...DEVICE_ADMIN_SETTINGS, ...data};
+        renderDeviceAdminSettings();
+        showStatus("Device Manager admin removed.", "success");
+    } catch (error) {
+        showStatus("Unable to remove Device Manager admin: " + error.message, "error");
+    }
+}
+
+function bindDeviceAdminControls() {
+    document.getElementById("security-device-verification-toggle")?.addEventListener("change", () => void updateDeviceVerificationSetting());
+    document.getElementById("security-device-default-save")?.addEventListener("click", () => void saveDeviceDefaultHours());
+    document.getElementById("security-device-duration-save")?.addEventListener("click", () => void saveDeviceUserDuration());
+    document.getElementById("security-device-admin-add")?.addEventListener("click", () => void addDeviceAdmin());
 }
 
 /* =============================================================
@@ -343,16 +726,23 @@ async function showAdminView() {
     mfaSetupView.classList.add("hidden");
     adminView.classList.remove("hidden");
 
-    await loadBusinessHours();
-    await loadIpRulesUI();
-    await loadAuditLog();
+    updateSecuritySessionSummary();
+    applyRolePermissions();
+    setSecurityView("overview");
+
+    await Promise.all([
+        loadBusinessHours(),
+        loadIpRulesUI(),
+        loadAuditLog(),
+        loadCurrentConnectionContext(),
+        loadDeviceAdminSettings()
+    ]);
+
+    updateSecurityOverview();
 
     if (ROLE_RULES[ACTIVE_ROLE]?.audit) {
         startAuditLogAutoRefresh();
     }
-
-    setTimeout(() => applyRolePermissions(), 50);
-
 }
 /* =============================================================
    ROLE-BASED PERMISSIONS (SINGLE SOURCE OF TRUTH)
@@ -362,56 +752,28 @@ function applyRolePermissions() {
   if (!ACTIVE_ROLE) return;
 
   const role = ACTIVE_ROLE;
-  const rules = ROLE_RULES[role];
+  const rules = ROLE_RULES[role] || ROLE_RULES.view;
 
-  // Section visibility
   toggleSection("admin-audit-section", rules.audit);
-  toggleSection("user-management", rules.userMgmt);
   toggleSection("cidr-ip-tester", rules.cidr);
   toggleSection("cidr-range-tester", rules.cidr);
-
-  // Edit permissions
   setReadOnly("admin-hours-section", rules.editHours);
   setReadOnly("ip-manager", rules.editIp);
-   
-  // Viewer can see config but not edit
-  if (role === "view") {
-    toggleSection("admin-hours-section", true);
-    toggleSection("ip-manager", true);
-  }
 
-  // Full lock for view-only role
- if (role === "view") {
-  lockAllActions();
-}
+  const restrictedNote = document.getElementById("identity-restricted-note");
+  if (restrictedNote) restrictedNote.hidden = role === "superadmin";
 
-  // View role execution safety
-  // Read-only execution lock (viewer + auditor)
-if (!ROLE_RULES[ACTIVE_ROLE].editIp) {
-  document.getElementById("ip-add-btn")?.setAttribute("disabled", "true");
-  document.getElementById("ip-save-btn")?.setAttribute("disabled", "true");
-  }
-
-  // Disable CIDR buttons for viewer only
-  if (role === "view") {
-    setTimeout(() => {
-      document
-        .querySelectorAll("#cidr-ip-tester button, #cidr-range-tester button")
-        .forEach(btn => btn.disabled = true);
-    }, 250);
-  }
-
-  // Superadmin-only features
   if (role === "superadmin") {
     safeInitUserManagement();
+  } else {
+    toggleSection("user-management", false);
   }
 
-  // Analyst restrictions
-  if (role === "analyst") {
-    toggleSection("admin-audit-section", false);
-  }
+  applySecurityNavPermissions();
+  updateSecuritySessionSummary();
+  updateSecurityOverview();
 }
- 
+
 const ROLE_RULES = {
   superadmin: {
     userMgmt: true,
@@ -419,38 +781,43 @@ const ROLE_RULES = {
     editHours: true,
     editIp: true,
     cidr: true,
+    deviceAdmin: true,
     readOnly: false
   },
   admin: {
-    userMgmt: true,
+    userMgmt: false,
     audit: true,
     editHours: true,
     editIp: true,
     cidr: true,
+    deviceAdmin: true,
     readOnly: false
   },
   analyst: {
     userMgmt: false,
-    audit: false,      // ✅ cannot see audit logs
+    audit: false,
     editHours: true,
-    editIp: true,
+    editIp: false,
     cidr: true,
+    deviceAdmin: false,
     readOnly: false
   },
   auditor: {
     userMgmt: false,
-    audit: true,       // ✅ audit-only
+    audit: true,
     editHours: false,
     editIp: false,
-    cidr: true,        // ✅ CIDR test allowed
-    readOnly: true   
+    cidr: true,
+    deviceAdmin: false,
+    readOnly: true
   },
   view: {
     userMgmt: false,
     audit: false,
     editHours: false,
     editIp: false,
-    cidr: false,        // ✅ can SEE CIDR
+    cidr: false,
+    deviceAdmin: false,
     readOnly: true
   }
 };
@@ -468,39 +835,18 @@ function setReadOnly(sectionId, allowed) {
     if (el.classList.contains("collapse-toggle")) return;
     el.disabled = !allowed;
   });
-
 }
 
-function lockAllActions() {
-  document.querySelectorAll("button:not(.collapse-toggle)").forEach(btn => {
-    if (btn.id !== "logout-btn" && btn.id !== "expand-all-btn" && btn.id !== "collapse-all-btn") {
-      btn.disabled = true;
-    }
-  });
-
-  document.querySelectorAll("input, textarea, select").forEach(el => {
-    el.disabled = true;
-    el.readOnly = true;
-  });
-}
-
-
-    // User Management: only superadmin
- // User Management: only superadmin
 /* ============================================================
    SAFE USER MGMT INITIALIZER (GLOBAL SCOPE)
    ============================================================ */
 function safeInitUserManagement() {
     if (ACTIVE_ROLE !== "superadmin") return;
-
-    const audit = document.getElementById("admin-audit-section");
-
-    if (!audit) {
-        return setTimeout(safeInitUserManagement, 150);
-    }
-
+    const slot = document.getElementById("user-management-slot");
+    if (!slot) return setTimeout(safeInitUserManagement, 150);
     initUserManagement();
 }
+
 /* ============================================================
    AUTO-REFRESH AUDIT LOG — every 5 seconds
    ============================================================ */
@@ -529,6 +875,7 @@ async function loadBusinessHours() {
                 ? hours.days.includes(Number(cb.value))
                 : false;
         });
+        updateSecurityOverview();
     } catch (err) {
         console.error("Hours load failed:", err);
     }
@@ -559,6 +906,7 @@ hoursForm.addEventListener("submit", async (e) => {
             return;
         }
 
+        updateSecurityOverview();
         showStatus("Business hours saved successfully.", "success");
     } catch (err) {
         console.error("Save hours failed:", err);
@@ -609,6 +957,7 @@ function renderIpList() {
     button.className = "ip-remove-btn";
     button.dataset.index = String(index);
     button.textContent = "Remove";
+    button.disabled = !ROLE_RULES[ACTIVE_ROLE]?.editIp;
 
     div.appendChild(label);
     div.appendChild(button);
@@ -617,6 +966,7 @@ function renderIpList() {
 
   document.querySelectorAll(".ip-remove-btn").forEach(btn => {
     btn.addEventListener("click", e => {
+      if (!ROLE_RULES[ACTIVE_ROLE]?.editIp) return showStatus("Read-only access.", "error");
       const i = Number(e.target.dataset.index);
 
       if (IP_RULES.length <= 1) {
@@ -629,6 +979,8 @@ function renderIpList() {
       autoSaveRules();
     });
   });
+
+  updateSecurityOverview();
 }
 
 async function addRule() {
@@ -666,39 +1018,57 @@ document.getElementById("ip-add-btn").onclick = () => {
   addRule();
 };
 
+document.getElementById("ip-save-btn")?.addEventListener("click", () => {
+  if (!ROLE_RULES[ACTIVE_ROLE]?.editIp) return showStatus("Read-only access.", "error");
+  void autoSaveRules();
+});
+
 
 async function autoSaveRules() {
   if (saving) return;
   if (!IP_RULES.length) return showStatus("At least one approved network rule is required.", "error");
   saving = true;
 
-  showStatus("Saving...", "info");
+  showStatus("Saving network access rules…", "info");
 
-  const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
-    method:"POST",
-    headers:authHeaders({ "Content-Type":"application/json" }),
-    body: JSON.stringify({ rules: IP_RULES })
-  });
+  try {
+    const res = await fetch(`${WORKER_BASE}/api/set-ip-rules`, {
+      method:"POST",
+      headers:authHeaders({ "Content-Type":"application/json" }),
+      body: JSON.stringify({ rules: IP_RULES })
+    });
 
-  const data = await res.json();
-  saving = false;
+    if (!res.ok) {
+      return showStatus("Failed to save network access rules.", "error");
+    }
 
-  if (!res.ok) return showStatus("Failed to save rules.", "error");
-  
-  showStatus("Saved!", "success");
+    updateSecurityOverview();
+    showStatus("Network access rules saved.", "success");
+  } catch (error) {
+    console.error("Save IP rules failed:", error);
+    showStatus("Failed to save network access rules.", "error");
+  } finally {
+    saving = false;
+  }
 }
 
 async function loadIpRulesUI() {
-  const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`, { headers: authHeaders() });
-  const data = await res.json();
+  try {
+    const res = await fetch(`${WORKER_BASE}/api/get-ip-rules`, { headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Unable to load IP rules.");
 
-  IP_RULES = Array.isArray(data.rules) ? data.rules : [];
-  renderIpList();
+    IP_RULES = Array.isArray(data.rules) ? data.rules : [];
+    renderIpList();
 
-  // ✅ Populate CIDR tester textarea here (single source of truth)
-  const rulesTextarea = document.getElementById("ip-rules-textarea");
-  if (rulesTextarea) {
-    rulesTextarea.value = IP_RULES.join("\n");
+    const rulesTextarea = document.getElementById("ip-rules-textarea");
+    if (rulesTextarea) rulesTextarea.value = IP_RULES.join("\n");
+    updateSecurityOverview();
+  } catch (error) {
+    console.error("IP rule load failed:", error);
+    IP_RULES = [];
+    renderIpList();
+    showStatus("Unable to load network access rules.", "error");
   }
 }
 
@@ -709,27 +1079,43 @@ async function loadIpRulesUI() {
    7.  AUDIT LOG
    ============================================================= */
 
+function renderAuditLog() {
+    if (!auditLogBox) return;
+    const query = (document.getElementById("audit-filter-query")?.value || "").trim().toLowerCase();
+    const outcome = document.getElementById("audit-filter-outcome")?.value || "";
+
+    const events = AUDIT_EVENTS.filter(ev => {
+        if (outcome === "allowed" && ev.allowed !== true) return false;
+        if (outcome === "denied" && ev.allowed !== false) return false;
+        if (!query) return true;
+        return [ev.time, ev.ip, ev.path, ev.reason]
+            .some(value => String(value || "").toLowerCase().includes(query));
+    });
+
+    auditLogBox.textContent = events.map(ev => {
+        const allowed = ev.allowed ? "ALLOWED" : "DENIED";
+        return [ev.time || "", ev.ip || "", ev.path || "", allowed, ev.reason || ""].join(" | ");
+    }).join("\n") || "No matching security events.";
+}
+
 async function loadAuditLog() {
+    if (!ROLE_RULES[ACTIVE_ROLE]?.audit) {
+        AUDIT_EVENTS = [];
+        updateSecurityOverview();
+        return;
+    }
     try {
         const res = await fetch(`${WORKER_BASE}/api/logs`, { headers: authHeaders() });
         const data = await res.json();
-
-        const events = Array.isArray(data.events) ? data.events : [];
-
-        auditLogBox.textContent =
-            events
-                .map(ev => {
-                    const t = ev.time || "";
-                    const ip = ev.ip || "";
-                    const path = ev.path || "";
-                    const reason = ev.reason || "";
-                    const allowed = ev.allowed ? "ALLOWED" : "DENIED";
-                    return `${t} | ${ip} | ${path} | ${allowed} | ${reason}`;
-                })
-                .join("\n") || "No logs yet.";
+        if (!res.ok) throw new Error(data.error || "Unable to load logs.");
+        AUDIT_EVENTS = Array.isArray(data.events) ? data.events : [];
+        renderAuditLog();
+        updateSecurityOverview();
     } catch (err) {
         console.error("Log load failed:", err);
-        auditLogBox.textContent = "Unable to load logs.";
+        AUDIT_EVENTS = [];
+        if (auditLogBox) auditLogBox.textContent = "Unable to load logs.";
+        updateSecurityOverview();
     }
 }
 
@@ -793,9 +1179,9 @@ function initUserManagement() {
         </div>
     `;
 
-    const adminAuditSection = document.getElementById("admin-audit-section");
-    if (adminAuditSection) {
-        adminView.insertBefore(section, adminAuditSection);
+    const userSlot = document.getElementById("user-management-slot");
+    if (userSlot) {
+        userSlot.replaceChildren(section);
     } else {
         adminView.appendChild(section);
     }
@@ -1289,6 +1675,11 @@ logoutBtn.addEventListener("click", async () => {
     ACTIVE_SESSION = null;
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
+    AUDIT_EVENTS = [];
+    CURRENT_CONNECTION = null;
+    DEVICE_ADMIN_SETTINGS = null;
+    document.getElementById("user-management")?.remove();
+    userPanelInitialized = false;
        window.VBPortalSession?.clear();
        localStorage.removeItem(VB_USER_KEY);
        localStorage.removeItem(VB_ROLE_KEY);
@@ -1357,6 +1748,13 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
         }
     });
 });
+
+initSecurityConsoleNavigation();
+bindDeviceAdminControls();
+document.getElementById("audit-filter-query")?.addEventListener("input", renderAuditLog);
+document.getElementById("audit-filter-outcome")?.addEventListener("change", renderAuditLog);
+document.getElementById("audit-refresh-btn")?.addEventListener("click", () => void loadAuditLog());
+
 (async function restoreSharedSession() {
   const existingSession = window.VBPortalSession?.get();
   const existingUser = localStorage.getItem(VB_USER_KEY);

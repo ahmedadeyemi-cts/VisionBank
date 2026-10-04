@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://visionbank-security.ahmedadeyemi.workers.dev; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <title>Security Admin Console | VisionBank®</title>
-    <link rel="stylesheet" href="security.css?v=20261004-enterprise1" />
+    <link rel="stylesheet" href="security.css?v=20261004-console2" />
 </head>
 
 <body class="theme-light">
@@ -134,172 +134,322 @@
     <!-- ====================================== -->
     <!-- ADMIN VIEW                             -->
     <!-- ====================================== -->
-    <section id="admin-view" class="card hidden">
+    <section id="admin-view" class="card hidden security-console">
 
-        <div class="admin-header">
+        <div class="admin-header security-console-header">
             <div>
-                <h2>VisionBank® Security Administration</h2>
+                <span class="security-login-kicker">VisionBank® Security Administration</span>
+                <h2>Security &amp; Access Control</h2>
                 <p class="card-subtitle">
-                    Access Control • User Management • Logs • Business Rules
+                    Identity • Network Access • Policy • Audit • Security Tools
                 </p>
             </div>
 
-            <div class="admin-controls" style="display:flex; gap:8px;">
-                <button id="expand-all-btn" class="btn-secondary small">Expand All</button>
-                <button id="collapse-all-btn" class="btn-secondary small">Collapse All</button>
-                <button id="logout-btn" class="btn-secondary small">Logout</button>
+            <div class="security-session-area">
+                <div class="security-session-chip" aria-label="Current security session">
+                    <span>Signed in as</span>
+                    <strong id="security-session-user">—</strong>
+                    <small><span id="security-session-role">—</span> · <span id="security-session-state">Session active</span></small>
+                </div>
+                <button id="logout-btn" class="btn-secondary small" type="button">Logout</button>
             </div>
         </div>
 
-        <!-- BUSINESS HOURS -->
-        <section id="admin-hours-section" class="admin-section">
-            <div class="collapsible-header">
-                <h3>Business Hours</h3>
-                <button class="collapse-toggle" aria-expanded="true">
-                    <span>▾</span> Collapse
-                </button>
+        <nav class="security-nav" aria-label="Security administration">
+            <button type="button" class="security-nav-item active" data-security-view="overview">Overview</button>
+            <button type="button" class="security-nav-item" data-security-view="identity">Identity &amp; Access</button>
+            <button type="button" class="security-nav-item" data-security-view="network">Network Access</button>
+            <button type="button" class="security-nav-item" data-security-view="policy">Access Policy</button>
+            <button type="button" class="security-nav-item" data-security-view="audit">Audit &amp; Monitoring</button>
+            <button type="button" class="security-nav-item" data-security-view="tools">Security Tools</button>
+            <button type="button" class="security-nav-item" data-security-view="device">Device Management</button>
+        </nav>
+
+        <div id="security-console-status" class="security-console-status" role="status" aria-live="polite"></div>
+
+        <section class="security-view" data-security-view-panel="overview">
+            <div class="security-kpi-grid">
+                <article class="security-kpi">
+                    <span>Security posture</span>
+                    <strong id="security-overview-posture">Checking…</strong>
+                    <small id="security-overview-posture-detail">Loading current policy state</small>
+                </article>
+                <article class="security-kpi">
+                    <span>Current role</span>
+                    <strong id="security-overview-role">—</strong>
+                    <small>Effective administrative permission</small>
+                </article>
+                <article class="security-kpi">
+                    <span>Network rules</span>
+                    <strong id="security-overview-network">—</strong>
+                    <small>Approved IP / CIDR entries</small>
+                </article>
+                <article class="security-kpi">
+                    <span>Denied events</span>
+                    <strong id="security-overview-denied">—</strong>
+                    <small>In the currently loaded audit window</small>
+                </article>
+                <article class="security-kpi">
+                    <span>Access hours</span>
+                    <strong id="security-overview-hours">—</strong>
+                    <small id="security-overview-hours-days">Business-hours policy</small>
+                </article>
+                <article class="security-kpi">
+                    <span>Device verification</span>
+                    <strong id="security-overview-device">—</strong>
+                    <small>Device Manager operator verification</small>
+                </article>
             </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    These hours are enforced on the main dashboard.
-                    Times are CST/CDT automatically adjusted.
-                </p>
 
-                <form id="hours-form" class="form-grid hours-grid">
-                    <label>Start (HH:MM, CST)
-                        <input type="time" id="hours-start">
-                    </label>
+            <div class="security-overview-grid">
+                <section class="security-summary-panel">
+                    <div class="security-panel-heading">
+                        <div>
+                            <span class="security-section-kicker">Current connection</span>
+                            <h3>Network access context</h3>
+                        </div>
+                        <span id="security-current-access-badge" class="security-state-badge neutral">Checking</span>
+                    </div>
+                    <dl class="security-summary-list">
+                        <div><dt>Source IP</dt><dd id="security-current-ip">Checking…</dd></div>
+                        <div><dt>Network</dt><dd id="security-current-network">—</dd></div>
+                        <div><dt>Location</dt><dd id="security-current-location">—</dd></div>
+                        <div><dt>Security service</dt><dd id="security-current-service">Validating</dd></div>
+                    </dl>
+                    <p class="security-summary-note">Your current connection is shown for awareness before changing network-access policy. Server-side validation remains authoritative.</p>
+                </section>
 
-                    <label>End (HH:MM, CST)
-                        <input type="time" id="hours-end">
-                    </label>
-
-                    <fieldset class="days-fieldset">
-                        <legend>Active Days (CST)</legend>
-                        <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
-                        <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
-                        <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
-                        <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
-                        <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
-                        <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
-                        <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
-                    </fieldset>
-
-                    <button type="submit" class="btn-primary">
-                        Save Business Hours
-                    </button>
-                </form>
+                <section class="security-summary-panel">
+                    <div class="security-panel-heading">
+                        <div>
+                            <span class="security-section-kicker">Administration</span>
+                            <h3>Quick actions</h3>
+                        </div>
+                    </div>
+                    <div class="security-quick-actions">
+                        <button type="button" class="security-quick-action" data-security-target="identity"><strong>Identity &amp; Access</strong><span>Review roles, MFA, and users</span></button>
+                        <button type="button" class="security-quick-action" data-security-target="network"><strong>Network Access</strong><span>Manage approved IPs and CIDRs</span></button>
+                        <button type="button" class="security-quick-action" data-security-target="audit"><strong>Audit &amp; Monitoring</strong><span>Review recent security events</span></button>
+                        <button type="button" class="security-quick-action" data-security-target="device"><strong>Device Management</strong><span>Manage Device Manager verification policy</span></button>
+                    </div>
+                </section>
             </div>
         </section>
 
-        <!-- ALLOWED IPs -->
-        <section id="ip-manager" class="admin-section">
-            <div class="collapsible-header">
-                <h3>Allowed IPs / Subnets</h3>
-                <button class="collapse-toggle" aria-expanded="true">
-                    <span>▾</span> Collapse
-                </button>
+        <section class="security-view" data-security-view-panel="identity" hidden>
+            <section class="security-summary-panel security-role-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Role-based access control</span>
+                        <h3>Permission matrix</h3>
+                        <p>Permissions shown here reflect the current Security Console role model.</p>
+                    </div>
+                </div>
+                <div class="security-table-wrap">
+                    <table class="security-role-table">
+                        <thead><tr><th>Role</th><th>Users</th><th>Audit</th><th>Business Hours</th><th>Network Rules</th><th>CIDR Tools</th><th>Device Admin</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Super Admin</strong></td><td>Manage</td><td>View</td><td>Edit</td><td>Edit</td><td>Use</td><td>Manage</td></tr>
+                            <tr><td><strong>Admin</strong></td><td>Restricted</td><td>View</td><td>Edit</td><td>Edit</td><td>Use</td><td>Manage if authorized</td></tr>
+                            <tr><td><strong>Analyst</strong></td><td>—</td><td>—</td><td>Edit</td><td>Read only</td><td>Use</td><td>—</td></tr>
+                            <tr><td><strong>Auditor</strong></td><td>—</td><td>View</td><td>Read only</td><td>Read only</td><td>Use</td><td>—</td></tr>
+                            <tr><td><strong>View</strong></td><td>—</td><td>—</td><td>Read only</td><td>Read only</td><td>—</td><td>—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <div id="user-management-slot"></div>
+            <section id="identity-restricted-note" class="security-summary-panel">
+                <div class="security-panel-heading"><div><span class="security-section-kicker">Identity administration</span><h3>User Management</h3></div></div>
+                <p class="security-summary-note">User creation, role changes, password administration, and MFA reset are available to Super Admin accounts only.</p>
+            </section>
+        </section>
+
+        <section class="security-view" data-security-view-panel="network" hidden>
+            <section class="security-summary-panel security-connection-panel">
+                <div class="security-panel-heading">
+                    <div><span class="security-section-kicker">Change safety</span><h3>Current connection</h3></div>
+                    <span id="security-network-access-badge" class="security-state-badge neutral">Checking</span>
+                </div>
+                <p>Your current source IP is <strong id="security-network-current-ip">Checking…</strong>. Review this value before removing or replacing allowlist rules so you do not unintentionally lock out your active administration path.</p>
+            </section>
+
+            <section id="ip-manager" class="admin-section">
+                <div class="collapsible-header">
+                    <div><span class="security-section-kicker">Network policy</span><h3>Allowed IPs / Subnets</h3></div>
+                    <button class="collapse-toggle" type="button" aria-expanded="true"><span>▾</span> Collapse</button>
+                </div>
+                <div class="collapsible-content">
+                    <p class="section-help">Only listed IPv4, IPv6, and CIDR rules may access protected portal services. Changes are validated by the security service.</p>
+                    <div id="ip-list" class="ip-list"></div>
+                    <div id="ip-status" class="status-box"></div>
+                    <div class="ip-add-row">
+                        <input id="ip-add-input" type="text" class="input" autocomplete="off" placeholder="Enter IPv4, IPv6, or CIDR">
+                        <button id="ip-add-btn" type="button" class="btn-primary">Add Rule</button>
+                    </div>
+                    <button id="ip-save-btn" type="button" class="btn-secondary security-manual-save">Save Current Rules</button>
+                </div>
+            </section>
+        </section>
+
+        <section class="security-view" data-security-view-panel="policy" hidden>
+            <section id="admin-hours-section" class="admin-section">
+                <div class="collapsible-header">
+                    <div><span class="security-section-kicker">Portal access policy</span><h3>Business Hours</h3></div>
+                    <button class="collapse-toggle" type="button" aria-expanded="true"><span>▾</span> Collapse</button>
+                </div>
+                <div class="collapsible-content">
+                    <p class="section-help">These hours are enforced on the main dashboard. Times are interpreted in Central Time and adjust automatically for CST/CDT.</p>
+                    <form id="hours-form" class="form-grid hours-grid">
+                        <label>Start (Central)
+                            <input type="time" id="hours-start">
+                        </label>
+                        <label>End (Central)
+                            <input type="time" id="hours-end">
+                        </label>
+                        <fieldset class="days-fieldset">
+                            <legend>Active Days</legend>
+                            <label><input type="checkbox" value="1" class="hours-day"> Mon</label>
+                            <label><input type="checkbox" value="2" class="hours-day"> Tue</label>
+                            <label><input type="checkbox" value="3" class="hours-day"> Wed</label>
+                            <label><input type="checkbox" value="4" class="hours-day"> Thu</label>
+                            <label><input type="checkbox" value="5" class="hours-day"> Fri</label>
+                            <label><input type="checkbox" value="6" class="hours-day"> Sat</label>
+                            <label><input type="checkbox" value="0" class="hours-day"> Sun</label>
+                        </fieldset>
+                        <button type="submit" class="btn-primary">Save Business Hours</button>
+                    </form>
+                </div>
+            </section>
+        </section>
+
+        <section class="security-view" data-security-view-panel="audit" hidden>
+            <section id="admin-audit-section" class="admin-section">
+                <div class="collapsible-header">
+                    <div><span class="security-section-kicker">Audit &amp; monitoring</span><h3>Security Audit Log</h3></div>
+                    <button class="collapse-toggle" type="button" aria-expanded="true"><span>▾</span> Collapse</button>
+                </div>
+                <div class="collapsible-content">
+                    <p class="section-help">Recent security decisions reported by the VisionBank security service.</p>
+                    <div class="security-audit-toolbar">
+                        <label>Search
+                            <input id="audit-filter-query" type="search" autocomplete="off" placeholder="IP, path, or reason">
+                        </label>
+                        <label>Outcome
+                            <select id="audit-filter-outcome">
+                                <option value="">Allowed &amp; denied</option>
+                                <option value="allowed">Allowed</option>
+                                <option value="denied">Denied</option>
+                            </select>
+                        </label>
+                        <button id="audit-refresh-btn" type="button" class="btn-secondary">Refresh Now</button>
+                    </div>
+                    <pre id="audit-log" class="audit-log"></pre>
+                </div>
+            </section>
+        </section>
+
+        <section class="security-view" data-security-view-panel="tools" hidden>
+            <div id="cidr-tester-section" class="security-tools-grid">
+                <section id="cidr-ip-tester" class="admin-section">
+                    <div class="collapsible-header">
+                        <div><span class="security-section-kicker">Network diagnostics</span><h3>CIDR / IP Tester</h3></div>
+                        <button class="collapse-toggle" type="button" aria-expanded="true"><span>▾</span> Collapse</button>
+                    </div>
+                    <div class="collapsible-content">
+                        <p class="section-help">Test whether an IPv4 or IPv6 address matches any current allowlist rule.</p>
+                        <label>IP Address to Test</label>
+                        <input id="ip-test-input" type="text" class="input" autocomplete="off">
+                        <label>Rules (auto-loaded)</label>
+                        <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
+                        <button id="run-ip-test-btn" type="button" class="btn-primary security-tool-action">Run CIDR Test</button>
+                        <div id="ip-test-result" class="cidr-result-box"></div>
+                    </div>
+                </section>
+
+                <section id="cidr-range-tester" class="admin-section">
+                    <div class="collapsible-header">
+                        <div><span class="security-section-kicker">Range diagnostics</span><h3>CIDR Range Tester</h3></div>
+                        <button class="collapse-toggle" type="button" aria-expanded="true"><span>▾</span> Collapse</button>
+                    </div>
+                    <div class="collapsible-content">
+                        <p class="section-help">Test whether an IP belongs to a CIDR range or whether one CIDR is inside another.</p>
+                        <div class="form-grid security-two-column">
+                            <label>Test IP or CIDR A
+                                <input id="cidr-input-a" type="text" autocomplete="off">
+                            </label>
+                            <label>Against CIDR B
+                                <input id="cidr-input-b" type="text" autocomplete="off">
+                            </label>
+                        </div>
+                        <button id="cidr-test-btn" type="button" class="btn-primary security-tool-action">Run CIDR Test</button>
+                        <div id="cidr-test-result" class="cidr-result-box"></div>
+                    </div>
+                </section>
             </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Only listed IPs/Subnets may access the dashboard.
-                </p>
+        </section>
 
-                <div id="ip-list" class="ip-list"></div>
-                <div id="ip-status" class="status-box"></div>
+        <section class="security-view" data-security-view-panel="device" hidden>
+            <section class="security-summary-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Shared administration</span>
+                        <h3>Device Management Security</h3>
+                        <p>These settings use the same backend configuration as the Device &amp; Extension Manager, so changes made here are immediately reflected there.</p>
+                    </div>
+                    <a class="btn-secondary security-device-link" href="device">Open Device Manager</a>
+                </div>
+                <div id="security-device-settings-state" class="security-device-state">Loading Device Manager security settings…</div>
+            </section>
 
-                <div class="ip-add-row">
-                    <input id="ip-add-input" type="text" class="input"
-                           placeholder="Enter IPv4, IPv6, or CIDR">
-                    <button id="ip-add-btn" class="btn-primary">Add Rule</button>
+            <section class="security-summary-panel security-device-settings">
+                <div class="security-setting-row">
+                    <div>
+                        <strong>Email verification</strong>
+                        <p>Require a six-digit email code before an operator can make device changes.</p>
+                    </div>
+                    <label class="security-switch">
+                        <input id="security-device-verification-toggle" type="checkbox">
+                        <span class="security-switch-track"><span></span></span>
+                        <span id="security-device-verification-label">On</span>
+                    </label>
                 </div>
 
-                <button id="ip-save-btn" class="btn-secondary" style="margin-top:12px;">
-                    Save IP Rules
-                </button>
-            </div>
-        </section>
+                <div class="security-setting-block">
+                    <div class="security-setting-heading">
+                        <div><strong>Verified session duration</strong><p>Controls how long a successful Device Manager operator verification remains trusted.</p></div>
+                    </div>
+                    <div class="security-inline-form">
+                        <label>Default hours
+                            <input id="security-device-default-hours" type="number" min="1" max="720" step="1" value="24">
+                        </label>
+                        <button id="security-device-default-save" class="btn-primary" type="button">Save Default</button>
+                    </div>
+                    <div class="security-inline-form security-inline-form-wide">
+                        <label>User email
+                            <input id="security-device-duration-email" type="email" maxlength="254" placeholder="user@visionbank.com">
+                        </label>
+                        <label>Hours
+                            <input id="security-device-duration-hours" type="number" min="1" max="720" step="1" placeholder="Hours">
+                        </label>
+                        <button id="security-device-duration-save" class="btn-secondary" type="button">Set User Duration</button>
+                    </div>
+                    <div id="security-device-duration-list" class="security-admin-list"></div>
+                </div>
 
-      <!-- CIDR TOOLS (ROLE-CONTROLLED) -->
-<section id="cidr-tester-section">
-
-    <!-- CIDR / IP TESTER -->
-    <section id="cidr-ip-tester" class="admin-section collapsed">
-        <div class="collapsible-header">
-            <h3>CIDR / IP Tester</h3>
-            <button class="collapse-toggle" aria-expanded="false">
-                <span>▸</span> Expand
-            </button>
-        </div>
-        <div class="collapsible-content">
-            <p class="section-help">
-                Test whether an IPv4 or IPv6 address matches any allowlist rule.
-            </p>
-
-            <label>IP Address to Test</label>
-            <input id="ip-test-input" type="text" class="input">
-
-            <label>Rules (auto-loaded)</label>
-            <textarea id="ip-rules-textarea" rows="5" class="input"></textarea>
-
-            <button id="run-ip-test-btn" class="btn-primary" style="margin-top:12px;">
-                Run CIDR Test
-            </button>
-
-            <div id="ip-test-result" class="cidr-result-box"></div>
-        </div>
-    </section>
-
-    <!-- CIDR RANGE TESTER -->
-    <section id="cidr-range-tester" class="admin-section collapsed">
-        <div class="collapsible-header">
-            <h3>CIDR Tester</h3>
-            <button class="collapse-toggle" aria-expanded="false">
-                <span>▸</span> Expand
-            </button>
-        </div>
-        <div class="collapsible-content">
-            <p class="section-help">
-                Test whether an IP belongs to a CIDR range or whether one CIDR
-                is inside another.
-            </p>
-
-            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
-                <label>Test IP or CIDR A
-                    <input id="cidr-input-a" type="text">
-                </label>
-
-                <label>Against CIDR B
-                    <input id="cidr-input-b" type="text">
-                </label>
-            </div>
-
-            <button id="cidr-test-btn" class="btn-primary" style="margin-top:12px;">
-                Run CIDR Test
-            </button>
-
-            <div id="cidr-test-result" class="cidr-result-box"></div>
-        </div>
-    </section>
-
-</section>
-
-        <!-- USER MANAGEMENT (JS BUILDS CONTENT HERE) -->
-
-        <!-- AUDIT LOG -->
-        <section id="admin-audit-section" class="admin-section collapsed">
-            <div class="collapsible-header">
-                <h3>Security Audit Log</h3>
-                <button class="collapse-toggle" aria-expanded="false">
-                    <span>▸</span> Expand
-                </button>
-            </div>
-            <div class="collapsible-content">
-                <p class="section-help">
-                    Recent security events.
-                </p>
-                <pre id="audit-log" class="audit-log"></pre>
-            </div>
+                <div class="security-setting-block">
+                    <div class="security-setting-heading">
+                        <div><strong>Device Manager admins</strong><p>Security Admin or Super Admin role is also required. At least one individual Device Manager admin must remain.</p></div>
+                    </div>
+                    <div class="security-inline-form">
+                        <label>Admin email
+                            <input id="security-device-admin-email" type="email" maxlength="254" placeholder="name@visionbank.com">
+                        </label>
+                        <button id="security-device-admin-add" class="btn-primary" type="button">Add Admin</button>
+                    </div>
+                    <div id="security-device-admin-list" class="security-admin-list"></div>
+                </div>
+            </section>
         </section>
 
     </section>
@@ -316,6 +466,6 @@
 
 <script src="portal-session.js?v=20261003-r1"></script>
   <script src="vendor/qrcode-generator.js?v=1.4.4"></script>
-  <script src="security.js?v=20261003-r5"></script>
+  <script src="security.js?v=20261004-console2"></script>
 </body>
 </html>

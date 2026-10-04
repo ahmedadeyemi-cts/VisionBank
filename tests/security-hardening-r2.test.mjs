@@ -18,9 +18,11 @@ test('R2 converts operational human routes from network-only to authenticated ro
 });
 
 test('Fax Voicemail Agents and Directory attach bearer session to protected APIs',()=>{
+  const portalSession=fs.readFileSync(new URL('../portal-session.js',import.meta.url),'utf8');
+  assert.match(portalSession,/Authorization: "Bearer " \+ session/);
   for(const [name,source] of frontends){
     assert.match(source,/function authHeaders\(/,name+' missing authHeaders');
-    assert.ok(source.includes('Authorization: `Bearer ${session}`'),name+' missing bearer session');
+    assert.match(source,/VBPortalSession\?\.authHeaders/,name+' does not use centralized bearer session');
     assert.ok(source.includes('/api/logout'),name+' missing server-side logout');
   }
   const fax=frontends.find(([n])=>n==='fax.js')[1];

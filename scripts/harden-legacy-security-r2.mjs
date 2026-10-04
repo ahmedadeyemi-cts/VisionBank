@@ -67,6 +67,16 @@ const newNetwork=`function legacyNetworkOnlyRoute(path, method) {
 }`;
 replaceOnce(oldNetwork,newNetwork,'remove-network-only-human-routes');
 
+replaceOnce(
+  '      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-AUTH-TOKEN, X-VB-Operator-Session"\n',
+  '      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-AUTH-TOKEN, X-VB-Operator-Session",\n'+
+  '      "X-Content-Type-Options": "nosniff",\n'+
+  '      "Referrer-Policy": "no-referrer",\n'+
+  '      "X-Frame-Options": "DENY",\n'+
+  '      "Permissions-Policy": "camera=(), microphone=(), geolocation=()"\n',
+  'worker-security-headers'
+);
+
 for(const required of [
   '/api/fax/cdrsearch','/api/voicemails/report','/api/agents/current','/api/directory/get',
   'path.startsWith("/api/voicecall/details/")','/api/transcriptions/report'

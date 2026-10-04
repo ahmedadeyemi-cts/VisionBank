@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://chat-widget.produs1.ciscoccservice.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>VisionBank® | Agent Controls</title>
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
   <link rel="stylesheet" href="agents.css" />
@@ -225,6 +227,7 @@
     </footer>
   </div>
 
+  <script src="portal-session.js?v=20261003-r1"></script>
   <script src="agents.js"></script>
 </body>
 </html>

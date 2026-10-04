@@ -5,12 +5,11 @@ const VB_USER_KEY = "vb_user";
 const VB_ROLE_KEY = "vb_role";
 
 function authHeaders(extra = {}) {
-  const session = localStorage.getItem(VB_SESSION_KEY) || "";
-  return { ...extra, ...(session ? { Authorization: `Bearer ${session}` } : {}) };
+  return window.VBPortalSession?.authHeaders(extra) || extra;
 }
 
 async function revokePortalSession() {
-  const session = localStorage.getItem(VB_SESSION_KEY) || "";
+  const session = window.VBPortalSession?.get() || "";
   if (!session) return;
   try {
     await fetch(`${SECURITY_BASE}/api/logout`, { method: "POST", headers: authHeaders() });
@@ -106,7 +105,7 @@ loginBtn?.addEventListener("click", async () => {
       return;
     }
 
-    localStorage.setItem(VB_SESSION_KEY, data.session);
+    window.VBPortalSession?.set(data.session);
     localStorage.setItem(VB_USER_KEY, payload.username);
     localStorage.setItem(VB_ROLE_KEY, data.user?.role || "view");
 
@@ -123,7 +122,7 @@ loginBtn?.addEventListener("click", async () => {
 
 logoutBtn?.addEventListener("click", async () => {
   await revokePortalSession();
-  localStorage.removeItem(VB_SESSION_KEY);
+  window.VBPortalSession?.clear();
   localStorage.removeItem(VB_USER_KEY);
   localStorage.removeItem(VB_ROLE_KEY);
   location.href = "security.html";
@@ -548,7 +547,7 @@ locationFilter?.addEventListener("change", filterDirectory);
 (async function init() {
   restoreTheme();
 
-  const existingSession = localStorage.getItem(VB_SESSION_KEY);
+  const existingSession = window.VBPortalSession?.get();
 
   if (existingSession) {
     loginView.classList.add("hidden");

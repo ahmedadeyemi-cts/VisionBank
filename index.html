@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://chat-widget.produs1.ciscoccservice.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>VisionBank® | Contact Center Realtime Dashboard</title>
 
     <!-- Favicon -->
@@ -14,105 +16,7 @@
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
   <!--  Use this Link to check who has been denied: https://visionbank-security.ahmedadeyemi.workers.dev/security/check -->
     <!-- ======================================= -->
-    <script>
-      window.addEventListener("DOMContentLoaded", () => {
-        (async function () {
-          const overlay  = document.getElementById("access-denied-overlay");
-          const msgEl    = document.getElementById("access-denied-message");
-          const statusEl = document.getElementById("securityStatus");
-            function renderAccessDenied(data) {
-  const info = data?.info || {};
-  const ip = info.primaryIp || "Unknown";
-  const ipVersion = info.ipVersion || "Unknown";
-  const forwarded = info.forwardedFor;
-  const geo = info.geo || {};
-  const asn = info.asn ? `AS${info.asn}` : "Unknown";
-  const asOrg = info.asOrg || "Unknown";
-
-  const html =
-    "<strong>Access has been restricted.</strong><br><br>" +
-
-    "<strong>Primary IP:</strong> " + ip + " (" + ipVersion + ") " +
-    "<button class='copy-ip-btn' onclick=\"navigator.clipboard.writeText('" + ip + "')\">" +
-    "Copy IP</button><br>" +
-
-    (forwarded ? "<strong>Forwarded IP(s):</strong> " + forwarded + "<br>" : "") +
-
-    "<strong>Location:</strong> " +
-    (geo.city || "Unknown") + ", " +
-    (geo.region || "") + " " +
-    (geo.country || "") + "<br>" +
-
-    "<strong>Network:</strong> " + asOrg + " (" + asn + ")<br><br>" +
-
-    "Please provide this information to the VisionBank IT Team.";
-
-  showOverlay(html);
-}
-
-          function showOverlay(text) {
-            if (msgEl && text) msgEl.innerHTML = text.replace(/\n/g, "<br>");
-            if (overlay) overlay.classList.remove("hidden");
-            document.body.classList.remove("security-approved");
-          }
-
-          try {
-            const res = await fetch(
-              "https://visionbank-security.ahmedadeyemi.workers.dev/security/check",
-              {
-                method: "GET",
-                mode: "cors",
-                credentials: "omit"
-              }
-            );
-
-            if (!res.ok) {
-              showOverlay(
-                "Unable to contact security service (HTTP " + res.status + ")."
-              );
-              return;
-            }
-
-            const data = await res.json();
-            // Expose for dashboard.js and footer banner
-            window.VB_SECURITY = data;
-
-            if (!data.allowed) {
-              renderAccessDenied(data);
-              return;
-            }
-
-
-            // ✔ Access approved
-            if (overlay) overlay.classList.add("hidden");
-            document.body.classList.add("security-approved");
-
-            // Footer banner with proper time fallback
-              if (statusEl && data.info) {
-                  const ip = data.info.primaryIp || "Unknown IP";
-                  let nowLabel = data.info.nowCst?.label;
-
-              if (!nowLabel) {
-                try {
-                  nowLabel = new Date().toLocaleString("en-US", {
-                    timeZone: "America/Chicago"
-                  });
-                } catch (e) {
-                  nowLabel = new Date().toLocaleString();
-                }
-              }
-
-              statusEl.textContent =
-                "Access approved from IP " + ip + " at " + nowLabel + " (CST)";
-            }
-
-          } catch (err) {
-            console.error("Security check failed:", err);
-            showOverlay("Unable to contact security service.");
-          }
-        })();
-      });
-    </script>
+    <script src="portal-security-precheck.js?v=20261003-r1" defer></script>
 </head>
 
 <body>

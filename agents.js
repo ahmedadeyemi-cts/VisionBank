@@ -7,6 +7,21 @@ const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";
 
+function authHeaders(extra = {}) {
+  const session = localStorage.getItem(VB_SESSION_KEY) || "";
+  return { ...extra, ...(session ? { Authorization: `Bearer ${session}` } : {}) };
+}
+
+async function revokePortalSession() {
+  const session = localStorage.getItem(VB_SESSION_KEY) || "";
+  if (!session) return;
+  try {
+    await fetch(`${SECURITY_BASE}/api/logout`, { method: "POST", headers: authHeaders() });
+  } catch (err) {
+    console.debug("Portal session revoke skipped:", err?.message || err);
+  }
+}
+
 const loginView = document.getElementById("loginView");
 const appView = document.getElementById("appView");
 const loginForm = document.getElementById("loginForm");
@@ -109,7 +124,8 @@ loginForm?.addEventListener("submit", async function (e) {
 // =====================================================
 // LOGOUT
 // =====================================================
-logoutBtn?.addEventListener("click", function () {
+logoutBtn?.addEventListener("click", async function () {
+  await revokePortalSession();
   localStorage.removeItem(VB_SESSION_KEY);
   localStorage.removeItem(VB_USER_KEY);
   location.href = "security.html";
@@ -187,7 +203,7 @@ async function loadAgentSettings() {
   settingsStatus.textContent = "Loading settings...";
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/agents/settings/get`);
+    const res = await fetch(`${SECURITY_BASE}/api/agents/settings/get`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -232,7 +248,7 @@ saveSettingsBtn?.addEventListener("click", async function () {
 
     const res = await fetch(`${SECURITY_BASE}/api/agents/settings/save`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
     });
 
@@ -253,7 +269,7 @@ saveSettingsBtn?.addEventListener("click", async function () {
 
     const logoutRes = await fetch(`${SECURITY_BASE}/api/agents/logout/settings/save`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(logoutPayload)
     });
 
@@ -288,7 +304,7 @@ async function loadCurrentAgents() {
   `;
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/agents/current`);
+    const res = await fetch(`${SECURITY_BASE}/api/agents/current`, { headers: authHeaders() });
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -313,7 +329,7 @@ async function loadLogoutSettings() {
   logoutSettingsStatus.textContent = "Loading auto-logout settings...";
 
   try {
-    const res = await fetch(`${SECURITY_BASE}/api/agents/logout/settings`);
+    const res = await fetch(`${SECURITY_BASE}/api/agents/logout/settings`, { headers: authHeaders() });
     const settings = await res.json();
 
     if (!res.ok) {
@@ -390,7 +406,8 @@ sendTestReminderBtn?.addEventListener("click", async function () {
 
   try {
     const res = await fetch(`${SECURITY_BASE}/api/agents/reminder/test`, {
-      method: "POST"
+      method: "POST",
+      headers: authHeaders()
     });
 
     const data = await res.json();

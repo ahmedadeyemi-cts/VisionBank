@@ -317,8 +317,7 @@ async function handleMfaSetup(request, env, cors) {
   }
 
   const uri="otpauth://totp/VisionBank:"+encodeURIComponent(username)+"?secret="+secret+"&issuer=VisionBank";
-  const qr="https://api.qrserver.com/v1/create-qr-code/?data="+encodeURIComponent(uri)+"&size=200x200";
-  return json({qr,secret,setupToken:ticket.id},cors);
+  return json({uri,secret,setupToken:ticket.id},cors);
 }
 `;
 

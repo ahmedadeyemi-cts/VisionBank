@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://visionbank-security.ahmedadeyemi.workers.dev; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <title>Security Admin Console | VisionBank®</title>
-    <link rel="stylesheet" href="security.css?v=20261004-console2" />
+    <link rel="stylesheet" href="security.css?v=20261004-console3" />
 </head>
 
 <body class="theme-light">
@@ -261,7 +261,24 @@
             <div id="user-management-slot"></div>
             <section id="identity-restricted-note" class="security-summary-panel">
                 <div class="security-panel-heading"><div><span class="security-section-kicker">Identity administration</span><h3>User Management</h3></div></div>
-                <p class="security-summary-note">User creation, role changes, password administration, and MFA reset are available to Super Admin accounts only.</p>
+                <p class="security-summary-note">User creation, role changes, password administration, account enable/disable, and MFA reset are available to Super Admin accounts only.</p>
+            </section>
+
+            <section id="security-active-sessions-panel" class="security-summary-panel" hidden>
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Session administration</span>
+                        <h3>Active Administrative Sessions</h3>
+                        <p>Review active Security sessions. Session tokens are never displayed; revocation uses a non-secret session fingerprint.</p>
+                    </div>
+                    <button id="security-sessions-refresh" class="btn-secondary" type="button">Refresh Sessions</button>
+                </div>
+                <div class="security-table-wrap">
+                    <table class="security-session-table">
+                        <thead><tr><th>User</th><th>Role</th><th>Started</th><th>Expires</th><th>Source IP</th><th>Browser</th><th>Action</th></tr></thead>
+                        <tbody id="security-sessions-body"><tr><td colspan="7" class="security-table-empty">Sessions have not loaded yet.</td></tr></tbody>
+                    </table>
+                </div>
             </section>
         </section>
 
@@ -345,6 +362,23 @@
                         <button id="audit-refresh-btn" type="button" class="btn-secondary">Refresh Now</button>
                     </div>
                     <pre id="audit-log" class="audit-log"></pre>
+                </div>
+            </section>
+
+            <section id="security-config-history-panel" class="security-summary-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Configuration audit</span>
+                        <h3>Configuration Change History</h3>
+                        <p>Tracks administrative changes to users, MFA, business hours, network access, and session revocations.</p>
+                    </div>
+                    <button id="security-config-history-refresh" class="btn-secondary" type="button">Refresh History</button>
+                </div>
+                <div class="security-table-wrap">
+                    <table class="security-config-history-table">
+                        <thead><tr><th>When</th><th>Administrator</th><th>Action</th><th>Target</th><th>Changes</th><th>Source IP</th></tr></thead>
+                        <tbody id="security-config-history-body"><tr><td colspan="6" class="security-table-empty">Configuration history has not loaded yet.</td></tr></tbody>
+                    </table>
                 </div>
             </section>
         </section>
@@ -466,6 +500,6 @@
 
 <script src="portal-session.js?v=20261003-r1"></script>
   <script src="vendor/qrcode-generator.js?v=1.4.4"></script>
-  <script src="security.js?v=20261004-console2"></script>
+  <script src="security.js?v=20261004-console3"></script>
 </body>
 </html>

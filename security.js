@@ -64,6 +64,8 @@ let LAST_DELETED_USER = null;
 
 let auditInterval = null;
 let AUDIT_EVENTS = [];
+let SECURITY_CONFIG_HISTORY = [];
+let ACTIVE_SECURITY_SESSIONS = [];
 let CURRENT_CONNECTION = null;
 let DEVICE_ADMIN_SETTINGS = null;
 let ACTIVE_SECURITY_VIEW = "overview";
@@ -734,6 +736,8 @@ async function showAdminView() {
         loadBusinessHours(),
         loadIpRulesUI(),
         loadAuditLog(),
+        loadSecurityConfigHistory(),
+        loadActiveSecuritySessions(),
         loadCurrentConnectionContext(),
         loadDeviceAdminSettings()
     ]);
@@ -1119,6 +1123,172 @@ async function loadAuditLog() {
     }
 }
 
+
+function securityFormatDate(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString() : "Unknown";
+}
+
+function securityTableCell(value) {
+    const td = document.createElement("td");
+    td.textContent = value == null || value === "" ? "—" : String(value);
+    return td;
+}
+
+function renderSecurityConfigHistory() {
+    const tbody = document.getElementById("security-config-history-body");
+    if (!tbody) return;
+    tbody.replaceChildren();
+
+    if (!SECURITY_CONFIG_HISTORY.length) {
+        const tr = document.createElement("tr");
+        const td = securityTableCell("No configuration changes have been recorded yet.");
+        td.colSpan = 6;
+        td.className = "security-table-empty";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    for (const event of SECURITY_CONFIG_HISTORY) {
+        const tr = document.createElement("tr");
+        tr.append(
+            securityTableCell(securityFormatDate(event.at)),
+            securityTableCell(event.actor?.username || "unknown"),
+            securityTableCell(String(event.action || "").replaceAll("_", " ")),
+            securityTableCell(event.target || "Security"),
+            securityTableCell(Array.isArray(event.changes) && event.changes.length ? event.changes.join("; ") : "—"),
+            securityTableCell(event.actor?.ip || "unknown")
+        );
+        tbody.appendChild(tr);
+    }
+}
+
+async function loadSecurityConfigHistory() {
+    const panel = document.getElementById("security-config-history-panel");
+    if (!ROLE_RULES[ACTIVE_ROLE]?.audit) {
+        SECURITY_CONFIG_HISTORY = [];
+        if (panel) panel.hidden = true;
+        return;
+    }
+    if (panel) panel.hidden = false;
+    try {
+        const res = await fetch(WORKER_BASE + "/api/security/config-history", { headers: authHeaders(), cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load configuration history.");
+        SECURITY_CONFIG_HISTORY = Array.isArray(data.events) ? data.events : [];
+        renderSecurityConfigHistory();
+    } catch (error) {
+        console.error("Configuration history load failed:", error);
+        SECURITY_CONFIG_HISTORY = [];
+        const tbody = document.getElementById("security-config-history-body");
+        if (tbody) {
+            tbody.replaceChildren();
+            const tr = document.createElement("tr");
+            const td = securityTableCell("Unable to load configuration history.");
+            td.colSpan = 6;
+            td.className = "security-table-empty";
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+        }
+    }
+}
+
+function renderActiveSecuritySessions() {
+    const tbody = document.getElementById("security-sessions-body");
+    if (!tbody) return;
+    tbody.replaceChildren();
+
+    if (!ACTIVE_SECURITY_SESSIONS.length) {
+        const tr = document.createElement("tr");
+        const td = securityTableCell("No indexed active sessions are available yet.");
+        td.colSpan = 7;
+        td.className = "security-table-empty";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    for (const session of ACTIVE_SECURITY_SESSIONS) {
+        const tr = document.createElement("tr");
+        tr.append(
+            securityTableCell(session.username || "unknown"),
+            securityTableCell(roleLabel(session.role)),
+            securityTableCell(securityFormatDate(session.createdAt)),
+            securityTableCell(securityFormatDate(session.expiresAt)),
+            securityTableCell(session.ip || "unknown"),
+            securityTableCell(session.browser || "Unknown")
+        );
+        const actionCell = document.createElement("td");
+        if (session.current) {
+            const badge = document.createElement("span");
+            badge.className = "security-state-badge success";
+            badge.textContent = "Current session";
+            actionCell.appendChild(badge);
+        } else {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "btn-secondary small";
+            button.textContent = "Revoke";
+            button.addEventListener("click", () => void revokeSecuritySession(session.fingerprint, session.username));
+            actionCell.appendChild(button);
+        }
+        tr.appendChild(actionCell);
+        tbody.appendChild(tr);
+    }
+}
+
+async function loadActiveSecuritySessions() {
+    const panel = document.getElementById("security-active-sessions-panel");
+    if (ACTIVE_ROLE !== "superadmin") {
+        ACTIVE_SECURITY_SESSIONS = [];
+        if (panel) panel.hidden = true;
+        return;
+    }
+    if (panel) panel.hidden = false;
+    try {
+        const res = await fetch(WORKER_BASE + "/api/security/sessions", { headers: authHeaders(), cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load active sessions.");
+        ACTIVE_SECURITY_SESSIONS = Array.isArray(data.sessions) ? data.sessions : [];
+        renderActiveSecuritySessions();
+    } catch (error) {
+        console.error("Active session load failed:", error);
+        ACTIVE_SECURITY_SESSIONS = [];
+        const tbody = document.getElementById("security-sessions-body");
+        if (tbody) {
+            tbody.replaceChildren();
+            const tr = document.createElement("tr");
+            const td = securityTableCell("Unable to load active sessions.");
+            td.colSpan = 7;
+            td.className = "security-table-empty";
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+        }
+    }
+}
+
+async function revokeSecuritySession(fingerprint, username) {
+    if (!fingerprint) return;
+    if (!confirm("Revoke the active Security session for \"" + (username || "this user") + "\"?")) return;
+    try {
+        const res = await fetch(WORKER_BASE + "/api/security/sessions/revoke", {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({ fingerprint })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Unable to revoke session.");
+        showStatus("Administrative session revoked.", "success");
+        await loadActiveSecuritySessions();
+        await loadSecurityConfigHistory();
+    } catch (error) {
+        console.error("Session revoke failed:", error);
+        showStatus("Unable to revoke session: " + error.message, "error");
+    }
+}
+
 /* =============================================================
    8.  USER MANAGEMENT (SUPERADMIN ONLY — FULL UPGRADED VERSION)
    ============================================================= */
@@ -1152,13 +1322,15 @@ function initUserManagement() {
                 </label><br>
 
                 <label><input type="checkbox" id="user-mfa" /> MFA Enabled</label>
+                <div class="security-user-state"><span>Account status</span><strong id="user-account-status">New account</strong></div>
 
                 <div class="user-buttons" style="margin-top:8px;">
                     <button type="button" id="user-save-btn" class="btn-primary">Add / Update User</button>
-                    <button type="button" id="user-delete-btn" class="btn-secondary">Delete User</button>
+                    <button type="button" id="user-status-btn" class="btn-secondary" disabled>Disable Account</button>
                     <button type="button" id="user-reset-mfa-btn" class="btn-secondary">Reset MFA</button>
-                    <button type="button" id="user-undo-btn" class="btn-link hidden">Undo Delete</button>
+                    <button type="button" id="user-delete-btn" class="btn-secondary danger-outline">Delete Permanently</button>
                 </div>
+                <p class="security-summary-note">For existing users, leave Password blank unless you intend to reset it. Disable is preferred over permanent deletion because it preserves account history.</p>
             </div>
 
             <div class="user-list" style="margin-top:18px;">
@@ -1171,7 +1343,7 @@ function initUserManagement() {
 
                 <table id="user-table" border="1" cellpadding="4" cellspacing="0">
                     <thead>
-                        <tr><th>Username</th><th>Email</th><th>Role</th><th>MFA</th></tr>
+                        <tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>MFA</th><th>Last successful login</th><th>Last failed login</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -1195,9 +1367,11 @@ function initUserManagement() {
     const saveBtn = section.querySelector("#user-save-btn");
     const deleteBtn = section.querySelector("#user-delete-btn");
     const resetMfaBtn = section.querySelector("#user-reset-mfa-btn");
-    const undoBtn = section.querySelector("#user-undo-btn");
+    const statusBtn = section.querySelector("#user-status-btn");
+    const accountStatus = section.querySelector("#user-account-status");
 
     const tbody = section.querySelector("#user-table tbody");
+    let selectedUser = null;
     const toast = section.querySelector("#user-toast");
     const loadingIndicator = section.querySelector("#user-loading");
 
@@ -1211,14 +1385,40 @@ function initUserManagement() {
         }, 3000);
     }
 
+    const formatUserTime = value => {
+        if (!value) return "Never";
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) ? date.toLocaleString() : "Unknown";
+    };
+
+    function selectUser(u) {
+        selectedUser = u || null;
+        usernameInput.value = u?.username || "";
+        roleSelect.value = u?.role || "view";
+        mfaCheckbox.checked = !!u?.mfaEnabled;
+        passwordInput.value = "";
+        emailInput.value = u?.email || "";
+        const enabled = u?.enabled !== false;
+        accountStatus.textContent = u ? (enabled ? "Enabled" : "Disabled") : "New account";
+        statusBtn.textContent = enabled ? "Disable Account" : "Enable Account";
+        statusBtn.disabled = !u || (u.username === ACTIVE_USERNAME && enabled);
+        deleteBtn.disabled = !u || u.username === ACTIVE_USERNAME;
+        resetMfaBtn.disabled = !u;
+    }
+
     saveBtn.addEventListener("click", async () => {
         const username = usernameInput.value.trim().toLowerCase();
         const password = passwordInput.value.trim();
         const role = roleSelect.value;
         const mfaEnabled = mfaCheckbox.checked;
 
-        if (!username || !password) {
-            showToast("Username and password are required.", "error");
+        const editingExisting = selectedUser?.username === username;
+        if (!username) {
+            showToast("Username is required.", "error");
+            return;
+        }
+        if (!editingExisting && !password) {
+            showToast("Password is required when creating a new user.", "error");
             return;
         }
 
@@ -1242,10 +1442,11 @@ function initUserManagement() {
                 return;
             }
 
-            showToast("User saved successfully!", "success");
+            showToast("User saved successfully.", "success");
             passwordInput.value = "";
-           emailInput.value = "";
+            selectedUser = data.user || selectedUser;
             await refreshUserList();
+            await loadSecurityConfigHistory();
 
         } catch (err) {
             console.error("Save user failed:", err);
@@ -1260,7 +1461,7 @@ function initUserManagement() {
             return;
         }
 
-        if (!confirm(`Delete user "${username}"?`)) return;
+        if (!confirm(`Permanently delete user "${username}"? This cannot be undone. Disabling the account is preferred when access should be retained for audit history.`)) return;
 
         try {
             LAST_DELETED_USER = null;
@@ -1277,16 +1478,19 @@ function initUserManagement() {
                 return;
             }
 
-            showToast(`User "${username}" deleted. Recreate the account manually if restoration is needed.`, "success");
-            undoBtn.classList.add("hidden");
+            showToast(`User "${username}" was permanently deleted.`, "success");
 
             usernameInput.value = "";
             passwordInput.value = "";
             mfaCheckbox.checked = false;
-           emailInput.value = "";
-
+            emailInput.value = "";
+            selectedUser = null;
+            accountStatus.textContent = "New account";
+            statusBtn.disabled = true;
 
             await refreshUserList();
+            await loadSecurityConfigHistory();
+            await loadActiveSecuritySessions();
 
         } catch (err) {
             console.error("Delete user failed:", err);
@@ -1294,39 +1498,34 @@ function initUserManagement() {
         }
     });
 
-    undoBtn.addEventListener("click", async () => {
-        if (!LAST_DELETED_USER) return;
+    statusBtn.addEventListener("click", async () => {
+        if (!selectedUser) return showToast("Select a user first.", "error");
+        const desiredEnabled = selectedUser.enabled === false;
+        const action = desiredEnabled ? "enable" : "disable";
+        if (!confirm(`${desiredEnabled ? "Enable" : "Disable"} account "${selectedUser.username}"?`)) return;
 
-        const { username } = LAST_DELETED_USER;
-        showToast(`Restoring user "${username}"...`, "info");
-
+        statusBtn.disabled = true;
         try {
-            const res = await fetch(`${WORKER_BASE}/api/users/save`, {
+            const res = await fetch(`${WORKER_BASE}/api/users/status`, {
                 method: "POST",
                 headers: authHeaders({ "Content-Type": "application/json" }),
-                body: JSON.stringify({
-                    username,
-                    password: "ChangeMeNow!",
-                    role: "view",
-                    mfaEnabled: false
-                }),
+                body: JSON.stringify({ username: selectedUser.username, enabled: desiredEnabled })
             });
-
             const data = await res.json();
             if (!res.ok || !data.success) {
-                showToast(data.error || "Failed to restore user.", "error");
+                showToast(data.error || `Unable to ${action} account.`, "error");
                 return;
             }
-
-            showToast(`User "${username}" restored.`, "success");
-            undoBtn.classList.add("hidden");
-            LAST_DELETED_USER = null;
-
+            selectedUser = data.user;
+            showToast(`Account ${desiredEnabled ? "enabled" : "disabled"} successfully.`, "success");
             await refreshUserList();
-
+            await loadSecurityConfigHistory();
+            await loadActiveSecuritySessions();
         } catch (err) {
-            console.error("Restore user failed:", err);
-            showToast("Failed to restore user.", "error");
+            console.error("Account status update failed:", err);
+            showToast(`Unable to ${action} account.`, "error");
+        } finally {
+            if (selectedUser) selectUser(selectedUser);
         }
     });
 
@@ -1353,6 +1552,7 @@ function initUserManagement() {
             }
 
             showToast("MFA reset. User will be prompted to re-enroll on next login.", "success");
+            await loadSecurityConfigHistory();
         } catch (err) {
             console.error("Reset MFA failed:", err);
             showToast("Failed to reset MFA.", "error");
@@ -1381,7 +1581,10 @@ function initUserManagement() {
                     u.username || "",
                     u.email || "—",
                     u.role || "view",
-                    u.mfaEnabled ? "Yes" : "No"
+                    u.enabled === false ? "Disabled" : "Enabled",
+                    u.mfaEnabled ? "Yes" : "No",
+                    formatUserTime(u.lastSuccessfulLoginAt),
+                    formatUserTime(u.lastFailedLoginAt)
                 ];
                 values.forEach((value) => {
                     const td = document.createElement("td");
@@ -1389,12 +1592,17 @@ function initUserManagement() {
                     tr.appendChild(td);
                 });
 
+                tr.classList.toggle("security-user-disabled", u.enabled === false);
+                const wasSelected = selectedUser?.username === u.username;
+                if (wasSelected) {
+                    selectedUser = u;
+                    selectUser(u);
+                    tr.classList.add("selected");
+                }
                 tr.addEventListener("click", () => {
-                    usernameInput.value = u.username || "";
-                    roleSelect.value = u.role || "view";
-                    mfaCheckbox.checked = !!u.mfaEnabled;
-                    passwordInput.value = "";
-                    emailInput.value = u.email || "";
+                    selectUser(u);
+                    tbody.querySelectorAll("tr").forEach(row => row.classList.remove("selected"));
+                    tr.classList.add("selected");
                 });
 
                 tbody.appendChild(tr);
@@ -1408,7 +1616,7 @@ function initUserManagement() {
             if (retry < 3) {
                 return setTimeout(() => refreshUserList(retry + 1), 250);
             }
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">Unable to load users.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Unable to load users.</td></tr>`;
         } finally {
             setTimeout(() => loadingIndicator.classList.add("hidden"), 200);
         }
@@ -1676,6 +1884,8 @@ logoutBtn.addEventListener("click", async () => {
     ACTIVE_USERNAME = null;
     ACTIVE_ROLE = null;
     AUDIT_EVENTS = [];
+    SECURITY_CONFIG_HISTORY = [];
+    ACTIVE_SECURITY_SESSIONS = [];
     CURRENT_CONNECTION = null;
     DEVICE_ADMIN_SETTINGS = null;
     document.getElementById("user-management")?.remove();
@@ -1754,6 +1964,8 @@ bindDeviceAdminControls();
 document.getElementById("audit-filter-query")?.addEventListener("input", renderAuditLog);
 document.getElementById("audit-filter-outcome")?.addEventListener("change", renderAuditLog);
 document.getElementById("audit-refresh-btn")?.addEventListener("click", () => void loadAuditLog());
+document.getElementById("security-config-history-refresh")?.addEventListener("click", () => void loadSecurityConfigHistory());
+document.getElementById("security-sessions-refresh")?.addEventListener("click", () => void loadActiveSecuritySessions());
 
 (async function restoreSharedSession() {
   const existingSession = window.VBPortalSession?.get();

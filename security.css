@@ -2168,3 +2168,83 @@ body.theme-dark .security-audit-toolbar input[type="search"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Security lifecycle administration */
+.security-session-table,
+.security-config-history-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+.security-session-table th,
+.security-session-table td,
+.security-config-history-table th,
+.security-config-history-table td {
+  padding: 10px 11px;
+  border-bottom: 1px solid #edf1ef;
+  text-align: left;
+  font-size: 11px;
+  vertical-align: middle;
+}
+.security-session-table th,
+.security-config-history-table th {
+  background: #f8faf9;
+  color: #596761;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-size: 9px;
+}
+.security-table-empty {
+  text-align: center !important;
+  color: var(--vb-muted);
+  padding: 24px !important;
+}
+.security-user-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--vb-border);
+  border-radius: 10px;
+  background: var(--vb-surface-subtle);
+}
+.security-user-state span {
+  color: var(--vb-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.security-user-state strong {
+  font-size: 11px;
+}
+.btn-secondary.danger-outline {
+  color: #b42318;
+  border-color: #e7b8b3;
+}
+.btn-secondary.danger-outline:hover {
+  background: #fff3f2;
+}
+#user-table tr.selected td {
+  background: #edf5f2;
+}
+#user-table tr.security-user-disabled td {
+  opacity: .62;
+}
+body.theme-dark .security-session-table th,
+body.theme-dark .security-config-history-table th {
+  background: #10231c;
+  color: #c9d8d2;
+}
+body.theme-dark .security-session-table th,
+body.theme-dark .security-session-table td,
+body.theme-dark .security-config-history-table th,
+body.theme-dark .security-config-history-table td {
+  border-color: #1e332b;
+}
+body.theme-dark #user-table tr.selected td {
+  background: #173127;
+}
+
+#user-management .user-list { min-width:0; overflow-x:auto; }
+#user-management #user-table { min-width:980px; }

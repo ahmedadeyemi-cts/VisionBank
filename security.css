@@ -1094,3 +1094,439 @@ body.theme-dark .ip-item {
 .portal-nav a:hover {
   background: rgba(255, 255, 255, 0.18);
 }
+
+
+/* ============================================================
+   VisionBank enterprise alignment — Device Manager visual system
+   2026-10-04
+   ============================================================ */
+:root {
+  --vb-green: #185342;
+  --vb-green-2: #0f3f32;
+  --vb-surface: #ffffff;
+  --vb-surface-subtle: #f7faf9;
+  --vb-bg: #f4f7f6;
+  --vb-card-bg: #ffffff;
+  --vb-text: #15231e;
+  --vb-muted: #66756f;
+  --vb-border: #d8e2de;
+  --vb-blue: #185342;
+  --vb-blue-soft: #0f3f32;
+  --vb-shadow: 0 10px 30px rgba(21, 35, 30, .08);
+  --vb-radius: 16px;
+}
+
+body {
+  background: var(--vb-bg);
+  color: var(--vb-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body.theme-dark {
+  --vb-bg: #07110d;
+  --vb-card-bg: #0d1b16;
+  --vb-surface: #0d1b16;
+  --vb-surface-subtle: #10231c;
+  --vb-text: #e8f0ed;
+  --vb-muted: #9eb0a9;
+  --vb-border: #29453b;
+  --vb-shadow: 0 18px 42px rgba(0, 0, 0, .34);
+  background: #07110d;
+}
+
+.vb-header {
+  padding: 18px 30px;
+  background: linear-gradient(120deg, var(--vb-green-2), var(--vb-green));
+  box-shadow: 0 8px 24px rgba(15, 63, 50, .18);
+  backdrop-filter: none;
+  gap: 24px;
+}
+
+.vb-header-inner {
+  gap: 20px;
+  min-width: 0;
+}
+
+.vb-logo {
+  width: 124px;
+  height: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.vb-title-block {
+  min-width: 0;
+}
+
+.vb-eyebrow,
+.security-login-kicker {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 800;
+}
+
+.vb-eyebrow {
+  color: rgba(255, 255, 255, .72);
+}
+
+.vb-app-name {
+  margin-top: 3px;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.vb-app-subtitle {
+  margin-top: 4px;
+  max-width: 700px;
+  color: rgba(255, 255, 255, .82);
+  font-size: 13px;
+}
+
+.vb-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.portal-nav a {
+  border-color: rgba(255, 255, 255, .35);
+  background: rgba(255, 255, 255, .10);
+  color: #fff;
+}
+
+.portal-nav a:hover {
+  background: rgba(255, 255, 255, .18);
+}
+
+.portal-nav a[aria-current="page"] {
+  background: #fff;
+  color: var(--vb-green);
+  border-color: #fff;
+}
+
+.theme-toggle {
+  min-height: 40px;
+  border-radius: 10px;
+  border-color: rgba(255, 255, 255, .35);
+  background: rgba(255, 255, 255, .10);
+  color: #fff;
+  font-weight: 800;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, .18);
+  box-shadow: none;
+}
+
+.vb-main {
+  width: min(100%, 1500px);
+  max-width: 1500px;
+  margin: 20px auto 42px;
+  padding: 0 34px;
+}
+
+.card {
+  background: var(--vb-card-bg);
+  border: 1px solid var(--vb-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(21, 35, 30, .05);
+}
+
+.security-login-card {
+  width: min(100%, 620px);
+  margin: 44px auto;
+  padding: 30px 32px 32px;
+  box-shadow: var(--vb-shadow);
+}
+
+.security-login-kicker {
+  color: var(--vb-green);
+  margin-bottom: 6px;
+}
+
+.security-login-card h2 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  color: var(--vb-text);
+}
+
+.security-login-card .form-grid {
+  max-width: none;
+  gap: 14px;
+}
+
+.security-login-card .btn-primary {
+  min-height: 44px;
+  margin-top: 2px;
+}
+
+.login-helper {
+  display: grid;
+  gap: 3px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #d6e5df;
+  border-radius: 12px;
+  background: var(--vb-surface-subtle);
+  color: var(--vb-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.login-helper strong {
+  color: var(--vb-text);
+}
+
+#override-toggle {
+  margin-top: 14px;
+}
+
+#mfa-setup-view {
+  width: min(100%, 900px);
+  margin: 34px auto;
+}
+
+#admin-view {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.admin-header {
+  background: var(--vb-card-bg);
+  border: 1px solid var(--vb-border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 18px rgba(21, 35, 30, .04);
+}
+
+.admin-header h2 {
+  margin: 0 0 3px;
+  font-size: 22px;
+}
+
+.admin-controls {
+  flex-wrap: wrap;
+}
+
+.admin-section,
+#user-management {
+  margin: 0 0 14px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--vb-card-bg);
+  border: 1px solid var(--vb-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(21, 35, 30, .04);
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 14px 18px;
+  background: var(--vb-card-bg);
+}
+
+.collapsible-header h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.admin-section:not(.collapsed) .collapsible-header {
+  border-bottom: 1px solid var(--vb-border);
+}
+
+.collapsible-content {
+  padding: 16px 18px 18px;
+}
+
+.admin-section.collapsed::after {
+  display: none;
+}
+
+#user-management {
+  padding: 18px;
+}
+
+#user-management .user-form,
+#user-management .user-list {
+  border-color: var(--vb-border);
+  background: var(--vb-surface-subtle);
+}
+
+.section-help,
+.card-subtitle {
+  color: var(--vb-muted);
+  line-height: 1.5;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="time"],
+textarea,
+select,
+.input {
+  min-height: 42px;
+  padding: 10px 11px;
+  border: 1px solid #cbd8d3;
+  border-radius: 10px;
+  background: var(--vb-surface);
+  color: var(--vb-text);
+  outline: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.input:focus {
+  outline: none;
+  border-color: var(--vb-green);
+  box-shadow: 0 0 0 3px rgba(24, 83, 66, .12);
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-link,
+.collapse-toggle,
+.link-button {
+  min-height: 40px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.btn-primary {
+  background: var(--vb-green);
+  color: #fff;
+  box-shadow: none;
+}
+
+.btn-primary:hover {
+  background: var(--vb-green-2);
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: #fff;
+  border: 1px solid #b9cbc4;
+  color: var(--vb-green);
+}
+
+body.theme-dark .btn-secondary {
+  background: #10231c;
+  color: #dff0e9;
+  border-color: #36584c;
+}
+
+.collapse-toggle {
+  border: 1px solid #c8d7d1;
+  background: var(--vb-surface-subtle);
+  color: var(--vb-green);
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+.days-fieldset,
+.ip-item,
+.cidr-result-box,
+.status-box {
+  border-color: var(--vb-border);
+}
+
+#user-table th {
+  background: #f8faf9;
+  color: #596761;
+  border-color: var(--vb-border);
+}
+
+#user-table td {
+  border-color: #e6ece9;
+}
+
+body.theme-dark #user-table th {
+  background: #10231c;
+  color: #c9d8d2;
+}
+
+#audit-log {
+  border: 1px solid #253d35;
+  border-radius: 12px;
+}
+
+.vb-footer {
+  margin-top: auto;
+  background: rgba(255, 255, 255, .96);
+  color: var(--vb-muted);
+  border-top: 1px solid var(--vb-border);
+  padding: 10px 18px;
+}
+
+body.theme-dark .vb-footer {
+  background: rgba(13, 27, 22, .96);
+  color: #9eb0a9;
+  border-top-color: #29453b;
+}
+
+.vb-footer-inner {
+  max-width: 1500px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .vb-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .vb-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .vb-main {
+    padding: 0 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  .vb-header {
+    padding: 18px;
+  }
+
+  .vb-logo {
+    width: 88px;
+  }
+
+  .vb-app-name {
+    font-size: 22px;
+  }
+
+  .vb-main {
+    padding: 0 14px;
+    margin-top: 14px;
+  }
+
+  .security-login-card {
+    margin: 22px auto;
+    padding: 22px;
+  }
+
+  .admin-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .portal-nav {
+    width: 100%;
+  }
+}

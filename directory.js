@@ -227,7 +227,7 @@ function renderDirectory() {
   <td><input class="cell-input contact-email" value="${escapeHtml(contact.email || "")}" placeholder="user@visionbank.com" /></td>
   <td><input class="cell-input contact-location" value="${escapeHtml(contact.location || "")}" placeholder="Location" /></td>
   <td><input class="cell-input contact-notes" value="${escapeHtml(contact.notes || "")}" placeholder="Optional" /></td>
-  <td><button class="btn-danger" onclick="deleteContact(${index})">Delete</button></td>
+  <td><button class="btn-danger" type="button" data-directory-delete="${index}">Delete</button></td>
 </tr>
   `).join("");
 
@@ -279,6 +279,13 @@ function deleteContact(index) {
 }
 
 window.deleteContact = deleteContact;
+
+directoryTableBody?.addEventListener("click", event => {
+  const button = event.target.closest("button[data-directory-delete]");
+  if (!button || !directoryTableBody.contains(button)) return;
+  const index = Number.parseInt(button.dataset.directoryDelete || "", 10);
+  if (Number.isInteger(index) && index >= 0) deleteContact(index);
+});
 
 // =====================================================
 // BULK CSV

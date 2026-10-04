@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://chat-widget.produs1.ciscoccservice.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://visionbank-security.ahmedadeyemi.workers.dev; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <title>Security Admin Console | VisionBank®</title>
-    <link rel="stylesheet" href="security.css" />
+    <link rel="stylesheet" href="security.css?v=20261004-enterprise1" />
 </head>
 
 <body class="theme-light">
@@ -19,15 +19,16 @@
         <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="vb-logo">
 
         <div class="vb-title-block">
+            <span class="vb-eyebrow">Security &amp; Access</span>
             <div class="vb-app-name">Security Admin Console</div>
-            <div class="vb-app-subtitle">VisionBank®</div>
+            <div class="vb-app-subtitle">Identity, network access, MFA, auditing, and policy controls.</div>
         </div>
     </div>
 
     <div class="vb-header-actions">
         <nav class="portal-nav">
           <a href="index">Dashboard</a>
-          <a href="security">Security</a>
+          <a href="security" aria-current="page">Security</a>
           <a href="agents">Agents</a>
           <a href="fax">Fax</a>
           <a href="voicemails">Voicemail</a>
@@ -45,7 +46,8 @@
     <!-- ====================================== -->
     <!-- LOGIN VIEW                             -->
     <!-- ====================================== -->
-    <section id="login-view" class="card">
+    <section id="login-view" class="card security-login-card">
+        <span class="security-login-kicker">Protected administrative access</span>
         <h2>Secure Administrator Login</h2>
         <p class="card-subtitle">
             Sign in with your Username (for example, admin), Password, and (when required) a Microsoft Authenticator code.
@@ -72,6 +74,7 @@
 
         <div class="login-helper">
             <strong>If you do not have a login credential, contact IT</strong>
+            <span>Access is validated by the VisionBank security service and MFA may be required for your account.</span>
         </div>
 
         <button id="override-toggle" class="link-button">VisionBank® disabled</button>

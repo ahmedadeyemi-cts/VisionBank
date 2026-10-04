@@ -20,6 +20,7 @@ jobs:
       - name: Check both portal scripts
         run: |
           node --check dashboard.js
+          node --check portal-enterprise.js
           node --check security.js
           node --check directory.js
           node --check device.js
@@ -54,6 +55,6 @@ jobs:
       - name: Run request, roster, privacy and failure-isolation tests
         env:
           ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs
-        run: node --test tests/dashboard-audit/*.test.mjs tests/dashboard-lifecycle/*.test.mjs tests/abandoned-callback-settings/*.test.mjs tests/portal-safety/policy.test.mjs tests/channel-activity/*.test.mjs tests/voice-statistics/*.test.mjs tests/chat-agent-presentation.test.mjs tests/agent-indicators.test.mjs tests/agent-queue-state-r3.test.mjs tests/security-console-v2.test.mjs tests/security-lifecycle-v3.test.mjs tests/enterprise-ui-consistency.test.mjs tests/browser-security-r2.test.mjs tests/security-access-regression-r6.test.mjs tests/security-hardening-r5.test.mjs tests/device-management/identity.test.mjs
+        run: node --test tests/dashboard-audit/*.test.mjs tests/dashboard-lifecycle/*.test.mjs tests/abandoned-callback-settings/*.test.mjs tests/portal-safety/policy.test.mjs tests/channel-activity/*.test.mjs tests/voice-statistics/*.test.mjs tests/chat-agent-presentation.test.mjs tests/agent-indicators.test.mjs tests/agent-queue-state-r3.test.mjs tests/security-console-v2.test.mjs tests/security-lifecycle-v3.test.mjs tests/enterprise-portal-shell.test.mjs tests/enterprise-ui-consistency.test.mjs tests/browser-security-r2.test.mjs tests/security-access-regression-r6.test.mjs tests/security-hardening-r5.test.mjs tests/device-management/identity.test.mjs
 # No deployment, Cloudflare tokens, production requests, or repository writes.
 # The exact private production Worker/32-binding checks run in the guarded uploader.

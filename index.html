@@ -11,6 +11,7 @@
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="portal-enterprise.css?v=20261004-shell1" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -48,12 +49,20 @@
   </div>
 
   <div class="header-right">
-    <button id="alertSettingsToggle" class="alert-settings-btn">
-      Alert Settings
-    </button>
-    <button id="alertHistoryToggle" class="alert-history-btn">
-      Alert History
-    </button>
+    <nav class="portal-nav" aria-label="VisionBank portal">
+      <a href="index" aria-current="page">Dashboard</a>
+      <a href="webex">Webex</a>
+      <a href="security">Security</a>
+      <a href="agents">Agents</a>
+      <a href="fax">Fax</a>
+      <a href="voicemails">Voicemail</a>
+      <a href="directory">Directory</a>
+    </nav>
+    <div class="enterprise-header-tools">
+      <button id="alertSettingsToggle" class="alert-settings-btn">Alert Settings</button>
+      <button id="alertHistoryToggle" class="alert-history-btn">Alert History</button>
+      <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">🌙 Dark mode</button>
+    </div>
   </div>
 </header>
 <!-- MESSAGE OF THE DAY BANNER -->
@@ -341,9 +350,7 @@
 
 <footer class="footer">
   <div class="footer-left">
-    <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">
-      🌙 Dark mode
-    </button>
+    <span>VisionBank® Contact Center</span>
   </div>
 
   <div class="footer-center">
@@ -360,6 +367,7 @@
   </div>
 </footer>
 
+<script src="portal-enterprise.js?v=20261004-shell1"></script>
 <script src="dashboard.js?v=20261003-r4"></script>
 </body>
 </html>

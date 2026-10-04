@@ -9,6 +9,7 @@
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
   <link rel="stylesheet" href="device.css?v=20261003-v8">
+  <link rel="stylesheet" href="portal-enterprise.css?v=20261004-shell1">
 </head>
 <body class="device-shell">
   <div id="deviceAccessOverlay" class="device-overlay">
@@ -36,6 +37,7 @@
         <span id="deviceOperatorVerification" class="device-operator-verification">Verification pending</span>
       </div>
       <span id="deviceSyncStamp" class="device-sync-stamp">Waiting for inventory</span>
+      <button id="deviceThemeToggle" class="device-btn secondary" type="button" data-enterprise-theme-toggle aria-pressed="false">Dark mode</button>
       <button id="deviceAdminButton" class="device-btn secondary" type="button" hidden>Admin Settings</button>
       <button id="deviceOperatorButton" class="device-btn secondary" type="button">Identify Operator</button>
       <button id="deviceSignOutButton" class="device-btn secondary" type="button" hidden>Sign Out</button>
@@ -371,6 +373,7 @@
     <span>Created and maintained by Ahmed Adeyemi, ©2025. US Signal</span>
   </footer>
   <script src="portal-session.js?v=20261003-r1"></script>
+  <script src="portal-enterprise.js?v=20261004-shell1"></script>
   <script src="device.js?v=20261003-v21"></script>
 </body>
 </html>

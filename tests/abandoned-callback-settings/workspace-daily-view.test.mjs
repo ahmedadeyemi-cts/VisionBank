@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {callbackWorkspaceDay,visibleWorkspacePlan,visibleWorkspaceRecord,needsWorkspaceReconcile} from '../../callback-settings/workspace.mjs';
 
 const chicago=(iso)=>Date.parse(iso);
@@ -41,4 +42,16 @@ test('only pending or due nonterminal records are automatically reconciled',()=>
   assert.equal(needsWorkspaceReconcile(scheduled,today),true);
   assert.equal(needsWorkspaceReconcile({...scheduled,window:{...scheduled.window,startEpoch:today+600000}},today),false);
   assert.equal(needsWorkspaceReconcile({...scheduled,status:'completed'},today),false);
+});
+
+
+test('workspace pagination controls stay hidden until another page is available',()=>{
+  const html=fs.readFileSync(new URL('../../webex.html',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../../webex-abandoned-selection.css',import.meta.url),'utf8');
+  const workspace=fs.readFileSync(new URL('../../callback-settings/workspace.mjs',import.meta.url),'utf8');
+  assert.match(html,/id="vbCallbackMorePlans"[^>]*hidden/);
+  assert.match(html,/id="vbCallbackMoreRecords"[^>]*hidden/);
+  assert.match(css,/\.vb-cb-workspace \.vb-cb-more\[hidden\]/);
+  assert.match(workspace,/moreState\('MorePlans',planCursor\)/);
+  assert.match(workspace,/moreState\('MoreRecords',recordCursor\)/);
 });

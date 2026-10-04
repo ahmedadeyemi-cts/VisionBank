@@ -21,6 +21,7 @@ function dashboard(){const now=Date.now(),at=mode==='stale'?now-46000:now,qs=[{.
  statistics.voicePerformance.observedAt=at;if(mode==='old-worker')delete statistics.voicePerformance;
  return {success:true,timezone:'America/Chicago',generatedAtEpoch:at,generatedAtCentral:'Synthetic test snapshot',reportingDayStartEpoch:now-3600000,settings:{},queueOptions:[],queues:qs,statistics,agents:[{agentId:'test-agent',name:'Example Agent',team:'CEG Agents',number:'3223',status:'Available',duration:'00:10:00',sessionStart:now-600000,voiceChannel:ch(1),chatChannel:ch(5),agentStatus:{state:'Available',tone:'available',observedAt:at},stateIndicator:{revision:4,category:'available',label:'Available',idleVerified:false,observedAt:at,stateStartedAt:at-60000}}]};}
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),context=await browser.newContext({viewport:{width:1440,height:1150}}),page=await context.newPage();
+await page.addInitScript(()=>sessionStorage.setItem('vb_session','synthetic-browser-session'));
 page.on('pageerror',e=>errors.push(e.message));
 await context.route('**/*',async route=>{const req=route.request(),u=new URL(req.url());if(u.pathname.startsWith('/api/webex/abandoned-callback/')) {
  callbackRequests.push({path:u.pathname,method:req.method()});
@@ -34,6 +35,7 @@ await context.route('**/*',async route=>{const req=route.request(),u=new URL(req
  if(u.origin===origin){const p=path.resolve(root,u.pathname.replace(/^\//,'')||'webex.html');if(!p.startsWith(root+'/')||!fs.existsSync(p))return route.fulfill({status:404,body:''});return route.fulfill({status:200,contentType:({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml'})[path.extname(p)]||'text/plain',body:fs.readFileSync(p)});}
  if(u.origin!==worker)return route.abort();requests.push(u.pathname);let body={success:true};
  if(u.pathname==='/security/check')body={allowed:true,reason:'synthetic-test'};
+ else if(u.pathname==='/api/session/status')body={success:true,user:{email:'synthetic.admin@visionbank.com',role:'admin'}};
  else if(u.pathname==='/api/webex/dashboard')body=dashboard();
  else if(u.pathname==='/api/webex/chat-reports'){const at=Date.now();body={success:true,schemaVersion:2,build:'2026.09.24-chat-integrated-2',channel:'chat',timezone:'America/Chicago',dailyStatus:'ready',liveStatus:'ready',completedStatus:'ready',dailyObservedAt:at,liveObservedAt:at,completedObservedAt:at,rows:[],completedRows:[],liveRows:[],queueSnapshot:{},summary:Object.fromEntries(['offered','handled','abandoned','active','wrapup','waiting','offeredNow','completedToday'].map(k=>[k,{status:'ready',value:0}])),callbacks:{status:'ready',observedAt:at,rows:[],coverage:'Test callback history'}};}
  else if(u.pathname==='/api/webex/daily-reports')body=dailyReport();
@@ -45,8 +47,9 @@ const ok=(name,value=true)=>{assert.ok(value,name);checks.push(name);console.log
 try{
  await backend.request('settings?schema=4',mutation({enabled:false,queueId:QUEUE,maxAttempts:3,callbackEntryPointId:approval().callbackEntryPointId}));
  await page.goto(origin+'/webex.html',{waitUntil:'domcontentloaded'});await page.waitForSelector('input[data-callback-select]');
- await page.waitForFunction(()=>document.querySelector('#vbCallbackWorkspaceStatus')?.textContent.includes('across all dates'));
+ await page.waitForFunction(()=>document.querySelector('#vbCallbackWorkspaceStatus')?.textContent.includes('today plus confirmed future callbacks'));
  ok('callback workspace loads independently of scheduling activation');
+ ok('workspace headings describe the daily and upcoming scope',(await page.locator('#vbCallbackWorkspace summary').allTextContents()).some(x=>x.includes('today and confirmed upcoming')));
  await page.locator('input[data-callback-select]').first().check();await page.locator('#vbCallbackScheduleSelected').click();
  await page.waitForFunction(()=>!document.getElementById('vbCallbackSavePlan').disabled);
  await page.locator('.vb-cb-readiness summary').click();
@@ -80,6 +83,14 @@ try{
  await page.waitForFunction(()=>document.querySelector('#vbCallbackRegister').textContent.includes('Scheduled in Webex'));
  ok('Webex schedule ID and status remain visible without today’s abandoned row',(await page.locator('#vbCallbackRegister').textContent()).includes('Webex ID:')&&simulator.client.posts===1);
  ok('reported attempts remain unknown instead of using the requested maximum as an actual count',(await page.locator('#vbCallbackRegister').textContent()).includes('Not reported / 3 requested'));
+ for(const width of [1440,1024,768]){await page.setViewportSize({width,height:1000});const metrics=await page.locator('#vbCallbackRegister .vb-cb-actions button').evaluateAll(buttons=>buttons.map(b=>{const r=b.getBoundingClientRect(),p=b.parentElement.getBoundingClientRect();return {left:r.left,right:r.right,parentLeft:p.left,parentRight:p.right,height:r.height,scrollWidth:b.scrollWidth,clientWidth:b.clientWidth};}));ok('callback action buttons are fully visible at '+width,metrics.length>0&&metrics.every(m=>m.left>=m.parentLeft-1&&m.right<=m.parentRight+1&&m.height>=35&&m.scrollWidth<=m.clientWidth+1));}
+ await page.setViewportSize({width:1440,height:1150});
+ const storage=[...backend.stores.values()][0],callbackKey=[...storage.data.keys()].find(k=>k.startsWith('callback:')&&!k.startsWith('callback-index:')&&!k.startsWith('callback-audit:'));
+ const savedRecord=structuredClone(storage.data.get(callbackKey)),completionNow=Date.now(),todayCentral=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(completionNow));
+ savedRecord.window={...savedRecord.window,date:todayCentral,startEpoch:completionNow-60000,endEpoch:completionNow+60000};savedRecord.status='scheduled';delete savedRecord.outcomeObservation;await storage.put(callbackKey,savedRecord);simulator.client.records.splice(0);
+ simulator.client.history=async record=>[{id:crypto.randomUUID(),createdTime:completionNow-30000,endedTime:completionNow-1000,lastActivityTime:completionNow-1000,isCallback:true,isActive:false,status:'ended',globalVariables:{VB_CallbackSourceInteractionId:record.contactId,VB_CallbackAttempts:1,VB_CallbackOutcome:'COMPLETED'},callbackData:{callbackNumber:record.payload.callbackNumber,callbackConnectTime:completionNow-20000,callbackRetryCount:0},lastAgent:{id:crypto.randomUUID(),name:'Synthetic Agent'}}];
+ const refreshesBefore=callbackRequests.filter(r=>r.path.endsWith('/refresh-record')).length;await page.waitForFunction(()=>document.querySelector('#vbCallbackRegister')?.textContent.includes('Callback completed'),null,{timeout:25000});
+ ok('successful callback is automatically reconciled to completed without a manual refresh',callbackRequests.filter(r=>r.path.endsWith('/refresh-record')).length>refreshesBefore);
  await page.locator('#vbCallbackWorkspace').screenshot({path:path.join(out,'callback-register.png')});
  await page.evaluate(()=>{window.VB_SECURITY.allowed=false;document.body.classList.remove('security-approved');});await page.waitForTimeout(50);
  ok('access revocation removes saved-plan and callback data',await page.locator('[data-plan-id]').count()===0&&await page.locator('[data-callback-record]').count()===0);

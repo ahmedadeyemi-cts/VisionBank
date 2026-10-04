@@ -213,9 +213,9 @@ function init() {
   id('OpenSettings')?.addEventListener('click',()=>{id('Plan').close();const p=document.getElementById('abandonedCallbackSettingsPanel');if(p?.hidden)document.getElementById('abandonedCallbackSettingsToggle')?.click();});
   id('Plan').addEventListener('close', () => { frozenIds = []; saved = null; editingPlan=null; preparedIntent=null; id('PlanRows').replaceChildren(); });
   id('PlanForm').addEventListener('input', () => { preparedIntent=null; id('PlanRows').replaceChildren(); id('Execute').disabled = true;updateWindowBounds(); });
-  window.addEventListener('pagehide', () => {clearTimeout(pollTimer);accessObserver?.disconnect();accessObserver=null;invalidate('Page closed.');});
-  window.addEventListener('pageshow', () => {observeAccess();render();});
-  document.addEventListener('visibilitychange', () => { if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) invalidate('Refresh current reporting before selection.'); });
+  window.addEventListener('pagehide', () => {clearTimeout(pollTimer);workspace?.stop();accessObserver?.disconnect();accessObserver=null;invalidate('Page closed.');});
+  window.addEventListener('pageshow', () => {observeAccess();workspace?.resume();render();});
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden')workspace?.stop();else workspace?.resume(); if (!fresh(window.VB_ABANDONED_REPORT?.snapshot())) invalidate('Refresh current reporting before selection.'); });
   render();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();

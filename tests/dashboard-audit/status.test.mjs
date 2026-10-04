@@ -10,14 +10,17 @@ function daily(){const window={VB_SECURITY:{allowed:true}},document={readyState:
 test('missing counts/rates are not fabricated zero values',()=>{const d=daily();for(const n of [undefined,null,'',NaN,Infinity,-1]){assert.equal(d.displayCount(n),'—');assert.equal(d.formatRate(n),'—');}assert.equal(d.displayCount(0),'0');});
 test('daily denominators are explicitly received and zero denominator is undefined',()=>{const d=daily();assert.equal(d.rateFromCounts(4,10),'40.0%');assert.equal(d.rateFromCounts(0,10),'0.0%');assert.equal(d.rateFromCounts(0,0),'—');assert.equal(d.rateFromCounts(11,10),'—');});
 test('missing durations differ from recorded zero duration',()=>{const d=daily();assert.equal(d.displayedDuration(null),'Not reported');assert.equal(d.displayedDuration('00:00:00'),'00:00:00');});
-test('pre-cutover default restores the prior contact-center dashboard',()=>{
- const s=read('index.html');assert.equal(createHash('sha256').update(s).digest('hex'),'78a9c1e89bfbec33530357d12d8b6a8ba6efca716893459dcf8b5f180e3b2aff');
+test('pre-cutover default preserves the contact-center dashboard with the reviewed security baseline',()=>{
+ const s=read('index.html');assert.equal(createHash('sha256').update(s).digest('hex'),'7ff581546f7b2d8c885c25c6140b152116c81e01c84e329a7439c8250e5990b4');
  assert.ok(s.includes('Contact Center Realtime Dashboard'));assert.equal((s.match(/src="dashboard\.js\?v=/g)||[]).length,1);
+ assert.ok(s.includes('portal-security-precheck.js'));assert.ok(s.includes('Content-Security-Policy'));
  assert.ok(!/http-equiv=["']refresh|location\.(?:replace|assign)\(/i.test(s));
 });
 test('restored default retains security approval and existing assets',()=>{
- const s=read('index.html');for(const value of ['/security/check','access-denied-overlay','security-approved','window.VB_SECURITY = data'])assert.ok(s.includes(value));
- for(const asset of ['dashboard.js','style.css','assets/VisionBank-Logo.png'])assert.ok(fs.existsSync(new URL('../../'+asset,import.meta.url)));
+ const s=read('index.html'),precheck=read('portal-security-precheck.js');
+ for(const value of ['access-denied-overlay','portal-security-precheck.js'])assert.ok(s.includes(value));
+ for(const value of ['/security/check','security-approved','window.VB_SECURITY = data'])assert.ok(precheck.includes(value));
+ for(const asset of ['dashboard.js','style.css','assets/VisionBank-Logo.png','portal-security-precheck.js'])assert.ok(fs.existsSync(new URL('../../'+asset,import.meta.url)));
  assert.ok(!s.includes('webex-abandoned-selection.js'));
 });
 test('Webex testing and callback workspace remain at the separate page',()=>{

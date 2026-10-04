@@ -49,3 +49,14 @@ test('R3 session-status and Webex dashboard policies revalidate corporate identi
   for(const route of ['/api/webex/dashboard','/api/webex/daily-reports','/api/webex/chat-reports','/api/webex/dashboard/settings'])
     assert.ok(hardener.includes(route),'missing '+route);
 });
+
+
+test('browser assets do not contain hard-coded credential literals',()=>{
+  const root=new URL('../',import.meta.url);
+  const names=fs.readdirSync(root).filter(name=>/\.(?:js|html)$/.test(name));
+  for(const name of names){
+    const source=fs.readFileSync(new URL('../'+name,import.meta.url),'utf8');
+    assert.doesNotMatch(source,/(?:const|let|var)\s+[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY)[A-Z0-9_]*\s*=\s*["'][^"']{12,}["']/i,'credential-like literal in '+name);
+    assert.doesNotMatch(source,/Authorization\s*:\s*["'](?:Bearer|Basic)\s+[A-Za-z0-9+/=_-]{12,}/i,'literal Authorization credential in '+name);
+  }
+});

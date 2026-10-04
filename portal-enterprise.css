@@ -1,0 +1,691 @@
+/* ============================================================
+   VisionBank Enterprise Portal Shell
+   Shared visual language for all non-Security portal pages.
+   Functional page behavior remains in page-specific assets.
+   ============================================================ */
+
+:root {
+  --vb-shell-green: #185342;
+  --vb-shell-green-2: #0f3f32;
+  --vb-shell-bg: #f4f7f6;
+  --vb-shell-card: #ffffff;
+  --vb-shell-text: #15231e;
+  --vb-shell-muted: #66756f;
+  --vb-shell-border: #d8e2de;
+  --vb-shell-soft: #f7faf9;
+  --vb-shell-shadow: 0 10px 30px rgba(21, 35, 30, .08);
+  --vb-shell-radius: 16px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  --blue: var(--vb-shell-green);
+  --blue-2: var(--vb-shell-green-2);
+  --navy: var(--vb-shell-green-2);
+  --navy-2: var(--vb-shell-green);
+  --bg: var(--vb-shell-bg);
+  --card: var(--vb-shell-card);
+  --panel: var(--vb-shell-card);
+  --text: var(--vb-shell-text);
+  --muted: var(--vb-shell-muted);
+  --border: var(--vb-shell-border);
+  --soft: var(--vb-shell-soft);
+  --soft-bg: var(--vb-shell-soft);
+  --soft-border: #e6ece9;
+  --shadow: var(--vb-shell-shadow);
+
+  margin: 0;
+  min-height: 100vh;
+  background: var(--vb-shell-bg);
+  color: var(--vb-shell-text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body.theme-dark,
+body.dark-mode,
+body.dark,
+body.enterprise-dark {
+  --bg: #07110d;
+  --card: #0d1b16;
+  --panel: #0d1b16;
+  --text: #e8f0ed;
+  --muted: #9eb0a9;
+  --border: #29453b;
+  --soft: #10231c;
+  --soft-bg: #10231c;
+  --soft-border: #1e332b;
+  --shadow: 0 18px 42px rgba(0, 0, 0, .34);
+
+  background: #07110d;
+  color: #e8f0ed;
+}
+
+/* ---------- Enterprise header ---------- */
+.header,
+.vb-header,
+.page-header,
+.device-header {
+  background: linear-gradient(120deg, var(--vb-shell-green-2), var(--vb-shell-green)) !important;
+  color: #fff !important;
+  padding: 18px 30px !important;
+  border: 0 !important;
+  box-shadow: 0 8px 24px rgba(15, 63, 50, .18) !important;
+}
+
+.header,
+.vb-header,
+.page-header,
+.device-header,
+.header-right,
+.header-actions,
+.device-header-actions {
+  gap: 12px;
+}
+
+.header-left,
+.brand-block,
+.header-brand,
+.device-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.header .logo,
+.vb-header .vb-logo,
+.page-header .logo,
+.device-header .device-logo {
+  width: 124px !important;
+  height: auto !important;
+  max-height: 54px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px !important;
+}
+
+.header-center {
+  text-align: left !important;
+  min-width: 240px;
+}
+
+.header-center h1,
+.brand-block h1,
+.header-brand h1,
+.device-brand h1 {
+  margin: 0 !important;
+  color: #fff !important;
+  font-size: 26px !important;
+  line-height: 1.18;
+  letter-spacing: 0 !important;
+}
+
+.header-subtitle,
+.brand-block span,
+.header-brand p,
+.device-brand p {
+  color: rgba(255,255,255,.82) !important;
+  font-size: 13px !important;
+  opacity: 1 !important;
+}
+
+.header-right,
+.header-actions,
+.device-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.enterprise-header-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.portal-nav {
+  display: flex !important;
+  align-items: center;
+  gap: 7px !important;
+  flex-wrap: wrap;
+}
+
+.portal-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 11px !important;
+  border: 1px solid rgba(255,255,255,.35) !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1.1;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.portal-nav a:hover {
+  background: rgba(255,255,255,.18) !important;
+}
+
+.portal-nav a.active,
+.portal-nav a[aria-current="page"] {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--vb-shell-green) !important;
+}
+
+/* Header controls use one enterprise treatment. */
+.header .dark-toggle,
+.header .alert-settings-btn,
+.header .alert-history-btn,
+.header .dashboard-settings-btn,
+.vb-header .btn-secondary,
+.page-header .btn-secondary,
+.device-header .device-btn.secondary,
+[data-enterprise-theme-toggle] {
+  min-height: 38px !important;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(255,255,255,.35) !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  font: inherit;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
+.header .dark-toggle:hover,
+.header .alert-settings-btn:hover,
+.header .alert-history-btn:hover,
+.header .dashboard-settings-btn:hover,
+.vb-header .btn-secondary:hover,
+.page-header .btn-secondary:hover,
+.device-header .device-btn.secondary:hover,
+[data-enterprise-theme-toggle]:hover {
+  background: rgba(255,255,255,.18) !important;
+}
+
+/* ---------- Main workspace ---------- */
+.main,
+.container,
+.device-main {
+  width: min(100%, 1600px);
+  max-width: 1600px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+.panel,
+.kpi-card,
+.stat-card,
+.daily-report-panel,
+.device-panel,
+.device-filter-panel,
+.device-healthbar,
+.device-kpi {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--vb-shell-radius) !important;
+  box-shadow: 0 4px 18px rgba(21,35,30,.05) !important;
+}
+
+.panel,
+.device-panel,
+.device-filter-panel {
+  margin-bottom: 16px;
+}
+
+.section-header,
+.daily-report-header,
+.device-panel-heading,
+.device-section-heading {
+  border-color: var(--border) !important;
+}
+
+.panel h2,
+.panel h3,
+.section-header h2,
+.section-header h3,
+.daily-report-header h2,
+.device-panel-heading h2,
+.device-panel-heading h3 {
+  color: var(--text) !important;
+}
+
+.panel p,
+.section-header p,
+.device-panel-heading p,
+.device-helper {
+  color: var(--muted) !important;
+}
+
+/* ---------- Forms ---------- */
+input,
+select,
+textarea,
+.cell-input,
+.device-filter-grid input,
+.device-filter-grid select,
+.device-line-card select,
+.device-operator-form input,
+.device-duration-admin-grid input,
+.device-duration-override-add input {
+  border-color: #cbd8d3 !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+  color: var(--text) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.cell-input:focus {
+  outline: none !important;
+  border-color: var(--vb-shell-green) !important;
+  box-shadow: 0 0 0 3px rgba(24,83,66,.12) !important;
+}
+
+.btn-primary,
+button.btn-primary,
+.device-btn:not(.secondary),
+.device-primary-action {
+  border-color: var(--vb-shell-green) !important;
+  background: var(--vb-shell-green) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover,
+button.btn-primary:hover,
+.device-btn:not(.secondary):hover,
+.device-primary-action:hover {
+  background: var(--vb-shell-green-2) !important;
+}
+
+.btn-secondary,
+.file-btn,
+.device-btn.secondary,
+.device-row-action {
+  border-color: #b9cbc4 !important;
+  background: var(--card) !important;
+  color: var(--vb-shell-green) !important;
+  box-shadow: none !important;
+}
+
+/* Header secondary controls retain the translucent treatment above. */
+.vb-header .btn-secondary,
+.page-header .btn-secondary,
+.device-header .device-btn.secondary {
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,.35) !important;
+}
+
+/* ---------- Tables ---------- */
+.data-table,
+.device-table,
+table {
+  border-color: var(--border) !important;
+}
+
+.data-table thead,
+.device-table thead,
+table thead {
+  background: var(--soft-bg) !important;
+}
+
+.data-table th,
+.device-table th,
+table th {
+  color: var(--muted);
+  border-color: var(--border) !important;
+}
+
+.data-table td,
+.device-table td,
+table td {
+  border-color: var(--soft-border) !important;
+}
+
+/* ---------- Login / MFA ---------- */
+.login-shell {
+  background: radial-gradient(circle at top, var(--vb-shell-green) 0%, #07110d 78%) !important;
+}
+
+.login-card {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.login-logo {
+  width: 180px !important;
+  max-width: 68%;
+  height: auto !important;
+}
+
+.login-card h1,
+.login-card h2 {
+  color: var(--text) !important;
+}
+
+.login-card p {
+  color: var(--muted) !important;
+}
+
+/* ---------- Modals / dialogs ---------- */
+.modal-content,
+.modal-card,
+.device-dialog-shell,
+.device-admin-dialog,
+.device-overlay-card {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* ---------- Device Manager dark compatibility ---------- */
+body.enterprise-dark .device-healthbar,
+body.enterprise-dark .device-panel,
+body.enterprise-dark .device-filter-panel,
+body.enterprise-dark .device-kpi,
+body.enterprise-dark .device-line-card,
+body.enterprise-dark .device-current-line,
+body.enterprise-dark .device-expiry-card,
+body.enterprise-dark .device-change-details,
+body.enterprise-dark .device-member-picker-panel,
+body.enterprise-dark .device-admin-setting,
+body.enterprise-dark .device-admin-list-section,
+body.enterprise-dark .device-dialog-shell,
+body.enterprise-dark .device-overlay-card {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+
+body.enterprise-dark .device-tab,
+body.enterprise-dark .device-row-action,
+body.enterprise-dark .device-btn.secondary {
+  background: #10231c !important;
+  color: #dff0e9 !important;
+  border-color: #36584c !important;
+}
+
+body.enterprise-dark .device-tab.active {
+  background: var(--vb-shell-green) !important;
+  color: #fff !important;
+}
+
+body.enterprise-dark .device-table thead,
+body.enterprise-dark .device-table th {
+  background: #10231c !important;
+  color: #c9d8d2 !important;
+}
+
+body.enterprise-dark .device-table td {
+  background: #0d1b16;
+  color: #e8f0ed;
+}
+
+body.enterprise-dark .device-filter-grid label,
+body.enterprise-dark .device-line-card label,
+body.enterprise-dark .device-reason-label,
+body.enterprise-dark .device-duration-label {
+  color: #d9e5e0 !important;
+}
+
+/* ---------- Shared dark mode ---------- */
+body.theme-dark .panel,
+body.dark-mode .panel,
+body.dark .panel,
+body.enterprise-dark .panel,
+body.theme-dark .kpi-card,
+body.dark-mode .kpi-card,
+body.dark .kpi-card,
+body.enterprise-dark .kpi-card,
+body.theme-dark .stat-card,
+body.dark-mode .stat-card,
+body.dark .stat-card,
+body.enterprise-dark .stat-card,
+body.theme-dark .daily-report-panel,
+body.dark-mode .daily-report-panel,
+body.dark .daily-report-panel,
+body.enterprise-dark .daily-report-panel {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+
+body.theme-dark input,
+body.dark-mode input,
+body.dark input,
+body.enterprise-dark input,
+body.theme-dark select,
+body.dark-mode select,
+body.dark select,
+body.enterprise-dark select,
+body.theme-dark textarea,
+body.dark-mode textarea,
+body.dark textarea,
+body.enterprise-dark textarea {
+  background: #07110d !important;
+  color: #e8f0ed !important;
+  border-color: #36584c !important;
+}
+
+body.theme-dark .btn-secondary,
+body.dark-mode .btn-secondary,
+body.dark .btn-secondary,
+body.enterprise-dark .btn-secondary,
+body.theme-dark .file-btn,
+body.dark-mode .file-btn,
+body.dark .file-btn,
+body.enterprise-dark .file-btn {
+  background: #10231c !important;
+  color: #dff0e9 !important;
+  border-color: #36584c !important;
+}
+
+body.theme-dark .data-table thead,
+body.dark-mode .data-table thead,
+body.dark .data-table thead,
+body.enterprise-dark .data-table thead,
+body.theme-dark table thead,
+body.dark-mode table thead,
+body.dark table thead,
+body.enterprise-dark table thead {
+  background: #10231c !important;
+}
+
+body.theme-dark .data-table th,
+body.dark-mode .data-table th,
+body.dark .data-table th,
+body.enterprise-dark .data-table th,
+body.theme-dark table th,
+body.dark-mode table th,
+body.dark table th,
+body.enterprise-dark table th {
+  color: #c9d8d2 !important;
+  border-color: #29453b !important;
+}
+
+body.theme-dark .login-card,
+body.dark-mode .login-card,
+body.dark .login-card,
+body.enterprise-dark .login-card {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+
+/* ---------- Footer ---------- */
+.footer,
+.directory-footer,
+.device-footer {
+  background: rgba(255,255,255,.96) !important;
+  color: var(--vb-shell-muted) !important;
+  border-color: var(--vb-shell-border) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(8px);
+}
+
+.footer-us-logo,
+.footer-logo,
+.directory-footer img,
+.device-footer img {
+  max-height: 22px;
+  width: auto;
+}
+
+body.theme-dark .footer,
+body.dark-mode .footer,
+body.dark .footer,
+body.enterprise-dark .footer,
+body.theme-dark .directory-footer,
+body.dark-mode .directory-footer,
+body.dark .directory-footer,
+body.enterprise-dark .directory-footer,
+body.enterprise-dark .device-footer {
+  background: rgba(13,27,22,.96) !important;
+  color: #9eb0a9 !important;
+  border-color: #29453b !important;
+}
+
+@media (max-width: 1180px) {
+  .header,
+  .vb-header,
+  .page-header,
+  .device-header {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .header-right,
+  .header-actions,
+  .device-header-actions {
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+
+  .portal-nav {
+    width: 100%;
+  }
+
+  .enterprise-header-tools {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .header,
+  .vb-header,
+  .page-header,
+  .device-header {
+    padding: 16px !important;
+  }
+
+  .header .logo,
+  .vb-header .vb-logo,
+  .page-header .logo,
+  .device-header .device-logo {
+    width: 90px !important;
+  }
+
+  .header-center h1,
+  .brand-block h1,
+  .header-brand h1,
+  .device-brand h1 {
+    font-size: 21px !important;
+  }
+
+  .main,
+  .container,
+  .device-main {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .portal-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+  }
+
+  .portal-nav a {
+    white-space: nowrap;
+  }
+
+  .footer,
+  .directory-footer,
+  .device-footer {
+    gap: 6px !important;
+  }
+}
+
+/* Dashboard headers carry more operational controls than standard portal pages. */
+.header {
+  flex-wrap: wrap;
+}
+.header .header-right {
+  flex: 1 0 100%;
+  justify-content: space-between;
+}
+.header .header-right .portal-nav {
+  margin-right: auto;
+}
+.header .header-right .enterprise-header-tools {
+  margin-left: auto;
+}
+@media (max-width: 980px) {
+  .header .header-right {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .header .header-right .enterprise-header-tools {
+    margin-left: 0;
+  }
+}
+
+/* Webex operational controls follow the shared VisionBank action language. */
+.vb-callback-settings-btn,
+#vbCallbackRefreshWorkspace,
+.vb-cb-more,
+.ea-refresh {
+  border: 1px solid var(--vb-shell-green) !important;
+  border-radius: 10px !important;
+  background: var(--vb-shell-green) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+.vb-callback-settings-btn:hover,
+#vbCallbackRefreshWorkspace:hover:not(:disabled),
+.vb-cb-more:hover:not(:disabled),
+.ea-refresh:hover {
+  background: var(--vb-shell-green-2) !important;
+}
+#abandonedCallbackClose {
+  border: 1px solid #b9cbc4 !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+  color: var(--vb-shell-green) !important;
+  font-weight: 800 !important;
+}

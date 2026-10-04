@@ -85,7 +85,8 @@ function consumePortalReturnTarget() {
    THEME TOGGLE
    ============================================================= */
 (function initTheme() {
-    const saved = localStorage.getItem("vbTheme");
+    const saved = localStorage.getItem("vb_portal_theme") || localStorage.getItem("vbTheme");
+    if (saved === "dark" || saved === "light") localStorage.setItem("vb_portal_theme", saved);
     if (saved === "dark") {
         document.body.classList.remove("theme-light");
         document.body.classList.add("theme-dark");
@@ -100,10 +101,12 @@ function consumePortalReturnTarget() {
             themeToggleIcon.textContent = "☀️";
             themeToggleText.textContent = "Light mode";
             localStorage.setItem("vbTheme", "dark");
+            localStorage.setItem("vb_portal_theme", "dark");
         } else {
             themeToggleIcon.textContent = "🌙";
             themeToggleText.textContent = "Dark mode";
             localStorage.setItem("vbTheme", "light");
+            localStorage.setItem("vb_portal_theme", "light");
         }
     });
 })();

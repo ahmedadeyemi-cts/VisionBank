@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="webex-voice-statistics.css?v=20261001-completion-audit1">
 <link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20261001-token-manager1">
 <link rel="stylesheet" href="webex-abandoned-selection.css?v=20261004-chat-callback-ui1">
+<link rel="stylesheet" href="portal-enterprise.css?v=20261004-shell1">
 </head>
 
 <body>
@@ -58,18 +59,23 @@
   </div>
 
   <div class="header-right">
-    <button id="openAgentControls" class="dashboard-settings-btn" type="button">
-      Webex Agent
-    </button>
-    <button id="dashboardSettingsToggle" class="dashboard-settings-btn">
-      Dashboard Settings
-    </button>
-    <button id="alertSettingsToggle" class="alert-settings-btn">
-      Alert Settings
-    </button>
-    <button id="alertHistoryToggle" class="alert-history-btn">
-      Alert History
-    </button>
+    <nav class="portal-nav" aria-label="VisionBank portal">
+      <a href="index">Dashboard</a>
+      <a href="webex" aria-current="page">Webex</a>
+      <a href="webex-agent">Webex Agent</a>
+      <a href="security">Security</a>
+      <a href="agents">Agents</a>
+      <a href="fax">Fax</a>
+      <a href="voicemails">Voicemail</a>
+      <a href="directory">Directory</a>
+    </nav>
+    <div class="enterprise-header-tools">
+      <button id="openAgentControls" class="dashboard-settings-btn" type="button">Webex Agent</button>
+      <button id="dashboardSettingsToggle" class="dashboard-settings-btn">Dashboard Settings</button>
+      <button id="alertSettingsToggle" class="alert-settings-btn">Alert Settings</button>
+      <button id="alertHistoryToggle" class="alert-history-btn">Alert History</button>
+      <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">🌙 Dark mode</button>
+    </div>
   </div>
 </header>
 <div class="vb-callback-toolbar"><button type="button" id="abandonedCallbackSettingsToggle" class="vb-callback-settings-btn" aria-controls="abandonedCallbackSettingsPanel" aria-expanded="false">Abandoned Callback Settings</button></div>
@@ -758,9 +764,7 @@
 
 <footer class="footer">
   <div class="footer-left">
-    <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">
-      🌙 Dark mode
-    </button>
+    <span>VisionBank® Webex Contact Center</span>
   </div>
 
   <div class="footer-center">
@@ -788,6 +792,7 @@
   data-guid="27064816-2e3e-42a9-add4-74f11f24fd74"
   aria-label="VisionBank live agent chat"
 ></div>
+<script src="portal-enterprise.js?v=20261004-shell1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
 <script src="webex.js?v=20261001-completion-audit1"></script>
 <script src="webex-reports.js?v=20261001-completion-audit1"></script>

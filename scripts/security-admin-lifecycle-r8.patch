@@ -1,0 +1,553 @@
+--- visionbank-security-r7-main.js
++++ visionbank-security-r8-main.js
+@@ -134,7 +134,10 @@
+         const auth = String(request.headers.get("Authorization") || "");
+         if (auth.toLowerCase().startsWith("bearer ")) {
+           const sessionId = auth.slice(7).trim();
+-          if (sessionId) await env.SESSIONS.delete(sessionId);
++          if (sessionId) {
++            await env.SESSIONS.delete(sessionId);
++            await removeSecuritySessionIndex(env, sessionId);
++          }
+         }
+         return json({ success: true }, cors);
+       }
+@@ -146,7 +149,10 @@
+         if (!user || !(await isApprovedPortalEmail(user.email))) {
+           const auth = String(request.headers.get("Authorization") || "");
+           const sessionId = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+-          if (sessionId) await env.SESSIONS.delete(sessionId);
++          if (sessionId) {
++            await env.SESSIONS.delete(sessionId);
++            await removeSecuritySessionIndex(env, sessionId);
++          }
+           return json({ error: "identity-not-authorized" }, cors, 403);
+         }
+         return json({
+@@ -212,6 +218,22 @@
+ 
+       if (path === "/api/users/list" && method === "GET") {
+         return handleUserList(env, cors);
++      }
++
++      if (path === "/api/users/status" && method === "POST") {
++        return handleUserStatus(request, env, cors);
++      }
++
++      if (path === "/api/security/config-history" && method === "GET") {
++        return handleSecurityConfigHistory(env, cors);
++      }
++
++      if (path === "/api/security/sessions" && method === "GET") {
++        return handleSecuritySessionList(request, env, cors);
++      }
++
++      if (path === "/api/security/sessions/revoke" && method === "POST") {
++        return handleSecuritySessionRevoke(request, env, cors);
+       }
+       if (path === "/api/agents/logout/settings" && method === "GET") {
+   const saved = await env.LOGOUT_CONFIG.get("settings", "json");
+@@ -3860,7 +3882,234 @@
+ const MFA_SETUP_PREFIX = "security-mfa-setup:";
+ const MFA_PENDING_PREFIX = "pending:";
+ const MFA_SETUP_TTL_SECONDS = 10 * 60;
++
++const SECURITY_CONFIG_AUDIT_PREFIX = "security-config-audit:";
++const SECURITY_SESSION_INDEX_PREFIX = "security-session-index:";
++const SECURITY_HISTORY_LIMIT = 100;
++
++async function securitySessionFingerprint(sessionId) {
++  return (await portalSha256Hex(String(sessionId || ""))).slice(0, 24);
++}
++
++async function ensureSecuritySessionIndex(env, session) {
++  if (!session?.id || !env?.SESSIONS?.put) return;
++  const fingerprint = await securitySessionFingerprint(session.id);
++  const value = {
++    sessionId: session.id,
++    fingerprint,
++    username: normalizeUsername(session.username),
++    role: String(session.role || "view").toLowerCase(),
++    created: Number(session.created) || Date.now(),
++    expires: Number(session.expires) || 0,
++    ip: String(session.ip || "unknown").slice(0, 64),
++    browser: String(session.browser || "Unknown").slice(0, 120)
++  };
++  const ttl = Math.max(60, Math.ceil((value.expires - Date.now()) / 1000));
++  await env.SESSIONS.put(SECURITY_SESSION_INDEX_PREFIX + fingerprint, JSON.stringify(value), { expirationTtl: ttl });
++}
++
++async function removeSecuritySessionIndex(env, sessionId) {
++  if (!sessionId) return;
++  const fingerprint = await securitySessionFingerprint(sessionId);
++  if (env?.SESSIONS?.delete) await env.SESSIONS.delete(SECURITY_SESSION_INDEX_PREFIX + fingerprint);
++}
++
++async function revokeIndexedSessionsForUser(env, username) {
++  if (!env?.SESSIONS?.list) return 0;
++  const target = normalizeUsername(username);
++  let cursor;
++  let revoked = 0;
++  let pages = 0;
++  do {
++    const page = await env.SESSIONS.list({ prefix: SECURITY_SESSION_INDEX_PREFIX, limit: 500, ...(cursor ? { cursor } : {}) });
++    for (const key of page.keys || []) {
++      const raw = await env.SESSIONS.get(key.name);
++      let item = null;
++      try { item = raw ? JSON.parse(raw) : null; } catch {}
++      if (item && normalizeUsername(item.username) === target) {
++        if (item.sessionId) await env.SESSIONS.delete(item.sessionId);
++        await env.SESSIONS.delete(key.name);
++        revoked++;
++      }
++    }
++    cursor = page.list_complete === false ? page.cursor : undefined;
++    pages++;
++  } while (cursor && pages < 10);
++  return revoked;
++}
++
++async function writeSecurityConfigAudit(env, request, action, target, changes = [], details = {}) {
++  if (!env?.LOGS?.put) return;
++  const actor = getActorContext(request);
++  const session = await getVisionBankSessionFromRequest(request, env);
++  const at = new Date().toISOString();
++  const reverse = String(9999999999999 - Date.now()).padStart(13, "0");
++  const record = {
++    id: crypto.randomUUID(),
++    at,
++    action: String(action || "SECURITY_CHANGE").slice(0, 80),
++    target: String(target || "Security").slice(0, 160),
++    changes: Array.isArray(changes) ? changes.map(x => String(x).slice(0, 120)).slice(0, 20) : [],
++    actor: {
++      username: session?.username || "unknown",
++      role: session?.role || "unknown",
++      ip: String(actor.ip || "unknown").slice(0, 64)
++    },
++    details: details && typeof details === "object" ? details : {}
++  };
++  await env.LOGS.put(SECURITY_CONFIG_AUDIT_PREFIX + reverse + ":" + record.id, JSON.stringify(record));
++}
++
++async function handleSecurityConfigHistory(env, cors) {
++  if (!env?.LOGS?.list) return json({ events: [] }, cors);
++  const page = await env.LOGS.list({ prefix: SECURITY_CONFIG_AUDIT_PREFIX, limit: SECURITY_HISTORY_LIMIT });
++  const events = [];
++  for (const key of page.keys || []) {
++    const raw = await env.LOGS.get(key.name);
++    let item = null;
++    try { item = raw ? JSON.parse(raw) : null; } catch {}
++    if (!item) continue;
++    events.push({
++      id: item.id || "",
++      at: item.at || "",
++      action: item.action || "",
++      target: item.target || "",
++      changes: Array.isArray(item.changes) ? item.changes : [],
++      actor: {
++        username: item.actor?.username || "unknown",
++        role: item.actor?.role || "unknown",
++        ip: item.actor?.ip || "unknown"
++      },
++      details: item.details && typeof item.details === "object" ? item.details : {}
++    });
++  }
++  return json({ events }, cors);
++}
+ 
++async function handleSecuritySessionList(request, env, cors) {
++  const current = await getVisionBankSessionFromRequest(request, env);
++  if (!current) return json({ error: "session-required" }, cors, 401);
++  await ensureSecuritySessionIndex(env, current);
++  const currentFingerprint = await securitySessionFingerprint(current.id);
++  const sessions = [];
++  let cursor;
++  let pages = 0;
++  do {
++    const page = await env.SESSIONS.list({ prefix: SECURITY_SESSION_INDEX_PREFIX, limit: 500, ...(cursor ? { cursor } : {}) });
++    for (const key of page.keys || []) {
++      const rawIndex = await env.SESSIONS.get(key.name);
++      let index = null;
++      try { index = rawIndex ? JSON.parse(rawIndex) : null; } catch {}
++      if (!index?.sessionId) continue;
++      const rawSession = await env.SESSIONS.get(index.sessionId);
++      let stored = null;
++      try { stored = rawSession ? JSON.parse(rawSession) : null; } catch {}
++      const user = stored?.username ? await getUser(env, normalizeUsername(stored.username)) : null;
++      if (!stored || !stored.expires || Number(stored.expires) <= Date.now() || !user || user.enabled === false) {
++        if (index.sessionId) await env.SESSIONS.delete(index.sessionId);
++        await env.SESSIONS.delete(key.name);
++        continue;
++      }
++      const fingerprint = index.fingerprint || await securitySessionFingerprint(index.sessionId);
++      sessions.push({
++        fingerprint,
++        username: normalizeUsername(stored.username),
++        role: String(user.role || stored.role || "view").toLowerCase(),
++        createdAt: new Date(Number(stored.created || index.created || Date.now())).toISOString(),
++        expiresAt: new Date(Number(stored.expires)).toISOString(),
++        ip: String(stored.ip || index.ip || "unknown").slice(0, 64),
++        browser: String(stored.browser || index.browser || "Unknown").slice(0, 120),
++        current: fingerprint === currentFingerprint
++      });
++    }
++    cursor = page.list_complete === false ? page.cursor : undefined;
++    pages++;
++  } while (cursor && pages < 10);
++  sessions.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
++  return json({ sessions }, cors);
++}
++
++async function handleSecuritySessionRevoke(request, env, cors) {
++  const current = await getVisionBankSessionFromRequest(request, env);
++  if (!current) return json({ error: "session-required" }, cors, 401);
++  const body = await request.json();
++  const fingerprint = String(body.fingerprint || "").trim().toLowerCase();
++  if (!/^[0-9a-f]{24}$/.test(fingerprint)) return json({ error: "invalid-session-reference" }, cors, 400);
++  const currentFingerprint = await securitySessionFingerprint(current.id);
++  if (fingerprint === currentFingerprint) return json({ error: "cannot-revoke-current-session" }, cors, 409);
++  const key = SECURITY_SESSION_INDEX_PREFIX + fingerprint;
++  const raw = await env.SESSIONS.get(key);
++  let index = null;
++  try { index = raw ? JSON.parse(raw) : null; } catch {}
++  if (!index?.sessionId) return json({ error: "session-not-found" }, cors, 404);
++  await env.SESSIONS.delete(index.sessionId);
++  await env.SESSIONS.delete(key);
++  await writeSecurityConfigAudit(env, request, "SESSION_REVOKED", index.username || "unknown", ["Active session revoked"], { fingerprint });
++  return json({ success: true }, cors);
++}
++
++async function updateUserLoginFailure(env, username) {
++  const current = await getUser(env, normalizeUsername(username));
++  if (!current) return;
++  await saveUser(env, {
++    ...current,
++    lastFailedLoginAt: new Date().toISOString(),
++    failedLoginCount: Number(current.failedLoginCount || 0) + 1
++  });
++}
++
++async function updateUserLoginSuccess(env, username) {
++  const current = await getUser(env, normalizeUsername(username));
++  if (!current) return current;
++  const next = {
++    ...current,
++    enabled: current.enabled !== false,
++    lastSuccessfulLoginAt: new Date().toISOString(),
++    failedLoginCount: 0
++  };
++  await saveUser(env, next);
++  return next;
++}
++
++async function handleUserStatus(request, env, cors) {
++  const actorSession = await getVisionBankSessionFromRequest(request, env);
++  if (!actorSession) return json({ error: "session-required" }, cors, 401);
++  const body = await request.json();
++  const username = normalizeUsername(body.username);
++  const enabled = body.enabled === true;
++  if (!username || typeof body.enabled !== "boolean") return json({ error: "username-and-enabled-required" }, cors, 400);
++  if (username === actorSession.username && !enabled) return json({ error: "cannot-disable-current-account" }, cors, 409);
++  const user = await getUser(env, username);
++  if (!user) return json({ error: "User not found" }, cors, 404);
++  if ((user.enabled !== false) === enabled) return json({ success: true, user: safeUserForClient(user) }, cors);
++
++  if (!enabled && String(user.role || "").toLowerCase() === "superadmin") {
++    const users = await loadAllUsers(env);
++    const remaining = users.filter(u =>
++      normalizeUsername(u.username) !== username &&
++      String(u.role || "").toLowerCase() === "superadmin" &&
++      u.enabled !== false
++    );
++    if (!remaining.length) return json({ error: "at-least-one-enabled-superadmin-required" }, cors, 409);
++  }
++
++  const now = new Date().toISOString();
++  const next = {
++    ...user,
++    enabled,
++    updatedAt: now,
++    ...(enabled
++      ? { enabledAt: now, enabledBy: actorSession.username }
++      : { disabledAt: now, disabledBy: actorSession.username, sessionInvalidBefore: Date.now() })
++  };
++  await saveUser(env, next);
++  let revoked = 0;
++  if (!enabled) revoked = await revokeIndexedSessionsForUser(env, username);
++  await writeSecurityConfigAudit(env, request, enabled ? "USER_ENABLED" : "USER_DISABLED", username, [enabled ? "Account enabled" : "Account disabled"], { revokedSessions: revoked });
++  await queueSuperadminEvent(env, { action: enabled ? "USER_ENABLED" : "USER_DISABLED", severity: "HIGH", target: username, actor: getActorContext(request) });
++  return json({ success: true, user: safeUserForClient(next), revokedSessions: revoked }, cors);
++}
++
+ function legacySecurityRoutePolicy(path, method) {
+   const all=[...LEGACY_SECURITY_ROLES];
+   const operators=["superadmin","admin","analyst"];
+@@ -3869,7 +4118,10 @@
+   if (path === "/motd" && method === "POST") return { roles: operators };
+ 
+   if (path === "/api/users/list" && method === "GET") return { roles: ["superadmin"], access: "ip-only" };
+-  if (["/api/users/save","/api/users/delete","/api/users/reset-mfa"].includes(path) && method === "POST") return { roles: ["superadmin"], access: "ip-only" };
++  if (["/api/users/save","/api/users/delete","/api/users/reset-mfa","/api/users/status"].includes(path) && method === "POST") return { roles: ["superadmin"], access: "ip-only" };
++  if (path === "/api/security/config-history" && method === "GET") return { roles: ["superadmin","admin","auditor"], access: "ip-only" };
++  if (path === "/api/security/sessions" && method === "GET") return { roles: ["superadmin"], access: "ip-only" };
++  if (path === "/api/security/sessions/revoke" && method === "POST") return { roles: ["superadmin"], access: "ip-only" };
+   if (["/api/get-hours","/api/get-ip-rules"].includes(path) && method === "GET") return { roles: all, access: "ip-only" };
+   if (["/api/set-hours","/api/set-ip-rules"].includes(path) && method === "POST") return { roles: operators, access: "ip-only" };
+   if (path === "/api/logs" && method === "GET") return { roles: ["superadmin","admin","auditor"], access: "ip-only" };
+@@ -4014,6 +4266,12 @@
+     email:user?.email||"",
+     role:user?.role||"view",
+     mfaEnabled:user?.mfaEnabled===true,
++    enabled:user?.enabled!==false,
++    createdAt:user?.createdAt||"",
++    updatedAt:user?.updatedAt||"",
++    lastSuccessfulLoginAt:user?.lastSuccessfulLoginAt||"",
++    lastFailedLoginAt:user?.lastFailedLoginAt||"",
++    failedLoginCount:Number(user?.failedLoginCount||0),
+     passwordHashed:user?.passwordScheme===PASSWORD_SCHEME
+   };
+ }
+@@ -4083,13 +4341,35 @@
+   const raw=await env.SESSIONS.get(sessionId);
+   if(!raw)return null;
+   let session;try{session=JSON.parse(raw);}catch{return null;}
+-  if(!session?.expires||Number(session.expires)<=Date.now()){await env.SESSIONS.delete(sessionId);return null;}
++  if(!session?.expires||Number(session.expires)<=Date.now()){
++    await env.SESSIONS.delete(sessionId);
++    await removeSecuritySessionIndex(env,sessionId);
++    return null;
++  }
+   const username=normalizeUsername(session.username);
+   const user=await getUser(env,username);
+-  if(!user||!(await isApprovedPortalEmail(user.email))){await env.SESSIONS.delete(sessionId);return null;}
++  if(!user||user.enabled===false||Number(user.sessionInvalidBefore||0)>=Number(session.created||0)||!(await isApprovedPortalEmail(user.email))){
++    await env.SESSIONS.delete(sessionId);
++    await removeSecuritySessionIndex(env,sessionId);
++    return null;
++  }
+   const role=String(user.role||session.role||"unknown").toLowerCase();
+-  if(!LEGACY_SECURITY_ROLES.has(role)){await env.SESSIONS.delete(sessionId);return null;}
+-  return {id:sessionId,username,role,expires:Number(session.expires)};
++  if(!LEGACY_SECURITY_ROLES.has(role)){
++    await env.SESSIONS.delete(sessionId);
++    await removeSecuritySessionIndex(env,sessionId);
++    return null;
++  }
++  const resolved={
++    id:sessionId,
++    username,
++    role,
++    created:Number(session.created)||Date.now(),
++    expires:Number(session.expires),
++    ip:String(session.ip||"unknown").slice(0,64),
++    browser:String(session.browser||"Unknown").slice(0,120)
++  };
++  await ensureSecuritySessionIndex(env,resolved);
++  return resolved;
+ }
+ 
+ async function authorizeWebexAgentRequest(request, env) {
+@@ -5269,7 +5549,12 @@
+     days: Array.isArray(body.days) ? body.days : []
+   };
+ 
++  const previous=await loadBusinessHours(env);
+   await env.BUSINESS.put("hours", JSON.stringify(hours));
++  await writeSecurityConfigAudit(env,request,"BUSINESS_HOURS_UPDATED","Portal access policy",["Business hours updated"],{
++    previous:{start:previous.start,end:previous.end,days:previous.days},
++    current:hours
++  });
+   return json({ success: true }, cors);
+ }
+ async function getAlianzaToken(env) {
+@@ -6301,7 +6586,17 @@
+       return aIsCidr ? 1 : -1;
+     });
+ 
++    const previous=await loadIpRules(env);
+     await env.IP_ALLOWLIST.put("rules", rules.join("\n"));
++    const before=new Set(previous),after=new Set(rules);
++    const added=rules.filter(rule=>!before.has(rule));
++    const removed=previous.filter(rule=>!after.has(rule));
++    await writeSecurityConfigAudit(env,request,"NETWORK_RULES_UPDATED","Portal network access",["Network allowlist updated"],{
++      previousCount:previous.length,
++      currentCount:rules.length,
++      addedCount:added.length,
++      removedCount:removed.length
++    });
+     return json({ success: true, saved: rules }, cors);
+   } catch (err) {
+     return json({ error: err.message }, cors, 500);
+@@ -6644,14 +6939,19 @@
+ /*******************************************************************************************
+  * SESSIONS (env.SESSIONS)
+  *******************************************************************************************/
+-async function createSession(env, username, role) {
+-  const id = crypto.randomUUID();
+-  await env.SESSIONS.put(id, JSON.stringify({
++async function createSession(env, username, role, request) {
++  const id=crypto.randomUUID(),created=Date.now(),expires=created+12*3600*1000;
++  const actor=request?getActorContext(request):{};
++  const stored={
+     username,
+     role,
+-    created: Date.now(),
+-    expires: Date.now() + 12 * 3600 * 1000
+-  }), { expirationTtl: 12 * 3600 });
++    created,
++    expires,
++    ip:String(actor.ip||"unknown").slice(0,64),
++    browser:String(actor.browser||"Unknown").slice(0,120)
++  };
++  await env.SESSIONS.put(id,JSON.stringify(stored),{expirationTtl:12*3600});
++  await ensureSecuritySessionIndex(env,{id,...stored});
+   return id;
+ }
+ 
+@@ -6730,10 +7030,16 @@
+     await recordLoginFailure(env,username,ip);
+     return json({error:"Invalid username or password"},cors,401);
+   }
++  if(user.enabled===false){
++    await recordLoginFailure(env,username,ip);
++    await updateUserLoginFailure(env,username);
++    return json({error:"Invalid username or password"},cors,401);
++  }
+ 
+   const passwordResult=await verifyStoredPassword(user,password);
+   if(!passwordResult.ok){
+     await recordLoginFailure(env,username,ip);
++    await updateUserLoginFailure(env,username);
+     return json({error:"Invalid username or password"},cors,401);
+   }
+ 
+@@ -6749,12 +7055,14 @@
+     const ok=await verifyTotp(secret,totp);
+     if(!ok){
+       await recordLoginFailure(env,username,ip);
++      await updateUserLoginFailure(env,username);
+       return json({error:"Invalid MFA code"},cors,401);
+     }
+   }
+ 
+   await clearLoginRate(env,username,ip);
+-  const session=await createSession(env,username,user.role);
++  const session=await createSession(env,username,user.role,request);
++  user=await updateUserLoginSuccess(env,username)||user;
+   if(user.email){
+     const actor=getActorContext(request);
+     await sendEmail(env,{
+@@ -6856,6 +7164,16 @@
+   if(!existingUser&&!password)return json({error:"Password required for new users"},cors,400);
+   if(!["superadmin","admin","analyst","auditor","view"].includes(role))return json({error:"Invalid role"},cors,400);
+   if(!finalEmail||!(await isApprovedPortalEmail(finalEmail)))return json({error:"Email is not authorized for this portal"},cors,403);
++
++  if(existingUser&&existingUser.enabled!==false&&String(existingUser.role||"").toLowerCase()==="superadmin"&&role!=="superadmin"){
++    const users=await loadAllUsers(env);
++    const remaining=users.filter(u =>
++      normalizeUsername(u.username)!==username &&
++      String(u.role||"").toLowerCase()==="superadmin" &&
++      u.enabled!==false
++    );
++    if(!remaining.length)return json({error:"at-least-one-enabled-superadmin-required"},cors,409);
++  }
+ 
+   const changes=[];
+   if(existingUser){
+@@ -6865,12 +7183,25 @@
+     if(Boolean(existingUser.mfaEnabled)!==mfaEnabled)changes.push("MFA setting");
+   }
+ 
+-  const next={...(existingUser||{}),username,role,mfaEnabled,email:finalEmail};
++  const now=new Date().toISOString();
++  const next={
++    ...(existingUser||{}),username,role,mfaEnabled,email:finalEmail,
++    enabled:existingUser?.enabled!==false,
++    createdAt:existingUser?.createdAt||now,
++    updatedAt:now
++  };
+   if(password){
+     Object.assign(next,await makePasswordRecord(password),{passwordChangedAt:new Date().toISOString()});
+     delete next.password;
+   }
+   await saveUser(env,next);
++  await writeSecurityConfigAudit(
++    env,request,
++    existingUser?"USER_UPDATED":"USER_CREATED",
++    username,
++    existingUser?(changes.length?changes:["Profile saved"]):["Account created"],
++    {role,email:finalEmail,mfaEnabled,enabled:next.enabled}
++  );
+ 
+   if(existingUser&&changes.length){
+     await sendEmail(env,{
+@@ -6895,27 +7226,42 @@
+ }
+ 
+ async function handleUserDelete(request, env, cors) {
+-  const body = await request.json();
+-  const username = normalizeUsername(body.username);
+-  const actor = getActorContext(request);
+-  const user = await getUser(env, username);
+-  
+-  if (!username) return json({ error: "Username required" }, cors, 400);
++  const body=await request.json();
++  const username=normalizeUsername(body.username);
++  const actorSession=await getVisionBankSessionFromRequest(request,env);
++  const actor=getActorContext(request);
++  if(!username)return json({error:"Username required"},cors,400);
++  if(!actorSession)return json({error:"session-required"},cors,401);
++  if(username===actorSession.username)return json({error:"cannot-delete-current-account"},cors,409);
+ 
+-  await deleteUser(env, username);
+-  await env.MFA.delete(username);
+-  await queueSuperadminEvent(env, {
+-    action: "USER_DELETED",
+-    severity: "CRITICAL",
+-    target: username,
+-    actor,
+-    details: {
+-      email: user?.email,
+-      role: user?.role
+-    }
++  const user=await getUser(env,username);
++  if(!user)return json({error:"User not found"},cors,404);
++  if(String(user.role||"").toLowerCase()==="superadmin"&&user.enabled!==false){
++    const users=await loadAllUsers(env);
++    const remaining=users.filter(u =>
++      normalizeUsername(u.username)!==username &&
++      String(u.role||"").toLowerCase()==="superadmin" &&
++      u.enabled!==false
++    );
++    if(!remaining.length)return json({error:"at-least-one-enabled-superadmin-required"},cors,409);
++  }
++
++  const revoked=await revokeIndexedSessionsForUser(env,username);
++  await deleteUser(env,username);
++  await env.MFA.delete(username);
++  await writeSecurityConfigAudit(env,request,"USER_DELETED",username,["Account permanently deleted"],{
++    role:user.role||"",
++    email:user.email||"",
++    revokedSessions:revoked
+   });
+-  
+-  return json({ success: true }, cors);
++  await queueSuperadminEvent(env,{
++    action:"USER_DELETED",
++    severity:"CRITICAL",
++    target:username,
++    actor,
++    details:{email:user.email,role:user.role}
++  });
++  return json({success:true,revokedSessions:revoked},cors);
+ }
+ 
+ async function handleUserResetMfa(request, env, cors) {
+@@ -6965,6 +7311,7 @@
+   target: username,
+   actor
+ });
++await writeSecurityConfigAudit(env,request,"MFA_RESET",username,["MFA enrollment reset"],{});
+ 
+   return json({ success: true }, cors);
+ }

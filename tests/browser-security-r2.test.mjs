@@ -12,7 +12,7 @@ test('all portal HTML entry points use a strict script CSP and referrer policy',
     assert.match(source,/script-src 'self'/,'script-src should be same-origin in '+name);
     assert.match(source,/object-src 'none'/,'object-src should be none in '+name);
     assert.match(source,/base-uri 'self'/,'base-uri should be self in '+name);
-    assert.match(source,/name="referrer" content="strict-origin-when-cross-origin"/,'missing referrer policy in '+name);
+    assert.match(source,/name="referrer" content="no-referrer"/,'missing strict no-referrer policy in '+name);
     assert.doesNotMatch(source,/<script>\s*/,'inline script block found in '+name);
     assert.doesNotMatch(source,/\son(?:click|load|error|change|submit|input|keydown|keyup|focus|blur)=/i,'inline event handler found in '+name);
   }

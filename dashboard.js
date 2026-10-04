@@ -5,11 +5,9 @@
 // ===============================
 // CONFIG
 // ===============================
-const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3/realtime";
-const TOKEN = "VWGKXWSqGA4FwlRXb2cIx5H1dS3cYpplXa5iI3bE4Xg=";
-
-// Cloudflare Worker base
+// Cloudflare Worker base. Contact Center credentials remain server-side.
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
+const API_BASE = `${SECURITY_BASE}/api/realtime`;
 
 const ALERT_SETTINGS_KEY = "visionbankAlertSettingsV1";
 const ALERT_HISTORY_KEY = "visionbankAlertHistoryV1";
@@ -40,7 +38,7 @@ async function fetchApi(path) {
     try {
       const res = await fetch(`${API_BASE}${path}`, {
         cache: "no-store", signal: controller.signal,
-        headers: { "Content-Type": "application/json", token: TOKEN }
+        headers: window.VBPortalSession?.authHeaders({ "Content-Type": "application/json" }) || { "Content-Type": "application/json" }
       });
       if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.httpStatus=res.status; throw e; }
       return await res.json();

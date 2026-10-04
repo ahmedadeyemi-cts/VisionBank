@@ -4,8 +4,6 @@
 // =====================================================
 
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
-//const API_BASE = "https://pop1-apps.mycontactcenter.net/api/v3";
-//const TOKEN = "REPLACE_WITH_TOKEN";
 const REPORT_API = `${SECURITY_BASE}/api/voicemails/report`;
 const VB_SESSION_KEY = "vb_session";
 const VB_USER_KEY = "vb_user";

@@ -63,6 +63,17 @@ let LAST_DELETED_USER = null;
 
 let auditInterval = null;
 
+function consumePortalReturnTarget() {
+    let value = "";
+    try {
+        value = sessionStorage.getItem("vb_return_to") || "";
+        sessionStorage.removeItem("vb_return_to");
+    } catch {}
+    if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "";
+    if (/\/security(?:\.html)?(?:[?#]|$)/i.test(value)) return "";
+    return value;
+}
+
 /* =============================================================
    THEME TOGGLE
    ============================================================= */
@@ -186,6 +197,11 @@ loginForm.addEventListener("submit", async (e) => {
            
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
+            const returnTarget = consumePortalReturnTarget();
+            if (returnTarget) {
+                location.assign(returnTarget);
+                return;
+            }
             showAdminView();
             return;
         }

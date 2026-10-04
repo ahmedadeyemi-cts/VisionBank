@@ -249,7 +249,7 @@ async function beginMfaEnrollment(username, setupToken) {
         ACTIVE_USERNAME = username;
         showMfaSetup({
             username,
-            qr: data.qr,
+            uri: data.uri,
             secret: data.secret,
         });
     } catch (err) {
@@ -258,12 +258,34 @@ async function beginMfaEnrollment(username, setupToken) {
     }
 }
 
+function renderLocalMfaQr(uri) {
+    if (!uri || typeof window.qrcode !== "function") {
+        mfaQrImg.removeAttribute("src");
+        mfaQrImg.alt = "QR code unavailable. Use the Secret Key shown beside it.";
+        return false;
+    }
+
+    try {
+        const qr = window.qrcode(0, "M");
+        qr.addData(String(uri));
+        qr.make();
+        mfaQrImg.src = qr.createDataURL(5, 4);
+        mfaQrImg.alt = "Microsoft Authenticator enrollment QR code";
+        return true;
+    } catch (err) {
+        console.error("Local MFA QR generation failed:", err);
+        mfaQrImg.removeAttribute("src");
+        mfaQrImg.alt = "QR code unavailable. Use the Secret Key shown beside it.";
+        return false;
+    }
+}
+
 function showMfaSetup(data) {
     loginView.classList.add("hidden");
     adminView.classList.add("hidden");
     mfaSetupView.classList.remove("hidden");
 
-    mfaQrImg.src = data.qr;
+    renderLocalMfaQr(data.uri);
     mfaAccount.value = data.username || ACTIVE_USERNAME || "";
     mfaSecret.value = data.secret || "";
     mfaCodeInput.value = "";

@@ -29,7 +29,11 @@ body.dark-mode .vb-cb-preview-table th { background: #1e293b; }
 .vb-cb-workspace details { margin: 1rem 0; }
 .vb-cb-workspace summary, .vb-cb-readiness summary { cursor: pointer; font-weight: 650; padding: .6rem 0; }
 .vb-cb-workspace td { overflow-wrap: anywhere; max-width: 22rem; }
-.vb-cb-workspace button { margin: .2rem; padding: .45rem .65rem; }
+.vb-cb-workspace .daily-report-table-wrap { overflow-x: auto; }
+.vb-cb-workspace button { margin: .2rem; padding: .45rem .65rem; box-sizing: border-box; min-height: 36px; line-height: 1.2; white-space: normal; }
+.vb-cb-workspace .vb-cb-actions { min-width: 10.5rem; max-width: 12rem; }
+.vb-cb-workspace .vb-cb-actions button { display: block; width: 100%; margin: .3rem 0; position: static; }
+.vb-cb-workspace .vb-cb-actions span { display: block; min-width: 9rem; }
 .vb-cb-readiness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: .65rem; }
 .vb-cb-readiness-item { border: 1px solid #64748b; border-left: 4px solid #eab308; border-radius: 8px; padding: .7rem; }
 .vb-cb-readiness-item[data-state="passed"] { border-left-color: #22c55e; }

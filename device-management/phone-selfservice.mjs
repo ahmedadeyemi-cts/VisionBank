@@ -117,7 +117,7 @@ export async function createPhoneEnrollment(env,{device,location,phonismPhoneId,
   const root=String(baseUrl||'').replace(/\/$/,'');
   const shortRoot=String(shortBaseUrl||'').replace(/\/$/,'');
   const xmlUrl=shortRoot+'/'+accessToken;
-  const buttonUrl=xmlUrl+'?m=$mac&i=$ip';
+  const buttonUrl=xmlUrl;
   if(buttonUrl.length>99)throw new DeviceManagementError('phone-button-url-too-long',500);
   const checkinBase=root+'/phone/checkin?e='+encodeURIComponent(enrollmentId)+'&k='+encodeURIComponent(checkinKey);
   return {

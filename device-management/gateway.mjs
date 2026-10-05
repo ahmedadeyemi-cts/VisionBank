@@ -10,7 +10,9 @@ import {
 } from './identity.mjs';
 import {
   createPhoneEnrollment,revokePhoneEnrollment,phoneEnrollmentStatus,phoneEnrollmentIndex,phoneTelemetryIndex,
-  authenticatePhone,authenticatePhoneAccess,recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,finishPhoneIntent,phoneSession,
+  authenticatePhone,authenticatePhoneAccess,authenticatePhoneFleetKey,readPhoneEnrollment,upsertFleetEnrollment,
+  getFleetKeySettings,rotateFleetKey,recordFleetKeyUse,
+  recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,finishPhoneIntent,phoneSession,
   attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,inputScreen,phoneXmlResponse,phoneNoContent,
   phoneUnauthorized,phoneErrorMenu
 } from './phone-selfservice.mjs';
@@ -478,10 +480,11 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-function phoneRouteUrl(request,part,params={},accessToken=null){
+function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
   const url=new URL(request.url);
-  const target=accessToken?new URL('/p/'+encodeURIComponent(accessToken),url.origin):new URL(PREFIX+'phone/'+part,url.origin);
-  if(accessToken&&part!=='xml')target.searchParams.set('a',part);
+  const target=fleetKey&&fleetMac?new URL('/x/'+encodeURIComponent(fleetKey)+'/'+encodeURIComponent(fleetMac),url.origin):
+    accessToken?new URL('/p/'+encodeURIComponent(accessToken),url.origin):new URL(PREFIX+'phone/'+part,url.origin);
+  if((accessToken||fleetKey)&&part!=='xml')target.searchParams.set('a',part);
   for(const [key,value] of Object.entries(params))if(value!==null&&value!==undefined&&String(value)!=='')target.searchParams.set(key,String(value));
   return target.toString();
 }
@@ -499,7 +502,38 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
   return searched.members.find(member=>String(member.id)===String(intent.memberId))||null;
 }
 
-async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken=null}){
+async function resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac}){
+  const normalized=normalizeMac(mac);
+  const cached=await readPhoneEnrollment(env,normalized);
+  const validatedAt=Date.parse(cached?.validatedAt||'');
+  if(cached?.status==='active'&&cached?.authMode==='fleet-template'&&Number.isFinite(validatedAt)&&Date.now()-validatedAt<15*60_000){
+    return cached;
+  }
+  const discovery=await phonismReader.discover(env,org);
+  const inventories=await Promise.all(discovery.tenants.map(async tenant=>{
+    try{return {tenant,inventory:await phonismReader.tenantPhones(env,tenant.id,tenant.name)};}
+    catch{return {tenant,inventory:{phones:[]}};}
+  }));
+  const matches=[];
+  for(const item of inventories){
+    for(const phone of item.inventory.phones||[]){
+      let phoneMac=null;try{phoneMac=normalizeMac(phone.mac);}catch{}
+      if(phoneMac===normalized)matches.push({tenant:item.tenant,phone});
+    }
+  }
+  if(matches.length!==1)throw new DeviceManagementError(matches.length?'phonism-phone-ambiguous':'phonism-phone-not-found',matches.length?409:404);
+  const {tenant,phone}=matches[0];
+  if(!isPilotDevice(env,phone.mac))throw new DeviceManagementError('device-write-not-enabled',403);
+  const row=await scopedPhoneRow(webexFetch,env,org,tenant,phone,phonismReader);
+  if(!row?.id||String(row.id).startsWith('phonism:')||!row.locationId)throw new DeviceManagementError('webex-device-not-found',404);
+  return upsertFleetEnrollment(env,{
+    device:{id:row.id,displayName:row.displayName,mac:row.mac,model:row.model},
+    location:{id:row.locationId,name:row.locationName},
+    phonismPhoneId:row.phonismPhoneId
+  });
+}
+
+async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken=null,fleetKey=null,fleetMac=null}){
   const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
   if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))return phoneXmlResponse(phoneErrorMenu('source-not-verifiable',null),403);
   if(part==='phone/checkin'){
@@ -507,9 +541,21 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     catch(error){return phoneNoContent(Number.isInteger(error?.status)?error.status:403);}
   }
 
-  let enrollment;
-  try{enrollment=accessToken?await authenticatePhoneAccess(env,accessToken):await authenticatePhone(env,request);}
-  catch(error){return !accessToken&&Number(error?.status)===401?phoneUnauthorized():phoneXmlResponse(phoneErrorMenu(error?.code,null),Number(error?.status)||403);}
+  const org=String(env.WEBEX_ORG_ID||'').trim();
+  if(!org)return phoneXmlResponse(phoneErrorMenu('webex-org-not-configured',null),503);
+  let normalizedFleetMac=null,enrollment;
+  try{
+    if(fleetKey){
+      await authenticatePhoneFleetKey(env,fleetKey);
+      normalizedFleetMac=normalizeMac(fleetMac);
+      enrollment=await resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac:normalizedFleetMac});
+      await recordFleetKeyUse(env,fleetKey);
+    }else{
+      enrollment=accessToken?await authenticatePhoneAccess(env,accessToken):await authenticatePhone(env,request);
+    }
+  }catch(error){
+    return !fleetKey&&!accessToken&&Number(error?.status)===401?phoneUnauthorized():phoneXmlResponse(phoneErrorMenu(error?.code,null),Number(error?.status)||403);
+  }
 
   const phoneUrl=new URL(request.url);
   if(accessToken&&phoneUrl.searchParams.get('m')){
@@ -517,12 +563,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     try{suppliedMac=normalizeMac(phoneUrl.searchParams.get('m'));}catch{return phoneXmlResponse(phoneErrorMenu('phone-credential-invalid',null),403);}
     if(suppliedMac!==enrollment.device.mac)return phoneXmlResponse(phoneErrorMenu('phone-credential-invalid',null),403);
   }
-  await recordPhoneSeen(env,request,enrollment,{reportedIp:phoneUrl.searchParams.get('i'),event:'xml-browser'}).catch(()=>{});
-  const home=phoneRouteUrl(request,'xml',{},accessToken);
-  const searchUrl=phoneRouteUrl(request,'search',{},accessToken);
+  await recordPhoneSeen(env,request,enrollment,{reportedIp:phoneUrl.searchParams.get('i'),event:fleetKey?'fleet-xml-browser':'xml-browser'}).catch(()=>{});
+  const home=phoneRouteUrl(request,'xml',{},accessToken,fleetKey,normalizedFleetMac);
+  const searchUrl=phoneRouteUrl(request,'search',{},accessToken,fleetKey,normalizedFleetMac);
   try{
-    const org=String(env.WEBEX_ORG_ID||'').trim();
-    if(!org)throw new DeviceManagementError('webex-org-not-configured',503);
     const ctx=await resolveWriteContext({
       env,org,webexFetch,phonismReader,
       deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
@@ -534,11 +578,11 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/xml'){
       const items=[];
-      if(line2Row)items.push({prompt:'Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name),uri:phoneRouteUrl(request,'status',{},accessToken)});
-      else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken)});
+      if(line2Row)items.push({prompt:'Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-        items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken)});
+        items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       }else{
         items.push({prompt:'Add temporary line',uri:searchUrl});
       }
@@ -570,7 +614,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       ],{cancelAction:home}));
       const items=rows.map(member=>({
         prompt:(member.extension||member.phoneNumber||'No ext')+' · '+(member.name||'Member'),
-        uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''},accessToken)
+        uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Search again',uri:searchUrl});
       return phoneXmlResponse(textMenu('Select Extension',items,{cancelAction:home}));
@@ -585,7 +629,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const items=phoneDurationOptions().map(minutes=>({
         prompt:phoneDurationLabel(minutes),
-        uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken)
+        uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Cancel',uri:home});
       return phoneXmlResponse(textMenu('Use '+(target.extension||target.phoneNumber||target.name)+' For',items,{cancelAction:home}));
@@ -601,7 +645,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const intent=await createPhoneIntent(env,enrollment,{memberId,targetMember:target,memberQuery:q,memberLocationId:target.locationId,durationMinutes:minutes});
       return phoneXmlResponse(textMenu('Confirm Temporary Extension',[
-        {prompt:'Add '+(target.extension||target.phoneNumber||target.name)+' for '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken)},
+        {prompt:'Add '+(target.extension||target.phoneNumber||target.name)+' for '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Cancel',uri:home}
       ],{cancelAction:home}));
     }
@@ -646,17 +690,22 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
     const headers={...cors};
     try{
       const url=new URL(request.url),origin=request.headers.get('Origin');
-      let part=url.pathname.slice(PREFIX.length),accessToken=null;
+      let part=url.pathname.slice(PREFIX.length),accessToken=null,fleetKey=null,fleetMac=null;
       if(url.pathname.startsWith('/p/')){
         accessToken=decodeURIComponent(url.pathname.slice(3));
         part='phone/'+(url.searchParams.get('a')||'xml');
+      }else if(url.pathname.startsWith('/x/')){
+        const segments=url.pathname.split('/').filter(Boolean);
+        if(segments.length===3){fleetKey=decodeURIComponent(segments[1]);fleetMac=decodeURIComponent(segments[2]);}
+        part='phone/'+(url.searchParams.get('a')||'xml');
       }
-      if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken});
+      if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken,fleetKey,fleetMac});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','phone-enrollment']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
       const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
         'admin-settings/verification','admin-settings/default-hours','admin-settings/durations/set','admin-settings/durations/remove',
-        'admin-settings/admins/add','admin-settings/admins/remove','preview','apply','reboot','phone-enrollment','phone-enrollment/revoke']);
+        'admin-settings/admins/add','admin-settings/admins/remove','admin-settings/fleet-keys/rotate',
+        'preview','apply','reboot','phone-enrollment','phone-enrollment/revoke']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
@@ -718,6 +767,19 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
       if(part==='admin-settings'){
         return output({success:true,...await getAdminSettings(env,request)},200,headers);
+      }
+
+      if(part==='admin-settings/fleet-keys'){
+        await requireDeviceAdmin(env,request);
+        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},200,headers);
+      }
+
+      if(part==='admin-settings/fleet-keys/rotate'){
+        const {admin}=await requireDeviceAdmin(env,request);
+        const body=await readSmallJson(request,1024);
+        if(!body||body.confirm!==true||Object.keys(body).some(k=>!['confirm','expectedActiveKeyId'].includes(k)))throw new DeviceManagementError('invalid-admin-request');
+        await rotateFleetKey(env,{expectedActiveKeyId:body.expectedActiveKeyId||null,actor:admin.email||admin.username||'admin'});
+        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},201,headers);
       }
 
       if(part==='admin-settings/verification'){

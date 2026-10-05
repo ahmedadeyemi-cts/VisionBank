@@ -12,7 +12,7 @@
     memberSearchTimer:null,memberSearchController:null,memberDetailController:null,memberSearchSeq:0,memberLoadedForDevice:null,memberLoadedAt:0,
     memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,
     inventoryLocation:"",inventoryRefreshTimer:null,inventoryRefreshing:false,lastInventoryRefreshAt:0,
-    preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,phoneSetupDevice:null,
+    preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,phoneSetupDevice:null,fleetKeys:null,
     identityPolicy:{verificationEnabled:true,adminAuthorized:false,admin:null},verificationChallenge:null,adminSettings:null};
 
   const $=id=>document.getElementById(id);
@@ -123,7 +123,10 @@
       "phone-enrollment-revoked":"Phone Self-Service has been revoked for this handset.",
       "phone-credential-invalid":"The handset Phone Self-Service credential is invalid. Rotate the enrollment.",
       "invalid-phone-enrollment-request":"The phone enrollment request is incomplete.",
-      "device-mac-required":"The phone MAC address is required for Phone Self-Service."
+      "device-mac-required":"The phone MAC address is required for Phone Self-Service.",
+      "phone-fleet-store-unavailable":"Fleet Key storage is unavailable. Try again later.",
+      "phone-fleet-key-invalid":"The Fleet Key is not valid for Phone Self-Service.",
+      "phone-fleet-key-changed":"The active Fleet Key changed in another admin session. Refresh before rotating again."
     };
     return messages[code]||("Save & Sync was not completed: "+code);
   }
@@ -141,7 +144,12 @@
       verification.className="device-operator-verification "+(session?.verified===true?"verified":operator&&!required?"disabled":"pending");
     }
     const chip=$("deviceOperatorChip");if(chip)chip.classList.toggle("identified",Boolean(operator));
-    const adminButton=$("deviceAdminButton");if(adminButton)adminButton.hidden=state.identityPolicy?.adminAuthorized!==true;
+    const adminAuthorized=state.identityPolicy?.adminAuthorized===true;
+    const adminButton=$("deviceAdminButton");if(adminButton)adminButton.hidden=!adminAuthorized;
+    const fleetTab=$("deviceFleetTab");if(fleetTab)fleetTab.hidden=!adminAuthorized;
+    if(!adminAuthorized&&document.querySelector("[data-device-tab].active")?.dataset?.deviceTab==="fleet"){
+      document.querySelector('[data-device-tab="inventory"]')?.click();
+    }
     const signOut=$("deviceSignOutButton");if(signOut)signOut.hidden=!operator;
   }
 
@@ -1311,6 +1319,85 @@
     }
   }
 
+  function fleetWhen(value){
+    if(!value)return "Never";
+    const at=new Date(value);
+    return Number.isNaN(at.getTime())?String(value):at.toLocaleString();
+  }
+
+  function renderFleetKeys(data){
+    state.fleetKeys=data||null;
+    const active=data?.active||null;
+    text("deviceFleetActiveKey",active?.key||"Not configured");
+    text("deviceFleetGeneratedAt",fleetWhen(active?.generatedAt));
+    text("deviceFleetGeneratedBy",active?.generatedBy||"—");
+    text("deviceFleetLastUsed",fleetWhen(active?.lastUsedAt));
+    text("deviceFleetUseCount",String(active?.useCount??0));
+    const template=$("deviceFleetTemplateUrl");if(template)template.value=data?.templateUrl||"";
+    const copyKey=$("deviceFleetCopyKey");if(copyKey)copyKey.disabled=!active?.key;
+    const copyTemplate=$("deviceFleetCopyTemplate");if(copyTemplate)copyTemplate.disabled=!data?.templateUrl;
+    text("deviceFleetState",active
+      ?"Active Fleet Key loaded. Previous keys remain usable only during their documented rotation grace window."
+      :"No active Fleet Key is configured.");
+
+    const body=$("deviceFleetRows");
+    const rows=Array.isArray(data?.keys)?data.keys:[];
+    if(body)body.innerHTML=rows.length?rows.map(row=>{
+      const cls=row.status==="active"?"registered":row.status==="retiring"?"pending":"unknown";
+      const key=row.key||row.keyMasked||"Retired";
+      return '<tr>'+
+        '<td><span class="device-status '+cls+'">'+esc(row.status||"unknown")+'</span></td>'+
+        '<td><code>'+esc(key)+'</code></td>'+
+        '<td>'+esc(fleetWhen(row.generatedAt))+'</td>'+
+        '<td>'+esc(row.generatedBy||"—")+'</td>'+
+        '<td>'+esc(fleetWhen(row.lastUsedAt))+'</td>'+
+        '<td>'+esc(String(row.useCount??0))+'</td>'+
+        '<td>'+esc(row.validUntil?fleetWhen(row.validUntil):(row.status==="active"?"Active":"—"))+'</td>'+
+        '</tr>';
+    }).join(""):'<tr><td colspan="7" class="device-empty">No Fleet Keys have been configured.</td></tr>';
+  }
+
+  async function loadFleetKeys(){
+    if(state.identityPolicy?.adminAuthorized!==true)return;
+    text("deviceFleetState","Loading Fleet Key status…");
+    try{
+      const data=await api("/admin-settings/fleet-keys");
+      renderFleetKeys(data);
+    }catch(error){
+      state.fleetKeys=null;
+      text("deviceFleetState","Fleet Key settings unavailable: "+friendlyDeviceError(error));
+    }
+  }
+
+  async function copyFleetValue(value,label){
+    if(!value)return;
+    try{
+      await navigator.clipboard.writeText(value);
+      text("deviceFleetState",label+" copied to the clipboard.");
+    }catch{
+      text("deviceFleetState","Unable to copy automatically. Select the value and copy it manually.");
+    }
+  }
+
+  async function rotateFleetKey(){
+    if(state.identityPolicy?.adminAuthorized!==true)return;
+    const current=state.fleetKeys?.active;
+    const message=current
+      ?"Generate a new Fleet Key now? The current key will remain valid for 24 hours so you can update the Phonism template safely."
+      :"Generate the first Fleet Key for the Yealink Phone Self-Service template?";
+    if(!confirm(message))return;
+    const button=$("deviceFleetRotate");if(button){button.disabled=true;button.textContent="Generating…";}
+    try{
+      const data=await api("/admin-settings/fleet-keys/rotate",{method:"POST",body:{confirm:true,expectedActiveKeyId:state.fleetKeys?.activeKeyId||null}});
+      renderFleetKeys(data);
+      text("deviceFleetState","New Fleet Key generated. Update the Phonism template with the new Template URL. The previous key remains valid for 24 hours.");
+    }catch(error){
+      text("deviceFleetState","Fleet Key rotation failed: "+friendlyDeviceError(error));
+    }finally{
+      if(button){button.disabled=false;button.textContent="Generate New Fleet Key";}
+    }
+  }
+
   async function loadHistory(){
     const body=$("deviceHistoryRows");
     if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading history…</td></tr>';
@@ -1342,6 +1429,7 @@
       document.querySelectorAll("[data-device-tab]").forEach(b=>b.classList.toggle("active",b===btn));
       document.querySelectorAll("[data-device-view]").forEach(v=>v.hidden=v.dataset.deviceView!==tab);
       if(tab==="history")void loadHistory();
+      if(tab==="fleet")void loadFleetKeys();
     }));
     $("deviceSearch")?.addEventListener("input",applyFilters);
     $("deviceOwnerFilter")?.addEventListener("change",applyFilters);
@@ -1372,6 +1460,10 @@
     $("deviceAdminAddButton")?.addEventListener("click",()=>void addAdmin());
     $("deviceAdminEmailInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void addAdmin();}});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
+    $("deviceFleetRefresh")?.addEventListener("click",()=>void loadFleetKeys());
+    $("deviceFleetRotate")?.addEventListener("click",()=>void rotateFleetKey());
+    $("deviceFleetCopyKey")?.addEventListener("click",()=>void copyFleetValue(state.fleetKeys?.active?.key||"","Active Fleet Key"));
+    $("deviceFleetCopyTemplate")?.addEventListener("click",()=>void copyFleetValue(state.fleetKeys?.templateUrl||"","Phonism Template URL"));
     $("deviceLine2PickerButton")?.addEventListener("click",()=>{
       const panel=$("deviceLine2PickerPanel");
       if(panel?.hidden===false)closeMemberPicker();else openMemberPicker();

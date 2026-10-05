@@ -41,7 +41,7 @@ test('Security participates in the common portal theme without loading the share
   const js=read('security.js');
   assert.doesNotMatch(html,/portal-enterprise\.css/);
   assert.match(js,/vb_portal_theme/);
-  assert.match(html,/security\.js\?v=20261004-console4/);
+  assert.match(html,/security\.js\?v=20261005-fleet1/);
 });
 
 test('Dashboard and Webex Dashboard do not expose cross-portal navigation tabs',()=>{
@@ -67,7 +67,7 @@ test('dashboard theme controls are in enterprise headers and remain unique',()=>
 test('Device Manager keeps its enterprise theme control and version-pins the current device workflow script',()=>{
   const html=read('device.html');
   assert.match(html,/id="deviceThemeToggle"[^>]*data-enterprise-theme-toggle/);
-  assert.match(html,/device\.js\?v=20261005-yealink3/);
+  assert.match(html,/device\.js\?v=20261005-fleet1/);
 });
 
 test('enterprise shell adds no new remote script or stylesheet dependency',()=>{

@@ -2248,3 +2248,23 @@ body.theme-dark #user-table tr.selected td {
 
 #user-management .user-list { min-width:0; overflow-x:auto; }
 #user-management #user-table { min-width:980px; }
+
+
+/* Admin-only Yealink Fleet Key controls */
+.security-fleet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.security-fleet-card{display:grid;gap:8px;border:1px solid var(--vb-border);border-radius:12px;background:var(--vb-surface-subtle);padding:13px}
+.security-fleet-card>span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--vb-muted)}
+.security-fleet-card code{display:block;padding:9px 10px;border:1px solid #d3dfda;border-radius:8px;background:#fff;font:600 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.security-fleet-card small{display:block;color:var(--vb-muted);font-size:10px}
+.security-fleet-card textarea{width:100%;box-sizing:border-box;border:1px solid #cbd8d3;border-radius:8px;background:#fff;padding:9px 10px;color:var(--vb-text);font:600 10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
+.security-fleet-rotate{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:12px 0}
+.security-fleet-rotate p{margin:3px 0 0;color:var(--vb-muted);font-size:10px;line-height:1.45}
+.security-table{width:100%;border-collapse:collapse;min-width:850px}
+.security-table th,.security-table td{padding:9px 10px;text-align:left;border-bottom:1px solid #edf1ef;font-size:10px;vertical-align:top}
+.security-table th{background:#f8faf9;color:#596761;text-transform:uppercase;letter-spacing:.05em;font-size:8px}
+.security-table code{font:600 10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body.theme-dark .security-fleet-card{background:#0d1b16!important;border-color:#29453b!important;color:#e8f0ed!important}
+body.theme-dark .security-fleet-card code,body.theme-dark .security-fleet-card textarea{background:#13241e!important;border-color:#36574b!important;color:#f2f7f5!important}
+body.theme-dark .security-table th{background:#13241e!important;color:#d8e4df!important}
+body.theme-dark .security-table td{border-color:#29453b!important}
+@media(max-width:850px){.security-fleet-grid{grid-template-columns:1fr}.security-fleet-rotate{align-items:stretch;flex-direction:column}.security-fleet-rotate .btn-primary{width:100%}}

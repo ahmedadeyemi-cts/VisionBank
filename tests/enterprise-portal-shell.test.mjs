@@ -8,8 +8,8 @@ const portalPages=['index.html','webex.html','webex-agent.html','agents.html','v
 test('all non-Security portal pages load the shared enterprise shell exactly once',()=>{
   for(const page of portalPages){
     const html=read(page);
-    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell2/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell2/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell3/g)||[]).length,1,page+' shared CSS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell3/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -110,4 +110,19 @@ test('shared shell explicitly restores high-contrast table colors in both light 
   assert.match(css,/body\.enterprise-dark \.data-table tbody td:not\(\.availability-cell\)/);
   assert.match(css,/background:\s*#0d1b16 !important/);
   assert.match(css,/color:\s*#e8f0ed !important/);
+});
+
+test('shared shell removes remaining legacy blue Webex surfaces in dark mode',()=>{
+  const css=read('portal-enterprise.css');
+  assert.match(css,/body\.enterprise-dark \.vb-ops[\s\S]*--vo-card:\s*#0b1713 !important/);
+  assert.match(css,/body\.enterprise-dark \.daily-report-table tbody td[\s\S]*background:\s*#0b1713 !important/);
+  assert.match(css,/:is\(#agent-body,#chat-agents-body\) td\.vb-channel-cell[\s\S]*background:\s*#0b1713 !important/);
+  assert.match(css,/body\.enterprise-dark #dailyOperatingModeNotice[\s\S]*background:\s*#10231c !important/);
+});
+
+test('VisionBank green primary actions always use white text for accessibility',()=>{
+  const css=read('portal-enterprise.css');
+  assert.match(css,/\.ea-tab\.active[\s\S]*background:\s*#185342 !important[\s\S]*color:\s*#ffffff !important/);
+  assert.match(css,/\.daily-report-button:not\(\.secondary\)[\s\S]*color:\s*#ffffff !important/);
+  assert.match(css,/\.vb-callback-settings-btn[\s\S]*color:\s*#ffffff !important/);
 });

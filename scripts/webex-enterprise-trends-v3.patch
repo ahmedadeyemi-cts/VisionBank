@@ -1,0 +1,166 @@
+--- visionbank-worker-trends-v1.js
++++ visionbank-worker-trends-v3.js
+@@ -9373,16 +9373,14 @@
+   if(h===12)return "12 PM";
+   return (h-12)+" PM";
+ }
+-function vbTrendKind(task,cegTaskIds){
++function vbTrendKind(task){
+   const channel=vbTrendLower(task?.channelType);
+   const direction=vbTrendLower(task?.direction);
+   if(channel==="chat")return "chat";
+   if(channel!=="telephony")return null;
+   if(direction==="outbound")return "outbound";
+   if(direction!=="inbound")return null;
+-  const id=vbTrendText(task?.id);
+-  if(id&&cegTaskIds?.has(id))return "inboundCeg";
+-  return null;
++  return "inboundCeg";
+ }
+ function vbTrendEmptyTotals(){ return {chat:0,inboundCeg:0,outbound:0,total:0}; }
+ function vbTrendAdd(totals,kind){
+@@ -9390,16 +9388,16 @@
+   totals[kind]++;
+   totals.total++;
+ }
+-function vbTrendPeriod(tasks,cegTaskIds,from,to){
++function vbTrendPeriod(tasks,from,to){
+   const totals=vbTrendEmptyTotals();
+   for(const task of tasks){
+     const at=vbTrendEpoch(task?.createdTime);
+     if(at<from||at>=to)continue;
+-    vbTrendAdd(totals,vbTrendKind(task,cegTaskIds));
++    vbTrendAdd(totals,vbTrendKind(task));
+   }
+   return {fromEpoch:from,toEpoch:to,totals};
+ }
+-function vbTrendHourly(tasks,cegTaskIds,from,to){
++function vbTrendHourly(tasks,from,to){
+   const currentHour=vbTrendCentralParts(Math.max(from,to-1)).hour;
+   const hours=Array.from({length:24},(_,hour)=>({
+     hour,label:vbTrendFormatHour(hour),observed:hour<=currentHour,partial:hour===currentHour,...vbTrendEmptyTotals()
+@@ -9407,7 +9405,7 @@
+   for(const task of tasks){
+     const at=vbTrendEpoch(task?.createdTime);
+     if(at<from||at>=to)continue;
+-    const kind=vbTrendKind(task,cegTaskIds); if(!kind)continue;
++    const kind=vbTrendKind(task); if(!kind)continue;
+     const hour=vbTrendCentralParts(at).hour;
+     vbTrendAdd(hours[hour],kind);
+   }
+@@ -9421,7 +9419,7 @@
+   }
+   return best;
+ }
+-function vbTrendWeekDays(tasks,cegTaskIds,thisWeekStart,now,lastWeekStart,lastWeekEnd){
++function vbTrendWeekDays(tasks,thisWeekStart,now,lastWeekStart,lastWeekEnd){
+   const labels=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+   const currentWeekday=vbTrendCentralParts(now).weekday;
+   const currentIndex={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[currentWeekday]??0;
+@@ -9432,7 +9430,7 @@
+   const add=(target,from,to,task)=>{
+     const at=vbTrendEpoch(task?.createdTime);
+     if(at<from||at>=to)return;
+-    const kind=vbTrendKind(task,cegTaskIds); if(!kind)return;
++    const kind=vbTrendKind(task); if(!kind)return;
+     const weekday=vbTrendCentralParts(at).weekday;
+     const index={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[weekday];
+     if(index===undefined)return;
+@@ -9482,46 +9480,6 @@
+     seenCursors.add(next);cursor=next;
+   }
+   throw new Error("analytics-trends-page-limit");
+-}
+-
+-async function vbTrendFetchCegTaskIds(env,from,to){
+-  const taskIds=new Set(),seenCursors=new Set();
+-  let cursor=null,rows=0;
+-  for(let page=0;page<VB_TRENDS_MAX_PAGES;page++){
+-    const query=`{
+-      taskLegDetails(
+-        from: ${from}
+-        to: ${to}
+-        ${paginationArgument(cursor)}
+-      ) {
+-        taskLegs {
+-          id
+-          taskId
+-          channelType
+-          direction
+-          createdTime
+-          queue { id name }
+-        }
+-        pageInfo { hasNextPage endCursor }
+-      }
+-    }`;
+-    const data=await webexSearch(env,query);
+-    const root=data?.taskLegDetails;
+-    if(!root||!Array.isArray(root.taskLegs)||typeof root.pageInfo?.hasNextPage!=="boolean")throw new Error("analytics-trends-invalid-leg-contract");
+-    for(const leg of root.taskLegs){
+-      rows++;
+-      if(rows>VB_TRENDS_MAX_ROWS*4)throw new Error("analytics-trends-leg-row-limit");
+-      if(vbTrendLower(leg?.channelType)!=="telephony"||vbTrendLower(leg?.direction)!=="inbound")continue;
+-      if(vbTrendLower(leg?.queue?.name)!=="ceg queue")continue;
+-      const taskId=vbTrendText(leg?.taskId);
+-      if(taskId)taskIds.add(taskId);
+-    }
+-    if(!root.pageInfo.hasNextPage)return {taskIds,rows};
+-    const next=root.pageInfo.endCursor;
+-    if(typeof next!=="string"||!next||seenCursors.has(next))throw new Error("analytics-trends-invalid-leg-pagination");
+-    seenCursors.add(next);cursor=next;
+-  }
+-  throw new Error("analytics-trends-leg-page-limit");
+ }
+ 
+ async function buildWebexAnalyticsTrends(env,force=false){
+@@ -9540,13 +9498,9 @@
+   if(vbTrendsCache.promise)return vbTrendsCache.promise;
+ 
+   vbTrendsCache.promise=(async()=>{
+-    const [tasks,cegLegs]=await Promise.all([
+-      vbTrendFetchTasks(env,rangeStart,now),
+-      vbTrendFetchCegTaskIds(env,rangeStart,now)
+-    ]);
+-    const cegTaskIds=cegLegs.taskIds;
+-    const hourly=vbTrendHourly(tasks,cegTaskIds,todayStart,now);
+-    const weeks=vbTrendWeekDays(tasks,cegTaskIds,thisWeekStart,now,lastWeekStart,lastWeekEnd);
++    const tasks=await vbTrendFetchTasks(env,rangeStart,now);
++    const hourly=vbTrendHourly(tasks,todayStart,now);
++    const weeks=vbTrendWeekDays(tasks,thisWeekStart,now,lastWeekStart,lastWeekEnd);
+     const data={
+       success:true,
+       schemaVersion:1,
+@@ -9555,15 +9509,15 @@
+       generatedAtEpoch:now,
+       scope:{
+         chat:"All Webex Contact Center chat contacts started in the period.",
+-        inboundCeg:"Inbound telephony contacts correlated to a CEG Queue task leg.",
++        inboundCeg:"All inbound telephony contacts started in the period, matching the received-call cohort used by daily reporting.",
+         outbound:"Outbound telephony contacts started in the period.",
+         comparison:"Today and week comparisons use the same elapsed Central-time window for an apples-to-apples comparison."
+       },
+       periods:{
+-        today:{label:"Today to now",date:vbTrendFormatDate(todayStart),...vbTrendPeriod(tasks,cegTaskIds,todayStart,now)},
+-        yesterday:{label:"Yesterday, same time window",date:vbTrendFormatDate(yesterdayStart),...vbTrendPeriod(tasks,cegTaskIds,yesterdayStart,yesterdayEnd)},
+-        thisWeek:{label:"This week to date",date:vbTrendFormatDate(thisWeekStart),...vbTrendPeriod(tasks,cegTaskIds,thisWeekStart,now)},
+-        lastWeek:{label:"Last week, same elapsed period",date:vbTrendFormatDate(lastWeekStart),...vbTrendPeriod(tasks,cegTaskIds,lastWeekStart,lastWeekEnd)}
++        today:{label:"Today to now",date:vbTrendFormatDate(todayStart),...vbTrendPeriod(tasks,todayStart,now)},
++        yesterday:{label:"Yesterday, same time window",date:vbTrendFormatDate(yesterdayStart),...vbTrendPeriod(tasks,yesterdayStart,yesterdayEnd)},
++        thisWeek:{label:"This week to date",date:vbTrendFormatDate(thisWeekStart),...vbTrendPeriod(tasks,thisWeekStart,now)},
++        lastWeek:{label:"Last week, same elapsed period",date:vbTrendFormatDate(lastWeekStart),...vbTrendPeriod(tasks,lastWeekStart,lastWeekEnd)}
+       },
+       hourlyToday:hourly,
+       busiest:{
+@@ -9576,11 +9530,9 @@
+       diagnostics:{
+         aggregateOnly:true,
+         sourceRowsScanned:tasks.length,
+-        taskLegRowsScanned:cegLegs.rows,
+-        cegQueueTaskCount:cegTaskIds.size,
+         rangeStartEpoch:rangeStart,
+         rangeEndEpoch:now,
+-        queueName:"CEG Queue"
++        inboundDefinition:"All inbound telephony contacts"
+       }
+     };
+     vbTrendsCache={key,expiresAt:Date.now()+VB_TRENDS_CACHE_MS,data,promise:null};

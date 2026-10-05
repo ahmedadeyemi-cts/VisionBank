@@ -861,3 +861,190 @@ body.enterprise-dark .device-table tbody td * {
   color: inherit !important;
   opacity: 1 !important;
 }
+
+/* ============================================================
+   Enterprise dark-surface cleanup — 2026-10-05
+   Remove remaining legacy navy/blue surfaces and guarantee
+   accessible white-on-green primary actions.
+   ============================================================ */
+
+/* Primary actions: VisionBank green + white text in both themes. */
+.daily-report-button:not(.secondary),
+.ea-refresh,
+.ea-tab.active,
+.vb-callback-settings-btn,
+#vbCallbackRefreshWorkspace,
+.vb-cb-more:not(:disabled),
+.vb-cb-buttons button:not(.secondary),
+button.btn-primary {
+  background: #185342 !important;
+  border-color: #2f7560 !important;
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+.daily-report-button:not(.secondary):hover,
+.ea-refresh:hover,
+.ea-tab.active:hover,
+.vb-callback-settings-btn:hover,
+#vbCallbackRefreshWorkspace:hover:not(:disabled),
+.vb-cb-more:hover:not(:disabled),
+.vb-cb-buttons button:not(.secondary):hover,
+button.btn-primary:hover {
+  background: #0f3f32 !important;
+  color: #ffffff !important;
+}
+
+/* Secondary actions remain neutral rather than blue. */
+body.enterprise-light .daily-report-button.secondary,
+body.enterprise-light .daily-report-page-button,
+body.enterprise-light .ea-tab:not(.active),
+body.enterprise-light .vb-ops button,
+body.enterprise-light #abandonedCallbackClose {
+  background: #ffffff !important;
+  border-color: #b9cbc4 !important;
+  color: #185342 !important;
+}
+
+body.enterprise-dark .daily-report-button.secondary,
+body.enterprise-dark .daily-report-page-button,
+body.enterprise-dark .ea-tab:not(.active),
+body.enterprise-dark .vb-ops button,
+body.enterprise-dark #abandonedCallbackClose {
+  background: #10231c !important;
+  border-color: #36584c !important;
+  color: #e8f0ed !important;
+}
+
+/* Webex integrated Chat previously carried its own navy palette. */
+body.enterprise-dark .vb-ops {
+  --vo-bg: #0d1b16 !important;
+  --vo-card: #0b1713 !important;
+  --vo-fg: #e8f0ed !important;
+  --vo-muted: #9eb0a9 !important;
+  --vo-border: #29453b !important;
+  --vo-cell-border: #29453b !important;
+  --vo-head: #10231c !important;
+  --vo-table: #0b1713 !important;
+  --vo-hover: #13271f !important;
+  --vo-accent: #71b59d !important;
+  --vo-heading: #f3f8f6 !important;
+  --vo-section-heading: #e8f0ed !important;
+}
+
+body.enterprise-light .vb-ops {
+  --vo-bg: #ffffff !important;
+  --vo-card: #f7faf9 !important;
+  --vo-fg: #15231e !important;
+  --vo-muted: #66756f !important;
+  --vo-border: #d8e2de !important;
+  --vo-cell-border: #e6ece9 !important;
+  --vo-head: #f3f6f4 !important;
+  --vo-table: #ffffff !important;
+  --vo-hover: #edf5f2 !important;
+  --vo-accent: #185342 !important;
+  --vo-heading: #15231e !important;
+  --vo-section-heading: #15231e !important;
+}
+
+/* Generic Webex reporting/data surfaces: charcoal-green, never navy. */
+body.enterprise-dark .daily-report-table-wrap,
+body.enterprise-dark .daily-report-table,
+body.enterprise-dark .daily-report-table tbody,
+body.enterprise-dark .daily-report-table tbody tr,
+body.enterprise-dark .daily-report-table tbody td,
+body.enterprise-dark .data-table tbody tr,
+body.enterprise-dark .data-table tbody td,
+body.enterprise-dark #agent-body td:not([data-state]):not([data-vb-state]),
+body.enterprise-dark #chat-agents-body td:not([data-state]):not([data-vb-state]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td.vb-channel-cell,
+body.enterprise-dark .vb-cb-workspace table tbody td {
+  background: #0b1713 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+
+body.enterprise-dark .daily-report-table thead th,
+body.enterprise-dark .data-table thead th,
+body.enterprise-dark .vb-ops table thead th,
+body.enterprise-dark .vb-cb-workspace table thead th {
+  background: #10231c !important;
+  color: #e8f0ed !important;
+  border-color: #36584c !important;
+}
+
+/* Keep operational state cells authoritative. */
+body.enterprise-dark #agent-body td[data-vb-state],
+body.enterprise-dark #agent-body td[data-state],
+body.enterprise-dark #chat-agents-body td[data-state] {
+  color: inherit;
+}
+
+/* The daily-report transfer notice previously had an inline blue tint. */
+body.enterprise-dark #dailyOperatingModeNotice {
+  background: #10231c !important;
+  border-color: #477363 !important;
+  color: #dce8e3 !important;
+}
+body.enterprise-light #dailyOperatingModeNotice {
+  background: #f7faf9 !important;
+  border-color: #b9cbc4 !important;
+  color: #34423d !important;
+}
+
+/* Callback/admin surfaces also drop the old slate/navy fill. */
+body.enterprise-dark .vb-callback-panel,
+body.enterprise-dark .vb-callback-policy,
+body.enterprise-dark .vb-callback-notice,
+body.enterprise-dark .vb-callback-token-reveal,
+body.enterprise-dark .vb-cb-plan {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #36584c !important;
+}
+body.enterprise-dark .vb-callback-panel input,
+body.enterprise-dark .vb-callback-panel select,
+body.enterprise-dark .vb-callback-panel textarea {
+  background: #07110d !important;
+  color: #e8f0ed !important;
+  border-color: #36584c !important;
+}
+
+/* Preserve readable text inside cards and charts. */
+body.enterprise-dark .ea-kpi,
+body.enterprise-dark .ea-card,
+body.enterprise-dark .ea-compare-card,
+body.enterprise-dark .ea-activity-hour,
+body.enterprise-dark .ea-weekday-row {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+body.enterprise-dark .ea-track,
+body.enterprise-dark .ea-queue-meter,
+body.enterprise-dark .ea-activity-track,
+body.enterprise-dark .ea-week-track {
+  background: #243a32 !important;
+}
+
+/* High-specificity legacy override for Webex's historical dark table rules. */
+body.dark-mode.enterprise-dark table.data-table tbody tr td:not(.availability-cell),
+body.dark-mode.enterprise-dark table.daily-report-table tbody tr td,
+body.dark-mode.enterprise-dark #agent-body tr td:not([data-state]):not([data-vb-state]),
+body.dark-mode.enterprise-dark #chat-agents-body tr td:not([data-state]):not([data-vb-state]),
+body.dark-mode.enterprise-dark :is(#agent-body,#chat-agents-body) tr td.vb-channel-cell {
+  background: #0b1713 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+body.dark-mode.enterprise-dark table.data-table tbody tr:nth-child(even) td:not(.availability-cell),
+body.dark-mode.enterprise-dark table.data-table tbody tr:nth-child(odd) td:not(.availability-cell),
+body.dark-mode.enterprise-dark table.data-table tbody tr:hover td:not(.availability-cell) {
+  background: #0b1713 !important;
+}
+body.dark-mode.enterprise-dark table.data-table thead tr th,
+body.dark-mode.enterprise-dark table.daily-report-table thead tr th {
+  background: #10231c !important;
+  color: #f3f8f6 !important;
+  border-color: #36584c !important;
+}

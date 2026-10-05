@@ -14,10 +14,11 @@ test('enterprise analytics adds hourly, day-over-day and week-over-week views af
   assert.match(html,/This Week vs Last Week/);
 });
 
-test('hourly activity explicitly separates Chat, CEG Queue inbound, and outbound calls',()=>{
+test('hourly activity explicitly separates Chat, inbound Voice, and outbound calls',()=>{
   const html=read('webex.html');
   const js=read('webex-enterprise-analytics.js');
-  assert.match(html,/Inbound — CEG Queue/);
+  assert.match(html,/Inbound Calls/);
+  assert.match(html,/same received-call cohort as Today's Answered Calls/);
   assert.match(html,/Outbound Calls/);
   assert.match(html,/Activity by hour — today/);
   for(const key of ['chat','inboundCeg','outbound']) assert.ok(js.includes(key),'missing trend key '+key);
@@ -54,28 +55,24 @@ test('authenticated fetch bridge recognizes the aggregate trends endpoint',()=>{
 
 test('enterprise analytics assets are cache-busted for the trend release',()=>{
   const html=read('webex.html');
-  assert.match(html,/webex-enterprise-analytics\.css\?v=20261005-enterprise2/);
-  assert.match(html,/webex-enterprise-analytics\.js\?v=20261005-enterprise2/);
+  assert.match(html,/webex-enterprise-analytics\.css\?v=20261005-enterprise3/);
+  assert.match(html,/webex-enterprise-analytics\.js\?v=20261005-enterprise3/);
 });
 
 test('production trends backend contract is versioned and aggregate-only',()=>{
-  const manifest=JSON.parse(read('scripts/webex-enterprise-trends-v1.manifest.json'));
-  const patch=read('scripts/webex-enterprise-trends-v1.patch');
-  assert.equal(manifest.baseWorkerVersion,'2b8151b4-677b-4d93-a0ba-bdf3eead2dbc');
-  assert.equal(manifest.trendsWorkerVersion,'8920d623-ec31-4645-aeb4-b7c44f0ee1f8');
-  assert.equal(manifest.trendsMainSha256,'a2e682ff99bf8af2ab5c51053773039ea7eaf4c4e402594906e105b8c24e33f8');
+  const manifest=JSON.parse(read('scripts/webex-enterprise-trends-v3.manifest.json'));
+  const patch=read('scripts/webex-enterprise-trends-v3.patch');
+  assert.equal(manifest.baseWorkerVersion,'8920d623-ec31-4645-aeb4-b7c44f0ee1f8');
+  assert.equal(manifest.trendsWorkerVersion,'d4902941-ae61-40a8-bf36-96ecde16837e');
+  assert.equal(manifest.trendsMainSha256,'5a162c69795ab09ecc72554333fd7bcca91bf29bda9bf168f06b84cb9f6518cb');
   assert.equal(manifest.bindings,37);
   assert.equal(manifest.modules,15);
   assert.equal(manifest.endpoint,'/api/webex/analytics-trends');
   for(const marker of [
-    'handleWebexAnalyticsTrends',
-    'buildWebexAnalyticsTrends',
-    'VB_TRENDS_MAX_PAGES',
-    'VB_TRENDS_MAX_ROWS',
-    'aggregateOnly:true',
-    'firstQueueName',
-    'CEG Queue'
-  ]) assert.ok(patch.includes(marker),'missing backend marker '+marker);
+    'return "inboundCeg"',
+    'All inbound telephony contacts',
+    'inboundDefinition'
+  ]) assert.ok(patch.includes(marker),'missing v3 correction marker '+marker);
   for(const forbidden of ['ani:','dnis:','customerName','contactId','agentName','sessionId'])
     assert.ok(!patch.includes(forbidden),'sensitive field leaked into trends patch: '+forbidden);
 });

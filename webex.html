@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
     <link rel="stylesheet" href="webex-reports.css?v=20260828-v1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
-    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261005-enterprise2" />
+    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261005-enterprise3" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -29,7 +29,7 @@
 <link rel="stylesheet" href="webex-voice-statistics.css?v=20261001-completion-audit1">
 <link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20261001-token-manager1">
 <link rel="stylesheet" href="webex-abandoned-selection.css?v=20261004-chat-callback-ui1">
-<link rel="stylesheet" href="portal-enterprise.css?v=20261005-shell2">
+<link rel="stylesheet" href="portal-enterprise.css?v=20261005-shell3">
 </head>
 
 <body>
@@ -575,20 +575,20 @@
       <div class="ea-trend-intro">
         <div>
           <h3>Activity by hour — today</h3>
-          <p>Contacts started by Central Time hour. This view separates Chat, inbound calls that start in CEG Queue, and outbound calls so supervisors can identify the busiest hours of the day.</p>
+          <p>Contacts started by Central Time hour. This view separates Chat, inbound Voice calls, and outbound calls so supervisors can identify the busiest hours of the day. Inbound Voice uses the same received-call cohort as Today's Answered Calls so the totals reconcile.</p>
         </div>
         <span id="eaTrendFreshness" class="ea-trend-freshness">Historical trend data has not loaded yet.</span>
       </div>
       <div class="ea-kpis ea-busiest-kpis">
         <div class="ea-kpi"><strong id="eaBusiestCombined">—</strong><span>Busiest combined hour</span><small id="eaBusiestCombinedCount">— contacts</small></div>
         <div class="ea-kpi"><strong id="eaBusiestChat">—</strong><span>Busiest Chat hour</span><small id="eaBusiestChatCount">— chats</small></div>
-        <div class="ea-kpi"><strong id="eaBusiestInbound">—</strong><span>Busiest CEG Queue hour</span><small id="eaBusiestInboundCount">— inbound calls</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestInbound">—</strong><span>Busiest inbound-call hour</span><small id="eaBusiestInboundCount">— inbound calls</small></div>
         <div class="ea-kpi"><strong id="eaBusiestOutbound">—</strong><span>Busiest outbound hour</span><small id="eaBusiestOutboundCount">— outbound calls</small></div>
       </div>
       <div class="ea-card">
         <div class="ea-legend ea-activity-legend">
           <span><i class="chat"></i>Chat</span>
-          <span><i class="inbound"></i>Inbound — CEG Queue</span>
+          <span><i class="inbound"></i>Inbound Calls</span>
           <span><i class="outbound"></i>Outbound Calls</span>
         </div>
         <div id="eaActivityHourly" class="ea-activity-hours"><p class="ea-empty">Open this tab to load hourly activity.</p></div>
@@ -843,7 +843,7 @@
   data-guid="27064816-2e3e-42a9-add4-74f11f24fd74"
   aria-label="VisionBank live agent chat"
 ></div>
-<script src="portal-enterprise.js?v=20261005-shell2"></script>
+<script src="portal-enterprise.js?v=20261005-shell3"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
 <script src="webex.js?v=20261001-completion-audit1"></script>
 <script src="webex-reports.js?v=20261001-completion-audit1"></script>
@@ -852,7 +852,7 @@
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
 <script src="webex-integrated-chat.js?v=20261001-completion-audit1"></script>
-<script src="webex-enterprise-analytics.js?v=20261005-enterprise2"></script>
+<script src="webex-enterprise-analytics.js?v=20261005-enterprise3"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261004-chat-callback-ui1"></script>
 </body>

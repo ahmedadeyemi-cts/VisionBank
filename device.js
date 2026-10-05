@@ -10,7 +10,7 @@
   const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,
     memberSearchTimer:null,memberSearchController:null,memberDetailController:null,memberSearchSeq:0,memberLoadedForDevice:null,memberLoadedAt:0,
     memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,
-    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,
+    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,phoneSetupDevice:null,
     identityPolicy:{verificationEnabled:true,adminAuthorized:false,admin:null},verificationChallenge:null,adminSettings:null};
 
   const $=id=>document.getElementById(id);
@@ -115,7 +115,13 @@
       "device-admin-session-required":"Sign in to VisionBank Security with an authorized Device Manager admin account.",
       "device-admin-self-remove-denied":"You cannot remove the admin identity you are currently using.",
       "device-individual-admin-required":"At least one individual admin must remain. The shared Tech Admin mailbox cannot be the only admin.",
-      "device-admin-email-invalid":"Enter a valid admin email address."
+      "device-admin-email-invalid":"Enter a valid admin email address.",
+      "phone-selfservice-store-unavailable":"Phone Self-Service storage is unavailable. Try again later.",
+      "phone-enrollment-not-found":"This phone is not enrolled for Phone Self-Service.",
+      "phone-enrollment-revoked":"Phone Self-Service has been revoked for this handset.",
+      "phone-credential-invalid":"The handset Phone Self-Service credential is invalid. Rotate the enrollment.",
+      "invalid-phone-enrollment-request":"The phone enrollment request is incomplete.",
+      "device-mac-required":"The phone MAC address is required for Phone Self-Service."
     };
     return messages[code]||("Save & Sync was not completed: "+code);
   }
@@ -509,7 +515,7 @@
     }else{
       text("deviceInventoryStatus",locationId?"Loading detailed phone and line assignments…":"Loading VisionBank Iowa phone inventory…");
       if(body&&(!state.devices.length||!sameScope)){
-        body.innerHTML='<tr><td colspan="9" class="device-empty"><div class="device-loading-line"></div><div class="device-loading-line" style="margin-top:10px;width:72%"></div></td></tr>';
+        body.innerHTML='<tr><td colspan="10" class="device-empty"><div class="device-loading-line"></div><div class="device-loading-line" style="margin-top:10px;width:72%"></div></td></tr>';
       }
     }
 
@@ -528,7 +534,7 @@
         return null;
       }
       state.devices=[];state.filtered=[];
-      if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Device inventory could not be loaded. '+esc(error.status===404?"Backend integration is being prepared.":error.message)+'</td></tr>';
+      if(body)body.innerHTML='<tr><td colspan="10" class="device-empty">Device inventory could not be loaded. '+esc(error.status===404?"Backend integration is being prepared.":error.message)+'</td></tr>';
       text("deviceInventoryStatus","No live inventory has been loaded.");
       renderKpis();
       return null;
@@ -537,7 +543,8 @@
 
   function deviceSearchFields(d){
     return [d.displayName,d.model,d.mac,d.locationName,d.owner?.name,d.owner?.extension,d.owner?.phoneNumber,d.summaryExtension,
-      d.line1?.name,d.line1?.extension,d.line1?.phoneNumber,d.line2?.name,d.line2?.extension,d.line2?.phoneNumber].filter(Boolean);
+      d.line1?.name,d.line1?.extension,d.line1?.phoneNumber,d.line2?.name,d.line2?.extension,d.line2?.phoneNumber,
+      d.phoneSelfService?.phoneIp,d.phoneSelfService?.sourceIp,d.phoneSelfService?.firmware].filter(Boolean);
   }
 
   function deviceSearchText(d){return deviceSearchFields(d).map(normalize).join(" ");}
@@ -631,12 +638,22 @@
     return '<strong>'+esc(owner.name||"Unassigned")+'</strong>'+(meta?'<small>'+esc(meta)+'</small>':'');
   }
 
+  function phoneSelfServiceCell(device){
+    const phone=device?.phoneSelfService||{};
+    if(!phone.enrolled)return '<span class="device-badge neutral">Not enrolled</span><small>Handset changes off</small>';
+    const seen=phone.lastSeenAt?new Date(phone.lastSeenAt):null;
+    const seenText=seen&&!Number.isNaN(seen.getTime())?seen.toLocaleString():"Awaiting check-in";
+    return '<span class="device-status registered">Enrolled</span>'+
+      '<small>'+(phone.phoneIp?'Phone IP '+esc(phone.phoneIp):'Phone IP not reported')+'</small>'+
+      '<small>Seen '+esc(seenText)+'</small>';
+  }
+
   function renderInventory(){
     const body=$("deviceInventoryRows");if(!body)return;
     text("deviceInventoryCount",state.filtered.length+" device"+(state.filtered.length===1?"":"s"));
     text("deviceInventoryStatus",state.devices.length?(state.filtered.length+" of "+state.devices.length+" devices shown."):"No devices returned.");
     if(!state.filtered.length){
-      body.innerHTML='<tr><td colspan="9" class="device-empty">No devices match the current filters.</td></tr>';
+      body.innerHTML='<tr><td colspan="10" class="device-empty">No devices match the current filters.</td></tr>';
       return;
     }
     body.innerHTML=state.filtered.map(d=>'<tr>'+
@@ -645,6 +662,7 @@
       '<td>'+ownerCell(d.owner)+'</td>'+
       '<td>'+lineCell(d.line1,d.detailsLoaded!==false)+'</td><td>'+lineCell(d.line2,d.detailsLoaded!==false)+'</td>'+
       '<td>'+leaseCell(d)+'</td>'+
+      '<td>'+phoneSelfServiceCell(d)+'</td>'+
       '<td><span class="device-status '+syncClass(d.syncStatus)+'">'+esc(d.syncStatusLabel||d.syncStatus||"Unknown")+'</span><small>'+esc(d.syncMessage||"")+'</small></td>'+
       '<td>'+esc(d.lastProvision||"Not reported")+'<small>'+esc(d.phonismStatus||"")+'</small></td>'+
       '<td>'+(d.detailsLoaded===false?'<button class="device-row-action" type="button" data-device-summary="'+esc(d.phonismPhoneId||"")+'">Manage Device</button>':'<button class="device-row-action" type="button" data-device-edit="'+esc(d.id)+'">Manage Device</button>')+'</td></tr>').join("");
@@ -935,6 +953,116 @@
       :(state.capabilities?.writes?.pilot===true?"This device is not in the approved write pilot. Browsing remains available.":"Changes remain disabled until device writes are configured."));
   }
 
+  function phoneSeenLabel(value){
+    if(!value)return "Not reported";
+    const at=new Date(value);
+    return Number.isNaN(at.getTime())?String(value):at.toLocaleString();
+  }
+
+  function renderPhoneSelfService(device){
+    const phone=device?.phoneSelfService||{};
+    const enrolled=phone.enrolled===true;
+    const badge=$("devicePhoneSelfServiceBadge");
+    if(badge){
+      badge.textContent=enrolled?"Enrolled":"Not enrolled";
+      badge.className="device-badge "+(enrolled?"":"neutral");
+    }
+    text("devicePhoneIp",phone.phoneIp||"Not reported");
+    text("devicePhoneLastSeen",phoneSeenLabel(phone.lastSeenAt));
+    text("devicePhoneFirmware",phone.firmware||"Not reported");
+    const setup=$("devicePhoneSetupButton");
+    if(setup)setup.textContent=enrolled?"Manage Phone Self-Service":"Phone Self-Service Setup";
+    text("devicePhoneSelfServiceHelp",enrolled
+      ?"This handset can add a temporary Line 2 directly from its Yealink XML Browser. The same Device Manager lease automatically restores the permanent Line 2 at expiration."
+      :"Enroll this handset to let a user add a temporary Line 2 directly from the Yealink phone. No username is entered on the handset.");
+  }
+
+  function wipePhoneSetupSecrets(){
+    for(const id of ["devicePhoneXmlUrl","devicePhoneXmlUsername","devicePhoneXmlPassword","devicePhoneProvisioning"]){
+      const field=$(id);if(field)field.value="";
+    }
+    const credentials=$("devicePhoneCredentials");if(credentials)credentials.hidden=true;
+  }
+
+  function renderPhoneSetupStatus(device,status=null){
+    const phone=device?.phoneSelfService||{},enrolled=status?.enrolled===true||phone.enrolled===true;
+    text("devicePhoneSetupTitle",(device?.displayName||device?.model||"Phone")+" Self-Service");
+    text("devicePhoneSetupMeta",[device?.model,device?.mac,device?.locationName].filter(Boolean).join(" · "));
+    text("devicePhoneSetupEnrollment",enrolled?"Enrolled":status?.status==="revoked"?"Revoked":"Not enrolled");
+    const telemetry=status?.telemetry||phone;
+    text("devicePhoneSetupIp",telemetry?.phoneIp||"Not reported");
+    text("devicePhoneSetupLastSeen",phoneSeenLabel(telemetry?.lastSeenAt));
+    const generate=$("devicePhoneSetupGenerate"),revoke=$("devicePhoneSetupRevoke");
+    const admin=state.identityPolicy?.adminAuthorized===true;
+    if(generate){
+      generate.hidden=false;
+      generate.disabled=!admin;
+      generate.textContent=enrolled?"Rotate Enrollment":"Generate Enrollment";
+    }
+    if(revoke){revoke.hidden=!enrolled;revoke.disabled=!admin;}
+    text("devicePhoneSetupMessage",!admin
+      ?"Phone enrollment is visible here, but generating or revoking a handset credential requires an authorized Device Manager admin."
+      :enrolled
+        ?"This phone is enrolled. Rotate only if you need a new XML Browser credential; the current credential stops working immediately after rotation."
+        :"Generate a device-specific enrollment. The phone authenticates automatically; the person using the phone does not enter a username or password.");
+  }
+
+  async function openPhoneSetup(){
+    const device=state.selected;if(!device?.mac)return;
+    state.phoneSetupDevice=device;
+    wipePhoneSetupSecrets();
+    renderPhoneSetupStatus(device);
+    $("devicePhoneSetup")?.showModal();
+    try{
+      const data=await api("/phone-enrollment?mac="+encodeURIComponent(device.mac));
+      if(state.phoneSetupDevice!==device)return;
+      renderPhoneSetupStatus(device,data);
+    }catch(error){
+      text("devicePhoneSetupMessage","Unable to read Phone Self-Service status: "+friendlyDeviceError(error));
+    }
+  }
+
+  async function generatePhoneEnrollment(){
+    const device=state.phoneSetupDevice||state.selected;
+    if(!device?.id||!device?.locationId||!device?.phonismPhoneId)return;
+    const button=$("devicePhoneSetupGenerate");if(button){button.disabled=true;button.textContent="Generating…";}
+    wipePhoneSetupSecrets();
+    try{
+      const data=await api("/phone-enrollment",{method:"POST",body:{
+        deviceId:device.id,locationId:device.locationId,phonismPhoneId:device.phonismPhoneId
+      }});
+      const credentials=$("devicePhoneCredentials");if(credentials)credentials.hidden=false;
+      const xmlUrl=$("devicePhoneXmlUrl"),username=$("devicePhoneXmlUsername"),password=$("devicePhoneXmlPassword"),provisioning=$("devicePhoneProvisioning");
+      if(xmlUrl)xmlUrl.value=data.xmlUrl||"";
+      if(username)username.value=data.credential?.username||"";
+      if(password)password.value=data.credential?.password||"";
+      if(provisioning)provisioning.value=data.provisioning||"";
+      text("devicePhoneSetupEnrollment","Enrolled");
+      text("devicePhoneSetupMessage","Enrollment created. Apply the provisioning snippet through Phonism or the Yealink phone web interface. The password below is shown only for this enrollment response.");
+      const detailed=await refreshDeviceDetail(device.locationId,device.phonismPhoneId).catch(()=>null);
+      if(detailed){state.selected=detailed;state.phoneSetupDevice=detailed;renderPhoneSelfService(detailed);renderPhoneSetupStatus(detailed,{enrolled:true,status:"active",telemetry:detailed.phoneSelfService});}
+      const revoke=$("devicePhoneSetupRevoke");if(revoke)revoke.hidden=false;
+    }catch(error){
+      text("devicePhoneSetupMessage","Enrollment was not created: "+friendlyDeviceError(error));
+    }finally{
+      if(button){button.disabled=state.identityPolicy?.adminAuthorized!==true;button.textContent="Rotate Enrollment";}
+    }
+  }
+
+  async function revokePhoneEnrollment(){
+    const device=state.phoneSetupDevice||state.selected;if(!device?.mac)return;
+    const button=$("devicePhoneSetupRevoke");if(button)button.disabled=true;
+    try{
+      await api("/phone-enrollment/revoke",{method:"POST",body:{mac:device.mac}});
+      wipePhoneSetupSecrets();
+      text("devicePhoneSetupMessage","Phone Self-Service has been revoked. The handset credential can no longer change Line 2.");
+      const detailed=await refreshDeviceDetail(device.locationId,device.phonismPhoneId).catch(()=>null);
+      if(detailed){state.selected=detailed;state.phoneSetupDevice=detailed;renderPhoneSelfService(detailed);renderPhoneSetupStatus(detailed,{enrolled:false,status:"revoked"});}
+    }catch(error){
+      text("devicePhoneSetupMessage","Unable to revoke Phone Self-Service: "+friendlyDeviceError(error));
+    }finally{if(button)button.disabled=state.identityPolicy?.adminAuthorized!==true;}
+  }
+
   async function openEditor(id){
     if(!state.operatorSession){showOperatorDialog({type:"edit",id});return;}
     const device=state.devices.find(d=>String(d.id)===String(id));if(!device)return;
@@ -949,6 +1077,7 @@
     const wx=registrationValue(device.line1,"webex"),ph=registrationValue(device.line1,"phonism");
     const status=$("deviceLine1Status");
     if(status){status.textContent="Webex "+registrationLabel(wx)+" · Phonism "+registrationLabel(ph);status.className="device-status "+(lineHealthy(device.line1)?"registered":"unknown");}
+    renderPhoneSelfService(device);
     renderLeaseExpiryPreview();
     text("deviceLine2PickerValue","Loading Line 2 choices…");
     text("deviceLine2CandidateMeta","Loading eligible users and workspaces across VisionBank Webex…");
@@ -1155,7 +1284,8 @@
       if(body)body.innerHTML=rows.length?rows.map(r=>
         '<tr><td>'+esc(r.at?new Date(r.at).toLocaleString():"")+'</td>'+
         '<td><strong>'+esc(r.operatorName||"Unknown")+'</strong><small>'+esc(r.operatorEmail||"")+'</small>'+
-          (r.operatorVerified===true?'<span class="device-audit-identity verified">Email verified</span>':
+          (r.actorType==="device"?'<span class="device-audit-identity verified">Phone verified</span>':
+            r.operatorVerified===true?'<span class="device-audit-identity verified">Email verified</span>':
             r.verificationMethod==="disabled"?'<span class="device-audit-identity disabled">Verification off</span>':'')+'</td>'+
         '<td>'+esc(r.sourceIp||"—")+'</td>'+
         '<td>'+esc(r.deviceName||"")+'</td>'+
@@ -1220,6 +1350,13 @@
     });
     $("deviceLeaseDuration")?.addEventListener("change",renderLeaseExpiryPreview);
     $("deviceEditor")?.addEventListener("close",()=>{closeMemberPicker();state.memberSearchController?.abort();state.memberDetailController?.abort();});
+    $("devicePhoneSetupButton")?.addEventListener("click",()=>void openPhoneSetup());
+    $("devicePhoneSetupGenerate")?.addEventListener("click",()=>void generatePhoneEnrollment());
+    $("devicePhoneSetupRevoke")?.addEventListener("click",()=>void revokePhoneEnrollment());
+    for(const id of ["devicePhoneSetupClose","devicePhoneSetupDone"])$(id)?.addEventListener("click",()=>{
+      wipePhoneSetupSecrets();state.phoneSetupDevice=null;$("devicePhoneSetup")?.close();
+    });
+    $("devicePhoneSetup")?.addEventListener("close",()=>{wipePhoneSetupSecrets();state.phoneSetupDevice=null;});
     $("devicePreviewChange")?.addEventListener("click",()=>void previewChange());
     $("deviceApplyChange")?.addEventListener("click",()=>void applyChange());
     $("deviceConfirmClose")?.addEventListener("click",()=>$("deviceConfirm")?.close());

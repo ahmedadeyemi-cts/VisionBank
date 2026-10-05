@@ -67,6 +67,7 @@ export async function deleteOperatorSession(env,sessionId){
 
 export function buildAuditRecord({eventType,action,request,session=null,systemActor=null,device={},location={},change={},webexStatus='not-run',phonismStatus='not-run',result='pending',reason='',originalAuditId=null,now=Date.now()}){
   const source=request?requestSource(request):{ip:'system',userAgent:'system'};
+  const deviceActor=session?.actorType==='device';
   const actor=systemActor?{
     type:'system',name:clean(systemActor.name||'VisionBank Device Manager – Automated',120),
     email:clean(systemActor.email||'',254),sessionId:null,
@@ -74,6 +75,16 @@ export function buildAuditRecord({eventType,action,request,session=null,systemAc
       name:clean(systemActor.originalOperator.name||'',100),
       email:clean(systemActor.originalOperator.email||'',254)
     }:null
+  }:deviceActor?{
+    type:'device',name:clean(session?.operator?.name||'Managed phone',120),email:'',
+    sessionId:clean(session?.id||'',80),verified:session?.verified===true,
+    verificationMethod:clean(session?.verificationMethod||'device-token',40),
+    verifiedAt:clean(session?.verifiedAt||'',40)||null,
+    deviceIdentity:{
+      mac:clean(session?.deviceIdentity?.mac||'',32),
+      model:clean(session?.deviceIdentity?.model||'',120),
+      enrollmentId:clean(session?.deviceIdentity?.enrollmentId||'',64)
+    }
   }:{
     type:'human',name:clean(session?.operator?.name||'',100),
     email:clean(session?.operator?.email||'',254),sessionId:clean(session?.id||'',64),
@@ -81,6 +92,7 @@ export function buildAuditRecord({eventType,action,request,session=null,systemAc
     verifiedAt:clean(session?.verifiedAt||'',40)||null
   };
   if(actor.type==='human'&&(!actor.name||!actor.email))throw new DeviceManagementError('operator-session-required',401);
+  if(actor.type==='device'&&(!actor.deviceIdentity?.mac||actor.verified!==true))throw new DeviceManagementError('phone-credential-invalid',401);
   return {
     auditId:crypto.randomUUID(),
     at:new Date(now).toISOString(),

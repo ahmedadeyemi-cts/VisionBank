@@ -313,6 +313,7 @@
           <div class="device-editor-two-col">
             <label class="device-duration-label">Temporary for
               <select id="deviceLeaseDuration">
+                <option value="15">15 minutes</option>
                 <option value="30">30 minutes</option>
                 <option value="60" selected>1 hour</option>
                 <option value="120">2 hours</option>
@@ -379,28 +380,25 @@
           <span>Reported phone IP</span><strong id="devicePhoneSetupIp">Not reported</strong>
           <span>Last check-in</span><strong id="devicePhoneSetupLastSeen">Not reported</strong>
         </div>
-        <p id="devicePhoneSetupMessage" class="device-helper">Generate a device-specific enrollment. The phone authenticates automatically; the person using the phone does not enter a username or password.</p>
+        <p id="devicePhoneSetupMessage" class="device-helper">Generate a device-bound Button 7 setup. Anyone using this enrolled handset can open Manage Ext without entering a username or password.</p>
         <div id="devicePhoneCredentials" class="device-phone-credentials" hidden>
-          <label>XML Browser URL
+          <div class="device-phone-setup-status">
+            <span>DSS / line key</span><strong>7</strong>
+            <span>Key type</span><strong>XML Browser (27)</strong>
+            <span>Label</span><strong>Manage Ext</strong>
+          </div>
+          <label>Button 7 URL
             <input id="devicePhoneXmlUrl" type="text" readonly>
           </label>
-          <div class="device-editor-two-col">
-            <label>XML username
-              <input id="devicePhoneXmlUsername" type="text" readonly>
-            </label>
-            <label>XML password
-              <input id="devicePhoneXmlPassword" type="text" readonly>
-            </label>
-          </div>
-          <label>Yealink provisioning snippet
-            <textarea id="devicePhoneProvisioning" rows="10" readonly></textarea>
+          <label>Yealink / Phonism provisioning snippet
+            <textarea id="devicePhoneProvisioning" rows="9" readonly></textarea>
           </label>
-          <p class="device-warning">The XML password is shown only when the enrollment is generated or rotated. Store it in Phonism or apply it to the handset before closing this dialog.</p>
+          <p class="device-warning">No XML username or password is required. The Button 7 URL contains a hidden device credential and should be provisioned to this handset only.</p>
         </div>
       </div>
       <div class="device-dialog-actions">
         <button id="devicePhoneSetupRevoke" class="device-btn danger" type="button" hidden>Revoke</button>
-        <button id="devicePhoneSetupGenerate" class="device-btn" type="button">Generate Enrollment</button>
+        <button id="devicePhoneSetupGenerate" class="device-btn" type="button">Generate Button 7 Setup</button>
         <button id="devicePhoneSetupDone" class="device-btn secondary" type="button">Close</button>
       </div>
     </div>
@@ -430,6 +428,6 @@
   </footer>
   <script src="portal-session.js?v=20261003-r1"></script>
   <script src="portal-enterprise.js?v=20261005-shell4"></script>
-  <script src="device.js?v=20261005-yealink2"></script>
+  <script src="device.js?v=20261005-yealink3"></script>
 </body>
 </html>

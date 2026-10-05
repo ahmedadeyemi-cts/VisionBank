@@ -8,8 +8,8 @@ const portalPages=['index.html','webex.html','webex-agent.html','agents.html','v
 test('all non-Security portal pages load the shared enterprise shell exactly once',()=>{
   for(const page of portalPages){
     const html=read(page);
-    assert.equal((html.match(/portal-enterprise\.css\?v=20261004-shell1/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261004-shell1/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell2/g)||[]).length,1,page+' shared CSS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell2/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -84,4 +84,30 @@ test('portal CSPs continue to allow same-origin shell assets without adding unsa
     assert.match(csp,/script-src 'self'/,page+' same-origin script CSP');
     assert.doesNotMatch(csp,/script-src[^;]*'unsafe-inline'/,page+' no unsafe-inline script');
   }
+});
+
+test('dashboard action buttons override legacy fixed positioning so controls cannot overlap',()=>{
+  const css=read('portal-enterprise.css');
+  assert.match(css,/\.dashboard-header-actions[\s\S]*enterprise-header-tools > button[\s\S]*position:\s*static !important/);
+  assert.match(css,/gap:\s*12px !important/);
+  assert.match(css,/white-space:\s*nowrap !important/);
+  assert.match(css,/min-width:\s*max-content !important/);
+});
+
+test('theme bridge derives state from the page-specific dark class so light mode clears the enterprise dark shell',()=>{
+  const js=read('portal-enterprise.js');
+  assert.match(js,/function detectPageDark\(\)/);
+  assert.match(js,/return body\.classList\.contains\(profile\.bodyClass\)/);
+  assert.match(js,/body\.classList\.toggle\("enterprise-light", !dark\)/);
+  assert.doesNotMatch(js,/return body\.classList\.contains\("theme-dark"\) \|\|/);
+});
+
+test('shared shell explicitly restores high-contrast table colors in both light and dark themes',()=>{
+  const css=read('portal-enterprise.css');
+  assert.match(css,/body\.enterprise-light \.data-table tbody td:not\(\.availability-cell\)/);
+  assert.match(css,/background:\s*#ffffff !important/);
+  assert.match(css,/color:\s*#15231e !important/);
+  assert.match(css,/body\.enterprise-dark \.data-table tbody td:not\(\.availability-cell\)/);
+  assert.match(css,/background:\s*#0d1b16 !important/);
+  assert.match(css,/color:\s*#e8f0ed !important/);
 });

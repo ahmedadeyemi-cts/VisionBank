@@ -500,6 +500,13 @@ function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fle
   return target.toString();
 }
 
+function phoneMemberLabel(member){
+  const extension=display(member?.extension||member?.phoneNumber||'',40);
+  const name=display(member?.name||member?.displayName||'',80);
+  if(extension&&name)return extension+' - '+name;
+  return extension||name||'Unknown line';
+}
+
 function activePhoneLease(index,enrollment){
   return index?.byDevice?.get(String(enrollment?.device?.id||''))||
     index?.byMac?.get(String(enrollment?.device?.mac||'').toUpperCase())||null;
@@ -589,7 +596,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/xml'){
       const items=[];
-      if(line2Row)items.push({prompt:'Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      if(line2Row)items.push({prompt:'Line 2: '+phoneMemberLabel(line2Row),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
@@ -603,7 +610,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/status'){
       const items=[
-        {prompt:line2Row?'Current Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name):'Current Line 2: None',uri:home}
+        {prompt:line2Row?'Current Line 2: '+phoneMemberLabel(line2Row):'Current Line 2: None',uri:home}
       ];
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),label=Number.isFinite(expiry)?new Date(expiry).toLocaleString('en-US',{timeZone:'America/Chicago'}):lease.expiresAt;
@@ -624,7 +631,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         {prompt:'Search again',uri:searchUrl},{prompt:'Return',uri:home}
       ],{cancelAction:home}));
       const items=rows.map(member=>({
-        prompt:(member.extension||member.phoneNumber||'No ext')+' · '+(member.name||'Member'),
+        prompt:phoneMemberLabel(member),
         uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Search again',uri:searchUrl});
@@ -643,7 +650,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Cancel',uri:home});
-      return phoneXmlResponse(textMenu('Use '+(target.extension||target.phoneNumber||target.name)+' For',items,{cancelAction:home}));
+      return phoneXmlResponse(textMenu('Use '+phoneMemberLabel(target)+' For',items,{cancelAction:home}));
     }
 
     if(part==='phone/confirm'){
@@ -655,8 +662,9 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const target=searched.members.find(member=>String(member.id)===String(memberId));
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const intent=await createPhoneIntent(env,enrollment,{memberId,targetMember:target,memberQuery:q,memberLocationId:target.locationId,durationMinutes:minutes});
-      return phoneXmlResponse(textMenu('Confirm Temporary Extension',[
-        {prompt:'Add '+(target.extension||target.phoneNumber||target.name)+' for '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)},
+      return phoneXmlResponse(textMenu(phoneMemberLabel(target),[
+        {prompt:'Save - '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)},
+        {prompt:'Change time',uri:phoneRouteUrl(request,'duration',{member:memberId,q,locationId:target.locationId||''},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Cancel',uri:home}
       ],{cancelAction:home}));
     }
@@ -681,10 +689,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       });
       const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:preview.mutationId,phonismReader});
       await finishPhoneIntent(env,intent.intentId,{leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt});
-      return phoneXmlResponse(textMenu('Extension Added',[
-        {prompt:(target.extension||target.phoneNumber||target.name)+' · '+phoneDurationLabel(intent.durationMinutes),uri:home},
-        {prompt:'Auto-remove '+new Date(result.lease.expiresAt).toLocaleString('en-US',{timeZone:'America/Chicago'})+' Central',uri:home},
-        {prompt:result.rebootQueued?'Phone reboot queued':'Line saved · reboot needs attention',uri:home},
+      return phoneXmlResponse(textMenu(result.rebootQueued?'Saved - Phone Restarting':'Saved - Reboot Needed',[
+        {prompt:phoneMemberLabel(target),uri:home},
+        {prompt:'Active for '+phoneDurationLabel(intent.durationMinutes),uri:home},
+        {prompt:result.rebootQueued?'Rebooting automatically':'Reboot needs attention',uri:home},
         {prompt:'Return',uri:home}
       ]));
     }

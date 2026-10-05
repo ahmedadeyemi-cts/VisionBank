@@ -27,7 +27,7 @@ async function xml(handler,env,url){
   return {status:res.status,text:await res.text(),headers:res.headers};
 }
 
-test('Button 7 device-link path adds a 15-minute Line 2 and the existing lease engine restores baseline',async()=>{
+test('Button 7 path adds a temporary Line 2 and supports early Sign Out with automatic reboot',async()=>{
   const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
   const webex={members:[structuredClone(PRIMARY),structuredClone(BASELINE)],puts:[]};
   const webexFetch=async(_env,url,options={})=>{
@@ -94,12 +94,18 @@ test('Button 7 device-link path adds a 15-minute Line 2 and the existing lease e
 
   const leases=[...env.LOGS.map.entries()].filter(([k])=>k.startsWith('device-lease:')).map(([,v])=>JSON.parse(v.value));
   assert.equal(leases[0].durationMinutes,15);
-  const blocked=await xml(handler,env,searchUrl+'&q=4102');
-  assert.equal(blocked.status,409);
+  const activeHome=await xml(handler,env,launch);
+  assert.match(activeHome.text,/Sign Out Temporary Line/);
+  const signoutReview=await xml(handler,env,'https://worker.example/p/'+token+'?a=e');
+  assert.match(signoutReview.text,/Sign Out 4102 - Temporary User/);
+  assert.match(signoutReview.text,/Sign Out Now/);
+  assert.match(signoutReview.text,/Keep Line Active/);
 
-  const due=Date.parse(leases[0].expiresAt)+1;
-  const sweep=await sweepExpiredLeases({env,webexFetch,orgId:'org-1',phonismReader,now:due});
-  assert.equal(sweep[0].status,'restored');
+  const signedOut=await xml(handler,env,'https://worker.example/p/'+token+'?a=o');
+  assert.equal(signedOut.status,200);
+  assert.match(signedOut.text,/Signed Out - Phone Restarting/);
+  assert.match(signedOut.text,/Restored: 3999 - Original Line/);
+  assert.match(signedOut.text,/Rebooting automatically/);
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,2);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);

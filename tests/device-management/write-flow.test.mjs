@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases
+  composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases,endTemporaryLease
 } from '../../device-management/write.mjs';
 import {deviceWriteScope,isPilotDevice} from '../../device-management/lease.mjs';
 
@@ -208,6 +208,28 @@ test('manual recovery can queue another reboot after the automatic reboot',async
   assert.equal(reboot.lease.recovery.rebootAttempted,true);
   assert.equal(reboot.lease.recovery.automaticReboot,false);
   assert.deepEqual(ph.calls.filter(x=>x.type==='tr069').map(x=>x.action),['Reboot','Reboot']);
+});
+
+test('early sign out restores baseline immediately, syncs Phonism, and reboots the handset',async()=>{
+  const e=env(),wx=webexFixture([PRIMARY,BASELINE]),ph=phonismFixture();
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY,BASELINE],
+    targetMember:TARGET,durationMinutes:60,reason:'',
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
+  });
+  const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  const ended=await endTemporaryLease({
+    env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,
+    leaseId:applied.lease.leaseId,phonismReader:ph.reader,now:Date.now()+1000
+  });
+  assert.equal(ended.result.status,'restored');
+  assert.equal(wx.state.members.find(x=>x.port===2).id,'space-old');
+  assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
+  assert.ok(ended.lease.manualEndRequestedAt);
+  assert.equal(ended.lease.status,'restored');
+  const auditKeys=(await e.LOGS.list({prefix:'device-audit:'})).keys;
+  assert.ok(auditKeys.length>=4);
 });
 
 test('expiry restores baseline, queues another Phonism sync, and reboots the handset',async()=>{

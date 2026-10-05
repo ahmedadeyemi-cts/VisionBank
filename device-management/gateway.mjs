@@ -2,7 +2,7 @@ import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistrat
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords} from './audit.mjs';
 import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
-import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers} from './write.mjs';
+import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease} from './write.mjs';
 import {
   identityPolicy,getAdminSettings,setVerificationEnabled,setDefaultVerificationHours,
   setUserVerificationHours,removeUserVerificationHours,addDeviceAdmin,removeDeviceAdmin,
@@ -480,8 +480,8 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p'};
-const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply'};
+const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
+const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
@@ -596,11 +596,13 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/xml'){
       const items=[];
-      if(line2Row)items.push({prompt:'Line 2: '+phoneMemberLabel(line2Row),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      const activeLineLabel=lease?.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
+      if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
         items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+        items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
       }else{
         items.push({prompt:'Add temporary line',uri:searchUrl});
       }
@@ -610,7 +612,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/status'){
       const items=[
-        {prompt:line2Row?'Current Line 2: '+phoneMemberLabel(line2Row):'Current Line 2: None',uri:home}
+        {prompt:(lease?.temporaryLine2||line2Row)?'Current Line 2: '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),label=Number.isFinite(expiry)?new Date(expiry).toLocaleString('en-US',{timeZone:'America/Chicago'}):lease.expiresAt;
@@ -619,6 +621,35 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       }else items.push({prompt:'No active temporary lease',uri:home});
       items.push({prompt:'Return',uri:home});
       return phoneXmlResponse(textMenu('Temporary Line Status',items));
+    }
+
+    if(part==='phone/signout'){
+      if(!lease)return phoneXmlResponse(textMenu('No Temporary Line',[
+        {prompt:'Return',uri:home}
+      ],{cancelAction:home}));
+      const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
+      return phoneXmlResponse(textMenu('Sign Out '+currentLabel,[
+        {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{},accessToken,fleetKey,normalizedFleetMac)},
+        {prompt:'Keep Line Active',uri:home}
+      ],{cancelAction:home}));
+    }
+
+    if(part==='phone/signoutApply'){
+      if(!lease)return phoneXmlResponse(textMenu('Already Signed Out',[
+        {prompt:'Return',uri:home}
+      ],{cancelAction:home}));
+      const session=phoneSession(enrollment);
+      const ended=await endTemporaryLease({
+        env,request,session,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader
+      });
+      const status=ended.result?.status||'unknown';
+      const rebootQueued=status==='restored'||status==='external-change-reconciled';
+      const baseline=ended.lease?.baselineLine2?phoneMemberLabel(ended.lease.baselineLine2):'No Line 2';
+      return phoneXmlResponse(textMenu(rebootQueued?'Signed Out - Phone Restarting':'Sign Out Pending',[
+        {prompt:'Restored: '+baseline,uri:home},
+        {prompt:rebootQueued?'Rebooting automatically':'Finishing restore automatically',uri:home},
+        {prompt:'Return',uri:home}
+      ],{cancelAction:home}));
     }
 
     if(part==='phone/search'){

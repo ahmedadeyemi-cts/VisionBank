@@ -353,10 +353,37 @@ async function finishExternalReconcile({env,lease,phonismReader,now}){
   return {leaseId:lease.leaseId,status:'external-change-reconciled'};
 }
 
-export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=createPhonismReader(),now=Date.now()}){
+export async function endTemporaryLease({env,request,session,webexFetch,orgId,leaseId,phonismReader=createPhonismReader(),now=Date.now()}){
+  const lease=await getLease(env,leaseId);
+  if(!lease)throw new DeviceManagementError('lease-not-found',404);
+  if(lease.status!=='active')throw new DeviceManagementError('lease-not-active',409);
+  if(!isPilotDevice(env,lease.device?.mac))throw new DeviceManagementError('device-write-not-enabled',403);
+  lease.manualEndRequestedAt=new Date(now).toISOString();
+  lease.manualEndRequestedBy={
+    type:session?.actorType==='device'?'device':'human',
+    name:clean(session?.operator?.name||'',100),
+    email:clean(session?.operator?.email||'',254)
+  };
+  lease.expiresAt=new Date(now).toISOString();
+  await putLease(env,lease);
+  await writeAuditRecord(env,buildAuditRecord({
+    eventType:'temporary-line-signout',action:'signout-requested',request,session,
+    device:lease.device,location:lease.location,
+    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
+    reason:'Phone user requested early sign out of the temporary Line 2 assignment.',
+    webexStatus:'pending-restore',phonismStatus:'pending-sync',result:'pending',originalAuditId:lease.auditId,now
+  }));
+  const results=await sweepExpiredLeases({env,webexFetch,orgId,phonismReader,now,onlyLeaseId:lease.leaseId});
+  const result=results.find(row=>String(row.leaseId)===String(lease.leaseId));
+  if(!result)throw new DeviceManagementError('temporary-line-signout-not-completed',503);
+  return {result,lease:await getLease(env,lease.leaseId)};
+}
+
+export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=createPhonismReader(),now=Date.now(),onlyLeaseId=null}){
   const leases=await listLeases(env,{limit:1000});
   const results=[];
   for(const lease of leases){
+    if(onlyLeaseId&&String(lease.leaseId)!==String(onlyLeaseId))continue;
     const expires=Date.parse(lease.expiresAt||'');
     if(!Number.isFinite(expires)||expires>now)continue;
 

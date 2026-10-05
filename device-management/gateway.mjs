@@ -480,11 +480,22 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
+const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p'};
+const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply'};
+const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
+
 function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
   const url=new URL(request.url);
-  const target=fleetKey&&fleetMac?new URL('/x/'+encodeURIComponent(fleetKey)+'/'+encodeURIComponent(fleetMac),url.origin):
-    accessToken?new URL('/p/'+encodeURIComponent(accessToken),url.origin):new URL(PREFIX+'phone/'+part,url.origin);
-  if((accessToken||fleetKey)&&part!=='xml')target.searchParams.set('a',part);
+  const compactMac=fleetMac?compactPhoneMac(fleetMac):null;
+  const actionCode=PHONE_ACTION_CODE[part]||part;
+  let target;
+  if(fleetKey&&compactMac){
+    const suffix=part==='xml'?'':'/'+encodeURIComponent(actionCode);
+    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,url.origin);
+  }else if(accessToken){
+    target=new URL('/p/'+encodeURIComponent(accessToken),url.origin);
+    if(part!=='xml')target.searchParams.set('a',actionCode);
+  }else target=new URL(PREFIX+'phone/'+part,url.origin);
   for(const [key,value] of Object.entries(params))if(value!==null&&value!==undefined&&String(value)!=='')target.searchParams.set(key,String(value));
   return target.toString();
 }
@@ -547,7 +558,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   try{
     if(fleetKey){
       await authenticatePhoneFleetKey(env,fleetKey);
-      normalizedFleetMac=normalizeMac(fleetMac);
+      normalizedFleetMac=compactPhoneMac(fleetMac);
       enrollment=await resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac:normalizedFleetMac});
       await recordFleetKeyUse(env,fleetKey);
     }else{
@@ -693,11 +704,13 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       let part=url.pathname.slice(PREFIX.length),accessToken=null,fleetKey=null,fleetMac=null;
       if(url.pathname.startsWith('/p/')){
         accessToken=decodeURIComponent(url.pathname.slice(3));
-        part='phone/'+(url.searchParams.get('a')||'xml');
+        const rawAction=url.searchParams.get('a')||'xml';
+        part='phone/'+(PHONE_CODE_ACTION[rawAction]||rawAction);
       }else if(url.pathname.startsWith('/x/')){
         const segments=url.pathname.split('/').filter(Boolean);
-        if(segments.length===3){fleetKey=decodeURIComponent(segments[1]);fleetMac=decodeURIComponent(segments[2]);}
-        part='phone/'+(url.searchParams.get('a')||'xml');
+        if(segments.length>=3&&segments.length<=4){fleetKey=decodeURIComponent(segments[1]);fleetMac=decodeURIComponent(segments[2]);}
+        const rawAction=segments[3]||url.searchParams.get('a')||'xml';
+        part='phone/'+(PHONE_CODE_ACTION[rawAction]||rawAction);
       }
       if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken,fleetKey,fleetMac});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);

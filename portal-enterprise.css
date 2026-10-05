@@ -705,3 +705,159 @@ body.enterprise-dark .device-footer {
     align-self: stretch;
   }
 }
+
+/* ============================================================
+   Portal shell stability patch — 2026-10-05
+   Keep dashboard actions separated and guarantee readable
+   foreground/background pairs in both shared themes.
+   ============================================================ */
+
+/* Dashboard header buttons must participate in normal flex layout.
+   Older dashboard styles positioned these controls fixed/right-aligned. */
+.header .dashboard-header-actions,
+.header .dashboard-header-actions .enterprise-header-tools {
+  min-width: 0;
+}
+
+.header .dashboard-header-actions .enterprise-header-tools {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+}
+
+.header .dashboard-header-actions .enterprise-header-tools > button,
+.header .dashboard-header-actions .dashboard-settings-btn,
+.header .dashboard-header-actions .alert-settings-btn,
+.header .dashboard-header-actions .alert-history-btn,
+.header .dashboard-header-actions .dark-toggle {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  z-index: auto !important;
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+
+@media (min-width: 1181px) {
+  .header .dashboard-header-actions {
+    width: auto !important;
+    flex: 0 1 auto !important;
+    align-self: center !important;
+    margin-left: auto !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .header .dashboard-header-actions {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+  .header .dashboard-header-actions .enterprise-header-tools {
+    justify-content: flex-start !important;
+  }
+}
+
+/* Explicit light contract. This prevents a dark-shell foreground from
+   surviving after a page-specific dark class has been removed. */
+body.enterprise-light {
+  background: #f4f7f6 !important;
+  color: #15231e !important;
+}
+
+body.enterprise-light .panel,
+body.enterprise-light .kpi-card,
+body.enterprise-light .stat-card,
+body.enterprise-light .daily-report-panel,
+body.enterprise-light .device-panel,
+body.enterprise-light .device-filter-panel,
+body.enterprise-light .device-healthbar,
+body.enterprise-light .device-kpi,
+body.enterprise-light .login-card {
+  background: #ffffff !important;
+  color: #15231e !important;
+  border-color: #d8e2de !important;
+}
+
+body.enterprise-light .panel h1,
+body.enterprise-light .panel h2,
+body.enterprise-light .panel h3,
+body.enterprise-light .section-header h1,
+body.enterprise-light .section-header h2,
+body.enterprise-light .section-header h3,
+body.enterprise-light .stat-value,
+body.enterprise-light .kpi-value {
+  color: #15231e !important;
+}
+
+body.enterprise-light .panel p,
+body.enterprise-light .section-header p,
+body.enterprise-light .stat-label,
+body.enterprise-light .kpi-label,
+body.enterprise-light .device-helper {
+  color: #66756f !important;
+}
+
+body.enterprise-light .data-table thead th,
+body.enterprise-light .device-table thead th {
+  background: #f3f6f4 !important;
+  color: #52625c !important;
+  border-color: #d8e2de !important;
+}
+
+body.enterprise-light .data-table tbody td:not(.availability-cell),
+body.enterprise-light .device-table tbody td {
+  background: #ffffff !important;
+  color: #15231e !important;
+  border-color: #e6ece9 !important;
+}
+
+body.enterprise-light .data-table tbody td:not(.availability-cell) *,
+body.enterprise-light .device-table tbody td * {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+body.enterprise-light input,
+body.enterprise-light select,
+body.enterprise-light textarea {
+  background: #ffffff !important;
+  color: #15231e !important;
+  border-color: #cbd8d3 !important;
+}
+
+body.enterprise-light input::placeholder,
+body.enterprise-light textarea::placeholder {
+  color: #7a8983 !important;
+  opacity: 1 !important;
+}
+
+/* Explicit dark contract for normal table cells. Status/availability cells
+   remain owned by their page-specific operational color rules. */
+body.enterprise-dark .data-table thead th,
+body.enterprise-dark .device-table thead th {
+  background: #10231c !important;
+  color: #dbe7e2 !important;
+  border-color: #29453b !important;
+}
+
+body.enterprise-dark .data-table tbody td:not(.availability-cell),
+body.enterprise-dark .device-table tbody td {
+  background: #0d1b16 !important;
+  color: #e8f0ed !important;
+  border-color: #29453b !important;
+}
+
+body.enterprise-dark .data-table tbody td:not(.availability-cell) *,
+body.enterprise-dark .device-table tbody td * {
+  color: inherit !important;
+  opacity: 1 !important;
+}

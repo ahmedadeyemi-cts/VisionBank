@@ -37,10 +37,11 @@
 
   function applyTheme(dark, persist = true) {
     if (profile) {
-      if (profile.bodyClass !== "enterprise-dark") body.classList.toggle(profile.bodyClass, dark);
+      body.classList.toggle(profile.bodyClass, dark);
       localStorage.setItem(profile.key, dark ? profile.darkValue : profile.lightValue);
     }
     body.classList.toggle("enterprise-dark", dark);
+    body.classList.toggle("enterprise-light", !dark);
     if (persist) localStorage.setItem(commonKey, dark ? "dark" : "light");
 
     const deviceToggle = document.querySelector("[data-enterprise-theme-toggle]");
@@ -50,16 +51,13 @@
     }
   }
 
-  function detectDark() {
-    if (profile?.bodyClass && body.classList.contains(profile.bodyClass)) return true;
-    return body.classList.contains("theme-dark") ||
-      body.classList.contains("dark-mode") ||
-      body.classList.contains("dark") ||
-      body.classList.contains("enterprise-dark");
+  function detectPageDark() {
+    if (!profile) return body.classList.contains("enterprise-dark");
+    return body.classList.contains(profile.bodyClass);
   }
 
   function syncThemeFromPage() {
-    applyTheme(detectDark(), true);
+    applyTheme(detectPageDark(), true);
   }
 
   function markActiveNavigation() {
@@ -82,7 +80,7 @@
   } else if (localSaved !== null) {
     applyTheme(localSaved, true);
   } else {
-    applyTheme(detectDark(), false);
+    applyTheme(detectPageDark(), false);
   }
 
   let syncing = false;
@@ -90,8 +88,9 @@
     if (syncing) return;
     syncing = true;
     try {
-      const dark = detectDark();
+      const dark = detectPageDark();
       body.classList.toggle("enterprise-dark", dark);
+      body.classList.toggle("enterprise-light", !dark);
       localStorage.setItem(commonKey, dark ? "dark" : "light");
     } finally {
       syncing = false;

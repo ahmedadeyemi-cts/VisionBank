@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
     <link rel="stylesheet" href="webex-reports.css?v=20260828-v1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
-    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261001-enterprise1" />
+    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261005-enterprise2" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -530,6 +530,9 @@
       <button class="ea-tab active" type="button" data-ea-tab="overview">Command Center</button>
       <button class="ea-tab" type="button" data-ea-tab="people">Top Performers</button>
       <button class="ea-tab" type="button" data-ea-tab="demand">Demand & Trends</button>
+      <button class="ea-tab" type="button" data-ea-tab="hourly">Activity by Hour</button>
+      <button class="ea-tab" type="button" data-ea-tab="daycompare">Today vs Yesterday</button>
+      <button class="ea-tab" type="button" data-ea-tab="weekcompare">This Week vs Last Week</button>
     </div>
     <div data-ea-view="overview">
       <div class="ea-kpis">
@@ -566,6 +569,64 @@
         <div class="ea-kpi"><strong id="eaAvgQueue">—</strong><span>Average queue/IVR time</span></div>
       </div>
       <div class="ea-card"><h3>Hourly answered vs abandoned</h3><div class="ea-legend"><span><i class="answered"></i>Answered</span><span><i class="abandoned"></i>Abandoned</span></div><div id="eaHourlyChart" class="ea-hourly"></div></div>
+    </div>
+
+    <div data-ea-view="hourly" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>Activity by hour — today</h3>
+          <p>Contacts started by Central Time hour. This view separates Chat, inbound calls that start in CEG Queue, and outbound calls so supervisors can identify the busiest hours of the day.</p>
+        </div>
+        <span id="eaTrendFreshness" class="ea-trend-freshness">Historical trend data has not loaded yet.</span>
+      </div>
+      <div class="ea-kpis ea-busiest-kpis">
+        <div class="ea-kpi"><strong id="eaBusiestCombined">—</strong><span>Busiest combined hour</span><small id="eaBusiestCombinedCount">— contacts</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestChat">—</strong><span>Busiest Chat hour</span><small id="eaBusiestChatCount">— chats</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestInbound">—</strong><span>Busiest CEG Queue hour</span><small id="eaBusiestInboundCount">— inbound calls</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestOutbound">—</strong><span>Busiest outbound hour</span><small id="eaBusiestOutboundCount">— outbound calls</small></div>
+      </div>
+      <div class="ea-card">
+        <div class="ea-legend ea-activity-legend">
+          <span><i class="chat"></i>Chat</span>
+          <span><i class="inbound"></i>Inbound — CEG Queue</span>
+          <span><i class="outbound"></i>Outbound Calls</span>
+        </div>
+        <div id="eaActivityHourly" class="ea-activity-hours"><p class="ea-empty">Open this tab to load hourly activity.</p></div>
+      </div>
+    </div>
+
+    <div data-ea-view="daycompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>Today vs yesterday</h3>
+          <p>Compares today through the current Central Time with yesterday through the same time of day, so a partial day is not compared with a full day.</p>
+        </div>
+      </div>
+      <div id="eaDayCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Channel comparison</h3>
+        <div class="ea-table-wrap">
+          <table class="ea-table ea-compare-table">
+            <thead><tr><th>Activity</th><th>Today</th><th>Yesterday — same time</th><th>Difference</th><th>Change</th></tr></thead>
+            <tbody id="eaDayCompareRows"><tr><td colspan="5" class="ea-empty">Comparison data has not loaded yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div data-ea-view="weekcompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>This week vs last week</h3>
+          <p>Compares this week-to-date with the same elapsed Central Time period last week. This avoids comparing an incomplete week with a full seven-day week.</p>
+        </div>
+      </div>
+      <div id="eaWeekCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Week-over-week by day</h3>
+        <div class="ea-week-legend"><span><i class="current"></i>This week</span><span><i class="previous"></i>Last week — same elapsed period</span></div>
+        <div id="eaWeekdayCompare" class="ea-weekday-compare"><p class="ea-empty">Weekly trend data has not loaded yet.</p></div>
+      </div>
     </div>
   </section>
 
@@ -791,7 +852,7 @@
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
 <script src="webex-integrated-chat.js?v=20261001-completion-audit1"></script>
-<script src="webex-enterprise-analytics.js?v=20261001-enterprise1"></script>
+<script src="webex-enterprise-analytics.js?v=20261005-enterprise2"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261004-chat-callback-ui1"></script>
 </body>

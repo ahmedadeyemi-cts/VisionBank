@@ -1,0 +1,285 @@
+--- visionbank-worker-security-r8.js
++++ visionbank-worker-enterprise-trends-v1.js
+@@ -396,6 +396,10 @@
+ 
+ if (path === "/api/webex/daily-reports" && method === "GET") {
+   return handleWebexDailyReports(request, env, cors);
++}
++
++if (path === "/api/webex/analytics-trends" && method === "GET") {
++  return handleWebexAnalyticsTrends(request, env, cors);
+ }
+ 
+ /** WEBEX DASHBOARD GLOBAL SETTINGS **/
+@@ -4148,7 +4152,7 @@
+   if (["/api/webex/auth/status","/api/webex/discovery","/api/webex/schema","/api/webex/live-test",
+        "/api/webex/dashboard","/api/webex/queues","/api/webex/agents","/api/webex/statistics",
+        "/api/webex/chat-customer-names","/api/webex/chat-reports","/api/webex/daily-reports",
+-       "/api/webex/dashboard/settings"].includes(path) && method === "GET") return { roles: all, session: false };
++       "/api/webex/analytics-trends","/api/webex/dashboard/settings"].includes(path) && method === "GET") return { roles: all, session: false };
+   if (path === "/api/webex/dashboard/settings/save" && method === "POST") return { roles: operators };
+ 
+   return null;
+@@ -9299,7 +9303,262 @@
+     }
+   }
+ }
++
++
++/* BEGIN VISIONBANK ENTERPRISE ACTIVITY TRENDS V1
++ * Aggregate-only historical contact trends for the Webex dashboard.
++ * No contact IDs, ANI/DNIS, customer names, agent identities, or tokens are returned.
++ */
++const VB_TRENDS_TIMEZONE = "America/Chicago";
++const VB_TRENDS_CACHE_MS = 5 * 60 * 1000;
++const VB_TRENDS_MAX_PAGES = 100;
++const VB_TRENDS_MAX_ROWS = 25000;
++let vbTrendsCache = { key:"", expiresAt:0, data:null, promise:null };
+ 
++function vbTrendText(value){ return String(value ?? "").trim(); }
++function vbTrendLower(value){ return vbTrendText(value).toLowerCase(); }
++function vbTrendEpoch(value){
++  const n=Number(value||0);
++  if(!Number.isFinite(n)||n<=0)return 0;
++  return n<1e12?n*1000:n;
++}
++function vbTrendCentralParts(epoch){
++  const parts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{
++    timeZone:VB_TRENDS_TIMEZONE,year:"numeric",month:"2-digit",day:"2-digit",
++    hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",weekday:"short"
++  }).formatToParts(new Date(epoch)).filter(p=>p.type!=="literal").map(p=>[p.type,p.value]));
++  return {
++    year:Number(parts.year),month:Number(parts.month),day:Number(parts.day),
++    hour:Number(parts.hour),minute:Number(parts.minute),second:Number(parts.second),
++    weekday:parts.weekday
++  };
++}
++function vbTrendEpochFromCentralParts(parts){
++  const desiredUtc=Date.UTC(parts.year,parts.month-1,parts.day,parts.hour||0,parts.minute||0,parts.second||0);
++  let guess=desiredUtc;
++  for(let i=0;i<4;i++){
++    const actual=vbTrendCentralParts(guess);
++    const actualUtc=Date.UTC(actual.year,actual.month-1,actual.day,actual.hour||0,actual.minute||0,actual.second||0);
++    const delta=desiredUtc-actualUtc;
++    if(!delta)break;
++    guess+=delta;
++  }
++  return guess;
++}
++function vbTrendPreviousDayStart(start){
++  return getCentralDayStartEpochMs(start-(12*60*60*1000));
++}
++function vbTrendStartOfWeek(now){
++  let start=getCentralDayStartEpochMs(now);
++  const weekday=vbTrendCentralParts(now).weekday;
++  const idx={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[weekday]??1;
++  const daysFromMonday=(idx+6)%7;
++  for(let i=0;i<daysFromMonday;i++)start=vbTrendPreviousDayStart(start);
++  return start;
++}
++function vbTrendSameWallClockDaysAgo(now,daysAgo){
++  const p=vbTrendCentralParts(now);
++  let targetStart=getCentralDayStartEpochMs(now);
++  for(let i=0;i<daysAgo;i++)targetStart=vbTrendPreviousDayStart(targetStart);
++  const d=vbTrendCentralParts(targetStart);
++  return vbTrendEpochFromCentralParts({year:d.year,month:d.month,day:d.day,hour:p.hour,minute:p.minute,second:p.second});
++}
++function vbTrendFormatDate(epoch){
++  return new Intl.DateTimeFormat("en-US",{timeZone:VB_TRENDS_TIMEZONE,month:"short",day:"numeric",year:"numeric"}).format(new Date(epoch));
++}
++function vbTrendFormatHour(hour){
++  const h=((Number(hour)||0)%24+24)%24;
++  if(h===0)return "12 AM";
++  if(h<12)return h+" AM";
++  if(h===12)return "12 PM";
++  return (h-12)+" PM";
++}
++function vbTrendKind(task){
++  const channel=vbTrendLower(task?.channelType);
++  const direction=vbTrendLower(task?.direction);
++  if(channel==="chat")return "chat";
++  if(channel!=="telephony")return null;
++  if(direction==="outbound")return "outbound";
++  if(direction!=="inbound")return null;
++  const first=vbTrendLower(task?.firstQueueName);
++  const last=vbTrendLower(task?.lastQueue?.name);
++  if(first==="ceg queue" || (!first&&last==="ceg queue"))return "inboundCeg";
++  return null;
++}
++function vbTrendEmptyTotals(){ return {chat:0,inboundCeg:0,outbound:0,total:0}; }
++function vbTrendAdd(totals,kind){
++  if(!kind||!(kind in totals))return;
++  totals[kind]++;
++  totals.total++;
++}
++function vbTrendPeriod(tasks,from,to){
++  const totals=vbTrendEmptyTotals();
++  for(const task of tasks){
++    const at=vbTrendEpoch(task?.createdTime);
++    if(at<from||at>=to)continue;
++    vbTrendAdd(totals,vbTrendKind(task));
++  }
++  return {fromEpoch:from,toEpoch:to,totals};
++}
++function vbTrendHourly(tasks,from,to){
++  const currentHour=vbTrendCentralParts(Math.max(from,to-1)).hour;
++  const hours=Array.from({length:24},(_,hour)=>({
++    hour,label:vbTrendFormatHour(hour),observed:hour<=currentHour,partial:hour===currentHour,...vbTrendEmptyTotals()
++  }));
++  for(const task of tasks){
++    const at=vbTrendEpoch(task?.createdTime);
++    if(at<from||at>=to)continue;
++    const kind=vbTrendKind(task); if(!kind)continue;
++    const hour=vbTrendCentralParts(at).hour;
++    vbTrendAdd(hours[hour],kind);
++  }
++  return hours;
++}
++function vbTrendBusiest(hours,key){
++  let best={hour:null,label:"—",count:0};
++  for(const row of hours){
++    const value=Number(row?.[key]||0);
++    if(value>best.count)best={hour:row.hour,label:row.label,count:value};
++  }
++  return best;
++}
++function vbTrendWeekDays(tasks,thisWeekStart,now,lastWeekStart,lastWeekEnd){
++  const labels=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
++  const currentWeekday=vbTrendCentralParts(now).weekday;
++  const currentIndex={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[currentWeekday]??0;
++  const make=(period)=>labels.map((label,index)=>({
++    index,label,observed:index<=currentIndex,partial:index===currentIndex,period,...vbTrendEmptyTotals()
++  }));
++  const current=make("current"),previous=make("previous");
++  const add=(target,from,to,task)=>{
++    const at=vbTrendEpoch(task?.createdTime);
++    if(at<from||at>=to)return;
++    const kind=vbTrendKind(task); if(!kind)return;
++    const weekday=vbTrendCentralParts(at).weekday;
++    const index={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6}[weekday];
++    if(index===undefined)return;
++    vbTrendAdd(target[index],kind);
++  };
++  for(const task of tasks){
++    add(current,thisWeekStart,now,task);
++    add(previous,lastWeekStart,lastWeekEnd,task);
++  }
++  return {current,previous};
++}
++async function vbTrendFetchTasks(env,from,to){
++  const rows=[],seenIds=new Set(),seenCursors=new Set();
++  let cursor=null;
++  for(let page=0;page<VB_TRENDS_MAX_PAGES;page++){
++    const query=`{
++      taskDetails(
++        from: ${from}
++        to: ${to}
++        ${paginationArgument(cursor)}
++      ) {
++        tasks {
++          id
++          channelType
++          direction
++          createdTime
++          firstQueueName
++          lastQueue { id name }
++        }
++        pageInfo { hasNextPage endCursor }
++      }
++    }`;
++    const data=await webexSearch(env,query);
++    const root=data?.taskDetails;
++    if(!root||!Array.isArray(root.tasks)||typeof root.pageInfo?.hasNextPage!=="boolean")throw new Error("analytics-trends-invalid-search-contract");
++    for(const task of root.tasks){
++      const id=vbTrendText(task?.id);
++      if(!id||seenIds.has(id))continue;
++      const at=vbTrendEpoch(task?.createdTime);
++      if(!at||at<from||at>to)throw new Error("analytics-trends-out-of-range-row");
++      seenIds.add(id);rows.push(task);
++      if(rows.length>VB_TRENDS_MAX_ROWS)throw new Error("analytics-trends-row-limit");
++    }
++    if(!root.pageInfo.hasNextPage)return rows;
++    const next=root.pageInfo.endCursor;
++    if(typeof next!=="string"||!next||seenCursors.has(next))throw new Error("analytics-trends-invalid-pagination");
++    seenCursors.add(next);cursor=next;
++  }
++  throw new Error("analytics-trends-page-limit");
++}
++async function buildWebexAnalyticsTrends(env,force=false){
++  const now=Date.now();
++  const todayStart=getCentralDayStartEpochMs(now);
++  const yesterdayStart=vbTrendPreviousDayStart(todayStart);
++  const yesterdayEnd=vbTrendSameWallClockDaysAgo(now,1);
++  const thisWeekStart=vbTrendStartOfWeek(now);
++  let lastWeekStart=thisWeekStart;
++  for(let i=0;i<7;i++)lastWeekStart=vbTrendPreviousDayStart(lastWeekStart);
++  const lastWeekEnd=vbTrendSameWallClockDaysAgo(now,7);
++  const rangeStart=Math.min(yesterdayStart,lastWeekStart);
++  const key=`${env.WEBEX_ORG_ID}:${rangeStart}:${todayStart}`;
++
++  if(!force&&vbTrendsCache.key===key&&vbTrendsCache.data&&vbTrendsCache.expiresAt>now)return vbTrendsCache.data;
++  if(vbTrendsCache.promise)return vbTrendsCache.promise;
++
++  vbTrendsCache.promise=(async()=>{
++    const tasks=await vbTrendFetchTasks(env,rangeStart,now);
++    const hourly=vbTrendHourly(tasks,todayStart,now);
++    const weeks=vbTrendWeekDays(tasks,thisWeekStart,now,lastWeekStart,lastWeekEnd);
++    const data={
++      success:true,
++      schemaVersion:1,
++      source:"webex-contact-center-search",
++      timezone:VB_TRENDS_TIMEZONE,
++      generatedAtEpoch:now,
++      scope:{
++        chat:"All Webex Contact Center chat contacts started in the period.",
++        inboundCeg:"Inbound telephony contacts whose first queue is CEG Queue; lastQueue is used only when firstQueueName is absent.",
++        outbound:"Outbound telephony contacts started in the period.",
++        comparison:"Today and week comparisons use the same elapsed Central-time window for an apples-to-apples comparison."
++      },
++      periods:{
++        today:{label:"Today to now",date:vbTrendFormatDate(todayStart),...vbTrendPeriod(tasks,todayStart,now)},
++        yesterday:{label:"Yesterday, same time window",date:vbTrendFormatDate(yesterdayStart),...vbTrendPeriod(tasks,yesterdayStart,yesterdayEnd)},
++        thisWeek:{label:"This week to date",date:vbTrendFormatDate(thisWeekStart),...vbTrendPeriod(tasks,thisWeekStart,now)},
++        lastWeek:{label:"Last week, same elapsed period",date:vbTrendFormatDate(lastWeekStart),...vbTrendPeriod(tasks,lastWeekStart,lastWeekEnd)}
++      },
++      hourlyToday:hourly,
++      busiest:{
++        combined:vbTrendBusiest(hourly,"total"),
++        chat:vbTrendBusiest(hourly,"chat"),
++        inboundCeg:vbTrendBusiest(hourly,"inboundCeg"),
++        outbound:vbTrendBusiest(hourly,"outbound")
++      },
++      weekDays:weeks,
++      diagnostics:{
++        aggregateOnly:true,
++        sourceRowsScanned:tasks.length,
++        rangeStartEpoch:rangeStart,
++        rangeEndEpoch:now,
++        queueName:"CEG Queue"
++      }
++    };
++    vbTrendsCache={key,expiresAt:Date.now()+VB_TRENDS_CACHE_MS,data,promise:null};
++    return data;
++  })();
++
++  try{return await vbTrendsCache.promise;}
++  finally{if(vbTrendsCache.promise)vbTrendsCache.promise=null;}
++}
++async function handleWebexAnalyticsTrends(request,env,cors){
++  const headers={...cors,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
++  try{
++    const access=await checkAccess(request,env);
++    if(access?.allowed!==true)return json({success:false,error:"access-denied"},headers,403);
++    const force=new URL(request.url).searchParams.get("refresh")==="1";
++    const data=await buildWebexAnalyticsTrends(env,force);
++    return json(data,headers);
++  }catch(err){
++    console.error("handleWebexAnalyticsTrends failed:",err?.message||err);
++    return json({success:false,error:"analytics-trends-unavailable"},headers,503);
++  }
++}
++/* END VISIONBANK ENTERPRISE ACTIVITY TRENDS V1 */
++
+ async function handleWebexDailyReports(request, env, cors) {
+   try {
+     const access = await checkAccess(request, env);

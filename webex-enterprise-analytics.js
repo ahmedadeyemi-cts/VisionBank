@@ -208,7 +208,7 @@
 
   const trendLabels = {
     chat:"Chat",
-    inboundCeg:"Inbound — CEG Queue",
+    inboundCeg:"Inbound Calls",
     outbound:"Outbound Calls",
     total:"Combined activity"
   };
@@ -259,7 +259,7 @@
       if (row.partial) classes.push("partial");
       const series = [
         ["Chat","chat",row.chat],
-        ["CEG Queue","inbound",row.inboundCeg],
+        ["Inbound","inbound",row.inboundCeg],
         ["Outbound","outbound",row.outbound]
       ].map(([label,tone,value]) => {
         const width = Math.max(Number(value) ? 2 : 0, (Number(value || 0) / max) * 100);

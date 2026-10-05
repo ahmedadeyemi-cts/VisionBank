@@ -1,0 +1,14 @@
+{
+  "baseWorkerVersion": "8920d623-ec31-4645-aeb4-b7c44f0ee1f8",
+  "baseMainSha256": "a2e682ff99bf8af2ab5c51053773039ea7eaf4c4e402594906e105b8c24e33f8",
+  "trendsWorkerVersion": "d4902941-ae61-40a8-bf36-96ecde16837e",
+  "trendsMainSha256": "5a162c69795ab09ecc72554333fd7bcca91bf29bda9bf168f06b84cb9f6518cb",
+  "bindings": 37,
+  "modules": 15,
+  "compatibilityDate": "2025-12-03",
+  "compatibilityFlags": ["nodejs_compat"],
+  "cronPreserved": ["*/5 * * * *"],
+  "endpoint": "/api/webex/analytics-trends",
+  "correction": "Historical inbound Voice now uses the same all-inbound received-contact cohort as daily reporting so current-day totals reconcile.",
+  "privacy": "aggregate-only; no contact, customer, agent, ANI/DNIS, session or token identifiers are returned"
+}

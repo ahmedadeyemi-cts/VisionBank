@@ -954,9 +954,9 @@ body.enterprise-dark .daily-report-table tbody,
 body.enterprise-dark .daily-report-table tbody tr,
 body.enterprise-dark .daily-report-table tbody td,
 body.enterprise-dark .data-table tbody tr,
-body.enterprise-dark .data-table tbody td,
-body.enterprise-dark #agent-body td:not([data-state]):not([data-vb-state]),
-body.enterprise-dark #chat-agents-body td:not([data-state]):not([data-vb-state]),
+body.enterprise-dark .data-table tbody td:not(.availability-cell),
+body.enterprise-dark #agent-body td:not(.availability-cell):not([data-state]):not([data-vb-state]),
+body.enterprise-dark #chat-agents-body td:not(.availability-cell):not([data-state]):not([data-vb-state]),
 body.enterprise-dark :is(#agent-body,#chat-agents-body) td.vb-channel-cell,
 body.enterprise-dark .vb-cb-workspace table tbody td {
   background: #0b1713 !important;
@@ -1030,8 +1030,8 @@ body.enterprise-dark .ea-week-track {
 /* High-specificity legacy override for Webex's historical dark table rules. */
 body.dark-mode.enterprise-dark table.data-table tbody tr td:not(.availability-cell),
 body.dark-mode.enterprise-dark table.daily-report-table tbody tr td,
-body.dark-mode.enterprise-dark #agent-body tr td:not([data-state]):not([data-vb-state]),
-body.dark-mode.enterprise-dark #chat-agents-body tr td:not([data-state]):not([data-vb-state]),
+body.dark-mode.enterprise-dark #agent-body tr td:not(.availability-cell):not([data-state]):not([data-vb-state]),
+body.dark-mode.enterprise-dark #chat-agents-body tr td:not(.availability-cell):not([data-state]):not([data-vb-state]),
 body.dark-mode.enterprise-dark :is(#agent-body,#chat-agents-body) tr td.vb-channel-cell {
   background: #0b1713 !important;
   color: #e8f0ed !important;
@@ -1047,4 +1047,119 @@ body.dark-mode.enterprise-dark table.daily-report-table thead tr th {
   background: #10231c !important;
   color: #f3f8f6 !important;
   border-color: #36584c !important;
+}
+
+/* ============================================================
+   Operational state palette — identical in light and dark mode
+   2026-10-05
+   These selectors intentionally come last so the enterprise
+   table-surface rules can never erase agent state colors.
+   ============================================================ */
+body.enterprise-light,
+body.enterprise-dark {
+  --vb-status-available: #15803d;
+  --vb-status-engaged: #d92d20;
+  --vb-status-idle: #facc15;
+  --vb-status-wrap: #c2410c;
+  --vb-status-neutral: #6b7280;
+  --vb-status-offered: #0e7490;
+}
+
+/* Legacy/index + Webex primary Availability/Agent State cells. */
+body.enterprise-light table.data-table td.availability-cell.status-available,
+body.enterprise-dark table.data-table td.availability-cell.status-available {
+  background: var(--vb-status-available) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light table.data-table td.availability-cell:is(.status-oncall,.status-dialout),
+body.enterprise-dark table.data-table td.availability-cell:is(.status-oncall,.status-dialout) {
+  background: var(--vb-status-engaged) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light table.data-table td.availability-cell:is(.status-break,.status-lunch,.status-yellow),
+body.enterprise-dark table.data-table td.availability-cell:is(.status-break,.status-lunch,.status-yellow) {
+  background: var(--vb-status-idle) !important;
+  color: #332800 !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light table.data-table td.availability-cell:is(.status-orange,.status-wrap,.status-busy),
+body.enterprise-dark table.data-table td.availability-cell:is(.status-orange,.status-wrap,.status-busy) {
+  background: var(--vb-status-wrap) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light table.data-table td.availability-cell:is(.status-idle,.status-unknown),
+body.enterprise-dark table.data-table td.availability-cell:is(.status-idle,.status-unknown) {
+  background: var(--vb-status-neutral) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* Webex indicator-enhanced states. */
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="available"],[data-state="available"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="available"],[data-state="available"]) {
+  background: var(--vb-status-available) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="engaged"],[data-state="engaged"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="engaged"],[data-state="engaged"]) {
+  background: var(--vb-status-engaged) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="idle"],[data-state="idle"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="idle"],[data-state="idle"]) {
+  background: var(--vb-status-idle) !important;
+  color: #332800 !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="wrapup"],[data-state="wrapup"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="wrapup"],[data-state="wrapup"]) {
+  background: var(--vb-status-wrap) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="unknown"],[data-state="unknown"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="unknown"],[data-state="unknown"]) {
+  background: var(--vb-status-neutral) !important;
+  color: #ffffff !important;
+}
+body.enterprise-light :is(#agent-body,#chat-agents-body) td:is([data-vb-state="offered"],[data-state="offered"]),
+body.enterprise-dark :is(#agent-body,#chat-agents-body) td:is([data-vb-state="offered"],[data-state="offered"]) {
+  background: var(--vb-status-offered) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* Channel icons/legend use the same state palette and readable text. */
+body.enterprise-light :is(.vb-channel,.vb-channel-legend-item)[data-tone="available"],
+body.enterprise-dark :is(.vb-channel,.vb-channel-legend-item)[data-tone="available"] {
+  --channel-color: var(--vb-status-available) !important;
+  --channel-ink: #ffffff !important;
+}
+body.enterprise-light :is(.vb-channel,.vb-channel-legend-item)[data-tone="engaged"],
+body.enterprise-dark :is(.vb-channel,.vb-channel-legend-item)[data-tone="engaged"] {
+  --channel-color: var(--vb-status-engaged) !important;
+  --channel-ink: #ffffff !important;
+}
+body.enterprise-light :is(.vb-channel,.vb-channel-legend-item)[data-tone="idle"],
+body.enterprise-dark :is(.vb-channel,.vb-channel-legend-item)[data-tone="idle"] {
+  --channel-color: var(--vb-status-idle) !important;
+  --channel-ink: #332800 !important;
+}
+body.enterprise-light :is(.vb-channel,.vb-channel-legend-item)[data-tone="wrapup"],
+body.enterprise-dark :is(.vb-channel,.vb-channel-legend-item)[data-tone="wrapup"] {
+  --channel-color: var(--vb-status-wrap) !important;
+  --channel-ink: #ffffff !important;
+}
+
+/* Do not let the generic dark table rule recolor state cells. */
+body.enterprise-dark .data-table tbody td.availability-cell,
+body.dark-mode.enterprise-dark #agent-body tr td.availability-cell,
+body.dark-mode.enterprise-dark #chat-agents-body tr td:is([data-state],[data-vb-state]) {
+  opacity: 1 !important;
+  filter: none !important;
 }

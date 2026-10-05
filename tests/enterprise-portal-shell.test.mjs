@@ -8,8 +8,8 @@ const portalPages=['index.html','webex.html','webex-agent.html','agents.html','v
 test('all non-Security portal pages load the shared enterprise shell exactly once',()=>{
   for(const page of portalPages){
     const html=read(page);
-    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell3/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell3/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell4/g)||[]).length,1,page+' shared CSS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell4/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -125,4 +125,33 @@ test('VisionBank green primary actions always use white text for accessibility',
   assert.match(css,/\.ea-tab\.active[\s\S]*background:\s*#185342 !important[\s\S]*color:\s*#ffffff !important/);
   assert.match(css,/\.daily-report-button:not\(\.secondary\)[\s\S]*color:\s*#ffffff !important/);
   assert.match(css,/\.vb-callback-settings-btn[\s\S]*color:\s*#ffffff !important/);
+});
+
+test('operational agent-state colors remain visible in both light and dark themes',()=>{
+  const css=read('portal-enterprise.css');
+  for(const marker of [
+    '--vb-status-available: #15803d',
+    '--vb-status-engaged: #d92d20',
+    '--vb-status-idle: #facc15',
+    '--vb-status-wrap: #c2410c',
+    'status-available',
+    'status-oncall',
+    'status-break',
+    'status-lunch',
+    'status-wrap',
+    '[data-vb-state="available"]',
+    '[data-vb-state="engaged"]',
+    '[data-vb-state="idle"]',
+    '[data-vb-state="wrapup"]'
+  ]) assert.ok(css.includes(marker),'missing state palette marker '+marker);
+  assert.match(css,/status-available[\s\S]*color:\s*#ffffff !important/);
+  assert.match(css,/status-oncall[\s\S]*color:\s*#ffffff !important/);
+  assert.match(css,/status-break[\s\S]*color:\s*#332800 !important/);
+  assert.match(css,/status-wrap[\s\S]*color:\s*#ffffff !important/);
+});
+
+test('generic enterprise dark table rules explicitly exclude availability cells',()=>{
+  const css=read('portal-enterprise.css');
+  assert.match(css,/body\.enterprise-dark \.data-table tbody td:not\(\.availability-cell\)/);
+  assert.match(css,/#agent-body td:not\(\.availability-cell\):not\(\[data-state\]\):not\(\[data-vb-state\]\)/);
 });

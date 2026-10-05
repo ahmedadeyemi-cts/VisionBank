@@ -1016,7 +1016,7 @@
   }
 
   function wipePhoneSetupSecrets(){
-    for(const id of ["devicePhoneXmlUrl","devicePhoneXmlUsername","devicePhoneXmlPassword","devicePhoneProvisioning"]){
+    for(const id of ["devicePhoneXmlUrl","devicePhoneProvisioning"]){
       const field=$(id);if(field)field.value="";
     }
     const credentials=$("devicePhoneCredentials");if(credentials)credentials.hidden=true;
@@ -1035,14 +1035,14 @@
     if(generate){
       generate.hidden=false;
       generate.disabled=!admin;
-      generate.textContent=enrolled?"Rotate Enrollment":"Generate Enrollment";
+      generate.textContent=enrolled?"Rotate Button 7 Link":"Generate Button 7 Setup";
     }
     if(revoke){revoke.hidden=!enrolled;revoke.disabled=!admin;}
     text("devicePhoneSetupMessage",!admin
-      ?"Phone enrollment is visible here, but generating or revoking a handset credential requires an authorized Device Manager admin."
+      ?"Phone enrollment is visible here, but generating or revoking the device-bound Button 7 link requires an authorized Device Manager admin."
       :enrolled
-        ?"This phone is enrolled. Rotate only if you need a new XML Browser credential; the current credential stops working immediately after rotation."
-        :"Generate a device-specific enrollment. The phone authenticates automatically; the person using the phone does not enter a username or password.");
+        ?"This phone is enrolled. Rotate only if you need a new Button 7 link; the current device link stops working immediately after rotation."
+        :"Generate a device-bound Button 7 setup. The handset authenticates with the hidden URL; the person using the phone enters no username or password.");
   }
 
   async function openPhoneSetup(){
@@ -1070,20 +1070,18 @@
         deviceId:device.id,locationId:device.locationId,phonismPhoneId:device.phonismPhoneId
       }});
       const credentials=$("devicePhoneCredentials");if(credentials)credentials.hidden=false;
-      const xmlUrl=$("devicePhoneXmlUrl"),username=$("devicePhoneXmlUsername"),password=$("devicePhoneXmlPassword"),provisioning=$("devicePhoneProvisioning");
-      if(xmlUrl)xmlUrl.value=data.xmlUrl||"";
-      if(username)username.value=data.credential?.username||"";
-      if(password)password.value=data.credential?.password||"";
+      const xmlUrl=$("devicePhoneXmlUrl"),provisioning=$("devicePhoneProvisioning");
+      if(xmlUrl)xmlUrl.value=data.buttonUrl||data.xmlUrl||"";
       if(provisioning)provisioning.value=data.provisioning||"";
       text("devicePhoneSetupEnrollment","Enrolled");
-      text("devicePhoneSetupMessage","Enrollment created. Apply the provisioning snippet through Phonism or the Yealink phone web interface. The password below is shown only for this enrollment response.");
+      text("devicePhoneSetupMessage","Button 7 setup created. Apply the snippet through Phonism or the Yealink phone configuration. No XML username or password is required.");
       const detailed=await refreshDeviceDetail(device.locationId,device.phonismPhoneId).catch(()=>null);
       if(detailed){state.selected=detailed;state.phoneSetupDevice=detailed;renderPhoneSelfService(detailed);renderPhoneSetupStatus(detailed,{enrolled:true,status:"active",telemetry:detailed.phoneSelfService});}
       const revoke=$("devicePhoneSetupRevoke");if(revoke)revoke.hidden=false;
     }catch(error){
       text("devicePhoneSetupMessage","Enrollment was not created: "+friendlyDeviceError(error));
     }finally{
-      if(button){button.disabled=state.identityPolicy?.adminAuthorized!==true;button.textContent="Rotate Enrollment";}
+      if(button){button.disabled=state.identityPolicy?.adminAuthorized!==true;button.textContent="Rotate Button 7 Link";}
     }
   }
 

@@ -10,7 +10,7 @@ import {
 } from './identity.mjs';
 import {
   createPhoneEnrollment,revokePhoneEnrollment,phoneEnrollmentStatus,phoneEnrollmentIndex,phoneTelemetryIndex,
-  authenticatePhone,recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,finishPhoneIntent,phoneSession,
+  authenticatePhone,authenticatePhoneAccess,recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,finishPhoneIntent,phoneSession,
   attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,inputScreen,phoneXmlResponse,phoneNoContent,
   phoneUnauthorized,phoneErrorMenu
 } from './phone-selfservice.mjs';
@@ -478,8 +478,10 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-function phoneRouteUrl(request,part,params={}){
-  const url=new URL(request.url),target=new URL(PREFIX+'phone/'+part,url.origin);
+function phoneRouteUrl(request,part,params={},accessToken=null){
+  const url=new URL(request.url);
+  const target=accessToken?new URL('/p/'+encodeURIComponent(accessToken),url.origin):new URL(PREFIX+'phone/'+part,url.origin);
+  if(accessToken&&part!=='xml')target.searchParams.set('a',part);
   for(const [key,value] of Object.entries(params))if(value!==null&&value!==undefined&&String(value)!=='')target.searchParams.set(key,String(value));
   return target.toString();
 }
@@ -497,7 +499,7 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
   return searched.members.find(member=>String(member.id)===String(intent.memberId))||null;
 }
 
-async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader}){
+async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken=null}){
   const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
   if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))return phoneXmlResponse(phoneErrorMenu('source-not-verifiable',null),403);
   if(part==='phone/checkin'){
@@ -506,12 +508,18 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   }
 
   let enrollment;
-  try{enrollment=await authenticatePhone(env,request);}
-  catch(error){return Number(error?.status)===401?phoneUnauthorized():phoneXmlResponse(phoneErrorMenu(error?.code,null),Number(error?.status)||403);}
+  try{enrollment=accessToken?await authenticatePhoneAccess(env,accessToken):await authenticatePhone(env,request);}
+  catch(error){return !accessToken&&Number(error?.status)===401?phoneUnauthorized():phoneXmlResponse(phoneErrorMenu(error?.code,null),Number(error?.status)||403);}
 
-  await recordPhoneSeen(env,request,enrollment,{event:'xml-browser'}).catch(()=>{});
-  const home=phoneRouteUrl(request,'xml');
-  const searchUrl=phoneRouteUrl(request,'search');
+  const phoneUrl=new URL(request.url);
+  if(accessToken&&phoneUrl.searchParams.get('m')){
+    let suppliedMac;
+    try{suppliedMac=normalizeMac(phoneUrl.searchParams.get('m'));}catch{return phoneXmlResponse(phoneErrorMenu('phone-credential-invalid',null),403);}
+    if(suppliedMac!==enrollment.device.mac)return phoneXmlResponse(phoneErrorMenu('phone-credential-invalid',null),403);
+  }
+  await recordPhoneSeen(env,request,enrollment,{reportedIp:phoneUrl.searchParams.get('i'),event:'xml-browser'}).catch(()=>{});
+  const home=phoneRouteUrl(request,'xml',{},accessToken);
+  const searchUrl=phoneRouteUrl(request,'search',{},accessToken);
   try{
     const org=String(env.WEBEX_ORG_ID||'').trim();
     if(!org)throw new DeviceManagementError('webex-org-not-configured',503);
@@ -526,13 +534,13 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/xml'){
       const items=[];
-      if(line2Row)items.push({prompt:'Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name),uri:phoneRouteUrl(request,'status')});
-      else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status')});
+      if(line2Row)items.push({prompt:'Line 2: '+(line2Row.extension||line2Row.phoneNumber||line2Row.name),uri:phoneRouteUrl(request,'status',{},accessToken)});
+      else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken)});
       if(lease){
         const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-        items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status')});
+        items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken)});
       }else{
-        items.push({prompt:'Add temporary extension',uri:searchUrl});
+        items.push({prompt:'Add temporary line',uri:searchUrl});
       }
       items.push({prompt:'Refresh',uri:home});
       return phoneXmlResponse(textMenu('VisionBank Manage Extensions',items));
@@ -554,7 +562,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/search'){
       if(lease)throw new DeviceManagementError('phone-active-lease',409);
       const q=display(new URL(request.url).searchParams.get('q')||'',80);
-      if(!q)return phoneXmlResponse(inputScreen('Add Temporary Extension','Name or extension',searchUrl,'q',{cancelAction:home}));
+      if(!q)return phoneXmlResponse(inputScreen('Add Temporary Line','Extension or phone number',searchUrl,'q',{cancelAction:home}));
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
       const rows=searched.members.filter(member=>member?.id).slice(0,8);
       if(!rows.length)return phoneXmlResponse(textMenu('No Matching Extensions',[
@@ -562,7 +570,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       ],{cancelAction:home}));
       const items=rows.map(member=>({
         prompt:(member.extension||member.phoneNumber||'No ext')+' · '+(member.name||'Member'),
-        uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''})
+        uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''},accessToken)
       }));
       items.push({prompt:'Search again',uri:searchUrl});
       return phoneXmlResponse(textMenu('Select Extension',items,{cancelAction:home}));
@@ -577,7 +585,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const items=phoneDurationOptions().map(minutes=>({
         prompt:phoneDurationLabel(minutes),
-        uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes})
+        uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken)
       }));
       items.push({prompt:'Cancel',uri:home});
       return phoneXmlResponse(textMenu('Use '+(target.extension||target.phoneNumber||target.name)+' For',items,{cancelAction:home}));
@@ -593,7 +601,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const intent=await createPhoneIntent(env,enrollment,{memberId,targetMember:target,memberQuery:q,memberLocationId:target.locationId,durationMinutes:minutes});
       return phoneXmlResponse(textMenu('Confirm Temporary Extension',[
-        {prompt:'Add '+(target.extension||target.phoneNumber||target.name)+' for '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId})},
+        {prompt:'Add '+(target.extension||target.phoneNumber||target.name)+' for '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken)},
         {prompt:'Cancel',uri:home}
       ],{cancelAction:home}));
     }
@@ -637,8 +645,13 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
   return async function handler(request,env,cors={}){
     const headers={...cors};
     try{
-      const url=new URL(request.url),part=url.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
-      if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader});
+      const url=new URL(request.url),origin=request.headers.get('Origin');
+      let part=url.pathname.slice(PREFIX.length),accessToken=null;
+      if(url.pathname.startsWith('/p/')){
+        accessToken=decodeURIComponent(url.pathname.slice(3));
+        part='phone/'+(url.searchParams.get('a')||'xml');
+      }
+      if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
       const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','phone-enrollment']);
       const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
@@ -782,9 +795,11 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const deviceId=id(body.deviceId),locationId=id(body.locationId),phonismPhoneId=id(String(body.phonismPhoneId||''));
         if(!deviceId||!locationId||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
         const ctx=await resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,locationId,phonismPhoneId});
-        const baseUrl=new URL(PREFIX.slice(0,-1),new URL(request.url).origin).toString();
-        const result=await createPhoneEnrollment(env,{device:ctx.device,location:ctx.location,phonismPhoneId:ctx.phone.id,admin,baseUrl});
-        return output({success:true,...result,message:'Phone self-service enrollment created. The XML credentials are shown once; apply them to the phone through Phonism or the Yealink web interface.'},201,headers);
+        const requestUrl=new URL(request.url);
+        const baseUrl=new URL(PREFIX.slice(0,-1),requestUrl.origin).toString();
+        const shortBaseUrl=new URL('/p',requestUrl.origin).toString();
+        const result=await createPhoneEnrollment(env,{device:ctx.device,location:ctx.location,phonismPhoneId:ctx.phone.id,admin,baseUrl,shortBaseUrl});
+        return output({success:true,...result,message:'Phone self-service enrollment created for Yealink line key 7. No XML username or password is required; the handset uses its device-bound button URL.'},201,headers);
       }
 
       if(part==='phone-enrollment/revoke'){

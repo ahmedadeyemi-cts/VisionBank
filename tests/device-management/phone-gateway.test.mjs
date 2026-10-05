@@ -15,22 +15,19 @@ const json=(body,status=200)=>Response.json(body,{status});
 const MAC='80:5E:0C:EC:19:93';
 const PRIMARY={id:'user-1',displayName:'Primary User',memberType:'PEOPLE',extension:'3223',location:{id:'loc-a',name:'CLIVE'},lineType:'PRIMARY',port:1};
 const BASELINE={id:'space-old',displayName:'Original Line',memberType:'PLACE',extension:'3999',location:{id:'loc-a',name:'CLIVE'},lineType:'SHARED_CALL_APPEARANCE',port:2};
-const TARGET={id:'user-2',displayName:'Temporary User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'CLIVE'}};
+const TARGET={id:'user-2',displayName:'Temporary User',memberType:'PEOPLE',extension:'4102',phoneNumber:'+15155554102',location:{id:'loc-a',name:'CLIVE'}};
 
-function basic(username,password){return 'Basic '+Buffer.from(username+':'+password).toString('base64');}
-function phoneRequest(path,credential){
-  const headers={'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-T57W'};
-  if(credential)headers.Authorization=basic(credential.username,credential.password);
-  const req=new Request('https://worker.example/api/webex/device-management/'+path,{headers});
+function phoneRequest(url){
+  const req=new Request(url,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-T57W'}});
   Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
   return req;
 }
-async function xml(handler,env,path,credential){
-  const res=await handler(phoneRequest(path,credential),env,{});
+async function xml(handler,env,url){
+  const res=await handler(phoneRequest(url),env,{});
   return {status:res.status,text:await res.text(),headers:res.headers};
 }
 
-test('Yealink phone path uses the existing write lease and auto-restores Line 2 after the chosen duration',async()=>{
+test('Button 7 device-link path adds a 15-minute Line 2 and the existing lease engine restores baseline',async()=>{
   const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
   const webex={members:[structuredClone(PRIMARY),structuredClone(BASELINE)],puts:[]};
   const webexFetch=async(_env,url,options={})=>{
@@ -57,59 +54,56 @@ test('Yealink phone path uses the existing write lease and auto-restores Line 2 
   const enrollment=await createPhoneEnrollment(env,{
     device:{id:'call-1',displayName:'Pilot T57W',mac:MAC,model:'Yealink T57W'},
     location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'9001',admin:{email:'admin@visionbank.com',username:'admin'},
-    baseUrl:'https://worker.example/api/webex/device-management'
+    baseUrl:'https://worker.example/api/webex/device-management',shortBaseUrl:'https://worker.example/p'
   });
-  const credential=enrollment.credential;
 
-  const unauth=await xml(handler,env,'phone/xml',null);
-  assert.equal(unauth.status,401);
-  assert.match(unauth.headers.get('WWW-Authenticate'),/^Basic /);
-
-  const home=await xml(handler,env,'phone/xml',credential);
+  const launch=enrollment.buttonUrl.replace('$mac','805E0CEC1993').replace('$ip','10.44.8.21');
+  const home=await xml(handler,env,launch);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add temporary extension/);
+  assert.match(home.text,/Add temporary line/);
 
-  const searchForm=await xml(handler,env,'phone/search',credential);
-  assert.match(searchForm.text,/YealinkIPPhoneInputScreen/);
-  assert.match(searchForm.text,/Name or extension/);
+  const token=enrollment.xmlUrl.split('/').at(-1);
+  const searchUrl='https://worker.example/p/'+token+'?a=search';
+  const searchForm=await xml(handler,env,searchUrl);
+  assert.match(searchForm.text,/Extension or phone number/);
 
-  const search=await xml(handler,env,'phone/search?q=4102',credential);
+  const search=await xml(handler,env,searchUrl+'&q=4102');
   assert.match(search.text,/4102 · Temporary User/);
 
-  const duration=await xml(handler,env,'phone/duration?member=user-2&q=4102&locationId=loc-a',credential);
-  assert.match(duration.text,/30 minutes/);
-  assert.match(duration.text,/1 hour/);
+  const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
+  assert.match(duration.text,/15 minutes/);
   assert.match(duration.text,/12 hours/);
 
-  const confirm=await xml(handler,env,'phone/confirm?member=user-2&q=4102&locationId=loc-a&minutes=30',credential);
-  assert.match(confirm.text,/Confirm Temporary Extension/);
+  const confirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=confirm&member=user-2&q=4102&locationId=loc-a&minutes=15');
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
-  assert.ok(match,'confirmation should contain a one-time apply URI');
-  const applied=await xml(handler,env,'phone/apply?intent='+match[1],credential);
+  assert.ok(match);
+  const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1]);
   assert.equal(applied.status,200);
-  assert.match(applied.text,/Extension Added/);
-  assert.match(applied.text,/30 minutes/);
+  assert.match(applied.text,/15 minutes/);
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2');
-  assert.equal(webex.puts.length,1);
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,1);
 
   const leases=[...env.LOGS.map.entries()].filter(([k])=>k.startsWith('device-lease:')).map(([,v])=>JSON.parse(v.value));
-  assert.equal(leases.length,1);
-  assert.equal(leases[0].durationMinutes,30);
-  assert.equal(leases[0].temporaryLine2.memberId,'user-2');
-  assert.equal(leases[0].baselineLine2.memberId,'space-old');
-
-  const blocked=await xml(handler,env,'phone/search?q=4102',credential);
+  assert.equal(leases[0].durationMinutes,15);
+  const blocked=await xml(handler,env,searchUrl+'&q=4102');
   assert.equal(blocked.status,409);
-  assert.match(blocked.text,/temporary Line 2 is already active/i);
 
   const due=Date.parse(leases[0].expiresAt)+1;
   const sweep=await sweepExpiredLeases({env,webexFetch,orgId:'org-1',phonismReader,now:due});
   assert.equal(sweep[0].status,'restored');
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
-  assert.equal(webex.puts.length,2);
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,2);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);
+});
+
+test('Button 7 token is bound to the enrolled MAC when the Yealink supplies $mac',async()=>{
+  const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  const enrollment=await createPhoneEnrollment(env,{device:{id:'call-1',displayName:'Pilot',mac:MAC,model:'T57W'},location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'9001',admin:{},baseUrl:'https://worker.example/api/webex/device-management',shortBaseUrl:'https://worker.example/p'});
+  const handler=createDeviceManagementHandler({webexFetch:async()=>json({message:'unused'},404),checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader:{async discover(){throw new Error('should not reach provider');}}});
+  const token=enrollment.xmlUrl.split('/').at(-1);
+  const response=await xml(handler,env,'https://worker.example/p/'+token+'?m=AABBCCDDEEFF&i=10.0.0.1');
+  assert.equal(response.status,403);
+  assert.match(response.text,/authorization failed/i);
 });

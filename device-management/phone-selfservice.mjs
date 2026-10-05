@@ -2,16 +2,17 @@ import {DeviceManagementError,normalizeMac,validateTemporaryDuration} from './co
 
 const ENROLL_PREFIX='device-phone-enrollment:';
 const USER_PREFIX='device-phone-user:';
+const ACCESS_PREFIX='device-phone-access:';
 const TELEMETRY_PREFIX='device-phone-telemetry:';
 const INTENT_PREFIX='device-phone-intent:';
 const USER_RE=/^[A-Za-z0-9]{8,15}$/;
 const PASSWORD_RE=/^[A-Za-z0-9]{12,15}$/;
+const ACCESS_RE=/^[A-Za-z0-9]{20,32}$/;
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-const DURATIONS=[30,60,120,240,480,720];
+const DURATIONS=[15,30,60,120,240,480,720];
 
 const clean=(value,max=180)=>String(value??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').slice(0,max);
 const xmlEscape=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-const b64url=bytes=>Array.from(bytes,b=>String.fromCharCode(b)).join('');
 const randomAlphaNumeric=(length)=>{
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
   const bytes=crypto.getRandomValues(new Uint8Array(length));
@@ -38,6 +39,7 @@ async function putJson(kv,key,value,options){
   await kv.put(key,JSON.stringify(value),options);
   return value;
 }
+async function accessKey(token){return ACCESS_PREFIX+await sha256(token);}
 
 export function phoneDurationOptions(){return [...DURATIONS];}
 export function phoneDurationLabel(minutes){
@@ -79,9 +81,9 @@ export function phoneErrorMenu(code,homeUrl){
   const messages={
     'phone-enrollment-not-found':'This phone is not enrolled for self-service.',
     'phone-enrollment-revoked':'Phone self-service is disabled for this phone.',
-    'phone-credential-invalid':'Phone authentication failed.',
+    'phone-credential-invalid':'Phone authorization failed.',
     'phone-active-lease':'A temporary Line 2 is already active. Wait for it to expire or manage it from the Device Management page.',
-    'target-member-not-available':'That extension is no longer available for this phone.',
+    'target-member-not-available':'That extension or number is no longer available for this phone.',
     'device-state-changed-review-again':'The phone assignment changed. Start again and review the current lines.',
     'device-write-not-enabled':'Phone self-service is not enabled for this device.',
     'phonism-enterprise-sync-company-required':'Phonism Sync is not ready for this phone.',
@@ -93,14 +95,14 @@ export function phoneErrorMenu(code,homeUrl){
   ]);
 }
 
-export async function createPhoneEnrollment(env,{device,location,phonismPhoneId,admin,baseUrl,now=Date.now()}){
+export async function createPhoneEnrollment(env,{device,location,phonismPhoneId,admin,baseUrl,shortBaseUrl,now=Date.now()}){
   if(!env?.LOGS?.put||!env?.LOGS?.get)throw new DeviceManagementError('phone-selfservice-store-unavailable',503);
   const mac=normalizeMac(device?.mac);
   if(!device?.id||!location?.id||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
-  const username=randomAlphaNumeric(12),password=randomAlphaNumeric(15),checkinKey=randomAlphaNumeric(24);
+  const accessToken=randomAlphaNumeric(22),accessHash=await sha256(accessToken),checkinKey=randomAlphaNumeric(24);
   const enrollmentId=crypto.randomUUID(),createdAt=new Date(now).toISOString();
   const record={
-    enrollmentId,status:'active',username,passwordHash:await sha256(username+'|'+password),
+    enrollmentId,status:'active',authMode:'device-link',accessHash,
     checkinHash:await sha256(enrollmentId+'|'+checkinKey),
     device:{id:String(device.id),name:clean(device.displayName||device.name||device.model||'Phone',160),mac,model:clean(device.model||'',120)},
     location:{id:String(location.id),name:clean(location.name||'',120)},
@@ -109,26 +111,27 @@ export async function createPhoneEnrollment(env,{device,location,phonismPhoneId,
   };
   const old=await readJson(env.LOGS,enrollmentKey(mac));
   if(old?.username)await env.LOGS.delete?.(USER_PREFIX+old.username);
+  if(old?.accessHash)await env.LOGS.delete?.(ACCESS_PREFIX+old.accessHash);
   await putJson(env.LOGS,enrollmentKey(mac),record);
-  await putJson(env.LOGS,USER_PREFIX+username,{mac,status:'active',passwordHash:record.passwordHash,enrollmentId});
+  await putJson(env.LOGS,ACCESS_PREFIX+accessHash,{mac,status:'active',enrollmentId});
   const root=String(baseUrl||'').replace(/\/$/,'');
-  const xmlUrl=root+'/phone/xml';
+  const shortRoot=String(shortBaseUrl||'').replace(/\/$/,'');
+  const xmlUrl=shortRoot+'/'+accessToken;
+  const buttonUrl=xmlUrl+'?m=$mac&i=$ip';
+  if(buttonUrl.length>99)throw new DeviceManagementError('phone-button-url-too-long',500);
   const checkinBase=root+'/phone/checkin?e='+encodeURIComponent(enrollmentId)+'&k='+encodeURIComponent(checkinKey);
   return {
-    enrollment:{enrollmentId,status:'active',username,createdAt,device:record.device,location:record.location,phonismPhoneId:record.phonismPhoneId},
-    credential:{username,password},
-    xmlUrl,
+    enrollment:{enrollmentId,status:'active',authMode:'device-link',createdAt,device:record.device,location:record.location,phonismPhoneId:record.phonismPhoneId},
+    xmlUrl,buttonUrl,lineKey:7,
     checkinUrls:{
       startup:checkinBase+'&event=startup&mac=$mac&ip=$ip&model=$model&firmware=$firmware',
       registered:checkinBase+'&event=registered&mac=$mac&ip=$ip&model=$model&firmware=$firmware',
       ipChange:checkinBase+'&event=ip-change&mac=$mac&ip=$ip&model=$model&firmware=$firmware'
     },
     provisioning:[
-      'features.xml_browser.user_name = '+username,
-      'features.xml_browser.pwd = '+password,
-      'linekey.X.type = 27',
-      'linekey.X.value = '+xmlUrl,
-      'linekey.X.label = Manage Ext',
+      'linekey.7.type = 27',
+      'linekey.7.value = '+buttonUrl,
+      'linekey.7.label = Manage Ext',
       'action_url.setup_completed = '+checkinBase+'&event=startup&mac=$mac&ip=$ip&model=$model&firmware=$firmware',
       'action_url.registered = '+checkinBase+'&event=registered&mac=$mac&ip=$ip&model=$model&firmware=$firmware',
       'action_url.ip_change = '+checkinBase+'&event=ip-change&mac=$mac&ip=$ip&model=$model&firmware=$firmware'
@@ -140,7 +143,8 @@ export async function revokePhoneEnrollment(env,mac,{now=Date.now()}={}){
   const key=enrollmentKey(mac),record=await readJson(env.LOGS,key);
   if(!record)return {status:'not-enrolled'};
   if(record.username)await env.LOGS.delete?.(USER_PREFIX+record.username);
-  const next={...record,status:'revoked',updatedAt:new Date(now).toISOString(),revokedAt:new Date(now).toISOString(),passwordHash:null,checkinHash:null};
+  if(record.accessHash)await env.LOGS.delete?.(ACCESS_PREFIX+record.accessHash);
+  const next={...record,status:'revoked',updatedAt:new Date(now).toISOString(),revokedAt:new Date(now).toISOString(),passwordHash:null,checkinHash:null,accessHash:null};
   await putJson(env.LOGS,key,next);
   return {status:'revoked',enrollmentId:record.enrollmentId};
 }
@@ -149,6 +153,7 @@ export async function phoneEnrollmentStatus(env,mac){
   const record=await readJson(env.LOGS,enrollmentKey(mac));
   if(!record)return {status:'not-enrolled',enrolled:false};
   return {status:record.status||'unknown',enrolled:record.status==='active',enrollmentId:record.enrollmentId||null,
+    authMode:record.authMode|| (record.username?'basic':'unknown'),
     createdAt:record.createdAt||null,updatedAt:record.updatedAt||null,device:record.device||null};
 }
 
@@ -172,6 +177,18 @@ export async function phoneTelemetryIndex(env){
     if(record?.mac)byMac.set(String(record.mac).toUpperCase(),record);
   }
   return {byMac};
+}
+
+export async function authenticatePhoneAccess(env,token){
+  const value=String(token||'').trim();
+  if(!ACCESS_RE.test(value))throw new DeviceManagementError('phone-credential-invalid',403);
+  const lookup=await readJson(env.LOGS,await accessKey(value));
+  if(!lookup||lookup.status!=='active')throw new DeviceManagementError('phone-credential-invalid',403);
+  const enrollment=await readJson(env.LOGS,enrollmentKey(lookup.mac));
+  if(!enrollment||enrollment.status!=='active'||enrollment.enrollmentId!==lookup.enrollmentId||enrollment.accessHash!==await sha256(value)){
+    throw new DeviceManagementError('phone-enrollment-revoked',403);
+  }
+  return enrollment;
 }
 
 export async function authenticatePhone(env,request){
@@ -259,6 +276,7 @@ export function attachPhoneSelfService(device,enrollmentIndex,telemetryIndex){
   const mac=String(device?.mac||'').toUpperCase(),enrollment=enrollmentIndex?.byMac?.get(mac)||null,telemetry=telemetryIndex?.byMac?.get(mac)||null;
   return {...device,phoneSelfService:{
     enrolled:enrollment?.status==='active',status:enrollment?.status||'not-enrolled',enrollmentId:enrollment?.enrollmentId||null,
+    authMode:enrollment?.authMode|| (enrollment?.username?'basic':'unknown'),
     phoneIp:telemetry?.phoneIp||null,sourceIp:telemetry?.sourceIp||null,model:telemetry?.model||device?.model||'',firmware:telemetry?.firmware||'',
     lastSeenAt:telemetry?.lastSeenAt||null,lastEvent:telemetry?.event||null
   }};

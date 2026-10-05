@@ -8,7 +8,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261003-v8">
+  <link rel="stylesheet" href="device.css?v=20261005-yealink1">
   <link rel="stylesheet" href="portal-enterprise.css?v=20261005-shell4">
 </head>
 <body class="device-shell">
@@ -123,13 +123,14 @@
                 <th>Line 1</th>
                 <th>Line 2</th>
                 <th>Temporary until</th>
+                <th>Phone self-service</th>
                 <th>Configuration sync</th>
                 <th>Last provision</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="deviceInventoryRows">
-              <tr><td colspan="9" class="device-empty">Loading approved device-management capabilities…</td></tr>
+              <tr><td colspan="10" class="device-empty">Loading approved device-management capabilities…</td></tr>
             </tbody>
           </table>
         </div>
@@ -270,6 +271,22 @@
           </div>
         </section>
 
+        <section class="device-phone-selfservice">
+          <div class="device-section-heading">
+            <div><span class="device-section-kicker">Handset access</span><h3>Yealink Phone Self-Service</h3></div>
+            <span id="devicePhoneSelfServiceBadge" class="device-badge neutral">Not enrolled</span>
+          </div>
+          <div class="device-phone-selfservice-grid">
+            <div><span>Phone IP</span><strong id="devicePhoneIp">Not reported</strong></div>
+            <div><span>Last phone check-in</span><strong id="devicePhoneLastSeen">Not reported</strong></div>
+            <div><span>Firmware</span><strong id="devicePhoneFirmware">Not reported</strong></div>
+          </div>
+          <div class="device-phone-selfservice-actions">
+            <p id="devicePhoneSelfServiceHelp" class="device-helper">Enroll this handset to let a user add a temporary Line 2 directly from the Yealink phone. No username is entered on the handset.</p>
+            <button id="devicePhoneSetupButton" class="device-btn secondary" type="button">Phone Self-Service Setup</button>
+          </div>
+        </section>
+
         <section class="device-line2-workspace">
           <div class="device-section-heading">
             <div><span class="device-section-kicker">Secondary line</span><h3>Choose temporary Line 2</h3></div>
@@ -350,6 +367,45 @@
     </div>
   </dialog>
 
+  <dialog id="devicePhoneSetup" class="device-dialog compact device-phone-setup-dialog" aria-labelledby="devicePhoneSetupTitle">
+    <div class="device-dialog-shell">
+      <div class="device-dialog-heading">
+        <div><span class="device-eyebrow">Yealink XML Browser</span><h2 id="devicePhoneSetupTitle">Phone Self-Service Setup</h2><p id="devicePhoneSetupMeta">Enroll this managed handset for temporary Line 2 self-service.</p></div>
+        <button id="devicePhoneSetupClose" class="device-icon-btn" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="device-phone-setup-body">
+        <div class="device-phone-setup-status">
+          <span>Enrollment</span><strong id="devicePhoneSetupEnrollment">Not enrolled</strong>
+          <span>Reported phone IP</span><strong id="devicePhoneSetupIp">Not reported</strong>
+          <span>Last check-in</span><strong id="devicePhoneSetupLastSeen">Not reported</strong>
+        </div>
+        <p id="devicePhoneSetupMessage" class="device-helper">Generate a device-specific enrollment. The phone authenticates automatically; the person using the phone does not enter a username or password.</p>
+        <div id="devicePhoneCredentials" class="device-phone-credentials" hidden>
+          <label>XML Browser URL
+            <input id="devicePhoneXmlUrl" type="text" readonly>
+          </label>
+          <div class="device-editor-two-col">
+            <label>XML username
+              <input id="devicePhoneXmlUsername" type="text" readonly>
+            </label>
+            <label>XML password
+              <input id="devicePhoneXmlPassword" type="text" readonly>
+            </label>
+          </div>
+          <label>Yealink provisioning snippet
+            <textarea id="devicePhoneProvisioning" rows="10" readonly></textarea>
+          </label>
+          <p class="device-warning">The XML password is shown only when the enrollment is generated or rotated. Store it in Phonism or apply it to the handset before closing this dialog.</p>
+        </div>
+      </div>
+      <div class="device-dialog-actions">
+        <button id="devicePhoneSetupRevoke" class="device-btn danger" type="button" hidden>Revoke</button>
+        <button id="devicePhoneSetupGenerate" class="device-btn" type="button">Generate Enrollment</button>
+        <button id="devicePhoneSetupDone" class="device-btn secondary" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="deviceRecovery" class="device-dialog compact" aria-labelledby="deviceRecoveryTitle">
     <div class="device-dialog-shell">
       <div class="device-dialog-heading">
@@ -374,6 +430,6 @@
   </footer>
   <script src="portal-session.js?v=20261003-r1"></script>
   <script src="portal-enterprise.js?v=20261005-shell4"></script>
-  <script src="device.js?v=20261003-v21"></script>
+  <script src="device.js?v=20261005-yealink1"></script>
 </body>
 </html>

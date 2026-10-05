@@ -175,3 +175,30 @@ button,input,select{font:inherit}.device-shell{min-height:100vh}.device-shell.ac
 .device-duration-override-add{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:9px;margin-top:13px;align-items:end}
 .device-admin-dialog .device-admin-body{max-height:72vh;overflow:auto}
 @media(max-width:620px){.device-duration-admin-grid,.device-duration-override-add{grid-template-columns:1fr}.device-duration-admin-grid .device-btn,.device-duration-override-add .device-btn{width:100%}}
+
+
+/* Yealink handset self-service */
+.device-phone-selfservice{border:1px solid var(--vb-border);border-radius:14px;background:var(--vb-surface-subtle);padding:14px 16px}
+.device-phone-selfservice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.device-phone-selfservice-grid>div,.device-phone-setup-status{border:1px solid #dce7e3;border-radius:10px;background:#fff;padding:10px 11px}
+.device-phone-selfservice-grid span,.device-phone-setup-status span{display:block;color:var(--vb-muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.device-phone-selfservice-grid strong{display:block;margin-top:3px;font-size:12px;overflow-wrap:anywhere}
+.device-phone-selfservice-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:11px}
+.device-phone-selfservice-actions .device-helper{margin:0;max-width:570px}
+.device-phone-setup-body{padding:18px 20px;display:grid;gap:14px}
+.device-phone-setup-status{display:grid;grid-template-columns:minmax(120px,.7fr) minmax(0,1.3fr);gap:8px 14px;align-items:center}
+.device-phone-setup-status span{margin:0}.device-phone-setup-status strong{font-size:12px;overflow-wrap:anywhere}
+.device-phone-credentials{display:grid;gap:12px;border:1px solid #d6e5df;border-radius:12px;background:#f7faf9;padding:14px}
+.device-phone-credentials label{display:block;font-size:11px;font-weight:800;color:#34423d}
+.device-phone-credentials input,.device-phone-credentials textarea{width:100%;margin-top:6px;border:1px solid #cbd8d3;border-radius:9px;background:#fff;padding:9px 10px;font:inherit;color:var(--vb-text)}
+.device-phone-credentials textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.45;resize:vertical}
+.device-phone-setup-dialog .device-dialog-actions{flex-wrap:wrap}
+@media(max-width:620px){.device-phone-selfservice-grid{grid-template-columns:1fr}.device-phone-selfservice-actions{align-items:stretch;flex-direction:column}.device-phone-selfservice-actions .device-btn{width:100%}.device-phone-setup-status{grid-template-columns:1fr}}
+
+body.enterprise-dark .device-phone-selfservice,
+body.enterprise-dark .device-phone-selfservice-grid>div,
+body.enterprise-dark .device-phone-setup-status,
+body.enterprise-dark .device-phone-credentials{
+  background:#0d1b16!important;color:#e8f0ed!important;border-color:#29453b!important
+}
+body.enterprise-dark .device-phone-credentials label{color:#d9e5e0!important}

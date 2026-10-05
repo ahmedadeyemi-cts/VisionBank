@@ -8,6 +8,8 @@ const INTENT_PREFIX='device-phone-intent:';
 const USER_RE=/^[A-Za-z0-9]{8,15}$/;
 const PASSWORD_RE=/^[A-Za-z0-9]{12,15}$/;
 const ACCESS_RE=/^[A-Za-z0-9]{20,32}$/;
+const FLEET_KEY_RE=/^[A-Za-z0-9]{20}$/;
+const FLEET_KEY_HASH='d2b5f11eea4993fc9eef517015e8082a230172f5efba90f94535a3f606f8f174';
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const DURATIONS=[15,30,60,120,240,480,720];
 
@@ -149,8 +151,12 @@ export async function revokePhoneEnrollment(env,mac,{now=Date.now()}={}){
   return {status:'revoked',enrollmentId:record.enrollmentId};
 }
 
+export async function readPhoneEnrollment(env,mac){
+  return readJson(env.LOGS,enrollmentKey(mac));
+}
+
 export async function phoneEnrollmentStatus(env,mac){
-  const record=await readJson(env.LOGS,enrollmentKey(mac));
+  const record=await readPhoneEnrollment(env,mac);
   if(!record)return {status:'not-enrolled',enrolled:false};
   return {status:record.status||'unknown',enrolled:record.status==='active',enrollmentId:record.enrollmentId||null,
     authMode:record.authMode|| (record.username?'basic':'unknown'),
@@ -177,6 +183,31 @@ export async function phoneTelemetryIndex(env){
     if(record?.mac)byMac.set(String(record.mac).toUpperCase(),record);
   }
   return {byMac};
+}
+
+export async function authenticatePhoneFleetKey(key){
+  const value=String(key||'').trim();
+  if(!FLEET_KEY_RE.test(value))throw new DeviceManagementError('phone-fleet-key-invalid',403);
+  if(await sha256(value)!==FLEET_KEY_HASH)throw new DeviceManagementError('phone-fleet-key-invalid',403);
+  return true;
+}
+
+export async function upsertFleetEnrollment(env,{device,location,phonismPhoneId,now=Date.now()}){
+  if(!env?.LOGS?.put||!env?.LOGS?.get)throw new DeviceManagementError('phone-selfservice-store-unavailable',503);
+  const mac=normalizeMac(device?.mac);
+  if(!device?.id||!location?.id||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
+  const existing=await readPhoneEnrollment(env,mac),stamp=new Date(now).toISOString();
+  const record={
+    ...(existing||{}),
+    enrollmentId:existing?.enrollmentId||crypto.randomUUID(),status:'active',authMode:'fleet-template',
+    accessHash:null,passwordHash:null,username:null,
+    device:{id:String(device.id),name:clean(device.displayName||device.name||device.model||'Phone',160),mac,model:clean(device.model||'',120)},
+    location:{id:String(location.id),name:clean(location.name||'',120)},
+    phonismPhoneId:String(phonismPhoneId),createdAt:existing?.createdAt||stamp,updatedAt:stamp,validatedAt:stamp,
+    createdBy:existing?.createdBy||{email:'',username:'fleet-template'}
+  };
+  await putJson(env.LOGS,enrollmentKey(mac),record);
+  return record;
 }
 
 export async function authenticatePhoneAccess(env,token){

@@ -61,6 +61,7 @@ test('Button 7 device-link path adds a 15-minute Line 2 and the existing lease e
   const home=await xml(handler,env,launch);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
+  assert.match(home.text,/Line 2: 3999 - Original Line/);
   assert.match(home.text,/Add temporary line/);
 
   const token=enrollment.xmlUrl.split('/').at(-1);
@@ -69,18 +70,24 @@ test('Button 7 device-link path adds a 15-minute Line 2 and the existing lease e
   assert.match(searchForm.text,/Extension or phone number/);
 
   const search=await xml(handler,env,searchUrl+'&q=4102');
-  assert.match(search.text,/4102 · Temporary User/);
+  assert.match(search.text,/4102 - Temporary User/);
 
   const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
   assert.match(duration.text,/12 hours/);
 
   const confirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=confirm&member=user-2&q=4102&locationId=loc-a&minutes=15');
+  assert.match(confirm.text,/4102 - Temporary User/);
+  assert.match(confirm.text,/Save - 15 minutes/);
+  assert.match(confirm.text,/Change time/);
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
   assert.ok(match);
   const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1]);
   assert.equal(applied.status,200);
-  assert.match(applied.text,/15 minutes/);
+  assert.match(applied.text,/Saved - Phone Restarting/);
+  assert.match(applied.text,/4102 - Temporary User/);
+  assert.match(applied.text,/Active for 15 minutes/);
+  assert.match(applied.text,/Rebooting automatically/);
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,1);

@@ -59,10 +59,13 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   assert.equal(saved.location.id,'loc-a');
   assert.equal(saved.phonismPhoneId,'313135');
 
-  const search=await xml(handler,env,base+'?a=search');
+  const status=await xml(handler,env,base+'/s');
+  assert.equal(status.status,200);
+  assert.match(status.text,/Temporary Line Status/);
+  const search=await xml(handler,env,base+'/q');
   assert.equal(search.status,200);
   assert.match(search.text,/Extension or phone number/);
-  const duration=await xml(handler,env,base+'?a=duration&member=user-2&q=4102&locationId=loc-a');
+  const duration=await xml(handler,env,base+'/d?member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
   assert.match(duration.text,/12 hours/);
 });

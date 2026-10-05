@@ -7,10 +7,12 @@
   const POST_SAVE_KEY="visionbankDevicePostSaveV1";
   const READ_CACHE_PREFIX="visionbankDeviceReadCacheV2:";
   const CACHE_TTL={capabilities:90_000,locations:600_000,inventory:45_000};
+  const LIVE_REFRESH={locationMs:30_000,summaryMs:60_000,minResumeAgeMs:15_000};
   const state={capabilities:null,locations:[],devices:[],filtered:[],selected:null,members:[],memberLoadError:null,
     memberSearchTimer:null,memberSearchController:null,memberDetailController:null,memberSearchSeq:0,memberLoadedForDevice:null,memberLoadedAt:0,
     memberTotalMatches:0,memberEligibleMatches:0,memberUnavailableMatches:0,memberResultsTruncated:false,
-    inventoryLocation:"",preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,phoneSetupDevice:null,
+    inventoryLocation:"",inventoryRefreshTimer:null,inventoryRefreshing:false,lastInventoryRefreshAt:0,
+    preview:null,recovery:null,operatorSession:null,pendingOperatorAction:null,postSave:null,phoneSetupDevice:null,
     identityPolicy:{verificationEnabled:true,adminAuthorized:false,admin:null},verificationChallenge:null,adminSettings:null};
 
   const $=id=>document.getElementById(id);
@@ -503,6 +505,8 @@
   }
 
   async function loadInventory(force=false){
+    if(state.inventoryRefreshing)return null;
+    state.inventoryRefreshing=true;
     const body=$("deviceInventoryRows");
     const locationId=$("deviceLocationFilter")?.value||"";
     const cacheKey=inventoryCacheKey(locationId);
@@ -525,6 +529,7 @@
       if(force)q.set("refresh","1");
       const data=await api("/inventory"+(q.size?"?"+q.toString():""));
       state.inventoryLocation=locationId;
+      state.lastInventoryRefreshAt=Date.now();
       applyInventoryData(data);
       writeCache(cacheKey,data);
       return data;
@@ -538,7 +543,40 @@
       text("deviceInventoryStatus","No live inventory has been loaded.");
       renderKpis();
       return null;
+    }finally{
+      state.inventoryRefreshing=false;
     }
+  }
+
+  function anyDeviceDialogOpen(){
+    return [...document.querySelectorAll("dialog")].some(dialog=>dialog.open);
+  }
+
+  function liveRefreshDelay(){
+    return $("deviceLocationFilter")?.value?LIVE_REFRESH.locationMs:LIVE_REFRESH.summaryMs;
+  }
+
+  function stopInventoryLiveRefresh(){
+    clearTimeout(state.inventoryRefreshTimer);
+    state.inventoryRefreshTimer=null;
+  }
+
+  function scheduleInventoryLiveRefresh(delay=liveRefreshDelay()){
+    stopInventoryLiveRefresh();
+    if(document.visibilityState==="hidden")return;
+    state.inventoryRefreshTimer=setTimeout(async()=>{
+      if(document.visibilityState!=="hidden"&&window.VB_SECURITY?.allowed===true&&!anyDeviceDialogOpen()){
+        await loadInventory(true);
+      }
+      scheduleInventoryLiveRefresh();
+    },Math.max(5_000,Number(delay)||liveRefreshDelay()));
+  }
+
+  function resumeInventoryLiveRefresh(){
+    if(document.visibilityState==="hidden")return;
+    const age=Date.now()-Number(state.lastInventoryRefreshAt||0);
+    if(window.VB_SECURITY?.allowed===true&&age>=LIVE_REFRESH.minResumeAgeMs&&!anyDeviceDialogOpen())void loadInventory(true);
+    scheduleInventoryLiveRefresh();
   }
 
   function deviceSearchFields(d){
@@ -1311,14 +1349,14 @@
     $("deviceOwnerFilter")?.addEventListener("change",applyFilters);
     $("deviceWebexRegistrationFilter")?.addEventListener("change",applyFilters);
     $("devicePhonismRegistrationFilter")?.addEventListener("change",applyFilters);
-    $("deviceLocationFilter")?.addEventListener("change",()=>void loadInventory(false));
+    $("deviceLocationFilter")?.addEventListener("change",async()=>{await loadInventory(true);scheduleInventoryLiveRefresh();});
     $("deviceClearFilters")?.addEventListener("click",()=>{
       $("deviceSearch").value="";$("deviceOwnerFilter").value="";$("deviceWebexRegistrationFilter").value="";$("devicePhonismRegistrationFilter").value="";applyFilters();
     });
     $("deviceRefresh")?.addEventListener("click",async()=>{
       const button=$("deviceRefresh");if(button){button.disabled=true;button.textContent="Refreshing…";}
       try{await Promise.allSettled([loadIdentityPolicy(),loadCapabilities(),loadLocations(),loadInventory(true)]);}
-      finally{if(button){button.disabled=false;button.textContent="Refresh";}}
+      finally{if(button){button.disabled=false;button.textContent="Refresh";}scheduleInventoryLiveRefresh();}
     });
     $("deviceOperatorButton")?.addEventListener("click",()=>showOperatorDialog(null));
     $("deviceSignOutButton")?.addEventListener("click",()=>void signOutOperator());
@@ -1365,6 +1403,12 @@
     $("deviceRecoveryCancel")?.addEventListener("click",()=>$("deviceRecovery")?.close());
     $("deviceReboot")?.addEventListener("click",()=>void rebootRecovery());
     window.addEventListener("storage",event=>{if(event.key==="vb_session")void loadIdentityPolicy();});
+    window.addEventListener("pagehide",stopInventoryLiveRefresh);
+    window.addEventListener("pageshow",resumeInventoryLiveRefresh);
+    document.addEventListener("visibilitychange",()=>{
+      if(document.visibilityState==="hidden")stopInventoryLiveRefresh();
+      else resumeInventoryLiveRefresh();
+    });
   }
 
   async function resumePostSave(){
@@ -1395,6 +1439,7 @@
       loadInventory(false)
     ]);
     await resumePostSave();
+    scheduleInventoryLiveRefresh();
   }
 
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});

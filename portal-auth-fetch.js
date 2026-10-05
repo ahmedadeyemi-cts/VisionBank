@@ -22,6 +22,7 @@
       path === "/api/webex/chat-customer-names" ||
       path === "/api/webex/chat-reports" ||
       path === "/api/webex/daily-reports" ||
+      path === "/api/webex/analytics-trends" ||
       path === "/api/webex/auth/status" ||
       path === "/api/webex/discovery" ||
       path === "/api/webex/schema" ||

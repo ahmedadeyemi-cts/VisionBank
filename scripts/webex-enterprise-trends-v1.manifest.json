@@ -1,0 +1,20 @@
+{
+  "baseWorkerVersion": "2b8151b4-677b-4d93-a0ba-bdf3eead2dbc",
+  "baseMainSha256": "93dae62ff04efc0f10c79840df680c962ddd15a26ef21c1232a24538978294fb",
+  "trendsWorkerVersion": "8920d623-ec31-4645-aeb4-b7c44f0ee1f8",
+  "trendsMainSha256": "a2e682ff99bf8af2ab5c51053773039ea7eaf4c4e402594906e105b8c24e33f8",
+  "bindings": 37,
+  "modules": 15,
+  "compatibilityDate": "2025-12-03",
+  "compatibilityFlags": ["nodejs_compat"],
+  "cronPreserved": ["*/5 * * * *"],
+  "endpoint": "/api/webex/analytics-trends",
+  "privacy": "aggregate-only; no contact, customer, agent, ANI/DNIS, session or token identifiers are returned",
+  "features": [
+    "hourly Chat activity",
+    "hourly inbound CEG Queue activity",
+    "hourly outbound call activity",
+    "today versus yesterday same-time comparison",
+    "this-week-to-date versus last-week same-elapsed-period comparison"
+  ]
+}

@@ -202,3 +202,19 @@ body.enterprise-dark .device-phone-credentials{
   background:#0d1b16!important;color:#e8f0ed!important;border-color:#29453b!important
 }
 body.enterprise-dark .device-phone-credentials label{color:#d9e5e0!important}
+
+
+/* Admin-only Yealink Fleet Key management */
+.device-fleet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+.device-fleet-card{border:1px solid var(--vb-border);border-radius:14px;background:var(--vb-surface-subtle);padding:16px;display:grid;gap:10px}
+.device-fleet-card>span{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--vb-muted)}
+.device-fleet-card code{display:block;padding:10px 12px;border:1px solid #d3dfda;border-radius:9px;background:#fff;font:600 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+.device-fleet-card textarea{width:100%;box-sizing:border-box;border:1px solid #cbd8d3;border-radius:9px;background:#fff;padding:10px;font:600 11px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--vb-text);resize:vertical}
+.device-fleet-meta{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;align-items:center}
+.device-fleet-meta span{font-size:10px;color:var(--vb-muted);text-transform:uppercase;font-weight:800}
+.device-fleet-meta strong{font-size:12px;overflow-wrap:anywhere}
+.device-fleet-actions{margin-top:16px;border:1px solid #d8e4df;border-radius:12px;padding:14px;display:flex;justify-content:space-between;gap:16px;align-items:center}
+.device-fleet-actions p{margin:.35rem 0 0;color:var(--vb-muted);font-size:11px;max-width:720px}
+body.enterprise-dark .device-fleet-card,body.enterprise-dark .device-fleet-actions{background:#0d1b16!important;border-color:#29453b!important;color:#e8f0ed!important}
+body.enterprise-dark .device-fleet-card code,body.enterprise-dark .device-fleet-card textarea{background:#13241e!important;border-color:#36574b!important;color:#f2f7f5!important}
+@media(max-width:800px){.device-fleet-grid{grid-template-columns:1fr}.device-fleet-actions{align-items:stretch;flex-direction:column}.device-fleet-actions .device-btn{width:100%}}

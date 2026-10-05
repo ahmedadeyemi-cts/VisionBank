@@ -9,7 +9,9 @@ const USER_RE=/^[A-Za-z0-9]{8,15}$/;
 const PASSWORD_RE=/^[A-Za-z0-9]{12,15}$/;
 const ACCESS_RE=/^[A-Za-z0-9]{20,32}$/;
 const FLEET_KEY_RE=/^[A-Za-z0-9]{20}$/;
-const FLEET_KEY_HASH='d2b5f11eea4993fc9eef517015e8082a230172f5efba90f94535a3f606f8f174';
+const FLEET_CONFIG_KEY='device-phone-fleet-keys:v1';
+const FLEET_ROTATION_GRACE_MS=24*60*60*1000;
+const MAX_FLEET_HISTORY=10;
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const DURATIONS=[15,30,60,120,240,480,720];
 
@@ -185,11 +187,109 @@ export async function phoneTelemetryIndex(env){
   return {byMac};
 }
 
-export async function authenticatePhoneFleetKey(key){
+async function loadFleetConfig(env){
+  if(!env?.LOGS?.get)throw new DeviceManagementError('phone-fleet-store-unavailable',503);
+  let saved=null;
+  try{
+    const raw=await env.LOGS.get(FLEET_CONFIG_KEY);
+    saved=raw?(typeof raw==='string'?JSON.parse(raw):raw):null;
+  }catch{saved=null;}
+  const rows=Array.isArray(saved?.keys)?saved.keys:[];
+  return {
+    version:1,
+    activeKeyId:typeof saved?.activeKeyId==='string'?saved.activeKeyId:null,
+    keys:rows.filter(row=>row&&typeof row.id==='string').map(row=>({
+      id:String(row.id),secret:typeof row.secret==='string'?row.secret:null,hash:typeof row.hash==='string'?row.hash:null,
+      status:['active','retiring','retired'].includes(row.status)?row.status:'retired',
+      generatedAt:row.generatedAt||null,generatedBy:row.generatedBy||null,lastUsedAt:row.lastUsedAt||null,
+      useCount:Number.isFinite(Number(row.useCount))?Number(row.useCount):0,validUntil:row.validUntil||null,
+      retiredAt:row.retiredAt||null,retiredBy:row.retiredBy||null
+    })),
+    updatedAt:saved?.updatedAt||null,updatedBy:saved?.updatedBy||null
+  };
+}
+
+async function saveFleetConfig(env,config,actor='system',{touch=true}={}){
+  if(!env?.LOGS?.put)throw new DeviceManagementError('phone-fleet-store-unavailable',503);
+  const next={...config,version:1,...(touch?{updatedAt:new Date().toISOString(),updatedBy:actor||'system'}:{updatedAt:config.updatedAt||null,updatedBy:config.updatedBy||null})};
+  await env.LOGS.put(FLEET_CONFIG_KEY,JSON.stringify(next));
+  return next;
+}
+
+function publicFleetKeyRow(row,now=Date.now()){
+  const validUntil=Date.parse(row?.validUntil||'');
+  const expiredRetiring=row?.status==='retiring'&&Number.isFinite(validUntil)&&validUntil<=now;
+  const status=expiredRetiring?'retired':row?.status;
+  const usable=status==='active'||(status==='retiring'&&Number.isFinite(validUntil)&&validUntil>now);
+  return {
+    id:row.id,status,generatedAt:row.generatedAt,generatedBy:row.generatedBy,lastUsedAt:row.lastUsedAt,
+    useCount:row.useCount||0,validUntil:row.validUntil,retiredAt:row.retiredAt,retiredBy:row.retiredBy,
+    key:usable?row.secret:null,keyMasked:row.secret?(row.secret.slice(0,4)+'••••••••••••'+row.secret.slice(-4)):null
+  };
+}
+
+export async function getFleetKeySettings(env,{origin='',now=Date.now()}={}){
+  const config=await loadFleetConfig(env);
+  const active=config.keys.find(row=>row.id===config.activeKeyId&&row.status==='active')||null;
+  const root=String(origin||'').replace(/\/$/,'');
+  return {
+    activeKeyId:config.activeKeyId,
+    active:active?publicFleetKeyRow(active,now):null,
+    keys:config.keys.slice().sort((a,b)=>Date.parse(b.generatedAt||0)-Date.parse(a.generatedAt||0)).map(row=>publicFleetKeyRow(row,now)),
+    templateUrl:active&&root?root+'/x/'+active.secret+'/{{mac_address}}':null,
+    rotationGraceHours:24,updatedAt:config.updatedAt,updatedBy:config.updatedBy
+  };
+}
+
+export async function initializeFleetKeyConfig(env,{key,actor='system',generatedAt=null}={}){
+  const value=String(key||'').trim();
+  if(!FLEET_KEY_RE.test(value))throw new DeviceManagementError('phone-fleet-key-invalid',400);
+  const existing=await loadFleetConfig(env);
+  if(existing.activeKeyId&&existing.keys.some(row=>row.id===existing.activeKeyId&&row.status==='active'))return existing;
+  const now=generatedAt?new Date(generatedAt):new Date();
+  if(Number.isNaN(now.getTime()))throw new DeviceManagementError('phone-fleet-key-invalid',400);
+  const id=crypto.randomUUID(),row={id,secret:value,hash:await sha256(value),status:'active',generatedAt:now.toISOString(),generatedBy:actor,lastUsedAt:null,useCount:0,validUntil:null,retiredAt:null,retiredBy:null};
+  return saveFleetConfig(env,{...existing,activeKeyId:id,keys:[row,...existing.keys].slice(0,MAX_FLEET_HISTORY)},actor);
+}
+
+export async function rotateFleetKey(env,{expectedActiveKeyId=null,actor='admin',now=Date.now()}={}){
+  const config=await loadFleetConfig(env);
+  if(expectedActiveKeyId&&config.activeKeyId&&String(expectedActiveKeyId)!==String(config.activeKeyId))throw new DeviceManagementError('phone-fleet-key-changed',409);
+  const stamp=new Date(now).toISOString(),graceUntil=new Date(now+FLEET_ROTATION_GRACE_MS).toISOString();
+  const rows=config.keys.map(row=>row.id===config.activeKeyId&&row.status==='active'?{...row,status:'retiring',validUntil:graceUntil}:row);
+  const secret=randomAlphaNumeric(20),id=crypto.randomUUID();
+  rows.unshift({id,secret,hash:await sha256(secret),status:'active',generatedAt:stamp,generatedBy:actor,lastUsedAt:null,useCount:0,validUntil:null,retiredAt:null,retiredBy:null});
+  const compact=rows.map(row=>{
+    const expiry=Date.parse(row.validUntil||'');
+    if(row.status==='retiring'&&Number.isFinite(expiry)&&expiry<=now)return {...row,status:'retired',retiredAt:stamp,retiredBy:'automatic-expiration',secret:null,validUntil:null};
+    return row;
+  }).slice(0,MAX_FLEET_HISTORY);
+  return saveFleetConfig(env,{...config,activeKeyId:id,keys:compact},actor);
+}
+
+async function acceptedFleetKey(env,key,{now=Date.now()}={}){
   const value=String(key||'').trim();
   if(!FLEET_KEY_RE.test(value))throw new DeviceManagementError('phone-fleet-key-invalid',403);
-  if(await sha256(value)!==FLEET_KEY_HASH)throw new DeviceManagementError('phone-fleet-key-invalid',403);
-  return true;
+  const config=await loadFleetConfig(env),hash=await sha256(value);
+  const row=config.keys.find(item=>item.hash===hash&&item.secret===value);
+  if(!row)throw new DeviceManagementError('phone-fleet-key-invalid',403);
+  const validUntil=Date.parse(row.validUntil||'');
+  const accepted=row.status==='active'||(row.status==='retiring'&&Number.isFinite(validUntil)&&validUntil>now);
+  if(!accepted)throw new DeviceManagementError('phone-fleet-key-invalid',403);
+  return {config,row};
+}
+
+export async function authenticatePhoneFleetKey(env,key,{now=Date.now()}={}){
+  const {row}=await acceptedFleetKey(env,key,{now});
+  return {id:row.id,status:row.status};
+}
+
+export async function recordFleetKeyUse(env,key,{now=Date.now()}={}){
+  const {config,row}=await acceptedFleetKey(env,key,{now});
+  row.lastUsedAt=new Date(now).toISOString();
+  row.useCount=Number(row.useCount||0)+1;
+  await saveFleetConfig(env,config,'fleet-use',{touch:false});
+  return {id:row.id,status:row.status,lastUsedAt:row.lastUsedAt,useCount:row.useCount};
 }
 
 export async function upsertFleetEnrollment(env,{device,location,phonismPhoneId,now=Date.now()}){

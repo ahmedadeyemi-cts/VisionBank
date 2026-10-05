@@ -24,6 +24,6 @@ test('Device Manager stops polling while hidden and resumes when visible',()=>{
 });
 
 test('live refresh asset is cache-busted',()=>{
-  assert.match(html,/device\.js\?v=20261005-yealink3/);
-  assert.equal((html.match(/device\.js\?v=20261005-yealink3/g)||[]).length,1);
+  assert.match(html,/device\.js\?v=20261005-fleet1/);
+  assert.equal((html.match(/device\.js\?v=20261005-fleet1/g)||[]).length,1);
 });

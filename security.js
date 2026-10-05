@@ -68,6 +68,7 @@ let SECURITY_CONFIG_HISTORY = [];
 let ACTIVE_SECURITY_SESSIONS = [];
 let CURRENT_CONNECTION = null;
 let DEVICE_ADMIN_SETTINGS = null;
+let DEVICE_FLEET_KEYS = null;
 let ACTIVE_SECURITY_VIEW = "overview";
 
 function consumePortalReturnTarget() {
@@ -388,9 +389,109 @@ function renderDeviceAdminSettings() {
     updateSecurityOverview();
 }
 
+function securityFleetWhen(value) {
+    if (!value) return "Never";
+    const at = new Date(value);
+    return Number.isNaN(at.getTime()) ? String(value) : at.toLocaleString();
+}
+
+function renderSecurityFleetKeys() {
+    const data = DEVICE_FLEET_KEYS || {};
+    const active = data.active || null;
+    securityText("security-fleet-active-key", active?.key || "Not configured");
+    securityText("security-fleet-generated-at", securityFleetWhen(active?.generatedAt));
+    securityText("security-fleet-generated-by", active?.generatedBy || "—");
+    securityText("security-fleet-last-used", securityFleetWhen(active?.lastUsedAt));
+    securityText("security-fleet-use-count", String(active?.useCount ?? 0));
+    const template = document.getElementById("security-fleet-template-url");
+    if (template) template.value = data.templateUrl || "";
+    const copyKey = document.getElementById("security-fleet-copy-key");
+    if (copyKey) copyKey.disabled = !active?.key;
+    const copyTemplate = document.getElementById("security-fleet-copy-template");
+    if (copyTemplate) copyTemplate.disabled = !data.templateUrl;
+
+    const tbody = document.getElementById("security-fleet-rows");
+    if (tbody) {
+        tbody.replaceChildren();
+        const rows = Array.isArray(data.keys) ? data.keys : [];
+        if (!rows.length) {
+            const tr = document.createElement("tr"), td = document.createElement("td");
+            td.colSpan = 7; td.textContent = "No Fleet Keys have been configured."; tr.appendChild(td); tbody.appendChild(tr);
+        } else {
+            for (const row of rows) {
+                const tr = document.createElement("tr");
+                const values = [
+                    row.status || "unknown",
+                    row.key || row.keyMasked || "Retired",
+                    securityFleetWhen(row.generatedAt),
+                    row.generatedBy || "—",
+                    securityFleetWhen(row.lastUsedAt),
+                    String(row.useCount ?? 0),
+                    row.validUntil ? securityFleetWhen(row.validUntil) : (row.status === "active" ? "Active" : "—")
+                ];
+                values.forEach((value, index) => {
+                    const td = document.createElement("td");
+                    if (index === 1) { const code = document.createElement("code"); code.textContent = value; td.appendChild(code); }
+                    else td.textContent = value;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            }
+        }
+    }
+    securityText("security-fleet-state", active
+        ? "Active Fleet Key loaded. Rotation history and last-use telemetry are shown below."
+        : "No active Fleet Key is configured.");
+}
+
+async function loadSecurityFleetKeys() {
+    if (!ROLE_RULES[ACTIVE_ROLE]?.deviceAdmin) { DEVICE_FLEET_KEYS = null; return; }
+    try {
+        securityText("security-fleet-state", "Loading Fleet Key status…");
+        DEVICE_FLEET_KEYS = await deviceAdminRequest("/admin-settings/fleet-keys");
+        renderSecurityFleetKeys();
+    } catch (error) {
+        DEVICE_FLEET_KEYS = null;
+        securityText("security-fleet-state", "Fleet Key settings unavailable: " + error.message);
+    }
+}
+
+async function copySecurityFleetValue(value, label) {
+    if (!value) return;
+    try {
+        await navigator.clipboard.writeText(value);
+        showStatus(label + " copied.", "success");
+    } catch {
+        showStatus("Unable to copy automatically. Select the value and copy it manually.", "error");
+    }
+}
+
+async function rotateSecurityFleetKey() {
+    if (!ROLE_RULES[ACTIVE_ROLE]?.deviceAdmin) return;
+    const current = DEVICE_FLEET_KEYS?.active;
+    const prompt = current
+        ? "Generate a new Fleet Key? The current key will remain valid for 24 hours while the Phonism template is updated."
+        : "Generate the first Fleet Key for Yealink Phone Self-Service?";
+    if (!confirm(prompt)) return;
+    const button = document.getElementById("security-fleet-rotate");
+    if (button) { button.disabled = true; button.textContent = "Generating…"; }
+    try {
+        DEVICE_FLEET_KEYS = await deviceAdminRequest("/admin-settings/fleet-keys/rotate", {
+            method:"POST", body:{confirm:true, expectedActiveKeyId:DEVICE_FLEET_KEYS?.activeKeyId || null}
+        });
+        renderSecurityFleetKeys();
+        showStatus("New Fleet Key generated. Update the Phonism template during the 24-hour grace period.", "success");
+    } catch (error) {
+        showStatus("Unable to rotate Fleet Key: " + error.message, "error");
+    } finally {
+        if (button) { button.disabled = false; button.textContent = "Generate New Fleet Key"; }
+    }
+}
+
 async function loadDeviceAdminSettings() {
     if (!ROLE_RULES[ACTIVE_ROLE]?.deviceAdmin) {
         DEVICE_ADMIN_SETTINGS = null;
+        DEVICE_FLEET_KEYS = null;
         updateSecurityOverview();
         return;
     }
@@ -398,8 +499,10 @@ async function loadDeviceAdminSettings() {
         securityText("security-device-settings-state", "Loading Device Manager security settings…");
         DEVICE_ADMIN_SETTINGS = await deviceAdminRequest("/admin-settings");
         renderDeviceAdminSettings();
+        await loadSecurityFleetKeys();
     } catch (error) {
         DEVICE_ADMIN_SETTINGS = null;
+        DEVICE_FLEET_KEYS = null;
         securityText(
             "security-device-settings-state",
             error.code === "device-admin-session-required"
@@ -526,6 +629,10 @@ function bindDeviceAdminControls() {
     document.getElementById("security-device-default-save")?.addEventListener("click", () => void saveDeviceDefaultHours());
     document.getElementById("security-device-duration-save")?.addEventListener("click", () => void saveDeviceUserDuration());
     document.getElementById("security-device-admin-add")?.addEventListener("click", () => void addDeviceAdmin());
+    document.getElementById("security-fleet-refresh")?.addEventListener("click", () => void loadSecurityFleetKeys());
+    document.getElementById("security-fleet-rotate")?.addEventListener("click", () => void rotateSecurityFleetKey());
+    document.getElementById("security-fleet-copy-key")?.addEventListener("click", () => void copySecurityFleetValue(DEVICE_FLEET_KEYS?.active?.key || "", "Active Fleet Key"));
+    document.getElementById("security-fleet-copy-template")?.addEventListener("click", () => void copySecurityFleetValue(DEVICE_FLEET_KEYS?.templateUrl || "", "Phonism Template URL"));
 }
 
 /* =============================================================
@@ -1891,6 +1998,7 @@ logoutBtn.addEventListener("click", async () => {
     ACTIVE_SECURITY_SESSIONS = [];
     CURRENT_CONNECTION = null;
     DEVICE_ADMIN_SETTINGS = null;
+    DEVICE_FLEET_KEYS = null;
     document.getElementById("user-management")?.remove();
     userPanelInitialized = false;
        window.VBPortalSession?.clear();

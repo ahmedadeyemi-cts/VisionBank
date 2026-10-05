@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDeviceManagementHandler} from '../../device-management/gateway.mjs';
-import {readPhoneEnrollment} from '../../device-management/phone-selfservice.mjs';
+import {readPhoneEnrollment,initializeFleetKeyConfig} from '../../device-management/phone-selfservice.mjs';
 
 class MemoryKV{
   constructor(){this.map=new Map();}
@@ -27,6 +27,7 @@ async function xml(handler,env,url){
 
 test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and offers temporary Line 2',async()=>{
   const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-05T20:00:00.000Z'});
   const webexFetch=async(_env,url,options={})=>{
     const u=new URL(url),method=options.method||'GET';
     if(u.pathname==='/v1/devices/webex-1')return json({id:'webex-1',callingDeviceId:'call-1',displayName:'Pilot T57W',product:'Yealink T57W',mac:'805E0CEC1993',connectionStatus:'connected',personId:'user-1',locationId:'loc-a',managedBy:'PARTNER',type:'phone'});
@@ -51,6 +52,9 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
 
   const saved=await readPhoneEnrollment(env,MAC);
   assert.equal(saved.authMode,'fleet-template');
+  const fleetRaw=JSON.parse(await env.LOGS.get('device-phone-fleet-keys:v1'));
+  assert.ok(fleetRaw.keys[0].lastUsedAt);
+  assert.equal(fleetRaw.keys[0].useCount,1);
   assert.equal(saved.device.id,'call-1');
   assert.equal(saved.location.id,'loc-a');
   assert.equal(saved.phonismPhoneId,'313135');
@@ -65,6 +69,7 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
 
 test('fleet template rejects the wrong fleet key and unknown MAC before a write',async()=>{
   const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-05T20:00:00.000Z'});
   let providerCalls=0;
   const handler=createDeviceManagementHandler({
     webexFetch:async()=>{providerCalls++;return json({},404);},
@@ -76,4 +81,7 @@ test('fleet template rejects the wrong fleet key and unknown MAC before a write'
   assert.equal(providerCalls,0);
   const unknown=await xml(handler,env,'https://worker.example/x/'+FLEET+'/aabbccddeeff');
   assert.equal(unknown.status,404);
+  const fleetRaw=JSON.parse(await env.LOGS.get('device-phone-fleet-keys:v1'));
+  assert.equal(fleetRaw.keys[0].lastUsedAt,null);
+  assert.equal(fleetRaw.keys[0].useCount,0);
 });

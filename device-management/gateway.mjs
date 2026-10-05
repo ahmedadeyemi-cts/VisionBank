@@ -11,6 +11,7 @@ import {
 import {
   createPhoneEnrollment,revokePhoneEnrollment,phoneEnrollmentStatus,phoneEnrollmentIndex,phoneTelemetryIndex,
   authenticatePhone,authenticatePhoneAccess,authenticatePhoneFleetKey,readPhoneEnrollment,upsertFleetEnrollment,
+  getFleetKeySettings,rotateFleetKey,recordFleetKeyUse,
   recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,finishPhoneIntent,phoneSession,
   attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,inputScreen,phoneXmlResponse,phoneNoContent,
   phoneUnauthorized,phoneErrorMenu
@@ -545,9 +546,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   let normalizedFleetMac=null,enrollment;
   try{
     if(fleetKey){
-      await authenticatePhoneFleetKey(fleetKey);
+      await authenticatePhoneFleetKey(env,fleetKey);
       normalizedFleetMac=normalizeMac(fleetMac);
       enrollment=await resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac:normalizedFleetMac});
+      await recordFleetKeyUse(env,fleetKey);
     }else{
       enrollment=accessToken?await authenticatePhoneAccess(env,accessToken):await authenticatePhone(env,request);
     }
@@ -699,10 +701,11 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
       if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken,fleetKey,fleetMac});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','phone-enrollment']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
       const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
         'admin-settings/verification','admin-settings/default-hours','admin-settings/durations/set','admin-settings/durations/remove',
-        'admin-settings/admins/add','admin-settings/admins/remove','preview','apply','reboot','phone-enrollment','phone-enrollment/revoke']);
+        'admin-settings/admins/add','admin-settings/admins/remove','admin-settings/fleet-keys/rotate',
+        'preview','apply','reboot','phone-enrollment','phone-enrollment/revoke']);
       if((request.method==='GET'&&!readRoutes.has(part))||(request.method==='POST'&&!postRoutes.has(part))||!['GET','POST'].includes(request.method))throw new DeviceManagementError('read-only-phase',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6')||request.headers.get('CF-Connecting-IP');
       if(!request.cf||request.headers.has('CF-Worker')||!validIp(sourceIp))throw new DeviceManagementError('source-not-verifiable',403);
@@ -764,6 +767,19 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
       if(part==='admin-settings'){
         return output({success:true,...await getAdminSettings(env,request)},200,headers);
+      }
+
+      if(part==='admin-settings/fleet-keys'){
+        await requireDeviceAdmin(env,request);
+        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},200,headers);
+      }
+
+      if(part==='admin-settings/fleet-keys/rotate'){
+        const {admin}=await requireDeviceAdmin(env,request);
+        const body=await readSmallJson(request,1024);
+        if(!body||body.confirm!==true||Object.keys(body).some(k=>!['confirm','expectedActiveKeyId'].includes(k)))throw new DeviceManagementError('invalid-admin-request');
+        await rotateFleetKey(env,{expectedActiveKeyId:body.expectedActiveKeyId||null,actor:admin.email||admin.username||'admin'});
+        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},201,headers);
       }
 
       if(part==='admin-settings/verification'){

@@ -8,8 +8,8 @@ const portalPages=['index.html','webex.html','webex-agent.html','agents.html','v
 test('all non-Security portal pages load the shared enterprise shell exactly once',()=>{
   for(const page of portalPages){
     const html=read(page);
-    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell4/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell4/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell5/g)||[]).length,1,page+' shared CSS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell5/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -154,4 +154,28 @@ test('generic enterprise dark table rules explicitly exclude availability cells'
   const css=read('portal-enterprise.css');
   assert.match(css,/body\.enterprise-dark \.data-table tbody td:not\(\.availability-cell\)/);
   assert.match(css,/#agent-body td:not\(\.availability-cell\):not\(\[data-state\]\):not\(\[data-vb-state\]\)/);
+});
+
+test('Device Manager dark dialogs use enterprise charcoal-green surfaces and readable controls',()=>{
+  const css=read('portal-enterprise.css');
+  for(const marker of [
+    'body.enterprise-dark .device-dialog {',
+    'background: #0b1713 !important',
+    'color: #eef6f2 !important',
+    'body.enterprise-dark .device-current-phone',
+    'body.enterprise-dark .device-line2-workspace',
+    'body.enterprise-dark .device-member-picker-button',
+    'body.enterprise-dark .device-member-picker-panel',
+    'body.enterprise-dark .device-dialog .device-badge',
+    'body.enterprise-dark .device-dialog .device-btn:not(.secondary)',
+    'body.enterprise-dark .device-dialog-actions-sticky'
+  ]) assert.ok(css.includes(marker),'missing Device Manager dark dialog marker '+marker);
+  assert.match(css,/device-dialog input::placeholder[\s\S]*color:\s*#83998f !important/);
+  assert.match(css,/device-dialog \.device-btn:not\(\.secondary\)[\s\S]*background:\s*#185342 !important[\s\S]*color:\s*#ffffff !important/);
+});
+
+test('Device Manager shared shell is cache-bumped for the modal readability release',()=>{
+  const html=read('device.html');
+  assert.match(html,/portal-enterprise\.css\?v=20261005-shell5/);
+  assert.match(html,/portal-enterprise\.js\?v=20261005-shell5/);
 });

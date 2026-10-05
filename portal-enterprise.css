@@ -1163,3 +1163,224 @@ body.dark-mode.enterprise-dark #chat-agents-body tr td:is([data-state],[data-vb-
   opacity: 1 !important;
   filter: none !important;
 }
+
+/* ============================================================
+   Device Manager dialogs — enterprise dark mode readability
+   2026-10-05
+   ============================================================ */
+body.enterprise-dark .device-dialog {
+  background: #0b1713 !important;
+  color: #eef6f2 !important;
+  border: 1px solid #29453b !important;
+  box-shadow: 0 26px 72px rgba(0,0,0,.55) !important;
+}
+body.enterprise-dark .device-dialog::backdrop {
+  background: rgba(2,10,7,.78) !important;
+  backdrop-filter: blur(3px);
+}
+body.enterprise-dark .device-dialog-shell,
+body.enterprise-dark .device-dialog-heading,
+body.enterprise-dark .device-editor-body,
+body.enterprise-dark .device-dialog-actions,
+body.enterprise-dark .device-confirm-body,
+body.enterprise-dark .device-admin-body,
+body.enterprise-dark .device-phone-setup-body {
+  background: #0b1713 !important;
+  color: #eef6f2 !important;
+}
+body.enterprise-dark .device-dialog-heading,
+body.enterprise-dark .device-dialog-actions {
+  border-color: #29453b !important;
+}
+body.enterprise-dark .device-dialog-heading h2,
+body.enterprise-dark .device-dialog-heading h3,
+body.enterprise-dark .device-section-heading h3,
+body.enterprise-dark .device-current-line-identity strong,
+body.enterprise-dark .device-change-details summary strong,
+body.enterprise-dark .device-confirm-row strong {
+  color: #eef6f2 !important;
+}
+body.enterprise-dark .device-dialog-heading p,
+body.enterprise-dark .device-helper,
+body.enterprise-dark .device-section-kicker,
+body.enterprise-dark .device-member-picker-hint,
+body.enterprise-dark .device-expiry-card span,
+body.enterprise-dark .device-expiry-card small,
+body.enterprise-dark .device-change-details summary small,
+body.enterprise-dark .device-confirm-row span,
+body.enterprise-dark .device-optional,
+body.enterprise-dark .device-candidate-meta {
+  color: #9fb3aa !important;
+  opacity: 1 !important;
+}
+body.enterprise-dark .device-eyebrow {
+  color: #9fb3aa !important;
+  opacity: 1 !important;
+}
+
+/* Dialog cards and grouped surfaces */
+body.enterprise-dark .device-current-phone,
+body.enterprise-dark .device-phone-selfservice,
+body.enterprise-dark .device-line2-workspace,
+body.enterprise-dark .device-expiry-card,
+body.enterprise-dark .device-change-details,
+body.enterprise-dark .device-change-preview,
+body.enterprise-dark .device-phone-selfservice-grid > div,
+body.enterprise-dark .device-phone-setup-status,
+body.enterprise-dark .device-phone-credentials,
+body.enterprise-dark .device-verification-panel,
+body.enterprise-dark .device-admin-setting,
+body.enterprise-dark .device-admin-list-section,
+body.enterprise-dark .device-admin-note,
+body.enterprise-dark .device-recovery-confirm {
+  background: #10231c !important;
+  color: #eef6f2 !important;
+  border-color: #29453b !important;
+}
+body.enterprise-dark .device-change-details-body {
+  background: #0d1b16 !important;
+  color: #dfeae5 !important;
+  border-color: #29453b !important;
+}
+body.enterprise-dark .device-change-details-body li {
+  color: #dfeae5 !important;
+}
+
+/* Input controls */
+body.enterprise-dark .device-dialog input,
+body.enterprise-dark .device-dialog select,
+body.enterprise-dark .device-dialog textarea,
+body.enterprise-dark .device-member-picker-button,
+body.enterprise-dark .device-member-search-wrap input,
+body.enterprise-dark .device-phone-credentials input,
+body.enterprise-dark .device-phone-credentials textarea {
+  background: #07110d !important;
+  color: #eef6f2 !important;
+  border-color: #36584c !important;
+  caret-color: #eef6f2 !important;
+}
+body.enterprise-dark .device-dialog input::placeholder,
+body.enterprise-dark .device-dialog textarea::placeholder,
+body.enterprise-dark .device-member-search-wrap input::placeholder {
+  color: #83998f !important;
+  opacity: 1 !important;
+}
+body.enterprise-dark .device-dialog input:focus,
+body.enterprise-dark .device-dialog select:focus,
+body.enterprise-dark .device-dialog textarea:focus,
+body.enterprise-dark .device-member-picker-button:focus,
+body.enterprise-dark .device-member-search-wrap input:focus {
+  border-color: #71b59d !important;
+  box-shadow: 0 0 0 3px rgba(113,181,157,.18) !important;
+}
+body.enterprise-dark .device-member-search-wrap {
+  background: #0d1b16 !important;
+  border-color: #29453b !important;
+}
+body.enterprise-dark .device-member-picker-panel {
+  background: #0d1b16 !important;
+  color: #eef6f2 !important;
+  border-color: #36584c !important;
+  box-shadow: 0 20px 48px rgba(0,0,0,.50) !important;
+}
+body.enterprise-dark .device-member-option {
+  color: #eef6f2 !important;
+}
+body.enterprise-dark .device-member-option small,
+body.enterprise-dark .device-member-empty {
+  color: #9fb3aa !important;
+}
+body.enterprise-dark .device-member-option:hover,
+body.enterprise-dark .device-member-option[aria-selected="true"] {
+  background: #173127 !important;
+  border-color: #477363 !important;
+}
+body.enterprise-dark .device-member-option:disabled,
+body.enterprise-dark .device-member-option.unavailable:disabled {
+  background: #0d1b16 !important;
+  border-color: #29453b !important;
+  opacity: .62 !important;
+}
+
+/* Pills / status badges */
+body.enterprise-dark .device-dialog .device-badge,
+body.enterprise-dark .device-dialog .device-status {
+  background: #173127 !important;
+  color: #dff0e9 !important;
+  border: 1px solid #36584c !important;
+}
+body.enterprise-dark .device-dialog .device-badge.neutral,
+body.enterprise-dark .device-dialog .device-status.unknown {
+  background: #16251f !important;
+  color: #c8d8d1 !important;
+}
+body.enterprise-dark .device-dialog .device-status.registered {
+  background: #123a2b !important;
+  color: #b7f0d0 !important;
+}
+body.enterprise-dark .device-dialog .device-status.unregistered,
+body.enterprise-dark .device-dialog .device-status.mismatch {
+  background: #43221e !important;
+  color: #ffd6d2 !important;
+}
+body.enterprise-dark .device-dialog .device-status.pending {
+  background: #3b3115 !important;
+  color: #ffe7a3 !important;
+}
+body.enterprise-dark .device-line-extension,
+body.enterprise-dark .device-member-option .device-member-ext {
+  color: #71b59d !important;
+}
+
+/* Labels and status content */
+body.enterprise-dark .device-member-field,
+body.enterprise-dark .device-member-label,
+body.enterprise-dark .device-duration-label,
+body.enterprise-dark .device-reason-label,
+body.enterprise-dark .device-operator-form label,
+body.enterprise-dark .device-phone-credentials label,
+body.enterprise-dark .device-admin-setting label,
+body.enterprise-dark .device-duration-admin-grid label {
+  color: #dfeae5 !important;
+}
+body.enterprise-dark .device-phone-selfservice-grid strong,
+body.enterprise-dark .device-phone-setup-status strong {
+  color: #eef6f2 !important;
+}
+
+/* Close / actions */
+body.enterprise-dark .device-icon-btn {
+  background: #173127 !important;
+  color: #eef6f2 !important;
+  border: 1px solid #36584c !important;
+}
+body.enterprise-dark .device-icon-btn:hover {
+  background: #214237 !important;
+}
+body.enterprise-dark .device-dialog .device-btn.secondary {
+  background: #10231c !important;
+  color: #e8f0ed !important;
+  border-color: #477363 !important;
+}
+body.enterprise-dark .device-dialog .device-btn:not(.secondary),
+body.enterprise-dark .device-dialog .device-primary-action {
+  background: #185342 !important;
+  color: #ffffff !important;
+  border-color: #2f7560 !important;
+}
+body.enterprise-dark .device-dialog .device-btn:not(.secondary):hover,
+body.enterprise-dark .device-dialog .device-primary-action:hover {
+  background: #0f3f32 !important;
+}
+body.enterprise-dark .device-dialog .device-btn:disabled {
+  opacity: .48 !important;
+}
+body.enterprise-dark .device-dialog-actions-sticky {
+  background: #0d1b16 !important;
+  box-shadow: 0 -10px 26px rgba(0,0,0,.26) !important;
+}
+
+/* Warnings retain semantic color while remaining readable. */
+body.enterprise-dark .device-warning {
+  color: #ffc76b !important;
+}

@@ -17,6 +17,14 @@
     location.replace(target.href);
   }
 
+  function redirectToLicensing(reason = "license_required") {
+    try { sessionStorage.setItem(RETURN_KEY, safeReturnPath()); } catch {}
+    const target = new URL("security.html", location.href);
+    target.searchParams.set("reason", reason);
+    target.searchParams.set("view", "licensing");
+    location.replace(target.href);
+  }
+
   async function validate() {
     const session = window.VBPortalSession?.get() || "";
     if (!session) {
@@ -41,9 +49,31 @@
         redirectToLogin();
         return;
       }
+      let license = {enforcementEnabled:false,allowed:true,status:"not-enforced"};
+      const licenseResponse = await fetch(WORKER + "/api/license/status", {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: "Bearer " + session }
+      });
+      if (licenseResponse.status === 401) {
+        window.VBPortalSession?.clear();
+        redirectToLogin();
+        return;
+      }
+      if (licenseResponse.ok) {
+        license = await licenseResponse.json();
+        if (license?.enforcementEnabled === true && license?.allowed !== true) {
+          redirectToLicensing(license.reason || license.status || "license_required");
+          return;
+        }
+      } else if (licenseResponse.status !== 404) {
+        throw new Error("license-status-unavailable");
+      }
+
       window.VB_PORTAL_AUTH = data;
+      window.VB_LICENSE = license;
       document.documentElement.style.visibility = "";
-      window.dispatchEvent(new CustomEvent("vb-portal-auth-ready", { detail: data }));
+      window.dispatchEvent(new CustomEvent("vb-portal-auth-ready", { detail: {...data, license} }));
     } catch (error) {
       console.error("Portal authentication validation failed:", error);
       document.documentElement.style.visibility = "";

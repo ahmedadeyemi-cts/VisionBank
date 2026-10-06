@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://visionbank-security.ahmedadeyemi.workers.dev; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <title>Security Admin Console | VisionBank®</title>
-    <link rel="stylesheet" href="security.css?v=20261005-fleet1" />
+    <link rel="stylesheet" href="security.css?v=20261005-license1" />
 </head>
 
 <body class="theme-light">
@@ -162,6 +162,7 @@
             <button type="button" class="security-nav-item" data-security-view="policy">Access Policy</button>
             <button type="button" class="security-nav-item" data-security-view="audit">Audit &amp; Monitoring</button>
             <button type="button" class="security-nav-item" data-security-view="tools">Security Tools</button>
+            <button type="button" class="security-nav-item" data-security-view="licensing">Licensing</button>
             <button type="button" class="security-nav-item" data-security-view="device">Device Management</button>
         </nav>
 
@@ -199,6 +200,11 @@
                     <strong id="security-overview-device">—</strong>
                     <small>Device Manager operator verification</small>
                 </article>
+                <article class="security-kpi">
+                    <span>License</span>
+                    <strong id="security-overview-license">Checking…</strong>
+                    <small id="security-overview-license-detail">License enforcement status</small>
+                </article>
             </div>
 
             <div class="security-overview-grid">
@@ -230,6 +236,7 @@
                         <button type="button" class="security-quick-action" data-security-target="identity"><strong>Identity &amp; Access</strong><span>Review roles, MFA, and users</span></button>
                         <button type="button" class="security-quick-action" data-security-target="network"><strong>Network Access</strong><span>Manage approved IPs and CIDRs</span></button>
                         <button type="button" class="security-quick-action" data-security-target="audit"><strong>Audit &amp; Monitoring</strong><span>Review recent security events</span></button>
+                        <button type="button" class="security-quick-action" data-security-target="licensing"><strong>Licensing</strong><span>Review authority, activation, heartbeat and expiration</span></button>
                         <button type="button" class="security-quick-action" data-security-target="device"><strong>Device Management</strong><span>Manage Device Manager verification policy</span></button>
                     </div>
                 </section>
@@ -423,6 +430,135 @@
             </div>
         </section>
 
+        <section class="security-view" data-security-view-panel="licensing" hidden>
+            <section class="security-summary-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Portal entitlement</span>
+                        <h3>VisionBank Licensing</h3>
+                        <p>Security remains available regardless of license status. License enforcement applies only to operational portal pages and protected application APIs.</p>
+                    </div>
+                    <span id="security-license-badge" class="security-state-badge neutral">Checking</span>
+                </div>
+                <div class="security-license-kpis">
+                    <div><span>Status</span><strong id="security-license-status">Checking…</strong></div>
+                    <div><span>Customer</span><strong id="security-license-customer">—</strong></div>
+                    <div><span>Expires</span><strong id="security-license-expires">—</strong></div>
+                    <div><span>Full revalidation</span><strong id="security-license-revalidation">—</strong></div>
+                    <div><span>Last heartbeat</span><strong id="security-license-heartbeat">—</strong></div>
+                    <div><span>Next heartbeat</span><strong id="security-license-next-heartbeat">—</strong></div>
+                    <div><span>Offline deadline</span><strong id="security-license-offline-deadline">—</strong></div>
+                    <div><span>Enforcement</span><strong id="security-license-enforcement-state">Disabled</strong></div>
+                </div>
+                <p id="security-license-status-detail" class="security-summary-note">Loading licensing state…</p>
+            </section>
+
+            <section class="security-summary-panel" id="security-license-authority-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Authority source</span>
+                        <h3>License Authority Configuration</h3>
+                        <p>The repository identifies the source deployment. Runtime validation uses the corresponding HTTPS authority URL.</p>
+                    </div>
+                </div>
+
+                <div class="security-setting-block">
+                    <div class="form-grid security-two-column">
+                        <label>Active source
+                            <select id="security-license-source">
+                                <option value="primary">Primary</option>
+                                <option value="mirror">Mirror</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </label>
+                        <label>Installation name
+                            <input id="security-license-installation-name" type="text" maxlength="160" value="VisionBank Production">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="security-license-source-grid">
+                    <article>
+                        <strong>Primary</strong>
+                        <label>Repository
+                            <input id="security-license-primary-repo" type="text" maxlength="180" value="ahmedadeyemi-cts/visionbank-license-control">
+                        </label>
+                        <label>Authority URL
+                            <input id="security-license-primary-url" type="url" placeholder="https://visionbank-license-control.onrender.com">
+                        </label>
+                    </article>
+                    <article>
+                        <strong>Mirror</strong>
+                        <label>Repository
+                            <input id="security-license-mirror-repo" type="text" maxlength="180" value="ahmedadeyemi-uss/visionbank-license-control">
+                        </label>
+                        <label>Authority URL
+                            <input id="security-license-mirror-url" type="url" placeholder="https://license-mirror.example.com">
+                        </label>
+                    </article>
+                    <article>
+                        <strong>Custom / future source</strong>
+                        <label>Repository
+                            <input id="security-license-custom-repo" type="text" maxlength="180" placeholder="organization/repository">
+                        </label>
+                        <label>Authority URL
+                            <input id="security-license-custom-url" type="url" placeholder="https://license.example.com">
+                        </label>
+                    </article>
+                </div>
+
+                <div class="security-license-actions" data-license-admin-controls>
+                    <button id="security-license-test" class="btn-secondary" type="button">Test Active Authority</button>
+                    <button id="security-license-save-config" class="btn-primary" type="button">Save Authority Settings</button>
+                </div>
+                <div id="security-license-authority-state" class="security-device-state">Authority has not been tested in this session.</div>
+            </section>
+
+            <section class="security-summary-panel">
+                <div class="security-panel-heading">
+                    <div>
+                        <span class="security-section-kicker">Activation &amp; enforcement</span>
+                        <h3>Installation License</h3>
+                        <p>Activate first. Enforcement cannot be enabled unless the backend has a currently valid license.</p>
+                    </div>
+                </div>
+
+                <div class="security-inline-form" data-license-admin-controls>
+                    <label>License key
+                        <input id="security-license-key" type="password" autocomplete="off" placeholder="VBL-XXXXX-XXXXX-XXXXX-XXXXX">
+                    </label>
+                    <button id="security-license-activate" class="btn-primary" type="button">Activate License</button>
+                </div>
+
+                <div class="security-setting-row">
+                    <div>
+                        <strong>Enforce licensing</strong>
+                        <p>When enabled, all non-Security portal pages and protected application APIs require a valid license.</p>
+                    </div>
+                    <label class="security-switch" data-license-admin-controls>
+                        <input id="security-license-enforcement-toggle" type="checkbox">
+                        <span class="security-switch-track"><span></span></span>
+                        <span id="security-license-enforcement-label">Off</span>
+                    </label>
+                </div>
+
+                <div class="security-license-actions">
+                    <button id="security-license-refresh" class="btn-secondary" type="button">Check License Now</button>
+                    <button id="security-license-full-revalidate" class="btn-secondary" type="button">Full Revalidation</button>
+                    <button id="security-license-deactivate" class="btn-danger" type="button" data-license-admin-controls>Deactivate Local License</button>
+                </div>
+
+                <dl class="security-summary-list security-license-source-summary">
+                    <div><dt>Active source</dt><dd id="security-license-active-source">—</dd></div>
+                    <div><dt>Repository</dt><dd id="security-license-active-repo">—</dd></div>
+                    <div><dt>Authority URL</dt><dd id="security-license-active-url">—</dd></div>
+                    <div><dt>System ID</dt><dd id="security-license-system-id">—</dd></div>
+                    <div><dt>Installation ID</dt><dd id="security-license-installation-id">—</dd></div>
+                    <div><dt>Last validation error</dt><dd id="security-license-error">None</dd></div>
+                </dl>
+            </section>
+        </section>
+
         <section class="security-view" data-security-view-panel="device" hidden>
             <section class="security-summary-panel">
                 <div class="security-panel-heading">
@@ -536,8 +672,8 @@
     </div>
 </footer>
 
-<script src="portal-session.js?v=20261003-r1"></script>
+<script src="portal-session.js?v=20261005-license1"></script>
   <script src="vendor/qrcode-generator.js?v=1.4.4"></script>
-  <script src="security.js?v=20261005-fleet1"></script>
+  <script src="security.js?v=20261005-license1"></script>
 </body>
 </html>

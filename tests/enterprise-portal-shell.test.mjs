@@ -9,7 +9,7 @@ test('all non-Security portal pages load the shared enterprise shell exactly onc
   for(const page of portalPages){
     const html=read(page);
     assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell5/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-shell5/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-license1/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -41,7 +41,7 @@ test('Security participates in the common portal theme without loading the share
   const js=read('security.js');
   assert.doesNotMatch(html,/portal-enterprise\.css/);
   assert.match(js,/vb_portal_theme/);
-  assert.match(html,/security\.js\?v=20261005-fleet1/);
+  assert.match(html,/security\.js\?v=20261005-license1/);
 });
 
 test('Dashboard and Webex Dashboard do not expose cross-portal navigation tabs',()=>{
@@ -177,5 +177,5 @@ test('Device Manager dark dialogs use enterprise charcoal-green surfaces and rea
 test('Device Manager shared shell is cache-bumped for the modal readability release',()=>{
   const html=read('device.html');
   assert.match(html,/portal-enterprise\.css\?v=20261005-shell5/);
-  assert.match(html,/portal-enterprise\.js\?v=20261005-shell5/);
+  assert.match(html,/portal-enterprise\.js\?v=20261005-license1/);
 });

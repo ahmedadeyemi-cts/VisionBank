@@ -33,6 +33,6 @@ test('public UI assets never hardcode the Fleet Key',()=>{
 test('Fleet Key UI assets are cache-busted',()=>{
   assert.ok(deviceHtml.includes('device.css?v=20261005-fleet1'));
   assert.ok(deviceHtml.includes('device.js?v=20261005-fleet1'));
-  assert.ok(securityHtml.includes('security.css?v=20261005-fleet1'));
-  assert.ok(securityHtml.includes('security.js?v=20261005-fleet1'));
+  assert.ok(securityHtml.includes('security.css?v=20261005-license1'));
+  assert.ok(securityHtml.includes('security.js?v=20261005-license1'));
 });

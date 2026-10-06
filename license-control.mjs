@@ -195,7 +195,7 @@ function dueForContact(config,state,{now=Date.now()}={}){
   if(!Number.isFinite(last))return true;
   return now-last>=Number(state.heartbeatIntervalHours||24)*3600000;
 }
-async function authorityRequest(config,path,{method='GET',body=null,token=null,fetcher=fetch,timeoutMs=10000}={}){
+async function authorityRequest(config,path,{method='GET',body=null,token=null,fetcher=fetch,timeoutMs=30000}={}){
   const authority=activeAuthority(config);
   if(!authority.authorityUrl)throw new LicenseControlError('license-authority-not-configured',409);
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
@@ -218,7 +218,7 @@ async function authorityRequest(config,path,{method='GET',body=null,token=null,f
 export async function testLicenseAuthority(env,request,{source=null,fetcher=fetch}={}){
   const actor=await requireLicenseAdmin(env,request),config=await loadLicenseConfig(env);
   const candidate=source?{...config,activeSource:source}:config;
-  const result=await authorityRequest(candidate,'/health',{fetcher,timeoutMs:8000});
+  const result=await authorityRequest(candidate,'/health',{fetcher,timeoutMs:35000});
   if(!result.response.ok)throw new LicenseControlError('license-authority-health-failed',502);
   await audit(env,request,actor,'license-authority-tested',{
     source:activeAuthority(candidate).source,authorityUrl:activeAuthority(candidate).authorityUrl
@@ -257,7 +257,7 @@ export async function activateLicense(env,request,{licenseKey,fetcher=fetch}={})
   const result=await authorityRequest(config,'/api/v1/activate',{
     method:'POST',
     body:{licenseKey:key,systemId:config.systemId,installationName:config.installationName,clientVersion:'VisionBank'},
-    fetcher,timeoutMs:15000
+    fetcher,timeoutMs:45000
   });
   if(!result.response.ok||!result.data?.installationToken||result.data?.access!==true)
     throw new LicenseControlError('license-activation-failed',result.response.status===403?403:502);
@@ -291,7 +291,7 @@ export async function refreshLicense(env,{request=null,force=false,forceFull=fal
   const full=forceFull||state.fullRevalidationRequired===true;
   try{
     const result=await authorityRequest(config,full?'/api/v1/revalidate':'/api/v1/heartbeat',{
-      method:'POST',body:{clientVersion:'VisionBank'},token,fetcher,timeoutMs:12000
+      method:'POST',body:{clientVersion:'VisionBank'},token,fetcher,timeoutMs:30000
     });
     const contact=nowIso(),next={
       ...state,

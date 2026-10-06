@@ -41,7 +41,7 @@ test('Security participates in the common portal theme without loading the share
   const js=read('security.js');
   assert.doesNotMatch(html,/portal-enterprise\.css/);
   assert.match(js,/vb_portal_theme/);
-  assert.match(html,/security\.js\?v=20261005-license1/);
+  assert.match(html,/security\.js\?v=20261005-license2/);
 });
 
 test('Dashboard and Webex Dashboard do not expose cross-portal navigation tabs',()=>{

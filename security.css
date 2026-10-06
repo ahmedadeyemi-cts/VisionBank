@@ -1422,6 +1422,29 @@ select:focus,
   color: var(--vb-green);
 }
 
+.btn-danger {
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid #c63b32;
+  border-radius: 10px;
+  background: #fff;
+  color: #a1261f;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #fff1f0;
+  border-color: #a1261f;
+  color: #8c1f19;
+}
+
+body.theme-dark .btn-danger {
+  background: #2a1716;
+  border-color: #9c4943;
+  color: #ffd8d4;
+}
+
 body.theme-dark .btn-secondary {
   background: #10231c;
   color: #dff0e9;

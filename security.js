@@ -1049,8 +1049,9 @@ async function testActiveLicenseAuthority() {
         );
         showStatus("License authority connection succeeded.", "success");
     } catch (error) {
-        securityText("security-license-authority-state", "Connection failed: " + (error.code || error.message));
-        showStatus("License authority test failed.", "error");
+        const detail = error.code || error.message || "unknown-error";
+        securityText("security-license-authority-state", "Connection failed: " + detail);
+        showStatus("License authority test failed: " + detail, "error");
     } finally {
         if (button) button.disabled = ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true;
     }

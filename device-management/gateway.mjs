@@ -585,16 +585,19 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   const home=phoneRouteUrl(request,'xml',{},accessToken,fleetKey,normalizedFleetMac);
   const searchUrl=phoneRouteUrl(request,'search',{},accessToken,fleetKey,normalizedFleetMac);
   try{
-    const ctx=await resolveWriteContext({
-      env,org,webexFetch,phonismReader,
-      deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
-    });
     const leaseIndex=await activeLeaseIndex(env),lease=activePhoneLease(leaseIndex,enrollment);
-    const current=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
-    const line2=current.members.find(member=>Number(member?.port)===2)||null;
-    const line2Row=line2?memberRow(line2):null;
+    let line2Loaded=false,line2Row=null;
+    const loadLine2=async()=>{
+      if(line2Loaded)return line2Row;
+      const current=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
+      const line2=current.members.find(member=>Number(member?.port)===2)||null;
+      line2Row=line2?memberRow(line2):null;
+      line2Loaded=true;
+      return line2Row;
+    };
 
     if(part==='phone/xml'){
+      await loadLine2();
       const items=[];
       const activeLineLabel=lease?.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
       if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
@@ -611,6 +614,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     }
 
     if(part==='phone/status'){
+      await loadLine2();
       const items=[
         {prompt:(lease?.temporaryLine2||line2Row)?'Current Line 2: '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
@@ -627,6 +631,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!lease)return phoneXmlResponse(textMenu('No Temporary Line',[
         {prompt:'Return',uri:home}
       ],{cancelAction:home}));
+      if(!lease?.temporaryLine2)await loadLine2();
       const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
       return phoneXmlResponse(textMenu('Sign Out '+currentLabel,[
         {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{},accessToken,fleetKey,normalizedFleetMac)},
@@ -702,6 +707,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/apply'){
       if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      const ctx=await resolveWriteContext({
+        env,org,webexFetch,phonismReader,
+        deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
+      });
       const intent=await readPhoneIntent(env,new URL(request.url).searchParams.get('intent'),enrollment);
       if(intent.status==='completed'&&intent.result?.expiresAt){
         return phoneXmlResponse(textMenu('Extension Already Added',[

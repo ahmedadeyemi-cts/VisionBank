@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDeviceManagementHandler} from '../../device-management/gateway.mjs';
-import {readPhoneEnrollment,initializeFleetKeyConfig} from '../../device-management/phone-selfservice.mjs';
+import {readPhoneEnrollment,initializeFleetKeyConfig,upsertFleetEnrollment} from '../../device-management/phone-selfservice.mjs';
 
 class MemoryKV{
   constructor(){this.map=new Map();}
@@ -87,4 +87,33 @@ test('fleet template rejects the wrong fleet key and unknown MAC before a write'
   const fleetRaw=JSON.parse(await env.LOGS.get('device-phone-fleet-keys:v1'));
   assert.equal(fleetRaw.keys[0].lastUsedAt,null);
   assert.equal(fleetRaw.keys[0].useCount,0);
+});
+
+
+test('Add temporary line input screen is returned without Webex or Phonism provider calls',async()=>{
+  const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-06T15:00:00.000Z'});
+  await upsertFleetEnrollment(env,{
+    device:{id:'call-1',displayName:'Pilot T57W',mac:MAC,model:'Yealink T57W'},
+    location:{id:'loc-a',name:'CLIVE'},
+    phonismPhoneId:'313135',
+    now:new Date().toISOString()
+  });
+
+  let providerCalls=0;
+  const handler=createDeviceManagementHandler({
+    webexFetch:async()=>{providerCalls++;throw new Error('webex-should-not-run');},
+    checkAccess:async()=>({allowed:true}),
+    loadIpRules:async()=>['approved'],
+    phonismReader:{
+      async discover(){providerCalls++;throw new Error('phonism-should-not-run');}
+    }
+  });
+
+  const url='https://worker.example/x/'+FLEET+'/805e0cec1993/q';
+  const response=await xml(handler,env,url);
+  assert.equal(response.status,200);
+  assert.match(response.text,/Add Temporary Line/);
+  assert.match(response.text,/Extension or phone number/);
+  assert.equal(providerCalls,0);
 });

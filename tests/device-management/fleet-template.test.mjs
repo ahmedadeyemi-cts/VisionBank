@@ -48,7 +48,9 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   const home=await xml(handler,env,base);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add temporary line/);
+  assert.match(home.text,/Add Temporary Line/);
+  assert.match(home.text,/Refresh/);
+  assert.doesNotMatch(home.text,/Line 2:/);
 
   const saved=await readPhoneEnrollment(env,MAC);
   assert.equal(saved.authMode,'fleet-template');

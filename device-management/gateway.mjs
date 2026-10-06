@@ -598,18 +598,20 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     };
 
     if(part==='phone/xml'){
-      await loadLine2();
+      if(!lease){
+        return phoneXmlResponse(textMenu('VisionBank Manage Extensions',[
+          {prompt:'Add Temporary Line',uri:searchUrl},
+          {prompt:'Refresh',uri:home}
+        ]));
+      }
+      if(!lease.temporaryLine2)await loadLine2();
       const items=[];
-      const activeLineLabel=lease?.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
+      const activeLineLabel=lease.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
       if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
-      if(lease){
-        const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-        items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
-        items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
-      }else{
-        items.push({prompt:'Add temporary line',uri:searchUrl});
-      }
+      const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
+      items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Refresh',uri:home});
       return phoneXmlResponse(textMenu('VisionBank Manage Extensions',items));
     }

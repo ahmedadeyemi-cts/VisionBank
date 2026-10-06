@@ -1384,3 +1384,77 @@ body.enterprise-dark .device-dialog-actions-sticky {
 body.enterprise-dark .device-warning {
   color: #ffc76b !important;
 }
+
+/* ============================================================
+   Queue waiting severity — preserve dashboard alert semantics
+   2026-10-06
+   0 waiting = green, 1 = yellow, 2+ = red.
+   ============================================================ */
+body.enterprise-light .queue-calls-badge,
+body.enterprise-dark .queue-calls-badge {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  opacity: 1 !important;
+}
+body.enterprise-light .queue-calls-green,
+body.enterprise-dark .queue-calls-green {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: 1px solid #15803d !important;
+}
+body.enterprise-light .queue-calls-yellow,
+body.enterprise-dark .queue-calls-yellow {
+  background: #facc15 !important;
+  color: #332800 !important;
+  border: 1px solid #ca8a04 !important;
+}
+body.enterprise-light .queue-calls-red,
+body.enterprise-dark .queue-calls-red {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #b91c1c !important;
+}
+body.enterprise-light .queue-calls-unknown,
+body.enterprise-dark .queue-calls-unknown {
+  background: #6b7280 !important;
+  color: #ffffff !important;
+  border: 1px solid #4b5563 !important;
+  min-width: max-content;
+}
+
+/* Generic table text inheritance must never erase queue-badge contrast. */
+body.enterprise-light .data-table td .queue-calls-badge,
+body.enterprise-dark .data-table td .queue-calls-badge {
+  opacity: 1 !important;
+}
+body.enterprise-light .data-table td .queue-calls-badge.queue-calls-green,
+body.enterprise-dark .data-table td .queue-calls-badge.queue-calls-green,
+body.enterprise-light .data-table td .queue-calls-badge.queue-calls-red,
+body.enterprise-dark .data-table td .queue-calls-badge.queue-calls-red,
+body.enterprise-light .data-table td .queue-calls-badge.queue-calls-unknown,
+body.enterprise-dark .data-table td .queue-calls-badge.queue-calls-unknown {
+  color: #ffffff !important;
+}
+body.enterprise-light .data-table td .queue-calls-badge.queue-calls-yellow,
+body.enterprise-dark .data-table td .queue-calls-badge.queue-calls-yellow {
+  color: #332800 !important;
+}
+
+/* Waiting queues retain the dashboard's visible panel alert even though
+   the enterprise panel shell owns the normal box-shadow. */
+body.enterprise-light #queue-panel.queue-alert-active,
+body.enterprise-dark #queue-panel.queue-alert-active {
+  outline: 2px solid #f97316 !important;
+  outline-offset: 2px;
+}
+body.enterprise-light #queue-panel tr.queue-critical td.vb-queue-waiting,
+body.enterprise-dark #queue-panel tr.queue-critical td.vb-queue-waiting {
+  box-shadow: inset 4px 0 0 #dc2626 !important;
+}

@@ -482,6 +482,7 @@ async function requireWriteOperator(env,request){
 
 const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
 const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
+const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
@@ -491,9 +492,9 @@ function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fle
   let target;
   if(fleetKey&&compactMac){
     const suffix=part==='xml'?'':'/'+encodeURIComponent(actionCode);
-    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,url.origin);
+    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,PHONE_CANONICAL_ORIGIN);
   }else if(accessToken){
-    target=new URL('/p/'+encodeURIComponent(accessToken),url.origin);
+    target=new URL('/p/'+encodeURIComponent(accessToken),PHONE_CANONICAL_ORIGIN);
     if(part!=='xml')target.searchParams.set('a',actionCode);
   }else target=new URL(PREFIX+'phone/'+part,url.origin);
   for(const [key,value] of Object.entries(params))if(value!==null&&value!==undefined&&String(value)!=='')target.searchParams.set(key,String(value));
@@ -585,16 +586,19 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   const home=phoneRouteUrl(request,'xml',{},accessToken,fleetKey,normalizedFleetMac);
   const searchUrl=phoneRouteUrl(request,'search',{},accessToken,fleetKey,normalizedFleetMac);
   try{
-    const ctx=await resolveWriteContext({
-      env,org,webexFetch,phonismReader,
-      deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
-    });
     const leaseIndex=await activeLeaseIndex(env),lease=activePhoneLease(leaseIndex,enrollment);
-    const current=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
-    const line2=current.members.find(member=>Number(member?.port)===2)||null;
-    const line2Row=line2?memberRow(line2):null;
+    let line2Loaded=false,line2Row=null;
+    const loadLine2=async()=>{
+      if(line2Loaded)return line2Row;
+      const current=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
+      const line2=current.members.find(member=>Number(member?.port)===2)||null;
+      line2Row=line2?memberRow(line2):null;
+      line2Loaded=true;
+      return line2Row;
+    };
 
     if(part==='phone/xml'){
+      await loadLine2();
       const items=[];
       const activeLineLabel=lease?.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
       if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
@@ -611,6 +615,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     }
 
     if(part==='phone/status'){
+      await loadLine2();
       const items=[
         {prompt:(lease?.temporaryLine2||line2Row)?'Current Line 2: '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
@@ -627,6 +632,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!lease)return phoneXmlResponse(textMenu('No Temporary Line',[
         {prompt:'Return',uri:home}
       ],{cancelAction:home}));
+      if(!lease?.temporaryLine2)await loadLine2();
       const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
       return phoneXmlResponse(textMenu('Sign Out '+currentLabel,[
         {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{},accessToken,fleetKey,normalizedFleetMac)},
@@ -702,6 +708,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     if(part==='phone/apply'){
       if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      const ctx=await resolveWriteContext({
+        env,org,webexFetch,phonismReader,
+        deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
+      });
       const intent=await readPhoneIntent(env,new URL(request.url).searchParams.get('intent'),enrollment);
       if(intent.status==='completed'&&intent.result?.expiresAt){
         return phoneXmlResponse(textMenu('Extension Already Added',[

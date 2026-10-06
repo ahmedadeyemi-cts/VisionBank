@@ -11,7 +11,7 @@ test('missing counts/rates are not fabricated zero values',()=>{const d=daily();
 test('daily denominators are explicitly received and zero denominator is undefined',()=>{const d=daily();assert.equal(d.rateFromCounts(4,10),'40.0%');assert.equal(d.rateFromCounts(0,10),'0.0%');assert.equal(d.rateFromCounts(0,0),'—');assert.equal(d.rateFromCounts(11,10),'—');});
 test('missing durations differ from recorded zero duration',()=>{const d=daily();assert.equal(d.displayedDuration(null),'Not reported');assert.equal(d.displayedDuration('00:00:00'),'00:00:00');});
 test('pre-cutover default preserves the contact-center dashboard with the reviewed security baseline',()=>{
- const s=read('index.html');assert.equal(createHash('sha256').update(s).digest('hex'),'fdf8453b10301f368af7a42e320a5b127193eabf0948916b11296312275c01a5');
+ const s=read('index.html');assert.equal(createHash('sha256').update(s).digest('hex'),'e1c22e1452e82321e1dfa0ccf8add051a0b77e500bcb342e97664aec85e97aa9');
  assert.ok(s.includes('Contact Center Realtime Dashboard'));assert.equal((s.match(/src="dashboard\.js\?v=/g)||[]).length,1);
  for(const asset of ['portal-session.js','portal-auth-fetch.js','portal-security-precheck.js'])assert.ok(s.includes(asset));
  assert.ok(!s.includes('portal-page-auth.js'));

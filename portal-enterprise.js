@@ -4,6 +4,41 @@
   const body = document.body;
   if (!body) return;
 
+  const LICENSE_WORKER = window.VBPortalSession?.workerOrigin || "";
+  const LICENSE_RETURN_KEY = "vb_return_to";
+
+  async function validatePortalLicense() {
+    try {
+      if (!LICENSE_WORKER) return;
+      const response = await fetch(LICENSE_WORKER + "/api/license/access", {
+        method:"GET", cache:"no-store", credentials:"omit"
+      });
+      if (response.status === 404) return;
+      if (!response.ok) throw new Error("license-status-unavailable");
+      const data = await response.json();
+      window.VB_LICENSE = data;
+      if (data?.enforcementEnabled === true && data?.allowed !== true) {
+        try {
+          const returnPath = location.pathname + location.search + location.hash;
+          if (returnPath.startsWith("/") && !returnPath.startsWith("//")) {
+            sessionStorage.setItem(LICENSE_RETURN_KEY, returnPath);
+          }
+        } catch {}
+        const target = new URL("security.html", location.href);
+        target.searchParams.set("view","licensing");
+        target.searchParams.set("reason",data.reason || data.status || "license_required");
+        location.replace(target.href);
+      }
+    } catch (error) {
+      console.error("VisionBank license check failed:", error);
+      const target = new URL("security.html", location.href);
+      target.searchParams.set("view","licensing");
+      target.searchParams.set("reason","license_status_unavailable");
+      location.replace(target.href);
+    }
+  }
+  void validatePortalLicense();
+
   function normalizePath(value) {
     let path = String(value || "").split("?")[0].split("#")[0];
     path = path.replace(/^https?:\/\/[^/]+/i, "");

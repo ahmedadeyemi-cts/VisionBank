@@ -2268,3 +2268,25 @@ body.theme-dark .security-fleet-card code,body.theme-dark .security-fleet-card t
 body.theme-dark .security-table th{background:#13241e!important;color:#d8e4df!important}
 body.theme-dark .security-table td{border-color:#29453b!important}
 @media(max-width:850px){.security-fleet-grid{grid-template-columns:1fr}.security-fleet-rotate{align-items:stretch;flex-direction:column}.security-fleet-rotate .btn-primary{width:100%}}
+
+
+/* VisionBank Licensing */
+.security-license-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.security-license-kpis>div{border:1px solid var(--vb-border);border-radius:10px;background:var(--vb-surface-subtle);padding:11px}
+.security-license-kpis span{display:block;font-size:9px;font-weight:800;letter-spacing:.055em;text-transform:uppercase;color:var(--vb-muted)}
+.security-license-kpis strong{display:block;margin-top:4px;font-size:12px;overflow-wrap:anywhere}
+.security-license-source-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
+.security-license-source-grid article{border:1px solid var(--vb-border);border-radius:12px;background:var(--vb-surface-subtle);padding:13px}
+.security-license-source-grid article>strong{display:block;margin-bottom:8px}
+.security-license-source-grid label{display:block;margin-top:9px;font-size:10px;font-weight:800;color:var(--vb-muted)}
+.security-license-source-grid input,.security-license-source-grid select{width:100%;margin-top:5px}
+.security-license-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.security-license-source-summary{margin-top:14px}
+.security-license-source-summary dd{overflow-wrap:anywhere}
+.security-license-readonly-note{font-size:10px;color:var(--vb-muted);margin-top:8px}
+body.theme-dark .security-license-kpis>div,
+body.theme-dark .security-license-source-grid article{background:#0d1b16!important;border-color:#29453b!important;color:#e8f0ed!important}
+body.theme-dark .security-license-source-grid input,
+body.theme-dark .security-license-source-grid select{background:#13241e!important;border-color:#36574b!important;color:#f2f7f5!important}
+@media(max-width:1050px){.security-license-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.security-license-source-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.security-license-kpis{grid-template-columns:1fr}.security-license-actions>*{width:100%}}

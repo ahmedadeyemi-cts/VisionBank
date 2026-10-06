@@ -1,6 +1,7 @@
 (function () {
   "use strict";
   const KEY = "vb_session";
+  const SECURITY_ORIGIN = "https://visionbank-security.ahmedadeyemi.workers.dev";
 
   if (window.top !== window.self) {
     document.documentElement.style.display = "none";
@@ -50,5 +51,5 @@
   }
 
   migrateLegacy();
-  window.VBPortalSession = Object.freeze({ get, set, clear, authHeaders });
+  window.VBPortalSession = Object.freeze({ get, set, clear, authHeaders, workerOrigin: SECURITY_ORIGIN });
 })();

@@ -69,6 +69,8 @@ let ACTIVE_SECURITY_SESSIONS = [];
 let CURRENT_CONNECTION = null;
 let DEVICE_ADMIN_SETTINGS = null;
 let DEVICE_FLEET_KEYS = null;
+let LICENSE_CONFIG = null;
+let LICENSE_STATUS = null;
 let ACTIVE_SECURITY_VIEW = "overview";
 
 function consumePortalReturnTarget() {
@@ -175,6 +177,7 @@ function applySecurityNavPermissions() {
         policy: true,
         audit: !!rules.audit,
         tools: !!rules.cidr,
+        licensing: true,
         device: !!rules.deviceAdmin
     };
 
@@ -228,6 +231,22 @@ function updateSecurityOverview() {
             : "Checking…";
     }
     securityText("security-overview-device", deviceLabel);
+
+    let licenseLabel = "Checking…";
+    let licenseDetail = "License status has not loaded";
+    if (LICENSE_STATUS) {
+        if (LICENSE_STATUS.enforcementEnabled !== true) {
+            licenseLabel = "Not enforced";
+            licenseDetail = LICENSE_STATUS.status === "active"
+                ? "Valid license is activated; enforcement is disabled"
+                : "Security remains available while licensing is not enforced";
+        } else {
+            licenseLabel = LICENSE_STATUS.allowed === true ? "Active" : String(LICENSE_STATUS.status || "Required");
+            licenseDetail = LICENSE_STATUS.reason || "License enforcement enabled";
+        }
+    }
+    securityText("security-overview-license", licenseLabel);
+    securityText("security-overview-license-detail", licenseDetail);
 
     const protectedState = CURRENT_CONNECTION?.allowed === true && IP_RULES.length > 0 && !!ACTIVE_SESSION;
     securityText("security-overview-posture", protectedState ? "Protected" : "Attention");
@@ -692,7 +711,9 @@ loginForm.addEventListener("submit", async (e) => {
            
             loginTotp.value = "";
             loginTotpWrapper.classList.add("hidden");
-            const returnTarget = consumePortalReturnTarget();
+            const params = new URLSearchParams(location.search);
+            const licensingRedirect = params.get("view") === "licensing" || params.has("reason");
+            const returnTarget = licensingRedirect ? "" : consumePortalReturnTarget();
             if (returnTarget) {
                 location.assign(returnTarget);
                 return;
@@ -830,6 +851,290 @@ mfaCancelBtn.addEventListener("click", () => {
 });
 
 /* =============================================================
+   LICENSING
+   ============================================================= */
+
+function licenseHeaders(extra = {}) {
+    return authHeaders({"Content-Type":"application/json", ...extra});
+}
+
+async function licenseRequest(path, options = {}) {
+    const response = await fetch(WORKER_BASE + "/api/license" + path, {
+        method: options.method || "GET",
+        cache: "no-store",
+        headers: licenseHeaders(options.headers || {}),
+        ...(options.body !== undefined ? {body: JSON.stringify(options.body)} : {})
+    });
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (!response.ok) {
+        const error = new Error(data.error || "license-request-failed");
+        error.code = data.error || "license-request-failed";
+        error.status = response.status;
+        throw error;
+    }
+    return data;
+}
+
+function securityLicenseDate(value) {
+    if (!value) return "—";
+    const at = new Date(value);
+    return Number.isNaN(at.getTime()) ? String(value) : at.toLocaleString();
+}
+
+function licenseConfigFromForm(enforcementOverride = null) {
+    const current = LICENSE_CONFIG || {};
+    return {
+        activeSource: document.getElementById("security-license-source")?.value || current.activeSource || "primary",
+        installationName: document.getElementById("security-license-installation-name")?.value.trim() || "VisionBank Production",
+        enforcementEnabled: enforcementOverride === null
+            ? current.enforcementEnabled === true
+            : enforcementOverride === true,
+        primary: {
+            repository: document.getElementById("security-license-primary-repo")?.value.trim() || "",
+            authorityUrl: document.getElementById("security-license-primary-url")?.value.trim() || ""
+        },
+        mirror: {
+            repository: document.getElementById("security-license-mirror-repo")?.value.trim() || "",
+            authorityUrl: document.getElementById("security-license-mirror-url")?.value.trim() || ""
+        },
+        custom: {
+            repository: document.getElementById("security-license-custom-repo")?.value.trim() || "",
+            authorityUrl: document.getElementById("security-license-custom-url")?.value.trim() || ""
+        }
+    };
+}
+
+function renderLicenseConsole() {
+    const config = LICENSE_CONFIG || {};
+    const status = LICENSE_STATUS || {};
+    const canManage = ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin === true;
+
+    const source = document.getElementById("security-license-source");
+    if (source) source.value = config.activeSource || "primary";
+    const installName = document.getElementById("security-license-installation-name");
+    if (installName) installName.value = config.installationName || "VisionBank Production";
+
+    const pairs = [
+        ["security-license-primary-repo", config.primary?.repository],
+        ["security-license-primary-url", config.primary?.authorityUrl],
+        ["security-license-mirror-repo", config.mirror?.repository],
+        ["security-license-mirror-url", config.mirror?.authorityUrl],
+        ["security-license-custom-repo", config.custom?.repository],
+        ["security-license-custom-url", config.custom?.authorityUrl]
+    ];
+    for (const [id, value] of pairs) {
+        const el = document.getElementById(id);
+        if (el) el.value = value || "";
+    }
+
+    const badge = document.getElementById("security-license-badge");
+    const active = status.allowed === true && status.status === "active";
+    if (badge) {
+        badge.textContent = config.enforcementEnabled !== true
+            ? (status.status === "active" ? "Valid · Not Enforced" : "Not Enforced")
+            : active ? "Active" : String(status.status || "Required");
+        badge.className = "security-state-badge " +
+            (config.enforcementEnabled !== true ? "neutral" : active ? "success" : "danger");
+    }
+
+    securityText("security-license-status", status.status || "Unlicensed");
+    securityText("security-license-customer", status.customerName || "—");
+    securityText("security-license-expires", securityLicenseDate(status.expiresAt));
+    securityText("security-license-revalidation", securityLicenseDate(status.fullRevalidationAt));
+    securityText("security-license-heartbeat", securityLicenseDate(status.lastSuccessfulContactAt || status.lastHeartbeatAt));
+    securityText("security-license-next-heartbeat", securityLicenseDate(status.nextHeartbeatAt));
+    securityText("security-license-offline-deadline", securityLicenseDate(status.offlineDeadline));
+    securityText("security-license-enforcement-state", config.enforcementEnabled === true ? "Enabled" : "Disabled");
+    securityText("security-license-active-source", status.activeSource || config.activeSource || "primary");
+    securityText("security-license-active-repo", status.repository || config?.[config.activeSource]?.repository || "—");
+    securityText("security-license-active-url", status.authorityUrl || config?.[config.activeSource]?.authorityUrl || "—");
+    securityText("security-license-system-id", config.systemId || "Generated when settings are first saved");
+    securityText("security-license-installation-id", status.installationId || "Not activated");
+    securityText("security-license-error", status.lastValidationError || "None");
+
+    const detail = document.getElementById("security-license-status-detail");
+    if (detail) {
+        if (config.enforcementEnabled !== true) {
+            detail.textContent = status.status === "active"
+                ? "A valid license is activated. Enforcement is currently disabled."
+                : "Licensing is not enforced. Configure an authority and activate a license before enabling enforcement.";
+        } else if (status.allowed === true) {
+            detail.textContent = status.degraded === true
+                ? "License authority validation is due; cached access remains within the configured offline grace window."
+                : "License is valid and operational portal access is permitted.";
+        } else {
+            detail.textContent = "Operational portal access is blocked by license state: " + (status.reason || status.status || "license required") + ". Security remains available.";
+        }
+    }
+
+    const toggle = document.getElementById("security-license-enforcement-toggle");
+    if (toggle) {
+        toggle.checked = config.enforcementEnabled === true;
+        toggle.disabled = !canManage;
+    }
+    securityText("security-license-enforcement-label", config.enforcementEnabled === true ? "On" : "Off");
+
+    document.querySelectorAll("[data-license-admin-controls]").forEach(container => {
+        container.querySelectorAll?.("input,select,button,textarea").forEach(el => { el.disabled = !canManage; });
+        if (container.matches?.("button,input,select,textarea")) container.disabled = !canManage;
+    });
+
+    const full = document.getElementById("security-license-full-revalidate");
+    if (full) full.disabled = !ACTIVE_SESSION || !status.installationId;
+    const refresh = document.getElementById("security-license-refresh");
+    if (refresh) refresh.disabled = !ACTIVE_SESSION || !status.installationId;
+
+    updateSecurityOverview();
+}
+
+async function loadLicenseConsole() {
+    if (!ACTIVE_SESSION) return;
+    try {
+        const [config, status] = await Promise.all([
+            licenseRequest("/config"),
+            licenseRequest("/status")
+        ]);
+        LICENSE_CONFIG = config;
+        LICENSE_STATUS = status;
+        renderLicenseConsole();
+    } catch (error) {
+        LICENSE_CONFIG = LICENSE_CONFIG || null;
+        LICENSE_STATUS = {
+            status:"unavailable",allowed:false,
+            reason:error.code || error.message,
+            lastValidationError:error.code || error.message
+        };
+        renderLicenseConsole();
+        showStatus("Licensing status unavailable: " + (error.code || error.message), "error");
+    }
+}
+
+async function saveLicenseAuthoritySettings({enforcementOverride=null, quiet=false} = {}) {
+    if (ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true) return;
+    const button = document.getElementById("security-license-save-config");
+    if (button) button.disabled = true;
+    try {
+        LICENSE_CONFIG = await licenseRequest("/config", {
+            method:"POST",
+            body:licenseConfigFromForm(enforcementOverride)
+        });
+        LICENSE_STATUS = await licenseRequest("/status");
+        renderLicenseConsole();
+        if (!quiet) showStatus("License authority settings saved.", "success");
+        return true;
+    } catch (error) {
+        renderLicenseConsole();
+        if (!quiet) showStatus("Unable to save licensing settings: " + (error.code || error.message), "error");
+        return false;
+    } finally {
+        if (button) button.disabled = ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true;
+    }
+}
+
+async function testActiveLicenseAuthority() {
+    if (ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true) return;
+    const saved = await saveLicenseAuthoritySettings({quiet:true});
+    if (!saved) return showStatus("Save the authority settings before testing.", "error");
+    const button = document.getElementById("security-license-test");
+    if (button) button.disabled = true;
+    try {
+        const data = await licenseRequest("/test", {
+            method:"POST",
+            body:{source: document.getElementById("security-license-source")?.value || "primary"}
+        });
+        securityText(
+            "security-license-authority-state",
+            "Connected to " + (data.service || "license authority") + " via " + (data.authority?.authorityUrl || "configured URL") + "."
+        );
+        showStatus("License authority connection succeeded.", "success");
+    } catch (error) {
+        securityText("security-license-authority-state", "Connection failed: " + (error.code || error.message));
+        showStatus("License authority test failed.", "error");
+    } finally {
+        if (button) button.disabled = ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true;
+    }
+}
+
+async function activateInstallationLicense() {
+    if (ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true) return;
+    const input = document.getElementById("security-license-key");
+    const licenseKey = input?.value.trim() || "";
+    if (!licenseKey) return showStatus("Enter a license key.", "error");
+    const saved = await saveLicenseAuthoritySettings({quiet:true});
+    if (!saved) return;
+    const button = document.getElementById("security-license-activate");
+    if (button) button.disabled = true;
+    try {
+        LICENSE_STATUS = await licenseRequest("/activate", {method:"POST",body:{licenseKey}});
+        if (input) input.value = "";
+        LICENSE_CONFIG = await licenseRequest("/config");
+        renderLicenseConsole();
+        showStatus("VisionBank license activated successfully.", "success");
+    } catch (error) {
+        showStatus("License activation failed: " + (error.code || error.message), "error");
+    } finally {
+        if (button) button.disabled = ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true;
+    }
+}
+
+async function refreshInstallationLicense(full = false) {
+    const button = document.getElementById(full ? "security-license-full-revalidate" : "security-license-refresh");
+    if (button) button.disabled = true;
+    try {
+        LICENSE_STATUS = await licenseRequest("/refresh", {method:"POST",body:{full}});
+        LICENSE_CONFIG = await licenseRequest("/config");
+        renderLicenseConsole();
+        showStatus(full ? "Full license revalidation completed." : "License check completed.", "success");
+    } catch (error) {
+        showStatus("License validation failed: " + (error.code || error.message), "error");
+    } finally {
+        renderLicenseConsole();
+    }
+}
+
+async function updateLicenseEnforcement() {
+    const toggle = document.getElementById("security-license-enforcement-toggle");
+    if (!toggle || ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true) return;
+    const desired = toggle.checked;
+    if (desired && !confirm("Enable license enforcement? Once enabled, operational portal pages and APIs will require a valid license. Security remains accessible.")) {
+        toggle.checked = false;
+        return;
+    }
+    const previous = LICENSE_CONFIG?.enforcementEnabled === true;
+    const saved = await saveLicenseAuthoritySettings({enforcementOverride:desired,quiet:true});
+    if (!saved) {
+        toggle.checked = previous;
+        return showStatus("License enforcement was not changed.", "error");
+    }
+    renderLicenseConsole();
+    showStatus("License enforcement " + (desired ? "enabled" : "disabled") + ".", "success");
+}
+
+async function deactivateInstallationLicense() {
+    if (ROLE_RULES[ACTIVE_ROLE]?.licenseAdmin !== true) return;
+    if (!confirm("Deactivate the local VisionBank license? Enforcement will be disabled so Security remains available for reactivation.")) return;
+    try {
+        LICENSE_STATUS = await licenseRequest("/deactivate", {method:"POST",body:{}});
+        LICENSE_CONFIG = await licenseRequest("/config");
+        renderLicenseConsole();
+        showStatus("Local license deactivated. Activate a license before re-enabling enforcement.", "success");
+    } catch (error) {
+        showStatus("Unable to deactivate local license: " + (error.code || error.message), "error");
+    }
+}
+
+function bindLicenseControls() {
+    document.getElementById("security-license-save-config")?.addEventListener("click", () => void saveLicenseAuthoritySettings());
+    document.getElementById("security-license-test")?.addEventListener("click", () => void testActiveLicenseAuthority());
+    document.getElementById("security-license-activate")?.addEventListener("click", () => void activateInstallationLicense());
+    document.getElementById("security-license-refresh")?.addEventListener("click", () => void refreshInstallationLicense(false));
+    document.getElementById("security-license-full-revalidate")?.addEventListener("click", () => void refreshInstallationLicense(true));
+    document.getElementById("security-license-enforcement-toggle")?.addEventListener("change", () => void updateLicenseEnforcement());
+    document.getElementById("security-license-deactivate")?.addEventListener("click", () => void deactivateInstallationLicense());
+}
+
+/* =============================================================
    4.  SHOW ADMIN VIEW
    ============================================================= */
 
@@ -849,10 +1154,19 @@ async function showAdminView() {
         loadSecurityConfigHistory(),
         loadActiveSecuritySessions(),
         loadCurrentConnectionContext(),
-        loadDeviceAdminSettings()
+        loadDeviceAdminSettings(),
+        loadLicenseConsole()
     ]);
 
     updateSecurityOverview();
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("view") === "licensing" || params.has("reason")) {
+        setSecurityView("licensing");
+        if (params.get("reason")) {
+            showStatus("Operational portal access requires license attention: " + params.get("reason"), "error");
+        }
+    }
 
     if (ROLE_RULES[ACTIVE_ROLE]?.audit) {
         startAuditLogAutoRefresh();
@@ -873,6 +1187,13 @@ function applyRolePermissions() {
   toggleSection("cidr-range-tester", rules.cidr);
   setReadOnly("admin-hours-section", rules.editHours);
   setReadOnly("ip-manager", rules.editIp);
+
+  document.querySelectorAll("[data-license-admin-controls]").forEach(container => {
+    container.querySelectorAll?.("input,select,button,textarea").forEach(el => {
+      el.disabled = !rules.licenseAdmin;
+    });
+    if (container.matches?.("button,input,select,textarea")) container.disabled = !rules.licenseAdmin;
+  });
 
   const restrictedNote = document.getElementById("identity-restricted-note");
   if (restrictedNote) restrictedNote.hidden = role === "superadmin";
@@ -896,6 +1217,7 @@ const ROLE_RULES = {
     editIp: true,
     cidr: true,
     deviceAdmin: true,
+    licenseAdmin: true,
     readOnly: false
   },
   admin: {
@@ -905,6 +1227,7 @@ const ROLE_RULES = {
     editIp: true,
     cidr: true,
     deviceAdmin: true,
+    licenseAdmin: true,
     readOnly: false
   },
   analyst: {
@@ -914,6 +1237,7 @@ const ROLE_RULES = {
     editIp: false,
     cidr: true,
     deviceAdmin: false,
+    licenseAdmin: false,
     readOnly: false
   },
   auditor: {
@@ -923,6 +1247,7 @@ const ROLE_RULES = {
     editIp: false,
     cidr: true,
     deviceAdmin: false,
+    licenseAdmin: false,
     readOnly: true
   },
   view: {
@@ -932,6 +1257,7 @@ const ROLE_RULES = {
     editIp: false,
     cidr: false,
     deviceAdmin: false,
+    licenseAdmin: false,
     readOnly: true
   }
 };
@@ -2072,6 +2398,7 @@ document.getElementById("collapse-all-btn")?.addEventListener("click", () => {
 
 initSecurityConsoleNavigation();
 bindDeviceAdminControls();
+bindLicenseControls();
 document.getElementById("audit-filter-query")?.addEventListener("input", renderAuditLog);
 document.getElementById("audit-filter-outcome")?.addEventListener("change", renderAuditLog);
 document.getElementById("audit-refresh-btn")?.addEventListener("click", () => void loadAuditLog());

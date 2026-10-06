@@ -143,6 +143,58 @@ function targetSummary(target){
   }:null;
 }
 
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+async function boundedProviderCall(factory,ms=1200){
+  let timer;
+  try{
+    return await Promise.race([
+      Promise.resolve().then(factory),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new DeviceManagementError('phonism-read-timeout',503)),ms);})
+    ]);
+  }finally{clearTimeout(timer);}
+}
+
+function phonismLineMatchesTarget(lines=[],target=null){
+  const line2=(Array.isArray(lines)?lines:[]).find(x=>Number(x?.lineNumber)===2)||null;
+  if(!target)return !line2;
+  if(!line2)return false;
+  const targetName=clean(target.name||target.displayName||'',160).toLowerCase();
+  const targetExtension=clean(target.extension||'',32).toLowerCase();
+  const searchable=[line2.alias,line2.username,line2.broadworksUserId].map(x=>String(x||'').toLowerCase()).join(' ');
+  return Boolean((targetName&&searchable.includes(targetName))||(targetExtension&&searchable.includes(targetExtension)));
+}
+
+async function waitForPhonismLine2({env,phonismReader,phoneId,target}){
+  const delays=[0,350,800];
+  let lastError=null;
+  for(let i=0;i<delays.length;i++){
+    if(delays[i])await wait(delays[i]);
+    try{
+      const lines=await boundedProviderCall(()=>phonismReader.lines(env,phoneId),1200);
+      if(phonismLineMatchesTarget(lines,target))return {confirmed:true,attempts:i+1,error:null};
+    }catch(error){
+      lastError=String(error?.code||error?.message||'phonism-line-check-failed').slice(0,160);
+    }
+  }
+  return {confirmed:false,attempts:delays.length,error:lastError};
+}
+
+async function queueAutomaticReboot({env,phonismReader,phoneId}){
+  const delays=[0,250,750];
+  let lastError=null;
+  for(let i=0;i<delays.length;i++){
+    if(delays[i])await wait(delays[i]);
+    try{
+      await phonismReader.tr069Action(env,phoneId,'Reboot');
+      return {queued:true,attempts:i+1,error:null};
+    }catch(error){
+      lastError=String(error?.code||error?.message||'reboot-failed').slice(0,160);
+    }
+  }
+  return {queued:false,attempts:delays.length,error:lastError||'reboot-failed'};
+}
+
 export async function applyWritePreview({env,request,session,webexFetch,orgId,mutationId,phonismReader=createPhonismReader()}){
   const preview=await getPreview(env,mutationId);
   if(!preview)throw new DeviceManagementError('preview-expired',409);
@@ -206,31 +258,49 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
 
   let rebootQueued=false,rebootError=null;
   if(pc.phoneId){
+    const syncConfirmation=await waitForPhonismLine2({
+      env,phonismReader,phoneId:pc.phoneId,target:preview.targetMember
+    });
     const rebootAt=new Date().toISOString();
-    try{
-      await phonismReader.tr069Action(env,pc.phoneId,'Reboot');
-      rebootQueued=true;
-      lease.recovery={...(lease.recovery||{}),rebootAttempted:true,rebootAt,automaticReboot:true};
+    const reboot=await queueAutomaticReboot({env,phonismReader,phoneId:pc.phoneId});
+    rebootQueued=reboot.queued;
+    rebootError=reboot.error;
+    if(rebootQueued){
+      lease.recovery={
+        ...(lease.recovery||{}),rebootAttempted:true,rebootAt,automaticReboot:true,
+        syncConfirmedBeforeReboot:syncConfirmation.confirmed,
+        syncConfirmAttempts:syncConfirmation.attempts,
+        syncConfirmError:syncConfirmation.error||null,
+        autoRebootAttempts:reboot.attempts
+      };
       lease.verification={...(lease.verification||{}),phonism:'reboot-queued',state:'reboot-queued',lastCheckedAt:rebootAt};
       await putLease(env,lease);
       await writeAuditRecord(env,buildAuditRecord({
         eventType:'device-recovery',action:'automatic-reboot-after-save',
         systemActor:automatedActor(session.operator),device:preview.device,location:preview.location,
         change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
-        reason:'Webex save completed and Phonism Sync was queued; automatic TR-069 reboot queued to apply the temporary line on the handset.',
+        reason:syncConfirmation.confirmed
+          ?'Webex save completed, Phonism Line 2 convergence was confirmed, and automatic TR-069 reboot was queued with no user action required.'
+          :'Webex save completed and Phonism Sync was accepted; after bounded Line 2 checks, automatic TR-069 reboot was still queued with no user action required.',
         webexStatus:'saved',phonismStatus:'reboot-queued',result:'pending-verification',
         originalAuditId:audit.auditId
       }));
-    }catch(error){
-      rebootError=String(error?.code||error?.message||'reboot-failed').slice(0,160);
-      lease.recovery={...(lease.recovery||{}),rebootAttempted:false,automaticReboot:true,autoRebootFailed:true,autoRebootError:rebootError,autoRebootFailedAt:rebootAt};
+    }else{
+      lease.recovery={
+        ...(lease.recovery||{}),rebootAttempted:false,automaticReboot:true,
+        syncConfirmedBeforeReboot:syncConfirmation.confirmed,
+        syncConfirmAttempts:syncConfirmation.attempts,
+        syncConfirmError:syncConfirmation.error||null,
+        autoRebootAttempts:reboot.attempts,
+        autoRebootFailed:true,autoRebootError:rebootError,autoRebootFailedAt:rebootAt
+      };
       lease.verification={...(lease.verification||{}),phonism:'reboot-failed',state:'reboot-failed',lastCheckedAt:rebootAt};
       await putLease(env,lease);
       await writeAuditRecord(env,buildAuditRecord({
         eventType:'device-recovery',action:'automatic-reboot-after-save',
         systemActor:automatedActor(session.operator),device:preview.device,location:preview.location,
         change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
-        reason:'Webex save and Phonism Sync succeeded, but the automatic TR-069 reboot could not be queued.',
+        reason:'Webex save and Phonism Sync succeeded, but automatic TR-069 reboot retries could not be queued.',
         webexStatus:'saved',phonismStatus:'reboot-failed',result:'failed',
         originalAuditId:audit.auditId
       }));

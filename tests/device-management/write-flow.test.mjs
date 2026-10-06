@@ -56,14 +56,26 @@ function webexFixture(initial=[PRIMARY]){
   return {state,fetch};
 }
 
-function phonismFixture(){
-  const calls=[];
+function phonismFixture({lineReadyAfter=0,rebootFailures=0}={}){
+  const calls=[],state={lineReads:0,rebootAttempts:0};
   return {
-    calls,
+    calls,state,
     reader:{
       async syncHierarchyIntegration(_env,companyId,body){calls.push({type:'sync',companyId,body});return {accepted:true,status:202};},
-      async lines(){const current=calls.find(x=>x.type==='target');return current?.lines||[{lineNumber:2,alias:'Ryan Dea - (test)',registrationStatus:'not-monitored'}];},
-      async tr069Action(_env,phoneId,action){calls.push({type:'tr069',phoneId,action});return {accepted:true,status:200,action};}
+      async lines(){
+        state.lineReads++;
+        if(state.lineReads<=lineReadyAfter)return [{lineNumber:2,alias:'Old Line',registrationStatus:'not-monitored'}];
+        const current=calls.find(x=>x.type==='target');
+        return current?.lines||[{lineNumber:2,alias:'Ryan Dea - (test)',username:'1806',registrationStatus:'not-monitored'}];
+      },
+      async tr069Action(_env,phoneId,action){
+        state.rebootAttempts++;
+        calls.push({type:'tr069',phoneId,action,attempt:state.rebootAttempts});
+        if(state.rebootAttempts<=rebootFailures){
+          const error=new Error('temporary-tr069-failure');error.code='temporary-tr069-failure';throw error;
+        }
+        return {accepted:true,status:200,action};
+      }
     }
   };
 }
@@ -132,14 +144,40 @@ test('apply writes Webex, queues Phonism sync, then automatically queues reboot'
   assert.equal(wx.state.puts[0].members.find(x=>x.port===2).id,'user-ryan');
   assert.deepEqual(ph.calls.map(x=>x.type),['sync','tr069']);
   assert.equal(ph.calls[1].action,'Reboot');
+  assert.equal(ph.state.lineReads,1);
+  assert.equal(ph.state.rebootAttempts,1);
   assert.equal(result.rebootQueued,true);
   assert.equal(result.lease.temporaryLine2.memberId,'user-ryan');
   assert.equal(result.lease.status,'active');
   assert.equal(result.lease.recovery.rebootAttempted,true);
   assert.equal(result.lease.recovery.automaticReboot,true);
+  assert.equal(result.lease.recovery.syncConfirmedBeforeReboot,true);
+  assert.equal(result.lease.recovery.autoRebootAttempts,1);
   assert.ok(await e.LOGS.get('device-lease:'+result.lease.leaseId));
   const auditKeys=(await e.LOGS.list({prefix:'device-audit:'})).keys;
   assert.equal(auditKeys.length,2);
+});
+
+test('save waits for Phonism Line 2 convergence and retries automatic reboot without user action',async()=>{
+  const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture({lineReadyAfter:1,rebootFailures:1});
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],
+    targetMember:TARGET,durationMinutes:30,reason:'Automatic reboot retry',
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
+  });
+  const result=await applyWritePreview({
+    env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,
+    mutationId:preview.mutationId,phonismReader:ph.reader
+  });
+  assert.equal(result.rebootQueued,true);
+  assert.equal(result.rebootError,null);
+  assert.equal(ph.state.lineReads,2);
+  assert.equal(ph.state.rebootAttempts,2);
+  assert.equal(result.lease.recovery.syncConfirmedBeforeReboot,true);
+  assert.equal(result.lease.recovery.syncConfirmAttempts,2);
+  assert.equal(result.lease.recovery.autoRebootAttempts,2);
+  assert.equal(result.lease.recovery.autoRebootFailed,undefined);
+  assert.deepEqual(ph.calls.filter(x=>x.type==='tr069').map(x=>x.action),['Reboot','Reboot']);
 });
 
 test('appearance-limit failure carries the reviewed target and device context',async()=>{

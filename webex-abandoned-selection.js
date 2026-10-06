@@ -15,6 +15,7 @@ const key = row => String(row.contactId || '').toLowerCase();
 const fingerprint = row => JSON.stringify([key(row), row.ani, row.startEpoch, row.endEpoch]);
 const possible = row => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(key(row)) &&
   callbackNumber(row.ani) && Number.isFinite(row.endEpoch) && row.endEpoch > 0 &&
+  row.followupCode !== 'helped' &&
   !row.callbackScheduleId && !(Number(row.callbackAttempts) > 0) && !ledger.has(key(row));
 const fresh = s => accessReady() && s?.ready !== false &&
   Number.isFinite(s?.observedAt) && Date.now() - s.observedAt <= 180000 &&
@@ -30,7 +31,7 @@ function syncButtons() {
   id('SelectMatching').disabled = !available || !matching.length;
   id('SelectMatching').textContent = `Select all matching across pages (${matching.length})`;
   id('ClearSelection').disabled = selected.size === 0;
-  status(`${selected.size} selected. ${matching.length} records have usable numbers; native duplicate checks remain pending. New arrivals are not automatically selected.`);
+  status(`${selected.size} selected. ${matching.length} records remain callback-eligible after confirmed-helped exclusions; native duplicate checks remain pending. New arrivals are not automatically selected.`);
   for (const box of document.querySelectorAll('input[data-callback-select]')) box.checked = selected.has(box.dataset.callbackSelect);
 }
 function setSelected(row, checked) {
@@ -62,15 +63,15 @@ function render() {
     }
   }
   const body = document.getElementById('abandonedCallsBody');
-  if (!current.pageRows.length) { body.querySelector('td')?.setAttribute('colspan', '11'); syncButtons(); return; }
+  if (!current.pageRows.length) { body.querySelector('td')?.setAttribute('colspan', '14'); syncButtons(); return; }
   [...body.rows].forEach((tr, index) => {
     if (tr.querySelector('[data-callback-cell]')) return;
-    const row = current.pageRows[index]; if (!row || tr.cells.length !== 8) return;
+    const row = current.pageRows[index]; if (!row || tr.cells.length !== 11) return;
     const td = node('td', ''), box = document.createElement('input'); box.type = 'checkbox';
     td.dataset.callbackCell = 'selection'; box.dataset.callbackSelect = key(row); box.disabled = !possible(row);
     box.setAttribute('aria-label', 'Select abandoned call from ' + String(row.ani || 'unknown number'));
     box.addEventListener('change', () => setSelected(row, box.checked)); td.append(box); tr.prepend(td);
-    const label = row.callbackScheduleId ? 'Already scheduled' : possible(row) ? 'Native status not verified' : 'Not eligible / already attempted';
+    const label = row.followupCode === 'helped' ? 'Called back — helped' : row.callbackScheduleId ? 'Already scheduled' : possible(row) ? 'Native status not verified' : 'Not eligible / already attempted';
     const statusCell=node('td',label),windowCell=node('td',row.callbackScheduledWindow||'—');
     statusCell.dataset.callbackStatus=key(row);windowCell.dataset.callbackWindow=key(row);tr.append(statusCell,windowCell);
   });

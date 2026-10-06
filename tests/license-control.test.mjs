@@ -43,12 +43,12 @@ const activationFetch=async(url,options={})=>{
     installationId:'inst-1',licenseId:'lic-1',customerName:'VisionBank Iowa',
     status:'active',access:true,expiresAt:'2030-10-05T00:00:00.000Z',
     fullRevalidationAt:'2030-04-05T00:00:00.000Z',fullRevalidationRequired:false,
-    heartbeatIntervalHours:24,offlineGraceHours:72,entitlements:{portal_access:true}
+    heartbeatIntervalHours:24,offlineGraceHours:2160,entitlements:{portal_access:true}
   });
   if(url.endsWith('/api/v1/heartbeat'))return Response.json({
     licenseId:'lic-1',customerName:'VisionBank Iowa',status:'active',access:true,
     expiresAt:'2030-10-05T00:00:00.000Z',fullRevalidationAt:'2030-04-05T00:00:00.000Z',
-    fullRevalidationRequired:false,heartbeatIntervalHours:24,offlineGraceHours:72,
+    fullRevalidationRequired:false,heartbeatIntervalHours:24,offlineGraceHours:2160,
     entitlements:{portal_access:true}
   });
   return Response.json({ok:true});
@@ -122,7 +122,7 @@ test('revoked heartbeat immediately denies access once enforcement is active',as
   const revokedFetch=async url=>{
     if(url.endsWith('/api/v1/heartbeat'))return Response.json({
       status:'revoked',access:false,expiresAt:'2030-10-05T00:00:00.000Z',
-      heartbeatIntervalHours:24,offlineGraceHours:72
+      heartbeatIntervalHours:24,offlineGraceHours:2160
     },{status:403});
     return healthFetch(url);
   };

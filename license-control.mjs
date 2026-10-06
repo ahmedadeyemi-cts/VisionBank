@@ -143,7 +143,7 @@ function stateAccess(config,state,{now=Date.now()}={}){
   if(Number.isFinite(expires)&&now>=expires)return {allowed:false,reason:'license-expired'};
   const last=Date.parse(state.lastSuccessfulContactAt||state.activatedAt||'');
   const interval=Number(state.heartbeatIntervalHours||24)*3600000;
-  const grace=Number(state.offlineGraceHours||72)*3600000;
+  const grace=Number(state.offlineGraceHours||2160)*3600000;
   if(!Number.isFinite(last))return {allowed:false,reason:'license-validation-required'};
   const dueAt=last+interval,deadline=dueAt+grace;
   if(now>deadline)return {
@@ -173,7 +173,7 @@ function publicState(config,state,{now=Date.now()}={}){
     lastValidationError:state?.lastValidationError||null,
     nextHeartbeatAt:access.nextHeartbeatAt||null,offlineDeadline:access.offlineDeadline||null,
     heartbeatIntervalHours:Number(state?.heartbeatIntervalHours||24),
-    offlineGraceHours:Number(state?.offlineGraceHours||72),
+    offlineGraceHours:Number(state?.offlineGraceHours||2160),
     updatedAt:state?.updatedAt||null
   };
 }
@@ -260,7 +260,7 @@ export async function activateLicense(env,request,{licenseKey,fetcher=fetch}={})
     fullRevalidationAt:result.data.fullRevalidationAt||null,
     fullRevalidationRequired:result.data.fullRevalidationRequired===true,
     heartbeatIntervalHours:Number(result.data.heartbeatIntervalHours||24),
-    offlineGraceHours:Number(result.data.offlineGraceHours||72),
+    offlineGraceHours:Number(result.data.offlineGraceHours||2160),
     entitlements:result.data.entitlements||{},
     activatedAt:contact,lastHeartbeatAt:contact,lastSuccessfulContactAt:contact,lastValidationError:null,
     authoritySource:result.authority.source,authorityUrl:result.authority.authorityUrl
@@ -290,7 +290,7 @@ export async function refreshLicense(env,{request=null,force=false,forceFull=fal
       fullRevalidationAt:result.data?.fullRevalidationAt||state.fullRevalidationAt,
       fullRevalidationRequired:result.data?.fullRevalidationRequired===true,
       heartbeatIntervalHours:Number(result.data?.heartbeatIntervalHours||state.heartbeatIntervalHours||24),
-      offlineGraceHours:Number(result.data?.offlineGraceHours||state.offlineGraceHours||72),
+      offlineGraceHours:Number(result.data?.offlineGraceHours||state.offlineGraceHours||2160),
       entitlements:result.data?.entitlements||state.entitlements||{},
       lastHeartbeatAt:contact,lastSuccessfulContactAt:contact,lastValidationError:null,
       authoritySource:result.authority.source,authorityUrl:result.authority.authorityUrl

@@ -61,8 +61,9 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const home=await xml(handler,env,launch);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Line 2: 3999 - Original Line/);
-  assert.match(home.text,/Add temporary line/);
+  assert.match(home.text,/Add Temporary Line/);
+  assert.match(home.text,/Refresh/);
+  assert.doesNotMatch(home.text,/Line 2:/);
 
   const token=enrollment.xmlUrl.split('/').at(-1);
   const searchUrl='https://worker.example/p/'+token+'?a=search';
@@ -95,7 +96,9 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const leases=[...env.LOGS.map.entries()].filter(([k])=>k.startsWith('device-lease:')).map(([,v])=>JSON.parse(v.value));
   assert.equal(leases[0].durationMinutes,15);
   const activeHome=await xml(handler,env,launch);
+  assert.match(activeHome.text,/Line 2: 4102 - Temporary User/);
   assert.match(activeHome.text,/Sign Out Temporary Line/);
+  assert.match(activeHome.text,/Refresh/);
   const signoutReview=await xml(handler,env,'https://worker.example/p/'+token+'?a=e');
   assert.match(signoutReview.text,/Sign Out 4102 - Temporary User/);
   assert.match(signoutReview.text,/Sign Out Now/);

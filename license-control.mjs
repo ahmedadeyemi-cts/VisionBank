@@ -201,7 +201,7 @@ async function authorityRequest(config,path,{method='GET',body=null,token=null,f
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     const response=await fetcher(authority.authorityUrl+path,{
-      method,redirect:'error',signal:controller.signal,
+      method,redirect:'manual',signal:controller.signal,
       headers:{
         Accept:'application/json',
         ...(body?{'Content-Type':'application/json'}:{}),
@@ -209,9 +209,13 @@ async function authorityRequest(config,path,{method='GET',body=null,token=null,f
       },
       ...(body?{body:JSON.stringify(body)}:{})
     });
+    if(response.status>=300&&response.status<400){
+      throw new LicenseControlError('license-authority-redirect',502,response.headers.get('location')||'redirect-without-location');
+    }
     let data={};try{data=await response.json();}catch{}
     return {response,data,authority};
   }catch(error){
+    if(error instanceof LicenseControlError)throw error;
     const code=error?.name==='AbortError'?'license-authority-timeout':'license-authority-unreachable';
     const detail=[error?.name,error?.message,error?.cause?.message].filter(Boolean).join(': ');
     console.error('License authority fetch failed',JSON.stringify({code,detail,authority:authority.authorityUrl,path}));

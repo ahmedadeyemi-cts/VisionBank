@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   loadLicenseConfig,loadLicenseState,updateLicenseConfig,activateLicense,licenseStatus,
-  refreshLicense,licenseExemptPath,createLicenseControlHandler
+  refreshLicense,licenseExemptPath,createLicenseControlHandler,testLicenseAuthority
 } from '../license-control.mjs';
 
 class MemoryKV{
@@ -148,6 +148,17 @@ test('revoked heartbeat immediately denies access once enforcement is active',as
   assert.equal(s.allowed,false);
   assert.equal(s.status,'revoked');
   assert.equal(s.reason,'license-revoked');
+});
+
+test('authority requests use Cloudflare-supported manual redirect mode',async()=>{
+  const e=env();
+  await updateLicenseConfig(e,req('/api/license/config',{method:'POST'}),{primary,mirror});
+  let seen=null;
+  const fetcher=async(url,options)=>{seen={url,redirect:options.redirect,method:options.method};return Response.json({ok:true,service:'dashboard-license-control'});};
+  const result=await testLicenseAuthority(e,req('/api/license/test',{method:'POST'}),{source:'primary',fetcher});
+  assert.equal(result.ok,true);
+  assert.equal(seen.redirect,'manual');
+  assert.equal(seen.method,'GET');
 });
 
 test('authority outage records error but keeps access during offline grace',async()=>{

@@ -265,3 +265,117 @@ body.dark-mode .report-empty {
     text-align: left;
   }
 }
+
+/* Abandoned-call customer recovery workflow */
+.daily-report-followup-filter {
+  display: grid;
+  grid-template-columns: auto minmax(190px,260px);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #52625c;
+}
+.daily-report-followup-filter select {
+  min-height: 38px;
+  border: 1px solid #cbd8d3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #15231e;
+  padding: 7px 10px;
+  font: inherit;
+}
+.vb-followup-summary {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #d8e2de;
+  border-radius: 10px;
+  background: #f7faf9;
+  color: #405149;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.vb-followup-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.vb-followup-status-needs-followup {
+  background: #fee4e2;
+  border-color: #fda29b;
+  color: #912018;
+}
+.vb-followup-status-returned-unresolved {
+  background: #fff4e5;
+  border-color: #fec84b;
+  color: #7a2e0e;
+}
+.vb-followup-status-helped {
+  background: #dcfae6;
+  border-color: #75e0a7;
+  color: #05603a;
+}
+.vb-followup-status-review {
+  background: #fef7c3;
+  border-color: #fde272;
+  color: #5f4a00;
+}
+.vb-followup-row-helped td:first-child { box-shadow: inset 4px 0 0 #15803d; }
+.vb-followup-row-needs-followup td:first-child { box-shadow: inset 4px 0 0 #d92d20; }
+.vb-followup-row-returned-unresolved td:first-child { box-shadow: inset 4px 0 0 #c2410c; }
+.vb-followup-row-review td:first-child { box-shadow: inset 4px 0 0 #ca8a04; }
+
+body.enterprise-dark .daily-report-followup-filter {
+  color: #cbd9d3;
+}
+body.enterprise-dark .daily-report-followup-filter select {
+  background: #07110d !important;
+  color: #eef6f2 !important;
+  border-color: #36584c !important;
+}
+body.enterprise-dark .vb-followup-summary {
+  background: #10231c;
+  border-color: #29453b;
+  color: #cbd9d3;
+}
+body.enterprise-dark .vb-followup-status-needs-followup {
+  background: #4a1d1a;
+  border-color: #8f3129;
+  color: #ffd6d2;
+}
+body.enterprise-dark .vb-followup-status-returned-unresolved {
+  background: #422713;
+  border-color: #8a4b18;
+  color: #ffd8a8;
+}
+body.enterprise-dark .vb-followup-status-helped {
+  background: #123a2b;
+  border-color: #287a57;
+  color: #b7f0d0;
+}
+body.enterprise-dark .vb-followup-status-review {
+  background: #3b3115;
+  border-color: #7d681d;
+  color: #ffe7a3;
+}
+@media(max-width:900px){
+  .daily-report-toolbar { align-items:flex-start; flex-wrap:wrap; }
+  .daily-report-followup-filter { grid-template-columns:1fr; gap:4px; }
+}
+
+.vb-followup-method {
+  margin: -4px 0 12px;
+  color: #66756f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+body.enterprise-dark .vb-followup-method {
+  color: #9fb3aa;
+}

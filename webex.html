@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
     <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
-    <link rel="stylesheet" href="webex-reports.css?v=20260828-v1" />
+    <link rel="stylesheet" href="webex-reports.css?v=20261006-followup1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
     <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261005-enterprise3" />
 
@@ -733,12 +733,25 @@
           id="abandonedCallsSearch"
           type="search"
           autocomplete="off"
-          placeholder="Search ANI, DNIS, abandonment stage, or time"
+          placeholder="Search ANI, DNIS, status, agent, or time"
           aria-label="Search today's abandoned calls"
         />
       </label>
+      <label class="daily-report-followup-filter" for="abandonedFollowupFilter">
+        <span>Follow-up</span>
+        <select id="abandonedFollowupFilter" aria-label="Filter abandoned calls by follow-up status">
+          <option value="all">All abandoned calls</option>
+          <option value="needs-followup">Needs follow-up</option>
+          <option value="returned-unresolved">Returned — unresolved</option>
+          <option value="helped">Called back — helped</option>
+          <option value="review">Needs review</option>
+        </select>
+      </label>
       <span id="abandonedRecordCount" class="daily-report-count">0 records</span>
     </div>
+
+<div id="abandonedFollowupSummary" class="vb-followup-summary" role="status" aria-live="polite">Return-call correlation will appear when today's reports load.</div>
+<p class="vb-followup-method">Correlation uses today’s reporting scope. “Called Back — Helped” requires the same ANI and called number followed by a later answered contact. Same-ANI returns to a different or unavailable called number stay in “Needs Review” and remain callback-eligible.</p>
 
 <div class="vb-cb-selection" aria-label="Prepare abandoned callbacks">
   <div class="vb-cb-buttons">
@@ -788,10 +801,13 @@
             <th data-sort="timeToAbandonMs">Time to Abandon</th>
             <th data-sort="abandonmentStage">Abandonment Stage</th>
             <th data-sort="agentName">Agent Name</th>
+            <th data-sort="followupCode">Follow-up Status</th>
+            <th data-sort="followupEpoch">Return Call Time</th>
+            <th data-sort="followupAgent">Handled By</th>
           </tr>
         </thead>
         <tbody id="abandonedCallsBody">
-          <tr><td colspan="8" class="loading">Loading today's abandoned calls…</td></tr>
+          <tr><td colspan="11" class="loading">Loading today's abandoned calls…</td></tr>
         </tbody>
       </table>
     </div>
@@ -846,7 +862,7 @@
 <script src="portal-enterprise.js?v=20261005-license1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
 <script src="webex.js?v=20261001-completion-audit1"></script>
-<script src="webex-reports.js?v=20261001-completion-audit1"></script>
+<script src="webex-reports.js?v=20261006-followup1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
@@ -854,6 +870,6 @@
 <script src="webex-integrated-chat.js?v=20261006-queue-alert1"></script>
 <script src="webex-enterprise-analytics.js?v=20261005-enterprise3"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
-<script type="module" src="webex-abandoned-selection.js?v=20261004-chat-callback-ui1"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20261006-followup1"></script>
 </body>
 </html>

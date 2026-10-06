@@ -62,6 +62,151 @@
     return String(value ?? "").trim().toLowerCase();
   }
 
+
+  function phoneKey(value) {
+    const digits = String(value ?? "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+    if (digits.length === 10) return digits;
+    return digits.length >= 7 ? digits : "";
+  }
+
+  function sameDestination(a, b) {
+    const left = phoneKey(a);
+    const right = phoneKey(b);
+    return !!left && !!right && left === right;
+  }
+
+  function followupLabel(code) {
+    return ({
+      "needs-followup": "Needs Follow-up",
+      "returned-unresolved": "Called Back — Not Helped",
+      "helped": "Called Back — Helped",
+      "review": "Possible Return — Needs Review"
+    })[code] || "Needs Follow-up";
+  }
+
+  function correlateAbandonedFollowups(abandonedRows, answeredRows) {
+    const answered = Array.isArray(answeredRows) ? answeredRows : [];
+    const abandoned = Array.isArray(abandonedRows) ? abandonedRows : [];
+    const answeredByAni = new Map();
+    const abandonedByAni = new Map();
+
+    for (const row of answered) {
+      const ani = phoneKey(row?.ani);
+      if (!ani || !Number.isFinite(row?.startEpoch)) continue;
+      if (!answeredByAni.has(ani)) answeredByAni.set(ani, []);
+      answeredByAni.get(ani).push(row);
+    }
+    for (const row of abandoned) {
+      const ani = phoneKey(row?.ani);
+      if (!ani || !Number.isFinite(row?.startEpoch)) continue;
+      if (!abandonedByAni.has(ani)) abandonedByAni.set(ani, []);
+      abandonedByAni.get(ani).push(row);
+    }
+    for (const rows of answeredByAni.values()) rows.sort((a,b) => Number(a.startEpoch) - Number(b.startEpoch));
+    for (const rows of abandonedByAni.values()) rows.sort((a,b) => Number(a.startEpoch) - Number(b.startEpoch));
+
+    return abandoned.map(row => {
+      const ani = phoneKey(row?.ani);
+      const after = Math.max(Number(row?.endEpoch || 0), Number(row?.startEpoch || 0));
+      if (!ani || !after) return {
+        ...row,
+        followupCode:"needs-followup",
+        followupLabel:followupLabel("needs-followup"),
+        followupEpoch:null,
+        followupTimeCentral:"—",
+        followupAgent:"—",
+        followupDetail:"No later same-number contact was found in today's reporting scope."
+      };
+
+      const laterAnswered = (answeredByAni.get(ani) || []).filter(candidate =>
+        Number(candidate.startEpoch) > after && String(candidate.contactId || "") !== String(row.contactId || "")
+      );
+      const laterAbandoned = (abandonedByAni.get(ani) || []).filter(candidate =>
+        Number(candidate.startEpoch) > after && String(candidate.contactId || "") !== String(row.contactId || "")
+      );
+
+      const exactAnswered = laterAnswered.find(candidate => sameDestination(row.dnis, candidate.dnis));
+      if (exactAnswered) return {
+        ...row,
+        followupCode:"helped",
+        followupLabel:followupLabel("helped"),
+        followupEpoch:Number(exactAnswered.startEpoch),
+        followupTimeCentral:exactAnswered.startTimeCentral || "—",
+        followupAgent:exactAnswered.agentName || "Answered by agent",
+        followupDetail:"Same ANI and called number returned later and the later contact was answered."
+      };
+
+      const possibleAnswered = laterAnswered[0];
+      if (possibleAnswered) return {
+        ...row,
+        followupCode:"review",
+        followupLabel:followupLabel("review"),
+        followupEpoch:Number(possibleAnswered.startEpoch),
+        followupTimeCentral:possibleAnswered.startTimeCentral || "—",
+        followupAgent:possibleAnswered.agentName || "Answered by agent",
+        followupDetail:"Same ANI later reached an agent, but the called number differs or is unavailable. Review before excluding from follow-up."
+      };
+
+      const exactAbandoned = laterAbandoned.find(candidate => sameDestination(row.dnis, candidate.dnis));
+      if (exactAbandoned) return {
+        ...row,
+        followupCode:"returned-unresolved",
+        followupLabel:followupLabel("returned-unresolved"),
+        followupEpoch:Number(exactAbandoned.startEpoch),
+        followupTimeCentral:exactAbandoned.startTimeCentral || "—",
+        followupAgent:"—",
+        followupDetail:"Same ANI and called number returned later but abandoned again."
+      };
+
+      const possibleAbandoned = laterAbandoned[0];
+      if (possibleAbandoned) return {
+        ...row,
+        followupCode:"review",
+        followupLabel:followupLabel("review"),
+        followupEpoch:Number(possibleAbandoned.startEpoch),
+        followupTimeCentral:possibleAbandoned.startTimeCentral || "—",
+        followupAgent:"—",
+        followupDetail:"Same ANI returned later but the called number differs or is unavailable. Review before deciding follow-up."
+      };
+
+      return {
+        ...row,
+        followupCode:"needs-followup",
+        followupLabel:followupLabel("needs-followup"),
+        followupEpoch:null,
+        followupTimeCentral:"—",
+        followupAgent:"—",
+        followupDetail:"No later same-number contact was found in today's reporting scope."
+      };
+    });
+  }
+
+  function getFollowupFilter() {
+    return byId("abandonedFollowupFilter")?.value || "all";
+  }
+
+  function renderFollowupSummary() {
+    const rows = states.abandoned.rows || [];
+    const totals = rows.reduce((acc,row) => {
+      const key = row.followupCode || "needs-followup";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const summary = byId("abandonedFollowupSummary");
+    if (!summary) return;
+    if (!reportCurrent()) {
+      summary.textContent = "Return-call correlation is unavailable until the current daily report is ready.";
+      return;
+    }
+    summary.textContent = [
+      `${totals["needs-followup"] || 0} need follow-up`,
+      `${totals["returned-unresolved"] || 0} returned but unresolved`,
+      `${totals.helped || 0} confirmed helped`,
+      `${totals.review || 0} need review`
+    ].join(" · ") + ". Confirmed-helped rows are excluded from dashboard callback scheduling.";
+  }
+
   function setText(id, value) {
     const el = byId(id);
     if (el) el.textContent = value;
@@ -158,7 +303,11 @@
       row.dnis,
       row.abandonmentStage,
       row.startTimeCentral,
-      row.agentName
+      row.agentName,
+      row.followupLabel,
+      row.followupTimeCentral,
+      row.followupAgent,
+      row.followupDetail
     ].map(normalize).join(" ");
   }
 
@@ -173,6 +322,13 @@
     state.filtered = term
       ? state.rows.filter(row => searchableText(kind, row).includes(term))
       : [...state.rows];
+
+    if (kind === "abandoned") {
+      const followup = getFollowupFilter();
+      if (followup !== "all") {
+        state.filtered = state.filtered.filter(row => row.followupCode === followup);
+      }
+    }
 
     state.filtered.sort((a, b) => {
       const result = compareValues(a, b, state.sortKey);
@@ -212,8 +368,10 @@
   }
 
   function renderAbandonedRow(row) {
+    const code = row.followupCode || "needs-followup";
+    const title = row.followupDetail || followupLabel(code);
     return `
-      <tr>
+      <tr class="vb-followup-row vb-followup-row-${html(code)}">
         <td>${html(row.ani || "-")}</td>
         <td>${html(row.dnis || "-")}</td>
         <td>${html(row.startTimeCentral || "-")}</td>
@@ -222,6 +380,9 @@
         <td>${html(displayedDuration(row.timeToAbandon))}</td>
         <td>${html(row.abandonmentStage || "Abandoned")}</td>
         <td>${html(row.agentName || "-")}</td>
+        <td><span class="vb-followup-status vb-followup-status-${html(code)}" title="${html(title)}">${html(row.followupLabel || followupLabel(code))}</span></td>
+        <td>${html(row.followupTimeCentral || "—")}</td>
+        <td>${html(row.followupAgent || "—")}</td>
       </tr>`;
   }
 
@@ -231,10 +392,13 @@
     if(exportButton)exportButton.disabled=!reportCurrent();
     if(!reportCurrent()){
       const body=byId(kind==='answered'?'answeredCallsBody':'abandonedCallsBody');
-      if(body)body.innerHTML=`<tr><td colspan="${kind==='answered'?10:8}" class="report-empty">${window.VB_SECURITY?.allowed!==true?'Reporting access is not approved.':'Report is loading, stale, or unavailable. Retrying automatically; no zero totals are inferred.'}</td></tr>`;
+      if(body)body.innerHTML=`<tr><td colspan="${kind==='answered'?10:11}" class="report-empty">${window.VB_SECURITY?.allowed!==true?'Reporting access is not approved.':'Report is loading, stale, or unavailable. Retrying automatically; no zero totals are inferred.'}</td></tr>`;
       for(const suffix of ['PrevPage','NextPage']){const b=byId(kind+suffix);if(b)b.disabled=true;}
       setText(kind+'RecordCount','Not reported');setText(kind+'PageStatus','Not reported');
-      if(kind==='abandoned')window.VB_ABANDONED_SELECTION?.invalidate('Current abandoned-call reporting is unavailable.');
+      if(kind==='abandoned'){
+        renderFollowupSummary();
+        window.VB_ABANDONED_SELECTION?.invalidate('Current abandoned-call reporting is unavailable.');
+      }
       return;
     }
     applyFilterSort(kind);
@@ -244,10 +408,11 @@
 
     const start = (state.page - 1) * REPORT_PAGE_SIZE;
     const pageRows = state.filtered.slice(start, start + REPORT_PAGE_SIZE);
-    const colspan = kind === "answered" ? 10 : 8;
+    const colspan = kind === "answered" ? 10 : 11;
 
     if (!pageRows.length) {
-      const empty=getSearchValue(kind)?'No calls match the current search.':kind==='answered'?'No answered calls in today’s reporting scope.':'No abandoned calls in today’s reporting scope.';
+      const filtered = getSearchValue(kind) || (kind === "abandoned" && getFollowupFilter() !== "all");
+      const empty=filtered?'No calls match the current search or follow-up filter.':kind==='answered'?'No answered calls in today’s reporting scope.':'No abandoned calls in today’s reporting scope.';
       body.innerHTML = `<tr><td colspan="${colspan}" class="report-empty">${empty}</td></tr>`;
     } else {
       body.innerHTML = pageRows
@@ -265,7 +430,10 @@
     if (next) next.disabled = state.page >= totalPages;
 
     renderSortIndicators(kind);
-    if (kind === "abandoned") window.VB_ABANDONED_SELECTION?.render();
+    if (kind === "abandoned") {
+      renderFollowupSummary();
+      window.VB_ABANDONED_SELECTION?.render();
+    }
   }
 
   function renderSummary(summary = {}) {
@@ -295,8 +463,9 @@
     const body = byId(kind === "answered" ? "answeredCallsBody" : "abandonedCallsBody");
     if (!body) return;
     if (kind === "abandoned") window.VB_ABANDONED_SELECTION?.invalidate(message);
-    const colspan = kind === "answered" ? 10 : 8;
+    const colspan = kind === "answered" ? 10 : 11;
     body.innerHTML = `<tr><td colspan="${colspan}" class="loading">${html(message)}</td></tr>`;
+    if (kind === "abandoned") renderFollowupSummary();
   }
 
   async function fetchDailyReports(force = false) {
@@ -331,7 +500,10 @@
         lastPayload = data;
         reportReady = true;
         states.answered.rows = Array.isArray(data.answeredCalls) ? data.answeredCalls : [];
-        states.abandoned.rows = Array.isArray(data.abandonedCalls) ? data.abandonedCalls : [];
+        states.abandoned.rows = correlateAbandonedFollowups(
+          Array.isArray(data.abandonedCalls) ? data.abandonedCalls : [],
+          states.answered.rows
+        );
 
         renderSummary(data.summary || {});
         renderOperatingMode(data);
@@ -358,6 +530,13 @@
     input?.addEventListener("input", () => {
       states[kind].page = 1;
       renderTable(kind);
+    });
+  }
+
+  function bindFollowupFilter() {
+    byId("abandonedFollowupFilter")?.addEventListener("change", () => {
+      states.abandoned.page = 1;
+      renderTable("abandoned");
     });
   }
 
@@ -672,7 +851,11 @@
       "Total IVR / Queue Duration",
       "Time to Abandon",
       "Abandonment Stage",
-      "Agent Name"
+      "Agent Name",
+      "Follow-up Status",
+      "Return Call Time",
+      "Handled By",
+      "Follow-up Detail"
     ];
     const rows = states.abandoned.filtered.map(row => [
       row.ani || "-",
@@ -682,7 +865,11 @@
       displayedDuration(row.totalIvrQueueDuration),
       displayedDuration(row.timeToAbandon),
       row.abandonmentStage || "Abandoned",
-      row.agentName || "-"
+      row.agentName || "-",
+      row.followupLabel || followupLabel(row.followupCode),
+      row.followupTimeCentral || "—",
+      row.followupAgent || "—",
+      row.followupDetail || "—"
     ]);
 
     downloadBlob(buildXlsx("Abandoned Calls", headers, rows), `webex-abandoned-calls-${businessDateForFile()}.xlsx`);
@@ -694,6 +881,7 @@
     ensureTransitionUi();
     bindSearch("answered");
     bindSearch("abandoned");
+    bindFollowupFilter();
     bindPagination("answered");
     bindPagination("abandoned");
     bindSorting("answered");
@@ -721,8 +909,9 @@
     snapshot() {
       if (window.VB_SECURITY?.allowed !== true) return null;
       const s = states.abandoned, start = (s.page - 1) * REPORT_PAGE_SIZE;
+      const search=getSearchValue('abandoned'),followup=getFollowupFilter();
       return { rows: s.rows, filtered: s.filtered, pageRows: s.filtered.slice(start, start + REPORT_PAGE_SIZE),
-        ready: reportCurrent(), filter: getSearchValue('abandoned'), observedAt: lastPayload?.generatedAtEpoch ?? null };
+        ready: reportCurrent(), filter: [search,followup!=='all'?followup:''].filter(Boolean).join('|'), observedAt: lastPayload?.generatedAtEpoch ?? null };
     },
     redraw() { renderTable('abandoned'); }
   });
@@ -733,6 +922,10 @@
     createStoredZip,
     crc32,
     states,
+    phoneKey,
+    sameDestination,
+    followupLabel,
+    correlateAbandonedFollowups,
     applyFilterSort,
     ensureTransitionUi,
     renderOperatingMode,

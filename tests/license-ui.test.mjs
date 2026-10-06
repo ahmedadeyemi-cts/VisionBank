@@ -61,6 +61,6 @@ test('all current non-Security enterprise pages cache-bust the licensing shell',
 });
 
 test('Security license assets are cache-busted',()=>{
-  assert.ok(securityHtml.includes('security.css?v=20261005-license1'));
-  assert.ok(securityHtml.includes('security.js?v=20261005-license1'));
+  assert.ok(securityHtml.includes('security.css?v=20261005-license2'));
+  assert.ok(securityHtml.includes('security.js?v=20261005-license2'));
 });

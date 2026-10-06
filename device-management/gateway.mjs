@@ -482,6 +482,7 @@ async function requireWriteOperator(env,request){
 
 const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
 const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
+const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
@@ -491,9 +492,9 @@ function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fle
   let target;
   if(fleetKey&&compactMac){
     const suffix=part==='xml'?'':'/'+encodeURIComponent(actionCode);
-    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,url.origin);
+    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,PHONE_CANONICAL_ORIGIN);
   }else if(accessToken){
-    target=new URL('/p/'+encodeURIComponent(accessToken),url.origin);
+    target=new URL('/p/'+encodeURIComponent(accessToken),PHONE_CANONICAL_ORIGIN);
     if(part!=='xml')target.searchParams.set('a',actionCode);
   }else target=new URL(PREFIX+'phone/'+part,url.origin);
   for(const [key,value] of Object.entries(params))if(value!==null&&value!==undefined&&String(value)!=='')target.searchParams.set(key,String(value));

@@ -29,11 +29,11 @@ function req(path,{method='GET',session='session-admin',body=null}={}){
   });
 }
 const primary={
-  repository:'ahmedadeyemi-cts/visionbank-license-control',
+  repository:'ahmedadeyemi-cts/dashboard-license-control',
   authorityUrl:'https://license-primary.example'
 };
 const mirror={
-  repository:'ahmedadeyemi-uss/visionbank-license-control',
+  repository:'ahmedadeyemi-uss/dashboard-license-control',
   authorityUrl:'https://license-mirror.example'
 };
 const healthFetch=async url=>Response.json({ok:true,service:'visionbank-license-control',time:new Date().toISOString()});
@@ -58,8 +58,8 @@ test('default configuration is non-enforcing and points at primary/mirror reposi
   const c=await loadLicenseConfig(env());
   assert.equal(c.enforcementEnabled,false);
   assert.equal(c.activeSource,'primary');
-  assert.equal(c.primary.repository,'ahmedadeyemi-cts/visionbank-license-control');
-  assert.equal(c.mirror.repository,'ahmedadeyemi-uss/visionbank-license-control');
+  assert.equal(c.primary.repository,'ahmedadeyemi-cts/dashboard-license-control');
+  assert.equal(c.mirror.repository,'ahmedadeyemi-uss/dashboard-license-control');
 });
 
 test('only Security admin can update licensing source configuration',async()=>{

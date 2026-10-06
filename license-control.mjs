@@ -8,8 +8,8 @@ const DEFAULT_CONFIG={
   activeSource:'primary',
   installationName:'VisionBank Production',
   systemId:null,
-  primary:{repository:'ahmedadeyemi-cts/visionbank-license-control',authorityUrl:''},
-  mirror:{repository:'ahmedadeyemi-uss/visionbank-license-control',authorityUrl:''},
+  primary:{repository:'ahmedadeyemi-cts/dashboard-license-control',authorityUrl:''},
+  mirror:{repository:'ahmedadeyemi-uss/dashboard-license-control',authorityUrl:''},
   custom:{repository:'',authorityUrl:''},
   updatedAt:null,updatedBy:null
 };

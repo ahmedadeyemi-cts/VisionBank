@@ -54,12 +54,30 @@ const activationFetch=async(url,options={})=>{
   return Response.json({ok:true});
 };
 
-test('default configuration is non-enforcing and points at primary/mirror repositories',async()=>{
+test('default configuration is non-enforcing and points at the live primary licensing authority',async()=>{
   const c=await loadLicenseConfig(env());
   assert.equal(c.enforcementEnabled,false);
   assert.equal(c.activeSource,'primary');
   assert.equal(c.primary.repository,'ahmedadeyemi-cts/dashboard-license-control');
+  assert.equal(c.primary.authorityUrl,'https://dashboard-license-control.onrender.com');
   assert.equal(c.mirror.repository,'ahmedadeyemi-uss/dashboard-license-control');
+});
+
+test('blank or legacy primary authority is automatically migrated to the live authority',async()=>{
+  for(const authorityUrl of ['', 'https://visionbank-license-control.onrender.com']){
+    const e=env();
+    await e.LOGS.put('portal-license-config:v1',JSON.stringify({
+      activeSource:'primary',
+      primary:{repository:'ahmedadeyemi-cts/dashboard-license-control',authorityUrl},
+      mirror:{repository:'ahmedadeyemi-uss/dashboard-license-control',authorityUrl:''},
+      enforcementEnabled:false,
+      systemId:'system-1',
+      installationName:'VisionBank Production'
+    }));
+    const c=await loadLicenseConfig(e);
+    assert.equal(c.primary.authorityUrl,'https://dashboard-license-control.onrender.com');
+    assert.equal(c.primary.repository,'ahmedadeyemi-cts/dashboard-license-control');
+  }
 });
 
 test('only Security admin can update licensing source configuration',async()=>{

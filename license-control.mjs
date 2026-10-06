@@ -17,7 +17,7 @@ const DEFAULT_CONFIG={
 };
 
 export class LicenseControlError extends Error{
-  constructor(code,status=400){super(code);this.code=code;this.status=status;}
+  constructor(code,status=400,detail=null){super(code);this.code=code;this.status=status;this.detail=detail?clean(detail,300):null;}
 }
 const clean=(v,max=500)=>String(v??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').slice(0,max);
 const email=v=>clean(v,254).toLowerCase();
@@ -212,7 +212,10 @@ async function authorityRequest(config,path,{method='GET',body=null,token=null,f
     let data={};try{data=await response.json();}catch{}
     return {response,data,authority};
   }catch(error){
-    throw new LicenseControlError(error?.name==='AbortError'?'license-authority-timeout':'license-authority-unreachable',503);
+    const code=error?.name==='AbortError'?'license-authority-timeout':'license-authority-unreachable';
+    const detail=[error?.name,error?.message,error?.cause?.message].filter(Boolean).join(': ');
+    console.error('License authority fetch failed',JSON.stringify({code,detail,authority:authority.authorityUrl,path}));
+    throw new LicenseControlError(code,503,detail);
   }finally{clearTimeout(timer);}
 }
 export async function testLicenseAuthority(env,request,{source=null,fetcher=fetch}={}){
@@ -406,7 +409,7 @@ export function createLicenseControlHandler({fetcher=fetch}={}){
         return response({success:true,...await deactivateLicense(env,request)},200,cors);
       return response({error:'license-route-not-found'},404,cors);
     }catch(error){
-      return response({error:error.code||'license-control-failed'},Number.isInteger(error.status)?error.status:500,cors);
+      return response({error:error.code||'license-control-failed',...(error.detail?{detail:error.detail}:{})},Number.isInteger(error.status)?error.status:500,cors);
     }
   };
 }

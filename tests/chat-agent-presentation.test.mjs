@@ -64,7 +64,7 @@ test('Whitespace/null IDs are not made into phantom agents',()=>{
 });
 test('HTML version pins and labels load the corrected scripts once',()=>{
  const html=fs.readFileSync(new URL('../webex.html',import.meta.url),'utf8');
- assert.equal((html.match(/src="webex-integrated-chat.js\?v=20261001-completion-audit1"/g)||[]).length,1);
+ assert.equal((html.match(/src="webex-integrated-chat.js\?v=20261006-queue-alert1"/g)||[]).length,1);
  assert(html.includes('webex.js?v=20261001-completion-audit1'));
  const voice=fs.readFileSync(new URL('../webex.js',import.meta.url),'utf8');
  assert(voice.includes('tr.dataset.vbAgentId = String(a.agentId || "")'));

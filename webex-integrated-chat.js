@@ -247,7 +247,12 @@
       const known=current&&q.operationsRevision===3&&q.countStatus==='ready';
       const n=k=>known&&Number.isInteger(q[k])&&q[k]>=0?q[k]:'Not reported';
       const label=String(q.channelType).toLowerCase()==='chat'?'Chat':'Voice';
-      return `<tr><td>${esc(q.name)}</td><td>${label}</td><td>${esc(n('waiting'))}</td><td>${esc(n('offered'))}</td><td>${esc(n('active'))}</td><td>${esc(n('wrapup'))}</td><td>${esc(current&&Number.isSafeInteger(q.agents)&&q.agents>=0?q.agents:'Not reported')}</td><td>${esc(known?q.maxWait:'Not reported')}</td><td>${esc(known?q.avgWait:'Not reported')}</td></tr>`;
+      const waiting=known&&Number.isInteger(q.waiting)&&q.waiting>=0?q.waiting:null;
+      const waitingClass=waiting===null?'queue-calls-unknown':waiting===0?'queue-calls-green':waiting===1?'queue-calls-yellow':'queue-calls-red';
+      const rowClass=waiting!==null&&waiting>0?'queue-hot':'';
+      const criticalClass=waiting!==null&&waiting>=2?' queue-critical':'';
+      const waitingLabel=waiting===null?'Waiting contacts not reported':`${waiting} contact${waiting===1?'':'s'} waiting`;
+      return `<tr class="${rowClass}${criticalClass}"><td>${esc(q.name)}</td><td>${label}</td><td class="numeric vb-queue-waiting"><span class="queue-calls-badge ${waitingClass}" aria-label="${esc(waitingLabel)}" title="${esc(waitingLabel)}">${esc(waiting===null?'Not reported':waiting)}</span></td><td>${esc(n('offered'))}</td><td>${esc(n('active'))}</td><td>${esc(n('wrapup'))}</td><td>${esc(current&&Number.isSafeInteger(q.agents)&&q.agents>=0?q.agents:'Not reported')}</td><td>${esc(known?q.maxWait:'Not reported')}</td><td>${esc(known?q.avgWait:'Not reported')}</td></tr>`;
     }).join('');
     let note=$('vb-queue-note');if(!note){note=document.createElement('p');note.id='vb-queue-note';note.className='vb-ops-meta';table.insertAdjacentElement('afterend',note);}
     note.textContent=current?`Voice and Chat snapshot: ${time(base.generatedAtEpoch)}. Only Waiting contacts trigger queue alerts. Offered, Active and Wrap-up are separate. Timers require a current queue-entry event.`:'Current queue snapshot is stale or unavailable; no zero counts are inferred.';

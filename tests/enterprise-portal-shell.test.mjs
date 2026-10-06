@@ -8,7 +8,7 @@ const portalPages=['index.html','webex.html','webex-agent.html','agents.html','v
 test('all non-Security portal pages load the shared enterprise shell exactly once',()=>{
   for(const page of portalPages){
     const html=read(page);
-    assert.equal((html.match(/portal-enterprise\.css\?v=20261005-shell5/g)||[]).length,1,page+' shared CSS');
+    assert.equal((html.match(/portal-enterprise\.css\?v=20261006-shell6/g)||[]).length,1,page+' shared CSS');
     assert.equal((html.match(/portal-enterprise\.js\?v=20261005-license1/g)||[]).length,1,page+' shared JS');
   }
 });
@@ -176,6 +176,6 @@ test('Device Manager dark dialogs use enterprise charcoal-green surfaces and rea
 
 test('Device Manager shared shell is cache-bumped for the modal readability release',()=>{
   const html=read('device.html');
-  assert.match(html,/portal-enterprise\.css\?v=20261005-shell5/);
+  assert.match(html,/portal-enterprise\.css\?v=20261006-shell6/);
   assert.match(html,/portal-enterprise\.js\?v=20261005-license1/);
 });

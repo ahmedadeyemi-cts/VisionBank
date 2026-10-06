@@ -3,12 +3,14 @@ const STATE_KEY='portal-license-state:v1';
 const AUDIT_PREFIX='portal-license-audit:';
 const ALLOWED_SOURCES=new Set(['primary','mirror','custom']);
 const ADMIN_ROLES=new Set(['superadmin','admin']);
+const PRIMARY_AUTHORITY_URL='https://dashboard-license-control.onrender.com';
+const LEGACY_PRIMARY_AUTHORITY_URL='https://visionbank-license-control.onrender.com';
 const DEFAULT_CONFIG={
   enforcementEnabled:false,
   activeSource:'primary',
   installationName:'VisionBank Production',
   systemId:null,
-  primary:{repository:'ahmedadeyemi-cts/dashboard-license-control',authorityUrl:''},
+  primary:{repository:'ahmedadeyemi-cts/dashboard-license-control',authorityUrl:PRIMARY_AUTHORITY_URL},
   mirror:{repository:'ahmedadeyemi-uss/dashboard-license-control',authorityUrl:''},
   custom:{repository:'',authorityUrl:''},
   updatedAt:null,updatedBy:null
@@ -51,11 +53,20 @@ function safeHttpsUrl(value){
 function sourceRow(value={}){
   return {repository:clean(value.repository,180),authorityUrl:value.authorityUrl?safeHttpsUrl(value.authorityUrl):''};
 }
+function primarySourceRow(value={}){
+  const row=sourceRow(value);
+  const isPrimaryRepo=row.repository==='ahmedadeyemi-cts/dashboard-license-control'||row.repository==='ahmedadeyemi-cts/visionbank-license-control';
+  if(isPrimaryRepo&&(!row.authorityUrl||row.authorityUrl===LEGACY_PRIMARY_AUTHORITY_URL)){
+    row.repository='ahmedadeyemi-cts/dashboard-license-control';
+    row.authorityUrl=PRIMARY_AUTHORITY_URL;
+  }
+  return row;
+}
 export async function loadLicenseConfig(env){
   const saved=await jsonGet(env?.LOGS,CONFIG_KEY);
   return {
     ...DEFAULT_CONFIG,...(saved||{}),
-    primary:sourceRow(saved?.primary||DEFAULT_CONFIG.primary),
+    primary:primarySourceRow(saved?.primary||DEFAULT_CONFIG.primary),
     mirror:sourceRow(saved?.mirror||DEFAULT_CONFIG.mirror),
     custom:sourceRow(saved?.custom||DEFAULT_CONFIG.custom),
     activeSource:ALLOWED_SOURCES.has(saved?.activeSource)?saved.activeSource:'primary',

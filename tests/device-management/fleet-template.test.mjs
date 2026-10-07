@@ -175,3 +175,29 @@ test('T54W Render vanity keeps subsequent XML actions on Render for handset comp
   assert.match(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//);
   assert.doesNotMatch(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//);
 });
+
+
+test('cached fleet enrollment stays provider-independent after long idle periods',async()=>{
+  const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-01T12:00:00.000Z'});
+  await upsertFleetEnrollment(env,{
+    device:{id:'call-1',displayName:'Idle T54W',mac:MAC,model:'Yealink T54W'},
+    location:{id:'loc-a',name:'CLIVE'},
+    phonismPhoneId:'313135',
+    now:'2026-10-01T12:00:00.000Z'
+  });
+
+  let providerCalls=0;
+  const handler=createDeviceManagementHandler({
+    webexFetch:async()=>{providerCalls++;throw new Error('webex-should-not-run');},
+    checkAccess:async()=>({allowed:true}),
+    loadIpRules:async()=>['approved'],
+    phonismReader:{async discover(){providerCalls++;throw new Error('phonism-should-not-run');}}
+  });
+
+  const response=await xml(handler,env,'https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993','T54W');
+  assert.equal(response.status,200);
+  assert.match(response.text,/Add Temporary Line/);
+  assert.match(response.text,/Refresh/);
+  assert.equal(providerCalls,0);
+});

@@ -67,7 +67,7 @@ test('dashboard theme controls are in enterprise headers and remain unique',()=>
 test('Device Manager keeps its enterprise theme control and version-pins the current device workflow script',()=>{
   const html=read('device.html');
   assert.match(html,/id="deviceThemeToggle"[^>]*data-enterprise-theme-toggle/);
-  assert.match(html,/device\.js\?v=20261005-fleet1/);
+  assert.match(html,/device\.js\?v=20261007-t54w1/);
 });
 
 test('enterprise shell adds no new remote script or stylesheet dependency',()=>{

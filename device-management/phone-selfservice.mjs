@@ -390,9 +390,25 @@ export async function readPhoneIntent(env,intentId,enrollment){
   return intent;
 }
 
+export async function startPhoneIntent(env,intentId,enrollment){
+  const intent=await readPhoneIntent(env,intentId,enrollment);
+  if(intent.status==='completed'||intent.status==='processing')return intent;
+  const next={...intent,status:'processing',startedAt:new Date().toISOString(),error:null,failedAt:null};
+  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:300});
+  return next;
+}
+
+export async function failPhoneIntent(env,intentId,error){
+  const intent=await readJson(env.SESSIONS,INTENT_PREFIX+intentId);
+  if(!intent)return null;
+  const next={...intent,status:'failed',error:String(error?.code||error?.message||'phone-save-failed').slice(0,160),failedAt:new Date().toISOString()};
+  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:300});
+  return next;
+}
+
 export async function finishPhoneIntent(env,intentId,result){
   const intent=await readJson(env.SESSIONS,INTENT_PREFIX+intentId);
-  if(intent)await putJson(env.SESSIONS,INTENT_PREFIX+intentId,{...intent,status:'completed',result,completedAt:new Date().toISOString()},{expirationTtl:300});
+  if(intent)await putJson(env.SESSIONS,INTENT_PREFIX+intentId,{...intent,status:'completed',result,error:null,completedAt:new Date().toISOString()},{expirationTtl:300});
 }
 
 export function phoneSession(enrollment){

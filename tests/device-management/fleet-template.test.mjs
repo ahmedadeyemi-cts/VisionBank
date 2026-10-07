@@ -20,8 +20,8 @@ function req(url,model='T57W'){
   Object.defineProperty(request,'cf',{value:{colo:'TEST'}});
   return request;
 }
-async function xml(handler,env,url,model='T57W'){
-  const response=await handler(req(url,model),env,{});
+async function xml(handler,env,url,model='T57W',executionContext=null){
+  const response=await handler(req(url,model),env,{},executionContext);
   return {status:response.status,text:await response.text()};
 }
 
@@ -238,5 +238,67 @@ test('fleet Button 7 entry and Add Temporary Line work across supported Yealink 
     assert.equal(input.status,200,row.model+' input status');
     assert.match(input.text,/Extension or phone number/,row.model+' input screen');
     assert.equal(providerCalls,0,row.model+' cached entry/input should stay provider-independent');
+  }
+});
+
+
+test('fleet fast Save acknowledges immediately and completes background apply on T54W and T57W',async()=>{
+  for(const model of ['T54W','T57W']){
+    const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+    await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-07T19:15:00.000Z'});
+    await upsertFleetEnrollment(env,{
+      device:{id:'call-1',displayName:'Pilot '+model,mac:MAC,model:'Yealink '+model},
+      location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'313135',now:'2026-10-07T19:15:00.000Z'
+    });
+
+    const webex={members:[structuredClone(PRIMARY)],puts:[]};
+    const webexFetch=async(_env,url,options={})=>{
+      const u=new URL(url),method=options.method||'GET';
+      if(u.pathname==='/v1/devices/webex-1')return json({id:'webex-1',callingDeviceId:'call-1',displayName:'Pilot '+model,product:'Yealink '+model,mac:'805E0CEC1993',connectionStatus:'connected',personId:'user-1',locationId:'loc-a',managedBy:'PARTNER',type:'phone'});
+      if(u.pathname==='/v1/telephony/config/devices/call-1/members'){
+        if(method==='GET')return json({members:structuredClone(webex.members),maxLineCount:4});
+        if(method==='PUT'){const body=JSON.parse(options.body);webex.puts.push(body);webex.members=structuredClone(body.members);return new Response(null,{status:204});}
+      }
+      if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers')return json({members:[TARGET]});
+      if(u.pathname==='/v1/telephony/config/numbers')return json({phoneNumbers:[]});
+      return json({message:'not found'},404);
+    };
+
+    const calls=[];
+    const phonismReader={
+      async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
+      async tenantPhones(){return {phones:[{id:'313135',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink '+model}],truncated:false};},
+      async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'},{lineNumber:2,username:webex.members.find(x=>Number(x.port)===2)?.extension||'',alias:'Temporary User',registrationStatus:'not-monitored'}];},
+      async syncHierarchyIntegration(){calls.push('sync');return {accepted:true,status:202};},
+      async tr069Action(){calls.push('reboot');return {accepted:true,status:200};}
+    };
+
+    const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
+    const origin=model==='T54W'?'https://visionbank-dashboard.onrender.com':'https://visionbank-security.ahmedadeyemi.workers.dev';
+    const base=origin+'/x/'+FLEET+'/805e0cec1993';
+
+    const search=await xml(handler,env,base+'/q?q=4102',model);
+    assert.equal(search.status,200,model+' search status');
+    assert.match(search.text,/4102 - Temporary User/,model+' target result');
+
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+    assert.equal(confirm.status,200,model+' confirm status');
+    assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
+    const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
+    assert.ok(match,model+' intent');
+
+    let background=null;
+    const executionContext={waitUntil(promise){background=promise;}};
+    const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
+    assert.equal(applied.status,200,model+' apply acknowledgement');
+    assert.match(applied.text,/Saving Extension/,model+' fast Save title');
+    assert.match(applied.text,/Applying for 30 minutes/,model+' duration acknowledgement');
+    assert.match(applied.text,/Phone will restart automatically/,model+' reboot acknowledgement');
+    assert.ok(background,model+' background task');
+    assert.equal(webex.members.find(x=>Number(x.port)===2),undefined,model+' response precedes Webex write');
+
+    await background;
+    assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2',model+' Webex background write');
+    assert.deepEqual(calls,['sync','reboot'],model+' Phonism sync and reboot');
   }
 });

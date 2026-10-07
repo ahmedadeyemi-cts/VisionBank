@@ -882,7 +882,7 @@
     state.memberDetailController=controller;
     try{
       const q=new URLSearchParams({deviceId:String(device.id||""),q:String(query||""),limit:"50",details:"1"});
-      const data=await api("/members?"+q.toString(),{signal:controller.signal});
+      const data=await memberLookupWithRetry(q,controller.signal,{attempts:2});
       if(seq!==state.memberSearchSeq)return;
       const detailed=new Map((Array.isArray(data.members)?data.members:[]).map(row=>[String(row.id),row]));
       state.members=state.members.map(row=>{
@@ -895,6 +895,22 @@
     }finally{
       if(state.memberDetailController===controller)state.memberDetailController=null;
     }
+  }
+
+  async function memberLookupWithRetry(q,signal,{attempts=3}={}){
+    let lastError=null;
+    for(let attempt=1;attempt<=attempts;attempt++){
+      try{return await api("/members?"+q.toString(),{signal});}
+      catch(error){
+        if(error?.name==="AbortError")throw error;
+        lastError=error;
+        const status=Number(error?.status||0);
+        const retriable=!status||status===429||status>=500;
+        if(!retriable||attempt===attempts)throw error;
+        await new Promise(resolve=>setTimeout(resolve,250*attempt));
+      }
+    }
+    throw lastError||new Error("member-search-failed");
   }
 
   async function searchMembers(device,query="",{initial=false}={}){
@@ -916,7 +932,7 @@
       const q=new URLSearchParams({deviceId:String(device.id||""),limit:"50"});
       const cleanQuery=String(query||"").trim();
       if(cleanQuery)q.set("q",cleanQuery);
-      const data=await api("/members?"+q.toString(),{signal:controller.signal});
+      const data=await memberLookupWithRetry(q,controller.signal,{attempts:initial?3:2});
       if(seq!==state.memberSearchSeq)return;
       const rows=Array.isArray(data.members)?data.members:[];
       if(preserved&&!rows.some(m=>String(m.id)===String(preserved.id)))rows.unshift(preserved);
@@ -949,8 +965,8 @@
       if(initial){
         state.memberLoadError=error.message||"member-search-failed";
         if(select){select.disabled=true;select.innerHTML='<option value="">Unable to load available lines</option>';}
-        if(picker){picker.disabled=true;text("deviceLine2PickerValue","Unable to load available lines");}
-        text("deviceLine2CandidateMeta","Unable to load available lines: "+state.memberLoadError);
+        if(picker){picker.disabled=false;text("deviceLine2PickerValue","Retry Line 2 lookup");}
+        text("deviceLine2CandidateMeta","Unable to load available lines after automatic retries. This is a Webex/Phonism lookup problem, not an admin permission issue. Select Retry Line 2 lookup to try again.");
       }else{
         const host=$("deviceLine2Results");
         if(host)host.innerHTML='<div class="device-member-empty">Search is temporarily unavailable. Try again.</div>';

@@ -24,6 +24,14 @@ test('Device Manager stops polling while hidden and resumes when visible',()=>{
 });
 
 test('live refresh asset is cache-busted',()=>{
-  assert.match(html,/device\.js\?v=20261005-fleet1/);
-  assert.equal((html.match(/device\.js\?v=20261005-fleet1/g)||[]).length,1);
+  assert.match(html,/device\.js\?v=20261007-t54w1/);
+  assert.equal((html.match(/device\.js\?v=20261007-t54w1/g)||[]).length,1);
+});
+
+
+test('Line 2 lookup retries transient failures and remains retryable',()=>{
+  assert.match(source,/memberLookupWithRetry/);
+  assert.match(source,/attempts:initial\?3:2/);
+  assert.match(source,/Retry Line 2 lookup/);
+  assert.match(source,/not an admin permission issue/);
 });

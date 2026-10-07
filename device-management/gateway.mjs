@@ -483,7 +483,14 @@ async function requireWriteOperator(env,request){
 const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
 const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
 const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
+const PHONE_RENDER_ORIGIN='https://visionbank-dashboard.onrender.com';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
+
+function phoneActionOrigin(request,{fleetKey=false}={}){
+  const url=new URL(request.url),ua=String(request.headers.get('User-Agent')||'');
+  if(fleetKey&&url.origin===PHONE_RENDER_ORIGIN&&/SIP-T54W/i.test(ua))return PHONE_RENDER_ORIGIN;
+  return PHONE_CANONICAL_ORIGIN;
+}
 
 function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fleetMac=null){
   const url=new URL(request.url);
@@ -492,7 +499,7 @@ function phoneRouteUrl(request,part,params={},accessToken=null,fleetKey=null,fle
   let target;
   if(fleetKey&&compactMac){
     const suffix=part==='xml'?'':'/'+encodeURIComponent(actionCode);
-    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,PHONE_CANONICAL_ORIGIN);
+    target=new URL('/x/'+encodeURIComponent(fleetKey)+'/'+compactMac+suffix,phoneActionOrigin(request,{fleetKey:true}));
   }else if(accessToken){
     target=new URL('/p/'+encodeURIComponent(accessToken),PHONE_CANONICAL_ORIGIN);
     if(part!=='xml')target.searchParams.set('a',actionCode);
@@ -524,20 +531,30 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
 async function resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac}){
   const normalized=normalizeMac(mac);
   const cached=await readPhoneEnrollment(env,normalized);
-  const validatedAt=Date.parse(cached?.validatedAt||'');
-  if(cached?.status==='active'&&cached?.authMode==='fleet-template'&&Number.isFinite(validatedAt)&&Date.now()-validatedAt<15*60_000){
+  if(cached?.status==='active'&&cached?.authMode==='fleet-template'){
     return cached;
   }
   const discovery=await phonismReader.discover(env,org);
-  const inventories=await Promise.all(discovery.tenants.map(async tenant=>{
-    try{return {tenant,inventory:await phonismReader.tenantPhones(env,tenant.id,tenant.name)};}
-    catch{return {tenant,inventory:{phones:[]}};}
-  }));
   const matches=[];
-  for(const item of inventories){
-    for(const phone of item.inventory.phones||[]){
+  if(typeof phonismReader.phones==='function'){
+    const inventory=await phonismReader.phones(env,discovery.domain.id,discovery.tenants);
+    const tenantById=new Map(discovery.tenants.map(tenant=>[String(tenant.id),tenant]));
+    for(const phone of inventory.phones||[]){
       let phoneMac=null;try{phoneMac=normalizeMac(phone.mac);}catch{}
-      if(phoneMac===normalized)matches.push({tenant:item.tenant,phone});
+      if(phoneMac!==normalized)continue;
+      const tenant=tenantById.get(String(phone.tenantId||''));
+      if(tenant)matches.push({tenant,phone});
+    }
+  }else{
+    const inventories=await Promise.all(discovery.tenants.map(async tenant=>{
+      try{return {tenant,inventory:await phonismReader.tenantPhones(env,tenant.id,tenant.name)};}
+      catch{return {tenant,inventory:{phones:[]}};}
+    }));
+    for(const item of inventories){
+      for(const phone of item.inventory.phones||[]){
+        let phoneMac=null;try{phoneMac=normalizeMac(phone.mac);}catch{}
+        if(phoneMac===normalized)matches.push({tenant:item.tenant,phone});
+      }
     }
   }
   if(matches.length!==1)throw new DeviceManagementError(matches.length?'phonism-phone-ambiguous':'phonism-phone-not-found',matches.length?409:404);

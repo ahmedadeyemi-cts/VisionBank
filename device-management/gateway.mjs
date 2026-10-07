@@ -531,8 +531,7 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
 async function resolveFleetEnrollment({env,org,webexFetch,phonismReader,mac}){
   const normalized=normalizeMac(mac);
   const cached=await readPhoneEnrollment(env,normalized);
-  const validatedAt=Date.parse(cached?.validatedAt||'');
-  if(cached?.status==='active'&&cached?.authMode==='fleet-template'&&Number.isFinite(validatedAt)&&Date.now()-validatedAt<60*60_000){
+  if(cached?.status==='active'&&cached?.authMode==='fleet-template'){
     return cached;
   }
   const discovery=await phonismReader.discover(env,org);

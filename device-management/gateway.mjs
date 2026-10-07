@@ -1,6 +1,6 @@
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
-import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords} from './audit.mjs';
+import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
 import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease} from './write.mjs';
 import {
@@ -529,27 +529,51 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
 }
 
 async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure=false}){
+  const session=phoneSession(enrollment);
+  let stage='resolve-write-context';
+  let target=null;
   try{
     const ctx=await resolveWriteContext({
       env,org,webexFetch,phonismReader,
       deviceId:enrollment.device.id,locationId:enrollment.location.id,phonismPhoneId:enrollment.phonismPhoneId
     });
-    const target=await phoneMember({webexFetch,env,org,enrollment,intent});
+    stage='target-member-revalidation';
+    target=await phoneMember({webexFetch,env,org,enrollment,intent});
     if(!target)throw new DeviceManagementError('target-member-not-available',409);
+    stage='current-members-read';
     const refreshed=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
-    const session=phoneSession(enrollment);
+    stage='preview-create';
     const preview=await createWritePreview({
       env,session,device:ctx.device,location:ctx.location,currentMembers:refreshed.members,targetMember:target,
       durationMinutes:intent.durationMinutes,reason:'Phone self-service temporary Line 2',
       phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null}
     });
+    stage='apply-write-preview';
     const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:preview.mutationId,phonismReader});
+    stage='intent-complete';
     await finishPhoneIntent(env,intent.intentId,{leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt});
     return {result,target};
   }catch(error){
     await failPhoneIntent(env,intent.intentId,error).catch(()=>{});
+    await writeAuditRecord(env,buildAuditRecord({
+      eventType:'phone-selfservice-failure',
+      action:'save',
+      request,session,
+      device:{id:enrollment.device.id,name:enrollment.device.name||enrollment.device.model||'Managed phone',mac:enrollment.device.mac||'',model:enrollment.device.model||''},
+      location:enrollment.location||{},
+      change:{
+        requestedExtension:intent.memberQuery||target?.extension||'',
+        targetMemberId:intent.memberId||target?.id||'',
+        durationMinutes:intent.durationMinutes,
+        stage
+      },
+      reason:stage+': '+String(error?.code||error?.message||'phone-save-failed').slice(0,160),
+      webexStatus:'not-confirmed',
+      phonismStatus:'not-confirmed',
+      result:'failed'
+    })).catch(()=>{});
     if(throwOnFailure)throw error;
-    console.error('Phone background Save failed:',error?.code||error?.message||error);
+    console.error('Phone background Save failed at '+stage+':',error?.code||error?.message||error);
     return null;
   }
 }

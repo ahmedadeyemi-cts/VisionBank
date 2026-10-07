@@ -201,3 +201,42 @@ test('cached fleet enrollment stays provider-independent after long idle periods
   assert.match(response.text,/Refresh/);
   assert.equal(providerCalls,0);
 });
+
+
+test('fleet Button 7 entry and Add Temporary Line work across supported Yealink model paths',async()=>{
+  const models=[
+    {model:'T54W',expectedOrigin:'https://visionbank-dashboard.onrender.com'},
+    {model:'T57W',expectedOrigin:'https://visionbank-security.ahmedadeyemi.workers.dev'},
+    {model:'T53',expectedOrigin:'https://visionbank-security.ahmedadeyemi.workers.dev'},
+    {model:'T46U',expectedOrigin:'https://visionbank-security.ahmedadeyemi.workers.dev'}
+  ];
+
+  for(const row of models){
+    const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+    await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-07T19:00:00.000Z'});
+    await upsertFleetEnrollment(env,{
+      device:{id:'call-1',displayName:'Pilot '+row.model,mac:MAC,model:'Yealink '+row.model},
+      location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'313135',now:'2026-10-07T19:00:00.000Z'
+    });
+
+    let providerCalls=0;
+    const handler=createDeviceManagementHandler({
+      webexFetch:async()=>{providerCalls++;throw new Error('provider should not run for cached entry/input');},
+      checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],
+      phonismReader:{async discover(){providerCalls++;throw new Error('provider should not run for cached entry/input');}}
+    });
+
+    const vanity='https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993';
+    const home=await xml(handler,env,vanity,row.model);
+    assert.equal(home.status,200,row.model+' home status');
+    assert.match(home.text,/VisionBank Manage Extensions/,row.model+' home title');
+    assert.match(home.text,/Add Temporary Line/,row.model+' Add Temporary Line');
+    assert.match(home.text,/Refresh/,row.model+' Refresh');
+    assert.ok(home.text.includes(row.expectedOrigin+'/x/'),row.model+' action origin');
+
+    const input=await xml(handler,env,row.expectedOrigin+'/x/'+FLEET+'/805e0cec1993/q',row.model);
+    assert.equal(input.status,200,row.model+' input status');
+    assert.match(input.text,/Extension or phone number/,row.model+' input screen');
+    assert.equal(providerCalls,0,row.model+' cached entry/input should stay provider-independent');
+  }
+});

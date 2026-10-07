@@ -882,7 +882,7 @@
     state.memberDetailController=controller;
     try{
       const q=new URLSearchParams({deviceId:String(device.id||""),q:String(query||""),limit:"50",details:"1"});
-      const data=await memberLookupWithRetry(q,controller.signal,{attempts:initial?3:2});
+      const data=await memberLookupWithRetry(q,controller.signal,{attempts:2});
       if(seq!==state.memberSearchSeq)return;
       const detailed=new Map((Array.isArray(data.members)?data.members:[]).map(row=>[String(row.id),row]));
       state.members=state.members.map(row=>{
@@ -932,7 +932,7 @@
       const q=new URLSearchParams({deviceId:String(device.id||""),limit:"50"});
       const cleanQuery=String(query||"").trim();
       if(cleanQuery)q.set("q",cleanQuery);
-      const data=await api("/members?"+q.toString(),{signal:controller.signal});
+      const data=await memberLookupWithRetry(q,controller.signal,{attempts:initial?3:2});
       if(seq!==state.memberSearchSeq)return;
       const rows=Array.isArray(data.members)?data.members:[];
       if(preserved&&!rows.some(m=>String(m.id)===String(preserved.id)))rows.unshift(preserved);

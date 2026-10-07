@@ -22,8 +22,8 @@ function phoneRequest(url){
   Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
   return req;
 }
-async function xml(handler,env,url){
-  const res=await handler(phoneRequest(url),env,{});
+async function xml(handler,env,url,executionContext=null){
+  const res=await handler(phoneRequest(url),env,{},executionContext);
   return {status:res.status,text:await res.text(),headers:res.headers};
 }
 
@@ -83,12 +83,16 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.match(confirm.text,/Change time/);
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
   assert.ok(match);
-  const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1]);
+  let background=null;
+  const executionContext={waitUntil(promise){background=promise;}};
+  const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1],executionContext);
   assert.equal(applied.status,200);
-  assert.match(applied.text,/Saved - Phone Restarting/);
-  assert.match(applied.text,/4102 - Temporary User/);
-  assert.match(applied.text,/Active for 15 minutes/);
-  assert.match(applied.text,/Rebooting automatically/);
+  assert.match(applied.text,/Saving Extension/);
+  assert.match(applied.text,/Applying for 15 minutes/);
+  assert.match(applied.text,/Phone will restart automatically/);
+  assert.ok(background,'phone Save should schedule background work');
+  assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old','response should return before background apply completes');
+  await background;
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,1);

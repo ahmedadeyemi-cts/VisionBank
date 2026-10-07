@@ -355,3 +355,58 @@ test('background phone Save failure is persisted with the exact failing stage',a
   assert.match(failure.reason,/resolve-write-context: diagnostic-phonism-failure/);
   assert.equal(failure.result,'failed');
 });
+
+
+test('first Button 7 press auto-enrolls supported Yealink models by MAC with no per-user backend setup',async()=>{
+  for(const model of ['T53','T54W','T57W','T46U']){
+    const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+    await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-07T21:45:00.000Z'});
+
+    const webexFetch=async(_env,url)=>{
+      const u=new URL(url);
+      if(u.pathname==='/v1/devices/webex-1')return json({
+        id:'webex-1',callingDeviceId:'call-1',displayName:'Auto '+model,product:'Yealink '+model,
+        mac:'805E0CEC1993',connectionStatus:'connected',personId:'user-1',locationId:'loc-a',
+        managedBy:'PARTNER',type:'phone'
+      });
+      if(u.pathname==='/v1/telephony/config/devices/call-1/members')return json({members:[PRIMARY],maxLineCount:4});
+      return json({message:'not found'},404);
+    };
+
+    const phonismReader={
+      async discover(){return {
+        domain:{id:'40',name:'VisionBank Iowa'},
+        tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],
+        syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},
+        webexIntegration:{id:'501'},truncated:false
+      };},
+      async phones(){return {phones:[{
+        id:'313135',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',
+        serviceState:['tr069'],tr069:true,webexDeviceIds:['webex-1'],
+        webexDeviceId:'webex-1',webexDeviceType:'Yealink '+model
+      }],truncated:false};},
+      async tenantPhones(){throw new Error('first fleet enrollment should use domain-wide inventory');},
+      async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'}];}
+    };
+
+    const handler=createDeviceManagementHandler({
+      webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader
+    });
+
+    const response=await xml(
+      handler,env,
+      'https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993',
+      model
+    );
+    assert.equal(response.status,200,model+' first Button 7 status');
+    assert.match(response.text,/VisionBank Manage Extensions/,model+' first Button 7 menu');
+    assert.match(response.text,/Add Temporary Line/,model+' Add Temporary Line');
+
+    const saved=await readPhoneEnrollment(env,MAC);
+    assert.ok(saved,model+' enrollment persisted');
+    assert.equal(saved.authMode,'fleet-template',model+' fleet auth mode');
+    assert.equal(saved.device.id,'call-1',model+' Webex calling device');
+    assert.equal(saved.phonismPhoneId,'313135',model+' Phonism phone');
+    assert.match(saved.device.model,new RegExp(model),model+' model retained');
+  }
+});

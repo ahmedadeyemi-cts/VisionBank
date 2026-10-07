@@ -15,13 +15,13 @@ const FLEET='GSYzrRP442bBBMpiAjuD',MAC='80:5E:0C:EC:19:93';
 const PRIMARY={id:'user-1',displayName:'Primary User',memberType:'PEOPLE',extension:'3223',location:{id:'loc-a',name:'CLIVE'},lineType:'PRIMARY',port:1};
 const TARGET={id:'user-2',displayName:'Temporary User',memberType:'PEOPLE',extension:'4102',location:{id:'loc-a',name:'CLIVE'}};
 
-function req(url){
-  const request=new Request(url,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-T57W'}});
+function req(url,model='T57W'){
+  const request=new Request(url,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-'+model}});
   Object.defineProperty(request,'cf',{value:{colo:'TEST'}});
   return request;
 }
-async function xml(handler,env,url){
-  const response=await handler(req(url),env,{});
+async function xml(handler,env,url,model='T57W'){
+  const response=await handler(req(url,model),env,{});
   return {status:response.status,text:await response.text()};
 }
 
@@ -38,7 +38,8 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   };
   const phonismReader={
     async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
-    async tenantPhones(){return {phones:[{id:'313135',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'}],truncated:false};},
+    async phones(){return {phones:[{id:'313135',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'}],truncated:false};},
+    async tenantPhones(){throw new Error('fleet bootstrap should use domain-wide phone inventory');},
     async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'}];},
     async syncHierarchyIntegration(){return {accepted:true,status:202};},
     async tr069Action(){return {accepted:true,status:200};}
@@ -148,4 +149,29 @@ test('Render vanity entry switches subsequent Yealink actions to the direct Work
   assert.equal(response.status,200);
   assert.match(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//);
   assert.doesNotMatch(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//);
+});
+
+
+test('T54W Render vanity keeps subsequent XML actions on Render for handset compatibility',async()=>{
+  const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-07T14:00:00.000Z'});
+  await upsertFleetEnrollment(env,{
+    device:{id:'call-1',displayName:'Pilot T54W',mac:MAC,model:'Yealink T54W'},
+    location:{id:'loc-a',name:'CLIVE'},
+    phonismPhoneId:'313135',
+    now:new Date().toISOString()
+  });
+
+  const handler=createDeviceManagementHandler({
+    webexFetch:async()=>json({message:'unused'},404),
+    checkAccess:async()=>({allowed:true}),
+    loadIpRules:async()=>['approved'],
+    phonismReader:{async discover(){throw new Error('not-needed');}}
+  });
+
+  const vanity='https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993';
+  const response=await xml(handler,env,vanity,'T54W');
+  assert.equal(response.status,200);
+  assert.match(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//);
+  assert.doesNotMatch(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//);
 });

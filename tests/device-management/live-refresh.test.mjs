@@ -35,3 +35,8 @@ test('Line 2 lookup retries transient failures and remains retryable',()=>{
   assert.match(source,/Retry Line 2 lookup/);
   assert.match(source,/not an admin permission issue/);
 });
+
+
+test('successful Line 2 retry re-enables editor actions',()=>{
+  assert.match(source,/if\(state\.selected===device\)updateEditorActionState\(device,\{loading:false\}\)/);
+});

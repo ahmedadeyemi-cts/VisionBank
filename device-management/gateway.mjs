@@ -487,8 +487,8 @@ const PHONE_RENDER_ORIGIN='https://visionbank-dashboard.onrender.com';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneActionOrigin(request,{fleetKey=false}={}){
-  const url=new URL(request.url),ua=String(request.headers.get('User-Agent')||'');
-  if(fleetKey&&url.origin===PHONE_RENDER_ORIGIN&&/SIP-T54W/i.test(ua))return PHONE_RENDER_ORIGIN;
+  const url=new URL(request.url);
+  if(fleetKey&&(url.origin===PHONE_RENDER_ORIGIN||url.origin===PHONE_CANONICAL_ORIGIN))return url.origin;
   return PHONE_CANONICAL_ORIGIN;
 }
 

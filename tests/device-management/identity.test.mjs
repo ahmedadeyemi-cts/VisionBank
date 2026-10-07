@@ -93,6 +93,17 @@ test('admin authorization requires a valid VisionBank Security session and seede
   assert.ok(settings.sharedMailboxes.includes('infotech@visionbank.com'));
 });
 
+test('Rhonda Whitney verified operator resolves as a Device Manager admin',async()=>{
+  const e=env();
+  const request=req();
+  const session=await createOperatorSession(e,request,{name:'Rhonda Whitney',email:'rhonda.whitney@visionbank.com'},{verified:true,verificationMethod:'email-code',ttlSeconds:24*3600});
+  const policy=await identityPolicy(e,req({'X-VB-Operator-Session':session.id}));
+  assert.equal(policy.adminAuthorized,true);
+  assert.equal(policy.admin.email,'rhonda.whitney@visionbank.com');
+  const settings=await getAdminSettings(e,req({'X-VB-Operator-Session':session.id}));
+  assert.equal(settings.currentAdmin.authMethod,'verified-email');
+});
+
 test('verified Device Manager operator on the admin list can manage settings without a separate Security login',async()=>{
   const e=env();
   const request=req();

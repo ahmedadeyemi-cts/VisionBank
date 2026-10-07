@@ -947,6 +947,7 @@
       if(picker)picker.disabled=false;
       renderMemberPickerValue();
       renderMemberSearchResults();
+      if(state.selected===device)updateEditorActionState(device,{loading:false});
       if(cleanQuery&&data.detailsPending)void enrichUnavailableMemberDetails(device,cleanQuery,seq);
       if(selectedId)renderCandidate();
       else if(state.memberTotalMatches){

@@ -158,7 +158,7 @@ const phoneText=phone.toString('utf8');
 need(gatewayText.includes('Wait 5 seconds while we reboot your phone.'),'STOP: expected reboot wait message missing from gateway');
 need(gatewayText.includes("prompt:'Add Temporary Extension'"),'STOP: Add Temporary Extension wording missing');
 need(phoneText.includes('YealinkIPPhoneTextScreen'),'STOP: Yealink TextScreen renderer missing');
-need(phoneText.includes('LockIn=\\\"'),'STOP: TextScreen LockIn support missing');
+need(phoneText.includes('LockIn="'),'STOP: TextScreen LockIn support missing');
 
 const expectedNew={
   'device-management/gateway.mjs':sha(gateway),

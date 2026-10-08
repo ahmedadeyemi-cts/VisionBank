@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createPhoneEnrollment,authenticatePhoneAccess,handlePhoneCheckin,phoneTelemetryIndex,
   createPhoneIntent,readPhoneIntent,phoneDurationOptions,phoneDurationLabel,
-  textMenu,inputScreen,attachPhoneSelfService
+  textMenu,textScreen,inputScreen,attachPhoneSelfService
 } from '../../device-management/phone-selfservice.mjs';
 import {buildAuditRecord} from '../../device-management/audit.mjs';
 

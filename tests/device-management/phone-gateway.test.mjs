@@ -57,8 +57,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
     baseUrl:'https://worker.example/api/webex/device-management',shortBaseUrl:'https://worker.example/p'
   });
 
-  const launch=enrollment.buttonUrl.replace('$mac','805E0CEC1993').replace('$ip','10.44.8.21');
-  const home=await xml(handler,env,launch);
+  const home=await xml(handler,env,enrollment.buttonUrl);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
   assert.match(home.text,/Add Temporary Line/);

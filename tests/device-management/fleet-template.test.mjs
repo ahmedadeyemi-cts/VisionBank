@@ -293,7 +293,7 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
     assert.match(applied.text,/Saving Extension/,model+' fast Save title');
-    assert.match(applied.text,/Wait 5 seconds while we reboot your phone\./,model+' reboot wait message');
+    assert.match(applied.text,/Applying your extension\. Your phone will reboot automatically\. This may take up to 45 seconds\./,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');

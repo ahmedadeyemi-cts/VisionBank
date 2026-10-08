@@ -89,7 +89,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(applied.status,200);
   assert.match(applied.text,/YealinkIPPhoneTextScreen/);
   assert.match(applied.text,/Saving Extension/);
-  assert.match(applied.text,/Wait 5 seconds while we reboot your phone\./);
+  assert.match(applied.text,/Applying your extension\. Your phone will reboot automatically\. This may take up to 45 seconds\./);
   assert.doesNotMatch(applied.text,/<MenuItem>/);
   assert.doesNotMatch(applied.text,/Return/);
   assert.ok(background,'phone Save should schedule background work');

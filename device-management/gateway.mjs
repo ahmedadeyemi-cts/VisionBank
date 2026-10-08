@@ -788,7 +788,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(intent.status==='processing'){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Wait 5 seconds while we reboot your phone.',
+          'Applying your extension. Your phone will reboot automatically. This may take up to 45 seconds.',
           {timeout:0,lockIn:true,beep:false}
         ));
       }
@@ -799,7 +799,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         }));
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Wait 5 seconds while we reboot your phone.',
+          'Applying your extension. Your phone will reboot automatically. This may take up to 45 seconds.',
           {timeout:0,lockIn:true,beep:false}
         ));
       }
@@ -810,7 +810,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(result.rebootQueued){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Wait 5 seconds while we reboot your phone.',
+          'Applying your extension. Your phone will reboot automatically. This may take up to 45 seconds.',
           {timeout:0,lockIn:true,beep:false}
         ));
       }

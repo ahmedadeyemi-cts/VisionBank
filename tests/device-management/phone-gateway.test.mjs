@@ -61,7 +61,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const home=await xml(handler,env,launch);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add Temporary Line/);
+  assert.match(home.text,/Add Temporary Extension/);
   assert.match(home.text,/Refresh/);
   assert.doesNotMatch(home.text,/Line 2:/);
 

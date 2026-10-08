@@ -667,7 +667,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/xml'){
       if(!lease){
         return phoneXmlResponse(textMenu('VisionBank Manage Extensions',[
-          {prompt:'Add Temporary Line',uri:searchUrl},
+          {prompt:'Add Temporary Extension',uri:searchUrl},
           {prompt:'Refresh',uri:home}
         ]));
       }
@@ -730,7 +730,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/search'){
       if(lease)throw new DeviceManagementError('phone-active-lease',409);
       const q=display(new URL(request.url).searchParams.get('q')||'',80);
-      if(!q)return phoneXmlResponse(inputScreen('Add Temporary Line','Extension or phone number',searchUrl,'q',{cancelAction:home}));
+      if(!q)return phoneXmlResponse(inputScreen('Add Temporary Extension','Extension or phone number',searchUrl,'q',{cancelAction:home}));
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
       const rows=searched.members.filter(member=>member?.id).slice(0,8);
       if(!rows.length)return phoneXmlResponse(textMenu('No Matching Extensions',[

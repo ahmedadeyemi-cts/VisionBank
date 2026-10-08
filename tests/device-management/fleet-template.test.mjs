@@ -49,7 +49,7 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   const home=await xml(handler,env,base);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add Temporary Line/);
+  assert.match(home.text,/Add Temporary Extension/);
   assert.match(home.text,/Refresh/);
   assert.doesNotMatch(home.text,/Line 2:/);
 
@@ -116,7 +116,7 @@ test('Add temporary line input screen is returned without Webex or Phonism provi
   const url='https://worker.example/x/'+FLEET+'/805e0cec1993/q';
   const response=await xml(handler,env,url);
   assert.equal(response.status,200);
-  assert.match(response.text,/Add Temporary Line/);
+  assert.match(response.text,/Add Temporary Extension/);
   assert.match(response.text,/Extension or phone number/);
   assert.equal(providerCalls,0);
 });
@@ -197,13 +197,13 @@ test('cached fleet enrollment stays provider-independent after long idle periods
 
   const response=await xml(handler,env,'https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993','T54W');
   assert.equal(response.status,200);
-  assert.match(response.text,/Add Temporary Line/);
+  assert.match(response.text,/Add Temporary Extension/);
   assert.match(response.text,/Refresh/);
   assert.equal(providerCalls,0);
 });
 
 
-test('fleet Button 7 entry and Add Temporary Line work across supported Yealink model paths',async()=>{
+test('fleet Button 7 entry and Add Temporary Extension work across supported Yealink model paths',async()=>{
   const models=[
     {model:'T54W',expectedOrigin:'https://visionbank-dashboard.onrender.com'},
     {model:'T57W',expectedOrigin:'https://visionbank-security.ahmedadeyemi.workers.dev'},
@@ -230,7 +230,7 @@ test('fleet Button 7 entry and Add Temporary Line work across supported Yealink 
     const home=await xml(handler,env,vanity,row.model);
     assert.equal(home.status,200,row.model+' home status');
     assert.match(home.text,/VisionBank Manage Extensions/,row.model+' home title');
-    assert.match(home.text,/Add Temporary Line/,row.model+' Add Temporary Line');
+    assert.match(home.text,/Add Temporary Extension/,row.model+' Add Temporary Extension');
     assert.match(home.text,/Refresh/,row.model+' Refresh');
     assert.ok(home.text.includes(row.expectedOrigin+'/x/'),row.model+' action origin');
 
@@ -402,7 +402,7 @@ test('first Button 7 press auto-enrolls supported Yealink models by MAC with no 
     );
     assert.equal(response.status,200,model+' first Button 7 status');
     assert.match(response.text,/VisionBank Manage Extensions/,model+' first Button 7 menu');
-    assert.match(response.text,/Add Temporary Line/,model+' Add Temporary Line');
+    assert.match(response.text,/Add Temporary Extension/,model+' Add Temporary Extension');
 
     const saved=await readPhoneEnrollment(env,MAC);
     assert.ok(saved,model+' enrollment persisted');

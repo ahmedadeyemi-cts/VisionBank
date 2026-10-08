@@ -291,9 +291,11 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     const executionContext={waitUntil(promise){background=promise;}};
     const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
     assert.equal(applied.status,200,model+' apply acknowledgement');
+    assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
     assert.match(applied.text,/Saving Extension/,model+' fast Save title');
-    assert.match(applied.text,/Applying for 30 minutes/,model+' duration acknowledgement');
-    assert.match(applied.text,/Phone will restart automatically/,model+' reboot acknowledgement');
+    assert.match(applied.text,/Wait 5 seconds while we reboot your phone\./,model+' reboot wait message');
+    assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
+    assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');
     assert.equal(webex.members.find(x=>Number(x.port)===2),undefined,model+' response precedes Webex write');
 

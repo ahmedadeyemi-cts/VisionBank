@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createPhoneEnrollment,authenticatePhoneAccess,handlePhoneCheckin,phoneTelemetryIndex,
   createPhoneIntent,readPhoneIntent,phoneDurationOptions,phoneDurationLabel,
-  textMenu,inputScreen,attachPhoneSelfService
+  textMenu,textScreen,inputScreen,attachPhoneSelfService
 } from '../../device-management/phone-selfservice.mjs';
 import {buildAuditRecord} from '../../device-management/audit.mjs';
 
@@ -102,4 +102,15 @@ test('phone-originated changes audit as a verified device',()=>{
     operator:{name:'Yealink T57W '+MAC,email:''},deviceIdentity:{mac:MAC,model:'T57W',enrollmentId:'e-1'}};
   const record=buildAuditRecord({eventType:'temporary-line-change',action:'save-sync',request,session,device,location});
   assert.equal(record.actor.type,'device');assert.equal(record.actor.deviceIdentity.mac,MAC);assert.equal(record.sourceIp,'203.0.113.44');
+});
+
+
+test('TextScreen renders a locked message with no menu items',()=>{
+  const xml=textScreen('Saving Extension','Wait 5 seconds while we reboot your phone.',{timeout:0,lockIn:true,beep:false});
+  assert.match(xml,/YealinkIPPhoneTextScreen/);
+  assert.match(xml,/Timeout="0"/);
+  assert.match(xml,/LockIn="yes"/);
+  assert.match(xml,/Saving Extension/);
+  assert.match(xml,/Wait 5 seconds while we reboot your phone\./);
+  assert.doesNotMatch(xml,/<MenuItem>/);
 });

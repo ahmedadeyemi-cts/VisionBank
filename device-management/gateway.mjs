@@ -13,7 +13,7 @@ import {
   authenticatePhone,authenticatePhoneAccess,authenticatePhoneFleetKey,readPhoneEnrollment,upsertFleetEnrollment,
   getFleetKeySettings,rotateFleetKey,recordFleetKeyUse,
   recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,startPhoneIntent,failPhoneIntent,finishPhoneIntent,phoneSession,
-  attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,inputScreen,phoneXmlResponse,phoneNoContent,
+  attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,textScreen,inputScreen,phoneXmlResponse,phoneNoContent,
   phoneUnauthorized,phoneErrorMenu
 } from './phone-selfservice.mjs';
 
@@ -786,31 +786,37 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         ]));
       }
       if(intent.status==='processing'){
-        return phoneXmlResponse(textMenu('Saving Extension',[
-          {prompt:'Change is already in progress',uri:home},
-          {prompt:'Phone will restart automatically',uri:home},
-          {prompt:'Return',uri:home}
-        ]));
+        return phoneXmlResponse(textScreen(
+          'Saving Extension',
+          'Wait 5 seconds while we reboot your phone.',
+          {timeout:0,lockIn:true,beep:false}
+        ));
       }
       intent=await startPhoneIntent(env,intentId,enrollment);
       if(typeof executionContext?.waitUntil==='function'){
         executionContext.waitUntil(applyPhoneIntentWork({
           env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure:false
         }));
-        return phoneXmlResponse(textMenu('Saving Extension',[
-          {prompt:'Applying for '+phoneDurationLabel(intent.durationMinutes),uri:home},
-          {prompt:'Phone will restart automatically',uri:home},
-          {prompt:'Return',uri:home}
-        ]));
+        return phoneXmlResponse(textScreen(
+          'Saving Extension',
+          'Wait 5 seconds while we reboot your phone.',
+          {timeout:0,lockIn:true,beep:false}
+        ));
       }
       const applied=await applyPhoneIntentWork({
         env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure:true
       });
       const {result,target}=applied;
-      return phoneXmlResponse(textMenu(result.rebootQueued?'Saved - Phone Restarting':'Saved - Reboot Needed',[
+      if(result.rebootQueued){
+        return phoneXmlResponse(textScreen(
+          'Saving Extension',
+          'Wait 5 seconds while we reboot your phone.',
+          {timeout:0,lockIn:true,beep:false}
+        ));
+      }
+      return phoneXmlResponse(textMenu('Saved - Reboot Needed',[
         {prompt:phoneMemberLabel(target),uri:home},
-        {prompt:'Active for '+phoneDurationLabel(intent.durationMinutes),uri:home},
-        {prompt:result.rebootQueued?'Rebooting automatically':'Reboot needs attention',uri:home},
+        {prompt:'Reboot needs attention',uri:home},
         {prompt:'Return',uri:home}
       ]));
     }

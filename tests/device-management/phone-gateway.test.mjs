@@ -87,9 +87,11 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const executionContext={waitUntil(promise){background=promise;}};
   const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1],executionContext);
   assert.equal(applied.status,200);
+  assert.match(applied.text,/YealinkIPPhoneTextScreen/);
   assert.match(applied.text,/Saving Extension/);
-  assert.match(applied.text,/Applying for 15 minutes/);
-  assert.match(applied.text,/Phone will restart automatically/);
+  assert.match(applied.text,/Wait 5 seconds while we reboot your phone\./);
+  assert.doesNotMatch(applied.text,/<MenuItem>/);
+  assert.doesNotMatch(applied.text,/Return/);
   assert.ok(background,'phone Save should schedule background work');
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old','response should return before background apply completes');
   await background;

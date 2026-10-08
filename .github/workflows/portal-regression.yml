@@ -62,6 +62,7 @@ jobs:
           node --check device-management/write.mjs
           node --check device-management/phone-selfservice.mjs
           node --check scripts/release-yealink-fast-save-r2.mjs
+          node --check scripts/release-yealink-save-wait-screen.mjs
       - name: Run request, roster, privacy and failure-isolation tests
         env:
           ACORN_MODULE: ${{ github.workspace }}/tests/portal-safety/node_modules/acorn/dist/acorn.mjs

@@ -73,6 +73,15 @@ export function textMenu(title,items,{cancelAction='SoftKey:Exit',timeout=120}={
     '</YealinkIPPhoneTextMenu>';
 }
 
+export function textScreen(title,text,{timeout=0,lockIn=true,beep=false}={}){
+  const seconds=Number.isFinite(Number(timeout))?Math.max(0,Math.floor(Number(timeout))):0;
+  return '<?xml version="1.0" encoding="UTF-8"?>\n'+
+    '<YealinkIPPhoneTextScreen Beep="'+(beep?'yes':'no')+'" Timeout="'+seconds+'" LockIn="'+(lockIn?'yes':'no')+'">'+
+    '<Title wrap="yes">'+xmlEscape(title)+'</Title>'+
+    '<Text>'+xmlEscape(text)+'</Text>'+
+    '</YealinkIPPhoneTextScreen>';
+}
+
 export function inputScreen(title,prompt,url,parameter='q',{cancelAction='SoftKey:Exit',type='string'}={}){
   return '<?xml version="1.0" encoding="UTF-8"?>\n'+
     '<YealinkIPPhoneInputScreen type="'+xmlEscape(type)+'" Beep="no" Password="no" Timeout="120" cancelAction="'+xmlEscape(cancelAction)+'">'+

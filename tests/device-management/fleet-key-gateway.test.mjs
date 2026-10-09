@@ -42,7 +42,7 @@ test('fleet key admin endpoints require an authorized Device Manager admin sessi
   assert.equal(allowed.status,200);
   const before=await allowed.json();
   assert.equal(before.active.key,FLEET);
-  assert.match(before.templateUrl,/\/x\/GSYzrRP442bBBMpiAjuD\/\{\{mac_address\}\}$/);
+  assert.equal(before.templateUrl,'https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/{{mac_address}}');
 
   const rotated=await h(request('admin-settings/fleet-keys/rotate',{token,method:'POST',body:{confirm:true,expectedActiveKeyId:before.activeKeyId}}),env,{});
   assert.equal(rotated.status,201);

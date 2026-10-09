@@ -483,11 +483,9 @@ async function requireWriteOperator(env,request){
 const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
 const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
 const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
-const PHONE_RENDER_ORIGIN='https://visionbank-dashboard.onrender.com';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneActionOrigin(request,{fleetKey=false}={}){
-  if(fleetKey)return PHONE_RENDER_ORIGIN;
   return PHONE_CANONICAL_ORIGIN;
 }
 
@@ -935,7 +933,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
 
       if(part==='admin-settings/fleet-keys'){
         await requireDeviceAdmin(env,request);
-        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},200,headers);
+        return output({success:true,...await getFleetKeySettings(env,{origin:PHONE_CANONICAL_ORIGIN})},200,headers);
       }
 
       if(part==='admin-settings/fleet-keys/rotate'){
@@ -943,7 +941,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const body=await readSmallJson(request,1024);
         if(!body||body.confirm!==true||Object.keys(body).some(k=>!['confirm','expectedActiveKeyId'].includes(k)))throw new DeviceManagementError('invalid-admin-request');
         await rotateFleetKey(env,{expectedActiveKeyId:body.expectedActiveKeyId||null,actor:admin.email||admin.username||'admin'});
-        return output({success:true,...await getFleetKeySettings(env,{origin:url.origin})},201,headers);
+        return output({success:true,...await getFleetKeySettings(env,{origin:PHONE_CANONICAL_ORIGIN})},201,headers);
       }
 
       if(part==='admin-settings/verification'){

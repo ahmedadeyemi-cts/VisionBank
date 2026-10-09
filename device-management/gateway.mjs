@@ -12,7 +12,7 @@ import {
   createPhoneEnrollment,revokePhoneEnrollment,phoneEnrollmentStatus,phoneEnrollmentIndex,phoneTelemetryIndex,
   authenticatePhone,authenticatePhoneAccess,authenticatePhoneFleetKey,readPhoneEnrollment,upsertFleetEnrollment,
   getFleetKeySettings,rotateFleetKey,recordFleetKeyUse,
-  recordPhoneSeen,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,startPhoneIntent,failPhoneIntent,finishPhoneIntent,phoneSession,
+  recordPhoneSeen,recordPhoneNavigationEvent,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,startPhoneIntent,failPhoneIntent,finishPhoneIntent,phoneSession,
   attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,textScreen,inputScreen,phoneXmlResponse,phoneNoContent,
   phoneUnauthorized,phoneErrorMenu
 } from './phone-selfservice.mjs';
@@ -487,8 +487,8 @@ const PHONE_RENDER_ORIGIN='https://visionbank-dashboard.onrender.com';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneActionOrigin(request,{fleetKey=false}={}){
-  const url=new URL(request.url),ua=String(request.headers.get('User-Agent')||'');
-  if(fleetKey&&url.origin===PHONE_RENDER_ORIGIN&&/SIP-T54W/i.test(ua))return PHONE_RENDER_ORIGIN;
+  const url=new URL(request.url);
+  if(fleetKey&&(url.origin===PHONE_RENDER_ORIGIN||url.origin===PHONE_CANONICAL_ORIGIN))return url.origin;
   return PHONE_CANONICAL_ORIGIN;
 }
 
@@ -513,6 +513,19 @@ function phoneMemberLabel(member){
   const name=display(member?.name||member?.displayName||'',80);
   if(extension&&name)return extension+' - '+name;
   return extension||name||'Unknown line';
+}
+
+function phoneNavigationAction(part,request){
+  const url=new URL(request.url);
+  if(part==='phone/xml')return 'button7';
+  if(part==='phone/search')return url.searchParams.get('q')?'search-submit':'search-open';
+  if(part==='phone/duration')return 'duration-select';
+  if(part==='phone/confirm')return 'confirm';
+  if(part==='phone/apply')return 'apply';
+  if(part==='phone/status')return 'status';
+  if(part==='phone/signout')return 'signout-review';
+  if(part==='phone/signoutApply')return 'signout-apply';
+  return String(part||'unknown').replace(/^phone\//,'');
 }
 
 function activePhoneLease(index,enrollment){
@@ -652,6 +665,9 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   await recordPhoneSeen(env,request,enrollment,{reportedIp:phoneUrl.searchParams.get('i'),event:fleetKey?'fleet-xml-browser':'xml-browser'}).catch(()=>{});
   const home=phoneRouteUrl(request,'xml',{},accessToken,fleetKey,normalizedFleetMac);
   const searchUrl=phoneRouteUrl(request,'search',{},accessToken,fleetKey,normalizedFleetMac);
+  const navigationAction=phoneNavigationAction(part,request);
+  const generatedOrigin=fleetKey?phoneActionOrigin(request,{fleetKey:true}):null;
+  await recordPhoneNavigationEvent(env,request,enrollment,{action:navigationAction,outcome:'received',generatedOrigin}).catch(()=>{});
   try{
     const leaseIndex=await activeLeaseIndex(env),lease=activePhoneLease(leaseIndex,enrollment);
     let line2Loaded=false,line2Row=null;
@@ -823,6 +839,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
 
     return phoneXmlResponse(phoneErrorMenu('not-found',home),404);
   }catch(error){
+    await recordPhoneNavigationEvent(env,request,enrollment,{
+      action:navigationAction,outcome:'failed',generatedOrigin,
+      errorCode:error?.code||error?.message||'phone-route-failed'
+    }).catch(()=>{});
     return phoneXmlResponse(phoneErrorMenu(error?.code,home),Number.isInteger(error?.status)?error.status:500);
   }
 }

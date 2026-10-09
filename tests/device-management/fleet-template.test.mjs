@@ -144,7 +144,7 @@ test('fleet XML actions stay on the same Render origin for every supported Yeali
   }
 });
 
-test('fleet XML actions stay on the same direct Worker origin for every supported Yealink model',async()=>{
+test('direct Worker fleet entry canonicalizes all handset actions back to Render for every supported Yealink model',async()=>{
   for(const model of ['T53','T54W','T57W','T46U']){
     const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
     await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-09T19:00:00.000Z'});
@@ -161,8 +161,8 @@ test('fleet XML actions stay on the same direct Worker origin for every supporte
     const direct='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
     const response=await xml(handler,env,direct,model);
     assert.equal(response.status,200,model+' Worker entry');
-    assert.match(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' remains on Worker');
-    assert.doesNotMatch(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' never switches host');
+    assert.match(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' canonicalizes actions to Render');
+    assert.doesNotMatch(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' does not expose Worker action URLs');
   }
 });
 
@@ -228,7 +228,7 @@ test('fleet Button 7 entry and Add Temporary Extension work across supported Yea
 
 
 
-test('fleet navigation telemetry records model, action and same origin without exposing the fleet key',async()=>{
+test('fleet navigation telemetry records model, action and canonical Render origin without exposing the fleet key',async()=>{
   const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
   await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-09T19:00:00.000Z'});
   await upsertFleetEnrollment(env,{

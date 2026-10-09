@@ -4,6 +4,7 @@ const ENROLL_PREFIX='device-phone-enrollment:';
 const USER_PREFIX='device-phone-user:';
 const ACCESS_PREFIX='device-phone-access:';
 const TELEMETRY_PREFIX='device-phone-telemetry:';
+const NAVIGATION_PREFIX='device-phone-navigation:';
 const INTENT_PREFIX='device-phone-intent:';
 const USER_RE=/^[A-Za-z0-9]{8,15}$/;
 const PASSWORD_RE=/^[A-Za-z0-9]{12,15}$/;
@@ -359,6 +360,30 @@ export async function recordPhoneSeen(env,request,enrollment,{reportedIp=null,mo
   const previous=await readJson(env.LOGS,telemetryKey(enrollment.device.mac));
   await putJson(env.LOGS,telemetryKey(enrollment.device.mac),{...previous,...telemetry,phoneIp:telemetry.phoneIp||previous?.phoneIp||null,firmware:telemetry.firmware||previous?.firmware||''});
   return {...previous,...telemetry,phoneIp:telemetry.phoneIp||previous?.phoneIp||null,firmware:telemetry.firmware||previous?.firmware||''};
+}
+
+export async function recordPhoneNavigationEvent(env,request,enrollment,{action,outcome='received',generatedOrigin=null,errorCode=null,now=Date.now()}={}){
+  if(!env?.LOGS?.put||!enrollment?.device?.mac)return null;
+  const at=new Date(now).toISOString();
+  const reverse=String(9999999999999-now).padStart(13,'0');
+  const userAgent=clean(request?.headers?.get?.('User-Agent')||'',180);
+  const modelMatch=userAgent.match(/SIP-(T\d+[A-Z0-9-]*)/i);
+  const requestOrigin=(()=>{try{return new URL(request.url).origin;}catch{return '';}})();
+  const record={
+    id:crypto.randomUUID(),at,
+    mac:enrollment.device.mac,deviceId:enrollment.device.id,enrollmentId:enrollment.enrollmentId,
+    deviceName:clean(enrollment.device.name||'',160),deviceModel:clean(enrollment.device.model||'',120),
+    handsetModel:clean(modelMatch?.[1]||'',80),userAgent,
+    action:clean(action||'unknown',60),outcome:clean(outcome||'received',40),
+    requestOrigin:clean(requestOrigin,180),generatedOrigin:clean(generatedOrigin||'',180)||null,
+    sourceIp:safeIp(request?.headers?.get?.('CF-Connecting-IPv6')||request?.headers?.get?.('CF-Connecting-IP'))||'unknown',
+    errorCode:clean(errorCode||'',120)||null
+  };
+  await putJson(env.LOGS,NAVIGATION_PREFIX+reverse+':'+record.id,record,{
+    expirationTtl:7*24*60*60,
+    metadata:{at:record.at,mac:record.mac,action:record.action,outcome:record.outcome,handsetModel:record.handsetModel,requestOrigin:record.requestOrigin,generatedOrigin:record.generatedOrigin,errorCode:record.errorCode}
+  });
+  return record;
 }
 
 export async function handlePhoneCheckin(env,request){

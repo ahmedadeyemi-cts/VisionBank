@@ -487,8 +487,7 @@ const PHONE_RENDER_ORIGIN='https://visionbank-dashboard.onrender.com';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
 function phoneActionOrigin(request,{fleetKey=false}={}){
-  const url=new URL(request.url);
-  if(fleetKey&&(url.origin===PHONE_RENDER_ORIGIN||url.origin===PHONE_CANONICAL_ORIGIN))return url.origin;
+  if(fleetKey)return PHONE_RENDER_ORIGIN;
   return PHONE_CANONICAL_ORIGIN;
 }
 

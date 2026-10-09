@@ -122,7 +122,7 @@ test('Add temporary line input screen is returned without Webex or Phonism provi
 });
 
 
-test('fleet XML actions stay on the same Render origin for every supported Yealink model',async()=>{
+test('Render fleet entry canonicalizes all handset actions to the direct Worker for every supported Yealink model',async()=>{
   for(const model of ['T53','T54W','T57W','T46U']){
     const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
     await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-09T19:00:00.000Z'});
@@ -139,12 +139,12 @@ test('fleet XML actions stay on the same Render origin for every supported Yeali
     const vanity='https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993';
     const response=await xml(handler,env,vanity,model);
     assert.equal(response.status,200,model+' Render entry');
-    assert.match(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' remains on Render');
-    assert.doesNotMatch(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' never switches host');
+    assert.match(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' canonicalizes actions to Worker');
+    assert.doesNotMatch(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' does not expose Render action URLs');
   }
 });
 
-test('direct Worker fleet entry canonicalizes all handset actions back to Render for every supported Yealink model',async()=>{
+test('direct Worker fleet entry keeps all handset actions on the direct Worker for every supported Yealink model',async()=>{
   for(const model of ['T53','T54W','T57W','T46U']){
     const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
     await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-09T19:00:00.000Z'});
@@ -161,8 +161,8 @@ test('direct Worker fleet entry canonicalizes all handset actions back to Render
     const direct='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
     const response=await xml(handler,env,direct,model);
     assert.equal(response.status,200,model+' Worker entry');
-    assert.match(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' canonicalizes actions to Render');
-    assert.doesNotMatch(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' does not expose Worker action URLs');
+    assert.match(response.text,/https:\/\/visionbank-security\.ahmedadeyemi\.workers\.dev\/x\//,model+' remains on Worker');
+    assert.doesNotMatch(response.text,/https:\/\/visionbank-dashboard\.onrender\.com\/x\//,model+' does not expose Render action URLs');
   }
 });
 
@@ -217,9 +217,9 @@ test('fleet Button 7 entry and Add Temporary Extension work across supported Yea
     assert.match(home.text,/VisionBank Manage Extensions/,model+' home title');
     assert.match(home.text,/Add Temporary Extension/,model+' Add Temporary Extension');
     assert.match(home.text,/Refresh/,model+' Refresh');
-    assert.ok(home.text.includes('https://visionbank-dashboard.onrender.com/x/'),model+' action origin');
+    assert.ok(home.text.includes('https://visionbank-security.ahmedadeyemi.workers.dev/x/'),model+' action origin');
 
-    const input=await xml(handler,env,'https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993/q',model);
+    const input=await xml(handler,env,'https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993/q',model);
     assert.equal(input.status,200,model+' input status');
     assert.match(input.text,/Extension or phone number/,model+' input screen');
     assert.equal(providerCalls,0,model+' cached entry/input should stay provider-independent');
@@ -228,7 +228,7 @@ test('fleet Button 7 entry and Add Temporary Extension work across supported Yea
 
 
 
-test('fleet navigation telemetry records model, action and canonical Render origin without exposing the fleet key',async()=>{
+test('fleet navigation telemetry records model, action and canonical Worker origin without exposing the fleet key',async()=>{
   const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
   await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-09T19:00:00.000Z'});
   await upsertFleetEnrollment(env,{
@@ -241,7 +241,7 @@ test('fleet navigation telemetry records model, action and canonical Render orig
     phonismReader:{async discover(){throw new Error('not-needed');}}
   });
 
-  const base='https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993';
+  const base='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
   const home=await xml(handler,env,base,'T53');
   assert.equal(home.status,200);
   const search=await xml(handler,env,base+'/q','T53');
@@ -256,8 +256,8 @@ test('fleet navigation telemetry records model, action and canonical Render orig
   assert.deepEqual(rows.map(row=>row.action),['button7','search-open']);
   for(const row of rows){
     assert.equal(row.handsetModel,'T53');
-    assert.equal(row.requestOrigin,'https://visionbank-dashboard.onrender.com');
-    assert.equal(row.generatedOrigin,'https://visionbank-dashboard.onrender.com');
+    assert.equal(row.requestOrigin,'https://visionbank-security.ahmedadeyemi.workers.dev');
+    assert.equal(row.generatedOrigin,'https://visionbank-security.ahmedadeyemi.workers.dev');
     assert.equal(row.outcome,'received');
     assert.doesNotMatch(JSON.stringify(row),new RegExp(FLEET));
   }
@@ -295,17 +295,17 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     };
 
     const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
-    const base='https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993';
+    const base='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
 
     const search=await xml(handler,env,base+'/q?q=4102',model);
     assert.equal(search.status,200,model+' search status');
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
-    assert.doesNotMatch(search.text,/visionbank-security\.ahmedadeyemi\.workers\.dev/,model+' search response never switches host');
+    assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
     const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
     assert.equal(confirm.status,200,model+' confirm status');
     assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
-    assert.doesNotMatch(confirm.text,/visionbank-security\.ahmedadeyemi\.workers\.dev/,model+' confirm response never switches host');
+    assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');
 

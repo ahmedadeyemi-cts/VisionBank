@@ -1,0 +1,10 @@
+{
+  "baseWorkerVersion": "d2f6e4f9-3a19-4062-8d93-03b66973001e",
+  "candidateVersion": "f16e8d5c-16e7-40de-b0f8-9679f143e0c7",
+  "bindings": 39,
+  "modules": 19,
+  "mainSha256": "6392ad62189331933affb7cfacfc199331209fddc472f8257e40543a43ba0f80",
+  "zeroTrafficVerified": true,
+  "providerQueryValidated": true,
+  "tests": 37
+}

@@ -34,3 +34,23 @@ test('Backend integration preserves existing source and rejects duplicate integr
  const result=integrate(source);assert(result.includes(source.slice(source.indexOf('if ('))));assert(result.includes('await checkAccess(request,env)'));assert(result.includes("'Cache-Control':'no-store'"));assert.throws(()=>integrate(result));
  const auth=fs.readFileSync(new URL('../portal-auth-fetch.js',import.meta.url),'utf8');assert(auth.includes('path === "/api/webex/agent-performance"'));
 });
+
+test('Logged-in filter retains idle/busy agents, preserves history, synchronizes and remembers preference',()=>{
+ const listeners={},stored=new Map(),buttons=[{},{}];
+ const document={addEventListener:(name,fn)=>{listeners[name]=fn;},querySelectorAll:()=>buttons.map(b=>({setAttribute:(k,v)=>{b[k]=v;}}))};
+ const window={VB_SECURITY:{allowed:true},dispatchEvent:()=>{}};
+ const localStorage={getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)};
+ const create=()=>{const c=vm.createContext({window,document,localStorage,Intl,Date:class extends Date{static now(){return now;}},Event:class{}});vm.runInContext(fs.readFileSync(new URL('../webex-agent-performance.js',import.meta.url),'utf8'),c);return window.VB_AGENT_PERFORMANCE;};
+ let api=create();
+ const roster={success:true,generatedAtEpoch:now,agents:[{agentId:'lunch',status:'Lunch'},{agentId:'busy',status:'Engaged'},{agentId:'wrap',status:'Wrap-up'}]};
+ const items=[{agentId:'lunch',inbound:12},{agentId:'busy'},{agentId:'wrap'},{agentId:'history',inbound:7},{agentId:'chat',liveRecord:true}];
+ api.setHideLoggedOut(true);
+ assert.deepEqual(Array.from(api.filterRows(items,roster),a=>a.agentId),['lunch','busy','wrap','chat']);
+ assert.equal(api.filterRows(items,roster)[0].inbound,12);assert.equal(items.length,5);
+ assert.equal(buttons[0]['aria-pressed'],'true');assert.equal(buttons[1]['aria-pressed'],'true');
+ assert.equal(api.filterRows(items,{...roster,generatedAtEpoch:now-45001}).length,5);
+ assert.match(api.filterMessage(null),/paused/);
+ api=create();assert.equal(api.hideLoggedOut(),true);
+ api.setHideLoggedOut(false);assert.equal(api.filterRows(items,roster).length,5);assert.equal(stored.get('vbHideLoggedOutAgents'),'false');
+ api.setHideLoggedOut(true);assert.equal(api.filterRows(items,{...roster,agents:[]}).length,1);
+});

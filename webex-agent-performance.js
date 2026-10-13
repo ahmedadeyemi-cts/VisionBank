@@ -2,6 +2,10 @@
 (() => {
  'use strict';
  let snapshot=null,mode='today',chatMode='today',pending=false,next=0;
+ let hideLoggedOut=false;
+ try{hideLoggedOut=localStorage.getItem('vbHideLoggedOutAgents')==='true';}catch{}
+ const rosterReady=dashboard=>window.VB_SECURITY?.allowed===true&&dashboard?.success===true&&Array.isArray(dashboard.agents)&&Number.isFinite(dashboard.generatedAtEpoch)&&Date.now()-dashboard.generatedAtEpoch>=-5000&&Date.now()-dashboard.generatedAtEpoch<45000;
+ function syncLoginButtons(){for(const button of document.querySelectorAll?.('[data-vb-hide-logged-out]')||[])button.setAttribute('aria-pressed',String(hideLoggedOut));}
  const day=stamp=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp);
  const ready=()=>window.VB_SECURITY?.allowed===true&&snapshot?.success===true&&Date.now()-snapshot.observedAt<150000&&Date.now()-snapshot.observedAt>=-5000&&day(snapshot.dayStart)===day(Date.now());
  const rows=()=>ready()?snapshot.rows:[];
@@ -10,6 +14,15 @@
  const metrics=(id,kind)=>rows().find(a=>String(a.agentId)===String(id))?.[kind];
  window.VB_AGENT_PERFORMANCE={
   mode:(kind='voice')=>kind==='chat'?chatMode:mode,ready,rows,
+  hideLoggedOut:()=>hideLoggedOut,
+  setHideLoggedOut(value){hideLoggedOut=value===true;try{localStorage.setItem('vbHideLoggedOutAgents',String(hideLoggedOut));}catch{}syncLoginButtons();notify();},
+  syncLoginButtons,
+  filterRows(items,dashboard){
+   if(!hideLoggedOut||!rosterReady(dashboard))return items;
+   const ids=new Set(dashboard.agents.map(a=>String(a.agentId||'')).filter(Boolean));
+   return items.filter(a=>ids.has(String(a.agentId))||a.liveRecord===true);
+  },
+  filterMessage(dashboard){return !hideLoggedOut?'':rosterReady(dashboard)?'Showing agents with a current reported session or live Chat work. Daily history is retained.':'Login filter paused: current session data is unavailable or stale.';},
   setChatMode(value){chatMode=value==='session'?'session':'today';note();notify();},
   voice(agents){
    if(mode==='session')return agents;
@@ -50,7 +63,9 @@
   }catch{next=Math.max(next,Date.now()+30000);}
   finally{clearTimeout(timer);pending=false;note();notify();}
  }
+ document.addEventListener('click',event=>{if(event.target?.closest?.('[data-vb-hide-logged-out]'))window.VB_AGENT_PERFORMANCE.setHideLoggedOut(!hideLoggedOut);});
  document.addEventListener('DOMContentLoaded',()=>{
+  syncLoginButtons();
   document.getElementById('agent-performance-period')?.addEventListener('change',e=>{mode=e.target.value==='session'?'session':'today';note();notify();});
   void tick();setInterval(tick,5000);
  });

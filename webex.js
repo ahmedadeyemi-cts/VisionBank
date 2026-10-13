@@ -1447,10 +1447,13 @@ async function loadAgentStatus() {
   try {
     const data = await fetchWebexDashboard();
     const activeAgents = Array.isArray(data?.agents) ? data.agents : [];
-    const agents = window.VB_AGENT_PERFORMANCE?.voice(activeAgents) || activeAgents;
+    const performanceAgents = window.VB_AGENT_PERFORMANCE?.voice(activeAgents) || activeAgents;
+    const agents = window.VB_AGENT_PERFORMANCE?.filterRows(performanceAgents, data) || performanceAgents;
+    const loginNote = document.getElementById('agent-login-filter-note');
+    if (loginNote) loginNote.textContent = window.VB_AGENT_PERFORMANCE?.filterMessage(data) || '';
 
     if (!agents.length) {
-      body.innerHTML = `<tr><td colspan="11" class="loading">No current agent-session data returned. This does not confirm sign-out; Chat history is shown below.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="11" class="loading">${window.VB_AGENT_PERFORMANCE?.hideLoggedOut() ? "No agents match the logged-in filter. Turn off Hide logged-out agents to view daily history." : "No current agent-session data returned. This does not confirm sign-out; Chat history is shown below."}</td></tr>`;
       return;
     }
 

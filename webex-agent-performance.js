@@ -2,8 +2,8 @@
 (() => {
  'use strict';
  let snapshot=null,mode='today',chatMode='today',pending=false,next=0;
- let hideLoggedOut=false;
- try{hideLoggedOut=localStorage.getItem('vbHideLoggedOutAgents')==='true';}catch{}
+ let hideLoggedOut=true;
+ try{hideLoggedOut=localStorage.getItem('vbHideLoggedOutAgents')!=='false';}catch{}
  const rosterReady=dashboard=>window.VB_SECURITY?.allowed===true&&dashboard?.success===true&&Array.isArray(dashboard.agents)&&Number.isFinite(dashboard.generatedAtEpoch)&&Date.now()-dashboard.generatedAtEpoch>=-5000&&Date.now()-dashboard.generatedAtEpoch<45000;
  function syncLoginButtons(){for(const button of document.querySelectorAll?.('[data-vb-hide-logged-out]')||[])button.setAttribute('aria-pressed',String(hideLoggedOut));}
  const day=stamp=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp);

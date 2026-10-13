@@ -243,7 +243,7 @@
     const agentPanel=$('agent-body')?.closest('.panel'), globalPanel=$('global-error')?.closest('.panel');
     if(globalPanel?.querySelector('h2'))globalPanel.querySelector('h2').textContent='Voice Statistics';
     const agent=appendPanel('vbChatAgents','Chat Agent Performance',agentPanel,true);
-    agent?.insertAdjacentHTML('beforeend','<div class="vb-ops-tools"><label for="chat-agent-performance-period">Performance period: <select id="chat-agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label><button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button></div>');
+    agent?.insertAdjacentHTML('beforeend','<div class="vb-ops-tools vb-performance-controls"><label class="vb-performance-period" for="chat-agent-performance-period"><span>Performance period:</span><select id="chat-agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label><button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button></div>');
     window.VB_AGENT_PERFORMANCE?.syncLoginButtons();
     $('chat-agent-performance-period')?.addEventListener('change',event=>window.VB_AGENT_PERFORMANCE?.setChatMode(event.target.value));
     table(agent,'chat-agents',[

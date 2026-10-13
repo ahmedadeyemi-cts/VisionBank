@@ -11,7 +11,7 @@
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
-    <link rel="stylesheet" href="webex.css?v=20261013-agentpolicy1" />
+    <link rel="stylesheet" href="webex.css?v=20261013-loginfilter1" />
     <link rel="stylesheet" href="webex-reports.css?v=20261006-followup1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
     <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261013-enterprise4" />
@@ -420,6 +420,7 @@
     <h2>Agent Performance</h2>
       <div class="agent-startdate-toggle">
   <label class="toggle-option">Performance period: <select id="agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label>
+  <button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button>
   <span class="toggle-label">Start date display:</span>
 
   <label class="toggle-option">
@@ -441,6 +442,7 @@
   </label>
 </div>
 
+    <p id="agent-login-filter-note" role="status"></p>
     <p id="agent-performance-note" role="status">Loading daily performance…</p>
     <table class="data-table">
       <thead>
@@ -904,14 +906,14 @@
 ></div>
 <script src="portal-enterprise.js?v=20261005-license1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
-<script src="webex-agent-performance.js?v=20261013-chatperiod1"></script>
-<script src="webex.js?v=20261013-daily1"></script>
+<script src="webex-agent-performance.js?v=20261013-loginfilter1"></script>
+<script src="webex.js?v=20261013-loginfilter1"></script>
 <script src="webex-reports.js?v=20261006-followup1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
-<script src="webex-integrated-chat.js?v=20261013-chatperiod1"></script>
+<script src="webex-integrated-chat.js?v=20261013-loginfilter1"></script>
 <script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261006-followup1"></script>

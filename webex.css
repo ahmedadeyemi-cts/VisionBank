@@ -1434,3 +1434,8 @@ body.enterprise-dark #missedInteractionRecoverySettings {
   background: #0d1b16;
   border-color: #29453b;
 }
+
+[data-vb-hide-logged-out] { padding: 8px 12px; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+[data-vb-hide-logged-out][aria-pressed="true"] { background: #14634c; color: #fff; border-color: #14634c; box-shadow: inset 0 0 0 2px #fff; }
+[data-vb-hide-logged-out][aria-pressed="true"]::before { content: "✓ "; }
+[data-vb-hide-logged-out]:focus-visible { outline: 3px solid #e5ad16; outline-offset: 2px; }

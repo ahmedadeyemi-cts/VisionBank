@@ -243,7 +243,8 @@
     const agentPanel=$('agent-body')?.closest('.panel'), globalPanel=$('global-error')?.closest('.panel');
     if(globalPanel?.querySelector('h2'))globalPanel.querySelector('h2').textContent='Voice Statistics';
     const agent=appendPanel('vbChatAgents','Chat Agent Performance',agentPanel,true);
-    agent?.insertAdjacentHTML('beforeend','<div class="vb-ops-tools"><label for="chat-agent-performance-period">Performance period: <select id="chat-agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label></div>');
+    agent?.insertAdjacentHTML('beforeend','<div class="vb-ops-tools"><label for="chat-agent-performance-period">Performance period: <select id="chat-agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label><button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button></div>');
+    window.VB_AGENT_PERFORMANCE?.syncLoginButtons();
     $('chat-agent-performance-period')?.addEventListener('change',event=>window.VB_AGENT_PERFORMANCE?.setChatMode(event.target.value));
     table(agent,'chat-agents',[
       ['Agent',r=>r.name||r.agentId],
@@ -318,8 +319,8 @@
       const heading=$('chat-agents-body')?.closest('table')?.querySelector(`thead button[data-col="${col}"]`);if(heading)heading.textContent=label;
     }
     enrichAgentPresentation(presentation);
-    fill('chat-agents', presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh || window.VB_AGENT_PERFORMANCE?.ready()),
-      `Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Agent state is shared across both views. Chat slot state and occupied slots are separate; a remaining slot does not guarantee routing eligibility.`);
+    fill('chat-agents', window.VB_AGENT_PERFORMANCE?.filterRows(presentation.rows,base)||presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh || window.VB_AGENT_PERFORMANCE?.ready()),
+      `${window.VB_AGENT_PERFORMANCE?.filterMessage(base)||''} Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Agent state is shared across both views. Chat slot state and occupied slots are separate; a remaining slot does not guarantee routing eligibility.`);
     renderAgentActivity(presentation);
     const filter=tables.get('chat-handled')?.filter||'all';let handled=[],handledOK=false,note='';
     if(filter==='active'){handled=(live?.liveRows?.filter(r=>r.status==='Active')||[]).map(r=>({...r,connectedAt:daily?.rows?.find(d=>d.contactId===r.contactId)?.connectedAt??null}));handledOK=liveOK;note=`Currently connected contacts from the 30-day snapshot · ${time(live?.liveObservedAt)}`;}

@@ -41,7 +41,7 @@ test('Logged-in filter retains idle/busy agents, preserves history, synchronizes
  const window={VB_SECURITY:{allowed:true},dispatchEvent:()=>{}};
  const localStorage={getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)};
  const create=()=>{const c=vm.createContext({window,document,localStorage,Intl,Date:class extends Date{static now(){return now;}},Event:class{}});vm.runInContext(fs.readFileSync(new URL('../webex-agent-performance.js',import.meta.url),'utf8'),c);return window.VB_AGENT_PERFORMANCE;};
- let api=create();
+ let api=create();assert.equal(api.hideLoggedOut(),true);
  const roster={success:true,generatedAtEpoch:now,agents:[{agentId:'lunch',status:'Lunch'},{agentId:'busy',status:'Engaged'},{agentId:'wrap',status:'Wrap-up'}]};
  const items=[{agentId:'lunch',inbound:12},{agentId:'busy'},{agentId:'wrap'},{agentId:'history',inbound:7},{agentId:'chat',liveRecord:true}];
  api.setHideLoggedOut(true);
@@ -52,5 +52,6 @@ test('Logged-in filter retains idle/busy agents, preserves history, synchronizes
  assert.match(api.filterMessage(null),/paused/);
  api=create();assert.equal(api.hideLoggedOut(),true);
  api.setHideLoggedOut(false);assert.equal(api.filterRows(items,roster).length,5);assert.equal(stored.get('vbHideLoggedOutAgents'),'false');
+ api=create();assert.equal(api.hideLoggedOut(),false);
  api.setHideLoggedOut(true);assert.equal(api.filterRows(items,{...roster,agents:[]}).length,1);
 });

@@ -446,31 +446,55 @@ async function readPhonismCapabilities(env,org,phonismReader,discoveryOverride=n
   if(!env.PHONISM_API_KEY)return {detected:false,ready:false,message:'PHONISM_API_KEY is not configured',detail:'Add the Phonism API key as a Cloudflare secret.',checks};
   try{
     const discovery=discoveryOverride||await phonismReader.discover(env,org);
-    checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found'});
-    checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available'});
-    checks.push({label:'Webex integration hierarchy',status:discovery.syncCompany?((discovery.syncCompany.name||'Enterprise')+' · '+(discovery.syncCompany.type||'Enterprise')):'Enterprise parent not resolved'});
+    checks.push({label:'VisionBank domain',status:discovery.domain.name||'Found',severity:'ok'});
+    checks.push({label:'Phonism tenants',status:String(discovery.tenants.length)+' available',severity:'ok'});
+    checks.push({
+      label:'Webex integration hierarchy',
+      status:discovery.syncCompany?((discovery.syncCompany.name||'Enterprise')+' · '+(discovery.syncCompany.type||'Enterprise')):'Enterprise parent not resolved',
+      severity:discovery.syncCompany?'ok':'warning',
+      ...(discovery.syncCompany?{}:{
+        cause:'The enterprise parent used for Phonism Sync could not be resolved from the VisionBank hierarchy.',
+        remediation:'Verify the VisionBank Iowa parent-company mapping and the Webex integration hierarchy in Phonism.'
+      })
+    });
     const sampleTenant=discovery.tenants[0]||null;
     let sampleInventory={phones:[]},lineRead='not-tested',registrationMonitoring='unknown';
     if(sampleTenant){
       sampleInventory=await phonismReader.tenantPhones(env,sampleTenant.id,sampleTenant.name);
-      checks.push({label:'Phonism tenant phone inventory',status:'Available ('+sampleInventory.phones.length+' in sample tenant)'});
+      checks.push({label:'Phonism tenant phone inventory',status:'Available ('+sampleInventory.phones.length+' in sample tenant)',severity:'ok'});
       const sample=sampleInventory.phones[0];
       if(sample)try{
         const lines=await phonismReader.lines(env,sample.id);lineRead='available';
-        registrationMonitoring=lines.some(x=>['registered','unregistered','pending'].includes(x.registrationStatus))?'available':'not-reported-on-sample';
-        checks.push({label:'Phone line status read',status:'Available'});
-        checks.push({label:'Line registration monitoring',status:registrationMonitoring});
-      }catch{lineRead='unavailable';checks.push({label:'Phone line status read',status:'Unavailable'});}
+        const reported=lines.some(x=>['registered','unregistered','pending'].includes(x.registrationStatus));
+        registrationMonitoring=reported?'available':'provider-not-reporting';
+        checks.push({label:'Phone line status read',status:'Available',severity:'ok'});
+        checks.push(reported?{
+          label:'Line registration monitoring',status:'Available',severity:'ok'
+        }:{
+          label:'Line registration monitoring',status:'Not exposed by Phonism',severity:'info',
+          cause:'The Phonism line API is reachable, but sampled line records do not include a registration_status value.',
+          remediation:'No outage is indicated. Use Webex registration as the authoritative line-registration signal. Phonism will remain “Not monitored” unless InLayer/Phonism enables registration_status for these devices.'
+        });
+      }catch(error){
+        lineRead='unavailable';
+        checks.push({
+          label:'Phone line status read',status:'Unavailable',severity:'warning',
+          cause:'The Phonism phone inventory is reachable, but the sampled /phones/{id}/lines request did not complete.',
+          remediation:'Verify the Phonism API credential can read phone lines and check the sampled handset in Phonism.',
+          code:error?.code||'phonism-line-read-unavailable'
+        });
+      }
     }
-    return {detected:true,ready:true,message:'Read-only Phonism discovery available',
-      detail:'VisionBank Iowa, its tenants, phone inventory, and line status APIs are reachable. Writes and Sync remain disabled.',
+    return {detected:true,ready:true,message:'Phonism discovery available',
+      detail:'VisionBank Iowa, tenant inventory, line reads, and the enterprise Sync hierarchy are reachable.',
       checks,domainName:discovery.domain.name,tenantCount:discovery.tenants.length,
       sampleTenantPhoneCount:sampleInventory.phones.length,webexIntegrationAvailable:Boolean(discovery.webexIntegration),
       syncCompanyAvailable:Boolean(discovery.syncCompany?.id),syncCompanyName:discovery.syncCompany?.name||null,
       lineRead,registrationMonitoring};
   }catch(error){
     return {detected:true,ready:false,message:'Phonism read failed',
-      detail:'The API key is present, but read-only discovery could not complete.',checks,error:error?.code||'phonism-read-unavailable'};
+      detail:'The API key is present, but Phonism discovery could not complete.',checks,error:error?.code||'phonism-read-unavailable',
+      issues:[{severity:'error',issue:'Phonism discovery failed',cause:error?.code||'phonism-read-unavailable',remediation:'Verify the Phonism API credential, VisionBank Iowa domain access, and provider availability.'}]};
   }
 }
 
@@ -1056,24 +1080,73 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
             const samples=await Promise.all(discovery.tenants.slice(0,4).map(async tenant=>{
               try{return await phonismReader.tenantPhones(env,tenant.id,tenant.name);}catch{return {phones:[]};}
             }));
-            const samplePhone=samples.find(sample=>sample?.phones?.length)?.phones?.[0]||null;
-            if(!samplePhone)return;
-            const found=await firstWebexDeviceForPhone(webexFetch,env,samplePhone);
-            if(!found)return;
-            devicesOk=true;deviceCount=1;
-            const base=deviceBase(found.data);
-            callingCount=base.callingDeviceId?1:0;
-            checks.push({label:'VisionBank Webex device lookup',status:'Available'});
-            if(base.callingDeviceId)try{
-              const data=await responseJson(await bounded(webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(base.callingDeviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),12000));
-              memberRead=Array.isArray(data.members)||Array.isArray(data.items)?'available':'unavailable';
-              checks.push({label:'Calling device members read',status:memberRead==='available'?'Available':'Unavailable'});
-            }catch{memberRead='unavailable';checks.push({label:'Calling device members read',status:'Unavailable'});}
-          }catch{}
+            const phones=samples.flatMap(sample=>Array.isArray(sample?.phones)?sample.phones:[]).slice(0,12);
+            deviceCount=phones.length;
+            let memberPhone=null,memberDeviceId=null,lastMemberError=null,genericFound=null;
+            for(const phone of phones){
+              const found=await firstWebexDeviceForPhone(webexFetch,env,phone);
+              const base=found?deviceBase(found.data):null;
+              const ids=[
+                base?.callingDeviceId,base?.webexDeviceId,
+                ...(phone?.webexDeviceIds||[]),phone?.webexDeviceId
+              ].filter(Boolean);
+              for(const deviceId of [...new Set(ids)]){
+                try{
+                  const data=await responseJson(await bounded(
+                    webexFetch(env,WEBEX+'/telephony/config/devices/'+encodeURIComponent(deviceId)+'/members?orgId='+encodeURIComponent(org),{method:'GET'}),
+                    12000
+                  ));
+                  if(Array.isArray(data.members)||Array.isArray(data.items)){
+                    memberRead='available';memberPhone=phone;memberDeviceId=deviceId;devicesOk=true;callingCount=1;genericFound=found;break;
+                  }
+                }catch(error){
+                  lastMemberError=error;
+                }
+              }
+              if(devicesOk)break;
+            }
+            if(devicesOk){
+              checks.push({
+                label:'Webex Calling device/member lookup',status:'Available',severity:'ok',
+                detail:'Resolved a VisionBank partner-managed phone through the Webex Calling members API.'
+              });
+              checks.push(genericFound?{
+                label:'Generic Webex device enrichment',status:'Available',severity:'ok'
+              }:{
+                label:'Generic Webex device enrichment',status:'Limited',severity:'info',
+                cause:'The generic Webex /devices enrichment path did not resolve the sampled partner-managed handset from the Worker, but the Webex Calling device-members API succeeded.',
+                remediation:'No change-workflow outage is present. Device Manager will use the Calling members path for line readiness; generic enrichment is treated as optional diagnostic data.'
+              });
+            }else{
+              memberRead='unavailable';
+              const status=Number(lastMemberError?.upstreamStatus)||0;
+              const cause=status===401||status===403
+                ?'Webex rejected the managed token or its required Calling scope.'
+                :status===404
+                  ?'The sampled Phonism Webex device IDs did not resolve through the Webex Calling members API.'
+                  :status===429
+                    ?'Webex rate-limited the readiness probe.'
+                    :lastMemberError?.code==='webex-read-unavailable'
+                      ?'The Webex Calling members request failed upstream.'
+                      :'No sampled VisionBank phone could be resolved through the Webex Calling members API.';
+              checks.push({
+                label:'Webex Calling device/member lookup',status:'Unavailable',severity:'warning',
+                cause,
+                remediation:'Verify the managed Webex token scopes and confirm Phonism’s stored Webex device IDs are current. Retry after any Webex service or rate-limit condition clears.',
+                code:lastMemberError?.code||null,upstreamStatus:status||null
+              });
+            }
+          }catch(error){
+            checks.push({
+              label:'Webex Calling device/member lookup',status:'Unavailable',severity:'warning',
+              cause:'The bounded VisionBank phone readiness probe could not complete.',
+              remediation:'Retry the health check and review Webex/Phonism provider availability.',
+              code:error?.code||'device-probe-failed'
+            });
+          }
         })();
 
         const [phonism]=await Promise.all([phonismPromise,locationsProbe,deviceProbe]);
-        if(!devicesOk)checks.push({label:'VisionBank Webex device lookup',status:'Unavailable'});
 
         const ready=locationsOk&&devicesOk;
         const writeConfigured=writeScope!=='disabled';
@@ -1083,8 +1156,10 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           ?(writeScope==='organization'?'Save & Sync enabled for VisionBank devices':'Pilot Save & Sync enabled for approved devices')
           :writeConfigured?'Review enabled; Enterprise Phonism Sync owner could not be resolved':'Device writes are not configured';
         return output({success:true,webex:{detected:true,ready,
-          message:ready?'Webex discovery available':'Webex discovery is incomplete',
-          detail:ready?'Webex locations and VisionBank-scoped partner-managed devices can be read through Phonism-stored Webex device IDs.':'Webex location access works, but the VisionBank-scoped device enrichment probe did not complete.',
+          message:ready?'Webex Calling readiness available':'Webex Calling readiness is incomplete',
+          detail:ready
+            ?'Webex locations and the Calling device-members API are reachable for VisionBank partner-managed phones.'
+            :'Webex location access works, but the Webex Calling device/member readiness probe did not complete.',
           checks,deviceCount,callingDeviceCount:callingCount,memberRead,deviceScope:'phonism-visionbank-iowa'},phonism,
           writes:{enabled:writesEnabled,previewReady:writeConfigured,pilot:writeScope==='pilot',
             organizationWide:writeScope==='organization',scope:writeScope,syncHierarchyReady,message:writeMessage},

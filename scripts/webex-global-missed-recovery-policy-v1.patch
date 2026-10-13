@@ -1,0 +1,92 @@
+--- worker-before-global-policy.js
++++ worker-global-policy-v1.js
+@@ -424,6 +424,10 @@
+ }
+ 
+ /** WEBEX DASHBOARD GLOBAL SETTINGS **/
++if (path === "/api/webex/agent-policy" && method === "GET") {
++  return handleWebexAgentPolicyGet(request, env);
++}
++
+ if (path === "/api/webex/dashboard/settings" && method === "GET") {
+   return handleWebexDashboardSettingsGet(request, env, cors);
+ }
+@@ -2616,6 +2620,24 @@
+ 
+ let webexDashboardBuildPromise = null;
+ 
++function vbMissedRecoverySettings(value = {}, fallback = {}) {
++  const source = value && typeof value === "object" ? value : {};
++  const prior = fallback && typeof fallback === "object" ? fallback : {};
++  const mode = ["webex-default","auto-after-60"].includes(String(source.mode || ""))
++    ? String(source.mode)
++    : ["webex-default","auto-after-60"].includes(String(prior.mode || ""))
++      ? String(prior.mode)
++      : "auto-after-60";
++  const secondsRaw = Number(source.seconds ?? prior.seconds ?? 60);
++  const seconds = Number.isSafeInteger(secondsRaw) && secondsRaw >= 15 && secondsRaw <= 600 ? secondsRaw : 60;
++  const allowAgentOverride = typeof source.allowAgentOverride === "boolean"
++    ? source.allowAgentOverride
++    : typeof prior.allowAgentOverride === "boolean"
++      ? prior.allowAgentOverride
++      : true;
++  return { mode, seconds, allowAgentOverride };
++}
++
+ function defaultWebexDashboardSettings() {
+   return {
+     showTelephonyQueues: true,
+@@ -2626,6 +2648,7 @@
+     // Optional per-queue overrides keyed by immutable Webex queue ID.
+     // If a queue does not have an override, category defaults are used.
+     queueVisibility: {},
++    missedInteractionRecovery: vbMissedRecoverySettings(),
+     updatedAt: null
+   };
+ }
+@@ -3780,6 +3803,37 @@
+ }
+ 
+ 
++async function handleWebexAgentPolicyGet(request, env) {
++  try {
++    const settings = await getWebexDashboardSettings(env);
++    const recovery = vbMissedRecoverySettings(settings.missedInteractionRecovery);
++    return json({
++      success: true,
++      schemaVersion: 1,
++      policy: {
++        missedInteractionRecovery: {
++          ...recovery,
++          updatedAt: settings.updatedAt || null
++        }
++      }
++    }, {
++      "Access-Control-Allow-Origin": "*",
++      "Access-Control-Allow-Methods": "GET, OPTIONS",
++      "Access-Control-Allow-Headers": "Accept, Content-Type",
++      "Cache-Control": "no-store",
++      "X-Content-Type-Options": "nosniff",
++      "Referrer-Policy": "no-referrer"
++    });
++  } catch (err) {
++    console.error("handleWebexAgentPolicyGet failed:", err?.message || err);
++    return json({ success:false, error:"agent-policy-unavailable" }, {
++      "Access-Control-Allow-Origin": "*",
++      "Cache-Control": "no-store",
++      "X-Content-Type-Options": "nosniff"
++    }, 503);
++  }
++}
++
+ async function handleWebexDashboardSettingsGet(request, env, cors) {
+   try {
+     const access = await checkAccess(request, env);
+@@ -3855,6 +3909,7 @@
+       outboundQueueDisplayName,
+       queueVisibility,
+       agentStateIndicators: vbIndicatorSettings(body.agentStateIndicators, current.agentStateIndicators),
++      missedInteractionRecovery: vbMissedRecoverySettings(body.missedInteractionRecovery, current.missedInteractionRecovery),
+       updatedAt: new Date().toISOString()
+     };
+ 

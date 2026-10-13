@@ -6,12 +6,12 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://chat-widget.produs1.ciscoccservice.com; style-src 'self' 'unsafe-inline' https://chat-widget.produs1.ciscoccservice.com; img-src 'self' data: https:; font-src 'self' data: https://chat-widget.produs1.ciscoccservice.com; connect-src 'self' https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <title>VisionBank® | Webex Dashboard</title>
-    <meta name="webex-dashboard-build" content="2026.08.27-v5" />
+    <meta name="webex-dashboard-build" content="2026.10.13-v11" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
-    <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
+    <link rel="stylesheet" href="webex.css?v=20261013-agentpolicy1" />
     <link rel="stylesheet" href="webex-reports.css?v=20261006-followup1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
     <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261013-enterprise4" />
@@ -217,6 +217,27 @@
         <label class="dashboard-settings-field">Login Idle reason name<input id="agentLoginReasonName" type="text" maxlength="80" value="Logged In" required></label>
         <label class="dashboard-settings-field">Login Idle reason ID (optional)<input id="agentLoginReasonId" type="text" maxlength="128" autocomplete="off" placeholder="Blank: match the configured name exactly"></label>
         <p class="dashboard-settings-help">A supplied reason ID takes priority over its name. Current Idle evidence is required; a signed-in session or old reason alone never triggers a reminder. The animation plays once per state transition on this browser.</p>
+      </div>
+
+      <div class="dashboard-settings-group" id="missedInteractionRecoverySettings">
+        <h4>Missed Interaction Recovery — Organization Default</h4>
+        <p class="dashboard-settings-help">
+          This sets the default behavior for every agent desktop. An agent's explicit Auto-ready override on that browser takes precedence. Choosing “Use organization default” on the desktop removes the local override.
+        </p>
+        <label class="dashboard-settings-field" for="missedInteractionRecoveryMode">
+          Default after a missed call or chat
+          <select id="missedInteractionRecoveryMode">
+            <option value="auto-after-60">Return agent to Available automatically</option>
+            <option value="webex-default">Use Webex default behavior</option>
+          </select>
+        </label>
+        <label class="dashboard-settings-field" for="missedInteractionRecoverySeconds">
+          Auto-return delay (seconds)
+          <input id="missedInteractionRecoverySeconds" type="number" min="15" max="600" step="1" value="60" required>
+        </label>
+        <p class="dashboard-settings-help">
+          Automatic recovery only applies to Webex RONA/missed-interaction Idle and is rechecked before any state change. Lunch, Meeting, Training, manual Idle, active work, and wrap-up are never changed.
+        </p>
       </div>
 
       <div class="dashboard-settings-actions">
@@ -881,7 +902,7 @@
 ></div>
 <script src="portal-enterprise.js?v=20261005-license1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
-<script src="webex.js?v=20261001-completion-audit1"></script>
+<script src="webex.js?v=20261013-agentpolicy1"></script>
 <script src="webex-reports.js?v=20261006-followup1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>

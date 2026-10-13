@@ -1401,3 +1401,36 @@ body.dark-mode .stat-card {
   .header-right { flex: 1 0 100%; }
   .header-center { min-width: 180px; }
 }
+
+/* Shared missed-interaction recovery policy controls */
+.dashboard-settings-field select,
+.dashboard-settings-field input[type="number"] {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid #cbd8d3;
+  background: #ffffff;
+  color: #15231e;
+  font: inherit;
+}
+.dashboard-settings-field select:focus,
+.dashboard-settings-field input[type="number"]:focus {
+  outline: 2px solid #71b59d;
+  outline-offset: 1px;
+}
+.dashboard-settings-field input[type="number"]:disabled {
+  opacity: .58;
+  cursor: not-allowed;
+}
+body.enterprise-dark .dashboard-settings-field select,
+body.enterprise-dark .dashboard-settings-field input[type="number"] {
+  background: #07110d !important;
+  color: #eef6f2 !important;
+  border-color: #36584c !important;
+}
+body.enterprise-dark #missedInteractionRecoverySettings {
+  background: #0d1b16;
+  border-color: #29453b;
+}

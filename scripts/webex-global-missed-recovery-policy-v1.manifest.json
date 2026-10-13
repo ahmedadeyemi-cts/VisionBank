@@ -1,0 +1,14 @@
+{
+  "baseWorkerVersion": "db5b4d8d-1469-4cf8-b1e7-2ed25a1bfd01",
+  "baseMainSha256": "c5ec914c34667bcb9a9fc9b51be14c980c9c8fcfc9eb3010858feb6feaaf84b4",
+  "workerVersion": "2dfd7ce6-922d-4239-bb7b-b8b72ff5b74d",
+  "mainSha256": "70ce135852e41b955286cb223e048de77a970feac62c15d2319abaa4d828a216",
+  "bindings": 39,
+  "modules": 17,
+  "endpoint": "/api/webex/agent-policy",
+  "defaultMode": "auto-after-60",
+  "defaultSeconds": 60,
+  "agentOverrideAllowed": true,
+  "precedence": ["agent browser override", "organization dashboard default", "desktop layout fallback"],
+  "privacy": "The public Agent Desktop policy endpoint returns only missed-interaction recovery policy metadata; no tokens, credentials, customer data, agent identity, queue visibility or other dashboard settings are returned."
+}

@@ -1,0 +1,56 @@
+/* Shared Voice and Chat performance controls, loaded after the portal theme. */
+body .vb-performance-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 14px 0;
+  font: 13px/1.6 system-ui, sans-serif;
+}
+body .vb-performance-controls .vb-performance-period {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  font: inherit;
+}
+body .vb-performance-controls select,
+body .vb-performance-controls [data-vb-hide-logged-out] {
+  box-sizing: border-box;
+  height: 38px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #cbd8d3);
+  border-radius: 10px;
+  font: 13px/20px system-ui, sans-serif;
+}
+body .vb-performance-controls select { min-width: 155px; }
+body .vb-performance-controls [data-vb-hide-logged-out] {
+  background: var(--card, #fff) !important;
+  border-color: var(--border, #cbd8d3) !important;
+  color: var(--text, #15231e) !important;
+  cursor: pointer;
+  white-space: nowrap;
+}
+body .vb-performance-controls [data-vb-hide-logged-out][aria-pressed="true"] {
+  background: #14634c !important;
+  border-color: #14634c !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+body .vb-performance-start-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+}
+body .vb-performance-start-date label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+body .vb-performance-controls select:focus-visible,
+body .vb-performance-controls button:focus-visible { outline: 3px solid #e5ad16; outline-offset: 2px; }
+@media (max-width: 620px) {
+  body .vb-performance-controls .vb-performance-period { flex: 1 1 100%; }
+  body .vb-performance-controls select { width: 100%; }
+  body .vb-performance-start-date { flex-basis: 100%; }
+}

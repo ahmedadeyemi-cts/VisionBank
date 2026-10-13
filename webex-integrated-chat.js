@@ -18,27 +18,54 @@
   let live=null,daily=null,base=null,started=false,lastLiveAttempt=0,lastDailyAttempt=0,inLive=null,inDaily=null;
   const tables=new Map();
   const customerNames=new Map();let namesInFlight=null,nextNameAttempt=0,namesController=null;
-  const nameFor=r=>customerNames.get(r.contactId)?.name||'Not available';
+  const nameFor=r=>{
+    const entry=customerNames.get(r.contactId);
+    if(!entry)return 'Loading…';
+    if(entry.status==='reported'&&entry.name)return entry.name;
+    if(entry.status==='not-reported')return 'Not reported';
+    if(entry.status==='error')return 'Temporarily unavailable';
+    return 'Loading…';
+  };
+  const retryAfterMs=value=>{
+    const seconds=Number(value);
+    if(Number.isFinite(seconds)&&seconds>=0)return Math.max(1000,seconds*1000);
+    const at=Date.parse(value||'');
+    return Number.isFinite(at)?Math.max(1000,at-Date.now()):5000;
+  };
   async function requestCustomerNames() {
     if(!approved()||document.hidden||namesInFlight||Date.now()<nextNameAttempt)return;
     const now=Date.now(),records=[...(daily?.rows||[]),...(daily?.completedRows||[]),...(live?.liveRows||[])];
-    const ids=[...new Set(records.map(r=>r.contactId).filter(id=>typeof id==='string'&&/^[a-f0-9-]{36}$/i.test(id)))].filter(id=>!customerNames.has(id)||customerNames.get(id).expires<=now).sort().slice(0,50);
+    const ids=[...new Set(records.map(r=>r.contactId).filter(id=>typeof id==='string'&&/^[a-f0-9-]{36}$/i.test(id)))].filter(id=>{
+      const entry=customerNames.get(id);
+      return !entry||entry.expires<=now;
+    }).sort().slice(0,50);
     if(!ids.length)return;
+    for(const id of ids)if(!customerNames.has(id))customerNames.set(id,{name:null,status:'loading',expires:now+10000});
+    render();
     const controller=new AbortController();namesController=controller;
     const timer=setTimeout(()=>controller.abort(),6500);
     namesInFlight=(async()=>{
+      let retryMs=5000;
       try {
         const res=await fetch(origin+'/api/webex/chat-customer-names?ids='+encodeURIComponent(ids.join(',')),{
           method:'GET',mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
+        retryMs=retryAfterMs(res.headers.get('Retry-After'));
         if(!res.ok)throw new Error('optional-name-lookup');
         const data=await res.json();if(!approved())return;
         if(data.success!==true||data.schemaVersion!==1||!Array.isArray(data.rows)||data.rows.length!==ids.length)throw new Error('invalid-names');
         const seen=new Set();
-        for(const row of data.rows){if(!ids.includes(row.contactId)||seen.has(row.contactId)||!(row.customerName===null||typeof row.customerName==='string'&&row.customerName.length<=160))throw new Error('invalid-name-row');seen.add(row.contactId);}
-        for(const row of data.rows)customerNames.set(row.contactId,{name:row.customerName,expires:Date.now()+300000});
+        for(const row of data.rows){if(!ids.includes(row.contactId)||seen.has(row.contactId)||!(row.customerName===null||typeof row.customerName==='string'&&row.customerName.length<=160)||!['reported','not-reported'].includes(row.nameStatus))throw new Error('invalid-name-row');seen.add(row.contactId);}
+        for(const row of data.rows)customerNames.set(row.contactId,{name:row.customerName,status:row.nameStatus,expires:Date.now()+300000});
         while(customerNames.size>10000)customerNames.delete(customerNames.keys().next().value);
         nextNameAttempt=Date.now()+5000;
-      } catch { nextNameAttempt=Date.now()+60000; }
+      } catch {
+        const until=Date.now()+Math.min(30000,Math.max(3000,retryMs));
+        for(const id of ids){
+          const entry=customerNames.get(id);
+          if(!entry||entry.status==='loading')customerNames.set(id,{name:null,status:'error',expires:until});
+        }
+        nextNameAttempt=until;
+      }
       finally {clearTimeout(timer);namesController=null;namesInFlight=null;render();}
     })();
     await namesInFlight;
@@ -83,7 +110,7 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='channel'?' data-vb-channel-cell="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.missedSession)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     if(s.id==='chat-agents' && window.VB_CHANNEL_ACTIVITY){
       const byId=new Map(rows.map(r=>[String(r.agentId),r]));
       for(const tr of $(s.id+'-body').querySelectorAll('tr[data-vb-agent-id]'))window.VB_CHANNEL_ACTIVITY.render(tr.querySelector('[data-vb-channel-cell]'),byId.get(tr.dataset.vbAgentId)?.channelActivity);
@@ -125,6 +152,9 @@
       row.slotLimit = sessionFresh && Number.isInteger(a.chatChannel?.reportedSlotCount) ? a.chatChannel.reportedSlotCount : null;
       row.slotActive = sessionFresh && Number.isInteger(a.chatChannel?.activeSlots) ? a.chatChannel.activeSlots : null;
       row.slotWrapup = sessionFresh && Number.isInteger(a.chatChannel?.wrapupSlots) ? a.chatChannel.wrapupSlots : null;
+      row.offeredSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.offeredCount) && a.chatChannel.offeredCount>=0 ? a.chatChannel.offeredCount : null;
+      row.missedSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.missedCount) && a.chatChannel.missedCount>=0 ? a.chatChannel.missedCount : null;
+      row.ronaSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.ronaCount) && a.chatChannel.ronaCount>=0 ? a.chatChannel.ronaCount : null;
       row.slotNewer = sessionFresh && recent(a.chatChannel?.observedAt,45000) && a.chatChannel.observedAt >= (liveReport?.liveObservedAt || 0);
       row.slotCountsKnown = row.slotNewer && a.chatChannel?.source==='agentSession.channelInfo' && !text(a.chatChannel.reason) && [row.slotActive,row.slotWrapup].every(n=>Number.isSafeInteger(n)&&n>=0) && Number.isSafeInteger(row.slotLimit)&&row.slotLimit>0&&row.slotActive+row.slotWrapup<=row.slotLimit;
     }
@@ -151,7 +181,9 @@
         ['engaged','busy','engagedother'].includes(key) ? 'engaged' : ['wrapup','wrap-up'].includes(key) ? 'wrapup' : 'idle';
       const activity = active > 0 ? 'Engaged — Chat' : wrapup > 0 ? 'Wrap-up — Chat' :
         ownershipKnown && current ? 'No active chat reported' : row.history && !current ? 'History only' : 'Not reported';
-      return {...row, active, wrapup, routingState, routingTone, activity,
+      const missedDisplay=row.missedSession===null?'Not reported':
+        row.ronaSession>0?`${row.missedSession} (RONA ${row.ronaSession})`:String(row.missedSession);
+      return {...row, active, wrapup, routingState, routingTone, activity, missedDisplay,
         activityTone:active>0?'engaged':wrapup>0?'wrapup':'unknown',
         dataSource:row.sessionReported?'Live session':row.liveRecord?'Live Chat record':row.history?'History only':'Stale session data'};
     });
@@ -216,9 +248,12 @@
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
+      ['Offered (session)',r=>r.offeredSession??'Not reported',r=>r.offeredSession??-1,null,'offered'],
+      ['Missed / RONA (session)',r=>r.missedDisplay??'Not reported',r=>r.missedSession??-1,null,'missed'],
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
       ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
     ]);
+    agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">Offered and Missed / RONA are counters from the current active Webex agent session for the Chat channel. They are not daily totals. “Not reported” means Webex did not provide a trustworthy counter.</p>');
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);

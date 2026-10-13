@@ -1,0 +1,17 @@
+{
+  "baseWorkerVersion": "34136d00-d8fa-4707-915b-b8a49ba03f4b",
+  "baseMainSha256": "0d45caa6cf2b857b8329b9bbb08f236e17371204fbef62b8934ff466989915eb",
+  "workerVersion": "db5b4d8d-1469-4cf8-b1e7-2ed25a1bfd01",
+  "mainSha256": "c5ec914c34667bcb9a9fc9b51be14c980c9c8fcfc9eb3010858feb6feaaf84b4",
+  "bindings": 39,
+  "modules": 17,
+  "compatibilityDate": "2025-12-03",
+  "compatibilityFlags": ["global_fetch_strictly_public", "nodejs_compat"],
+  "cronPreserved": true,
+  "features": [
+    "resilient per-contact Chat customer-name cache and shorter retry behavior",
+    "This Month vs Last Month aggregate analytics periods",
+    "Chat active-session offered, missed, not-responded and RONA counters"
+  ],
+  "privacy": "Monthly analytics remain aggregate-only; customer names stay isolated to the access-checked optional Chat name endpoint."
+}

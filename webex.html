@@ -21,7 +21,7 @@
   <!--  Use this Link to check who has been denied: https://visionbank-security.ahmedadeyemi.workers.dev/security/check -->
     <!-- ======================================= -->
     <script src="portal-session.js?v=20261005-license1"></script>
-    <script src="portal-auth-fetch.js?v=20261003-r1"></script>
+    <script src="portal-auth-fetch.js?v=20261013-daily1"></script>
     <script src="portal-security-precheck.js?v=20261003-r1" defer></script>
     <link rel="stylesheet" href="webex-integrated-chat.css?v=20261013-chatmetrics1">
 <link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
@@ -419,7 +419,8 @@
   <section class="panel">
     <h2>Agent Performance</h2>
       <div class="agent-startdate-toggle">
-  <span class="toggle-label">Start Date:</span>
+  <label class="toggle-option">Performance period: <select id="agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label>
+  <span class="toggle-label">Start date display:</span>
 
   <label class="toggle-option">
     <input
@@ -440,6 +441,7 @@
   </label>
 </div>
 
+    <p id="agent-performance-note" role="status">Loading daily performance…</p>
     <table class="data-table">
       <thead>
         <tr>
@@ -902,13 +904,14 @@
 ></div>
 <script src="portal-enterprise.js?v=20261005-license1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
-<script src="webex.js?v=20261013-agentpolicy1"></script>
+<script src="webex-agent-performance.js?v=20261013-daily1"></script>
+<script src="webex.js?v=20261013-daily1"></script>
 <script src="webex-reports.js?v=20261006-followup1"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
-<script src="webex-integrated-chat.js?v=20261013-chatmetrics1"></script>
+<script src="webex-integrated-chat.js?v=20261013-daily1"></script>
 <script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261006-followup1"></script>

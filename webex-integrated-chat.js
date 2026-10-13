@@ -110,7 +110,7 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.missedSession)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     if(s.id==='chat-agents' && window.VB_CHANNEL_ACTIVITY){
       const byId=new Map(rows.map(r=>[String(r.agentId),r]));
       for(const tr of $(s.id+'-body').querySelectorAll('tr[data-vb-agent-id]'))window.VB_CHANNEL_ACTIVITY.render(tr.querySelector('[data-vb-channel-cell]'),byId.get(tr.dataset.vbAgentId)?.channelActivity);
@@ -248,12 +248,12 @@
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
-      ['Offered (session)',r=>r.offeredSession??'Not reported',r=>r.offeredSession??-1,null,'offered'],
-      ['Missed / RONA (session)',r=>r.missedDisplay??'Not reported',r=>r.missedSession??-1,null,'missed'],
+      ['Offered (today)',r=>r.performanceOffered??'Not reported',r=>r.performanceOffered??-1,null,'offered'],
+      ['Missed / RONA (today)',r=>r.performanceMissedDisplay??'Not reported',r=>r.performanceMissed??-1,null,'missed'],
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
       ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
     ]);
-    agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">Offered and Missed / RONA are counters from the current active Webex agent session for the Chat channel. They are not daily totals. “Not reported” means Webex did not provide a trustworthy counter.</p>');
+    agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">Offered and Missed / RONA follow the performance period selected above. Today includes all reported sessions. Handled and completed use daily contact history and remain attributed to the last agent. “Not reported” means a trustworthy total is unavailable.</p>');
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
@@ -308,8 +308,15 @@
     const m=d.averageQueueWaitMs;
     if($('chat-mean-note'))$('chat-mean-note').textContent=dailyOK?`Queue-duration mean: ${m?.sampleCount??'unknown'} ended, handled contacts started today; ${m?.activeContactsExcluded??'unknown'} active handled contact(s) excluded. Recorded zero is not an estimated wait to acceptance.`:'Historical queue-duration samples unavailable.';
     const presentation = buildChatAgentPresentation(base, live, daily);
+    window.VB_AGENT_PERFORMANCE?.chat(presentation);
+    const period=window.VB_AGENT_PERFORMANCE?.mode()||'today';
+    const agentTable=tables.get('chat-agents');
+    if(agentTable){agentTable.columns[5][0]=`Offered (${period})`;agentTable.columns[6][0]=`Missed / RONA (${period})`;}
+    for(const [col,label] of [[5,`Offered (${period})`],[6,`Missed / RONA (${period})`]]){
+      const heading=$('chat-agents-body')?.closest('table')?.querySelector(`thead button[data-col="${col}"]`);if(heading)heading.textContent=label;
+    }
     enrichAgentPresentation(presentation);
-    fill('chat-agents', presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh),
+    fill('chat-agents', presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh || window.VB_AGENT_PERFORMANCE?.ready()),
       `Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Agent state is shared across both views. Chat slot state and occupied slots are separate; a remaining slot does not guarantee routing eligibility.`);
     renderAgentActivity(presentation);
     const filter=tables.get('chat-handled')?.filter||'all';let handled=[],handledOK=false,note='';
@@ -370,5 +377,6 @@
     const retained=loadAgentStatus;
     loadAgentStatus=async function(...args){const result=await retained(...args);if(started){const p=buildChatAgentPresentation(base,live,daily);enrichAgentPresentation(p);renderAgentActivity(p);window.VB_AGENT_INDICATORS?.decorate(p,approved()?base:null,approved()?live:null);}return result;};
   }
+  window.addEventListener('vb-performance-change',render);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootstrap,{once:true});else bootstrap();
 })();

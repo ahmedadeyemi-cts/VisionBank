@@ -1446,7 +1446,8 @@ async function loadAgentStatus() {
 
   try {
     const data = await fetchWebexDashboard();
-    const agents = Array.isArray(data?.agents) ? data.agents : [];
+    const activeAgents = Array.isArray(data?.agents) ? data.agents : [];
+    const agents = window.VB_AGENT_PERFORMANCE?.voice(activeAgents) || activeAgents;
 
     if (!agents.length) {
       body.innerHTML = `<tr><td colspan="11" class="loading">No current agent-session data returned. This does not confirm sign-out; Chat history is shown below.</td></tr>`;
@@ -1474,10 +1475,10 @@ async function loadAgentStatus() {
         <td>${safe(a.number)}</td>
         <td class="availability-cell ${availabilityClass}">${safe(a.status)}</td>
         <td class="numeric">${safe(a.duration, "00:00:00")}</td>
-        <td class="numeric">${Number(a.inbound || 0)}</td>
-        <td class="numeric">${Number(a.missed || 0)}</td>
-        <td class="numeric">${Number(a.transferred || 0)}</td>
-        <td class="numeric">${Number(a.outbound || 0)}</td>
+        <td class="numeric">${a.inbound == null ? "Not reported" : Number(a.inbound)}</td>
+        <td class="numeric">${a.missed == null ? "Not reported" : Number(a.missed)}</td>
+        <td class="numeric">${a.transferred == null ? "Not reported" : Number(a.transferred)}</td>
+        <td class="numeric">${a.outbound == null ? "Not reported" : Number(a.outbound)}</td>
         <td class="numeric">${safe(a.avgHandle, "00:00:00")}</td>
         <td>
           ${startDateDisplay}
@@ -1570,3 +1571,5 @@ document
     if (!document.hidden) refreshAll();
   });
 });
+
+window.addEventListener("vb-performance-change", () => { if (window.VB_SECURITY?.allowed === true) void loadAgentStatus(); });

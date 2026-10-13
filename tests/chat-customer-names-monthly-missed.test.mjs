@@ -19,10 +19,10 @@ test('Chat Agent Performance exposes active-session offered and missed/RONA coun
   assert.match(js,/row\.offeredSession = sessionFresh && Number\.isSafeInteger\(a\.chatChannel\?\.offeredCount\)/);
   assert.match(js,/row\.missedSession = sessionFresh && Number\.isSafeInteger\(a\.chatChannel\?\.missedCount\)/);
   assert.match(js,/row\.ronaSession = sessionFresh && Number\.isSafeInteger\(a\.chatChannel\?\.ronaCount\)/);
-  assert.match(js,/\['Offered \(session\)'/);
-  assert.match(js,/\['Missed \/ RONA \(session\)'/);
+  assert.match(js,/\['Offered \(today\)'/);
+  assert.match(js,/\['Missed \/ RONA \(today\)'/);
   assert.match(js,/Not reported/);
-  assert.match(js,/They are not daily totals/);
+  assert.match(js,/Today includes all reported sessions/);
 });
 
 test('missed Chat cells use semantic text plus a visible alert treatment in both themes',()=>{
@@ -67,7 +67,7 @@ test('production Worker release manifest preserves runtime shape and keeps analy
 test('asset versions force browsers to load the customer-name, Chat metrics and month release',()=>{
   const html=read('webex.html');
   assert.match(html,/webex-integrated-chat\.css\?v=20261013-chatmetrics1/);
-  assert.match(html,/webex-integrated-chat\.js\?v=20261013-chatmetrics1/);
+  assert.match(html,/webex-integrated-chat\.js\?v=20261013-daily1/);
   assert.match(html,/webex-enterprise-analytics\.css\?v=20261013-enterprise4/);
   assert.match(html,/webex-enterprise-analytics\.js\?v=20261013-enterprise4/);
 });

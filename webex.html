@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="webex.css?v=20261001-completion-audit1" />
     <link rel="stylesheet" href="webex-reports.css?v=20261006-followup1" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
-    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261005-enterprise3" />
+    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261013-enterprise4" />
 
     <!-- ======================================= -->
     <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
@@ -23,7 +23,7 @@
     <script src="portal-session.js?v=20261005-license1"></script>
     <script src="portal-auth-fetch.js?v=20261003-r1"></script>
     <script src="portal-security-precheck.js?v=20261003-r1" defer></script>
-    <link rel="stylesheet" href="webex-integrated-chat.css?v=20260924-3">
+    <link rel="stylesheet" href="webex-integrated-chat.css?v=20261013-chatmetrics1">
 <link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
 <link rel="stylesheet" href="webex-channel-activity.css?v=20260929-channels1">
 <link rel="stylesheet" href="webex-voice-statistics.css?v=20261001-completion-audit1">
@@ -533,6 +533,7 @@
       <button class="ea-tab" type="button" data-ea-tab="hourly">Activity by Hour</button>
       <button class="ea-tab" type="button" data-ea-tab="daycompare">Today vs Yesterday</button>
       <button class="ea-tab" type="button" data-ea-tab="weekcompare">This Week vs Last Week</button>
+      <button class="ea-tab" type="button" data-ea-tab="monthcompare">This Month vs Last Month</button>
     </div>
     <div data-ea-view="overview">
       <div class="ea-kpis">
@@ -626,6 +627,25 @@
         <h3>Week-over-week by day</h3>
         <div class="ea-week-legend"><span><i class="current"></i>This week</span><span><i class="previous"></i>Last week — same elapsed period</span></div>
         <div id="eaWeekdayCompare" class="ea-weekday-compare"><p class="ea-empty">Weekly trend data has not loaded yet.</p></div>
+      </div>
+    </div>
+
+    <div data-ea-view="monthcompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>This month vs last month</h3>
+          <p>Compares this month-to-date with the same elapsed Central Time position last month. If the prior month is shorter, the comparison is capped at that month’s final day.</p>
+        </div>
+      </div>
+      <div id="eaMonthCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Month-over-month channel comparison</h3>
+        <div class="ea-table-wrap">
+          <table class="ea-table ea-compare-table">
+            <thead><tr><th>Activity</th><th>This month to date</th><th>Last month — same elapsed period</th><th>Difference</th><th>Change</th></tr></thead>
+            <tbody id="eaMonthCompareRows"><tr><td colspan="5" class="ea-empty">Monthly comparison data has not loaded yet.</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </section>
@@ -867,8 +887,8 @@
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
-<script src="webex-integrated-chat.js?v=20261006-queue-alert1"></script>
-<script src="webex-enterprise-analytics.js?v=20261005-enterprise3"></script>
+<script src="webex-integrated-chat.js?v=20261013-chatmetrics1"></script>
+<script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261006-followup1"></script>
 </body>

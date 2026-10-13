@@ -5,7 +5,7 @@
   const REPORTS_ENDPOINT = "https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/daily-reports";
   const TRENDS_ENDPOINT = "https://visionbank-security.ahmedadeyemi.workers.dev/api/webex/analytics-trends";
   const CENTRAL = "America/Chicago";
-  const TREND_TABS = new Set(["hourly", "daycompare", "weekcompare"]);
+  const TREND_TABS = new Set(["hourly", "daycompare", "weekcompare", "monthcompare"]);
 
   let dashboard = null;
   let reports = null;
@@ -89,6 +89,8 @@
       validTotals(d.periods?.yesterday?.totals) &&
       validTotals(d.periods?.thisWeek?.totals) &&
       validTotals(d.periods?.lastWeek?.totals) &&
+      validTotals(d.periods?.thisMonth?.totals) &&
+      validTotals(d.periods?.lastMonth?.totals) &&
       Array.isArray(d.hourlyToday) &&
       d.hourlyToday.length === 24 &&
       Array.isArray(d.weekDays?.current) &&
@@ -326,11 +328,20 @@
     renderWeekdayComparison();
   }
 
+  function renderMonthComparison() {
+    if (!trends) return;
+    const current = trends.periods.thisMonth;
+    const previous = trends.periods.lastMonth;
+    renderCompareCards("eaMonthCompareCards", current.totals, previous.totals, current.label, previous.label);
+    renderCompareRows("eaMonthCompareRows", current.totals, previous.totals);
+  }
+
   function renderTrends() {
     if (!trends) return;
     renderActivityByHour();
     renderDayComparison();
     renderWeekComparison();
+    renderMonthComparison();
   }
 
   function renderFresh() {
@@ -385,11 +396,11 @@
     const safe = esc(message || "Historical trend data is temporarily unavailable.");
     const hourly = $("eaActivityHourly");
     if (hourly) hourly.innerHTML = `<p class="ea-empty">${safe}</p>`;
-    for (const id of ["eaDayCompareCards","eaWeekCompareCards","eaWeekdayCompare"]) {
+    for (const id of ["eaDayCompareCards","eaWeekCompareCards","eaWeekdayCompare","eaMonthCompareCards"]) {
       const host = $(id);
       if (host) host.innerHTML = `<p class="ea-empty">${safe}</p>`;
     }
-    for (const [id,colspan] of [["eaDayCompareRows",5]]) {
+    for (const [id,colspan] of [["eaDayCompareRows",5],["eaMonthCompareRows",5]]) {
       const host = $(id);
       if (host) host.innerHTML = `<tr><td colspan="${colspan}" class="ea-empty">${safe}</td></tr>`;
     }

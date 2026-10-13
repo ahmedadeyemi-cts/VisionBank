@@ -1,0 +1,142 @@
+--- worker-before-chat-monthly-metrics.js
++++ worker-chat-monthly-metrics-v1.js
+@@ -9392,7 +9392,27 @@
+   for(let i=0;i<daysAgo;i++)targetStart=vbTrendPreviousDayStart(targetStart);
+   const d=vbTrendCentralParts(targetStart);
+   return vbTrendEpochFromCentralParts({year:d.year,month:d.month,day:d.day,hour:p.hour,minute:p.minute,second:p.second});
++}
++function vbTrendMonthStart(now){
++  const p=vbTrendCentralParts(now);
++  return vbTrendEpochFromCentralParts({year:p.year,month:p.month,day:1,hour:0,minute:0,second:0});
++}
++function vbTrendPreviousMonthStart(now){
++  const p=vbTrendCentralParts(now);
++  const year=p.month===1?p.year-1:p.year;
++  const month=p.month===1?12:p.month-1;
++  return vbTrendEpochFromCentralParts({year,month,day:1,hour:0,minute:0,second:0});
++}
++function vbTrendDaysInMonth(year,month){
++  return new Date(Date.UTC(year,month,0)).getUTCDate();
+ }
++function vbTrendSameWallClockPreviousMonth(now){
++  const p=vbTrendCentralParts(now);
++  const year=p.month===1?p.year-1:p.year;
++  const month=p.month===1?12:p.month-1;
++  const day=Math.min(p.day,vbTrendDaysInMonth(year,month));
++  return vbTrendEpochFromCentralParts({year,month,day,hour:p.hour,minute:p.minute,second:p.second});
++}
+ function vbTrendFormatDate(epoch){
+   return new Intl.DateTimeFormat("en-US",{timeZone:VB_TRENDS_TIMEZONE,month:"short",day:"numeric",year:"numeric"}).format(new Date(epoch));
+ }
+@@ -9521,7 +9541,10 @@
+   let lastWeekStart=thisWeekStart;
+   for(let i=0;i<7;i++)lastWeekStart=vbTrendPreviousDayStart(lastWeekStart);
+   const lastWeekEnd=vbTrendSameWallClockDaysAgo(now,7);
+-  const rangeStart=Math.min(yesterdayStart,lastWeekStart);
++  const thisMonthStart=vbTrendMonthStart(now);
++  const lastMonthStart=vbTrendPreviousMonthStart(now);
++  const lastMonthEnd=Math.min(thisMonthStart,vbTrendSameWallClockPreviousMonth(now));
++  const rangeStart=Math.min(yesterdayStart,lastWeekStart,lastMonthStart);
+   const key=`${env.WEBEX_ORG_ID}:${rangeStart}:${todayStart}`;
+ 
+   if(!force&&vbTrendsCache.key===key&&vbTrendsCache.data&&vbTrendsCache.expiresAt>now)return vbTrendsCache.data;
+@@ -9541,13 +9564,15 @@
+         chat:"All Webex Contact Center chat contacts started in the period.",
+         inboundCeg:"All inbound telephony contacts started in the period, matching the received-call cohort used by daily reporting.",
+         outbound:"Outbound telephony contacts started in the period.",
+-        comparison:"Today and week comparisons use the same elapsed Central-time window for an apples-to-apples comparison."
++        comparison:"Day, week and month comparisons use the same elapsed Central-time window when possible for an apples-to-apples comparison."
+       },
+       periods:{
+         today:{label:"Today to now",date:vbTrendFormatDate(todayStart),...vbTrendPeriod(tasks,todayStart,now)},
+         yesterday:{label:"Yesterday, same time window",date:vbTrendFormatDate(yesterdayStart),...vbTrendPeriod(tasks,yesterdayStart,yesterdayEnd)},
+         thisWeek:{label:"This week to date",date:vbTrendFormatDate(thisWeekStart),...vbTrendPeriod(tasks,thisWeekStart,now)},
+-        lastWeek:{label:"Last week, same elapsed period",date:vbTrendFormatDate(lastWeekStart),...vbTrendPeriod(tasks,lastWeekStart,lastWeekEnd)}
++        lastWeek:{label:"Last week, same elapsed period",date:vbTrendFormatDate(lastWeekStart),...vbTrendPeriod(tasks,lastWeekStart,lastWeekEnd)},
++        thisMonth:{label:"This month to date",date:vbTrendFormatDate(thisMonthStart),...vbTrendPeriod(tasks,thisMonthStart,now)},
++        lastMonth:{label:"Last month, same elapsed period",date:vbTrendFormatDate(lastMonthStart),...vbTrendPeriod(tasks,lastMonthStart,lastMonthEnd)}
+       },
+       hourlyToday:hourly,
+       busiest:{
+@@ -10832,6 +10857,18 @@
+   else if(wrapup>0)state='wrapup'; else if(offered>0)state='reserved';
+   else if(available>0)state='available';
+   else if(states.every(s=>s===states[0]))state=states[0]; else state='idle';
++  const counter=name=>{
++    let total=0,reported=false;
++    for(const c of slots){
++      const n=Number(c?.[name]);
++      if(Number.isSafeInteger(n)&&n>=0){total+=n;reported=true;}
++    }
++    return reported?total:null;
++  };
++  const ringingCount=counter('ringingCount');
++  const notRespondedCount=counter('notRespondedCount');
++  const ronaCount=counter('ronaCount');
++  const missedCount=notRespondedCount!==null?notRespondedCount:ronaCount;
+   const interactions=[]; let unmappedWork=0;
+   for(const c of slots) {
+     const bucket=vbOpsBucket(c.currentState); if(!['active','wrapup','offered'].includes(bucket))continue;
+@@ -10845,6 +10882,7 @@
+     wrapupSlots:known?wrapup:null,offeredSlots:known?offered:null,source:'agentSession.channelInfo',
+     reason:known?'':bad?'invalid-or-conflicting-channel-slots':'channel-not-returned',
+     idleReason:state==='idle'&&new Set(idle).size===1?idle[0]:null,
++    offeredCount:ringingCount,notRespondedCount,ronaCount,missedCount,
+     observedAt:now,interactions,unmappedWork};
+ }
+ function vbOpsAgentStatus(voice,chat,now) {
+@@ -11470,7 +11508,7 @@
+ /* Optional customer names. Independent of all existing report builders and caches.
+  * Only customer.name is requested; no email, phone, transcript or guessed identity.
+  */
+-const VB_NAME_REVISION = '2026.09.28-customer-names-r6';
++const VB_NAME_REVISION = '2026.10.13-customer-names-r7';
+ const vbNameCache = new Map();
+ const vbNameLoads = new Map();
+ const vbNameCooldown = new Map();
+@@ -11531,22 +11569,31 @@
+     let ids;try{ids=vbNameIds(new URL(request.url));}catch{return json({success:false,error:'invalid-contact-ids'},headers,400);}
+     const org=String(env.WEBEX_ORG_ID||''),now=Date.now();
+     if(!org)return json({success:false,error:'customer-names-unavailable'},headers,503);
+-    const key=org+':'+ids.join(',');
+     for(const [k,v] of vbNameCache)if(v.expires<=now)vbNameCache.delete(k);
+-    const cached=vbNameCache.get(key);
+-    if(cached)return json(cached.data,headers);
+-    if((vbNameCooldown.get(org)||0)>now)return json({success:false,error:'customer-names-unavailable'},{...headers,'Retry-After':'60'},503);
+-    if(!vbNameLoads.has(key)) {
+-      // One optional name batch per organization at a time, independent of core reports.
+-      if([...vbNameLoads.keys()].some(k=>k.startsWith(org+':')))return json({success:false,error:'customer-names-busy'},{...headers,'Retry-After':'10'},503);
+-      const p=vbNameLoad(env,ids,now).then(rows=>{
+-        const data={success:true,schemaVersion:1,revision:VB_NAME_REVISION,source:'Webex taskDetails.customer.name',identityVerified:false,observedAt:Date.now(),rows};
+-        vbNameCache.set(key,{data,expires:Date.now()+300000});
+-        while(vbNameCache.size>50)vbNameCache.delete(vbNameCache.keys().next().value);
+-        return data;
+-      }).finally(()=>vbNameLoads.delete(key));vbNameLoads.set(key,p);
++    const contactKey=id=>org+':contact:'+id;
++    const cachedRow=id=>vbNameCache.get(contactKey(id))?.row||null;
++    let missing=ids.filter(id=>!vbNameCache.has(contactKey(id)));
++    if(!missing.length){
++      return json({success:true,schemaVersion:1,revision:VB_NAME_REVISION,source:'Webex taskDetails.customer.name',identityVerified:false,observedAt:now,rows:ids.map(cachedRow)},headers);
+     }
+-    return json(await vbNameLoads.get(key),headers);
++    if((vbNameCooldown.get(org)||0)>now)return json({success:false,error:'customer-names-unavailable'},{...headers,'Retry-After':'15'},503);
++    const active=[...vbNameLoads.entries()].find(([k])=>k.startsWith(org+':load:'));
++    if(active){
++      try{await active[1];}catch{}
++      missing=ids.filter(id=>!vbNameCache.has(contactKey(id)));
++      if(!missing.length)return json({success:true,schemaVersion:1,revision:VB_NAME_REVISION,source:'Webex taskDetails.customer.name',identityVerified:false,observedAt:Date.now(),rows:ids.map(cachedRow)},headers);
++      return json({success:false,error:'customer-names-busy'},{...headers,'Retry-After':'3'},503);
++    }
++    const key=org+':load:'+missing.join(',');
++    const p=vbNameLoad(env,missing,now).then(rows=>{
++      const expires=Date.now()+6*60*60*1000;
++      for(const row of rows)vbNameCache.set(contactKey(row.contactId),{row,expires});
++      while(vbNameCache.size>5000)vbNameCache.delete(vbNameCache.keys().next().value);
++      return rows;
++    }).finally(()=>vbNameLoads.delete(key));
++    vbNameLoads.set(key,p);
++    await p;
++    return json({success:true,schemaVersion:1,revision:VB_NAME_REVISION,source:'Webex taskDetails.customer.name',identityVerified:false,observedAt:Date.now(),rows:ids.map(cachedRow)},headers);
+   }catch{return json({success:false,error:'customer-names-unavailable'},{...headers,'Retry-After':'60'},503);}
+ }
+ 

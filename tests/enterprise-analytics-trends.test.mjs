@@ -4,14 +4,15 @@ import fs from 'node:fs';
 
 const read=name=>fs.readFileSync(new URL('../'+name,import.meta.url),'utf8');
 
-test('enterprise analytics adds hourly, day-over-day and week-over-week views after Demand & Trends',()=>{
+test('enterprise analytics adds hourly, day, week and month comparison views after Demand & Trends',()=>{
   const html=read('webex.html');
   const tabs=[...html.matchAll(/data-ea-tab="([^"]+)"/g)].map(m=>m[1]);
-  assert.deepEqual(tabs.slice(0,6),['overview','people','demand','hourly','daycompare','weekcompare']);
-  for(const view of ['hourly','daycompare','weekcompare']) assert.match(html,new RegExp('data-ea-view="'+view+'"'));
+  assert.deepEqual(tabs.slice(0,7),['overview','people','demand','hourly','daycompare','weekcompare','monthcompare']);
+  for(const view of ['hourly','daycompare','weekcompare','monthcompare']) assert.match(html,new RegExp('data-ea-view="'+view+'"'));
   assert.match(html,/Activity by Hour/);
   assert.match(html,/Today vs Yesterday/);
   assert.match(html,/This Week vs Last Week/);
+  assert.match(html,/This Month vs Last Month/);
 });
 
 test('hourly activity explicitly separates Chat, inbound Voice, and outbound calls',()=>{
@@ -29,14 +30,17 @@ test('comparisons use same elapsed Central-time windows rather than misleading f
   const html=read('webex.html');
   assert.match(html,/yesterday through the same time of day/);
   assert.match(html,/same elapsed Central Time period last week/);
+  assert.match(html,/same elapsed Central Time position last month/);
   const js=read('webex-enterprise-analytics.js');
   assert.match(js,/periods\.yesterday/);
   assert.match(js,/periods\.lastWeek/);
+  assert.match(js,/periods\.thisMonth/);
+  assert.match(js,/periods\.lastMonth/);
 });
 
 test('historical trend endpoint is lazy-loaded only for the new tabs',()=>{
   const js=read('webex-enterprise-analytics.js');
-  assert.match(js,/TREND_TABS = new Set\(\["hourly", "daycompare", "weekcompare"\]\)/);
+  assert.match(js,/TREND_TABS = new Set\(\["hourly", "daycompare", "weekcompare", "monthcompare"\]\)/);
   assert.match(js,/if \(TREND_TABS\.has\(tab\)\) void refreshTrends\(false\)/);
   assert.doesNotMatch(js,/function init\(\)[\s\S]{0,300}refreshTrends/);
 });
@@ -46,6 +50,7 @@ test('trend frontend accepts aggregate data only and never renders contact or cu
   assert.match(js,/validTotals/);
   assert.match(js,/hourlyToday/);
   assert.match(js,/weekDays/);
+  assert.match(js,/renderMonthComparison/);
   assert.doesNotMatch(js,/\.contactId|\.ani|\.dnis|customerName/);
 });
 
@@ -55,8 +60,8 @@ test('authenticated fetch bridge recognizes the aggregate trends endpoint',()=>{
 
 test('enterprise analytics assets are cache-busted for the trend release',()=>{
   const html=read('webex.html');
-  assert.match(html,/webex-enterprise-analytics\.css\?v=20261005-enterprise3/);
-  assert.match(html,/webex-enterprise-analytics\.js\?v=20261005-enterprise3/);
+  assert.match(html,/webex-enterprise-analytics\.css\?v=20261013-enterprise4/);
+  assert.match(html,/webex-enterprise-analytics\.js\?v=20261013-enterprise4/);
 });
 
 test('production trends backend contract is versioned and aggregate-only',()=>{

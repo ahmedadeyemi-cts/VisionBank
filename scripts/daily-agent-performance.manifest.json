@@ -6,5 +6,10 @@
   "mainSha256": "6392ad62189331933affb7cfacfc199331209fddc472f8257e40543a43ba0f80",
   "zeroTrafficVerified": true,
   "providerQueryValidated": true,
-  "tests": 37
+  "tests": 37,
+  "deployed": true,
+  "endpointStatus": 200,
+  "reportRows": 3,
+  "schedulesPreserved": true,
+  "deviceHealth": 200
 }

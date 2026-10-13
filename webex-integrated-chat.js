@@ -243,6 +243,8 @@
     const agentPanel=$('agent-body')?.closest('.panel'), globalPanel=$('global-error')?.closest('.panel');
     if(globalPanel?.querySelector('h2'))globalPanel.querySelector('h2').textContent='Voice Statistics';
     const agent=appendPanel('vbChatAgents','Chat Agent Performance',agentPanel,true);
+    agent?.insertAdjacentHTML('beforeend','<div class="vb-ops-tools"><label for="chat-agent-performance-period">Performance period: <select id="chat-agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label></div>');
+    $('chat-agent-performance-period')?.addEventListener('change',event=>window.VB_AGENT_PERFORMANCE?.setChatMode(event.target.value));
     table(agent,'chat-agents',[
       ['Agent',r=>r.name||r.agentId],
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
@@ -253,7 +255,7 @@
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
       ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
     ]);
-    agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">Offered and Missed / RONA follow the performance period selected above. Today includes all reported sessions. Handled and completed use daily contact history and remain attributed to the last agent. “Not reported” means a trustworthy total is unavailable.</p>');
+    agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">Offered and Missed / RONA follow the Chat performance period selected in this section. Today includes all reported sessions. Handled and completed use daily contact history and remain attributed to the last agent. “Not reported” means a trustworthy total is unavailable.</p>');
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
@@ -309,7 +311,7 @@
     if($('chat-mean-note'))$('chat-mean-note').textContent=dailyOK?`Queue-duration mean: ${m?.sampleCount??'unknown'} ended, handled contacts started today; ${m?.activeContactsExcluded??'unknown'} active handled contact(s) excluded. Recorded zero is not an estimated wait to acceptance.`:'Historical queue-duration samples unavailable.';
     const presentation = buildChatAgentPresentation(base, live, daily);
     window.VB_AGENT_PERFORMANCE?.chat(presentation);
-    const period=window.VB_AGENT_PERFORMANCE?.mode()||'today';
+    const period=window.VB_AGENT_PERFORMANCE?.mode('chat')||'today';
     const agentTable=tables.get('chat-agents');
     if(agentTable){agentTable.columns[5][0]=`Offered (${period})`;agentTable.columns[6][0]=`Missed / RONA (${period})`;}
     for(const [col,label] of [[5,`Offered (${period})`],[6,`Missed / RONA (${period})`]]){

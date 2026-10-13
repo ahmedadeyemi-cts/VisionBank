@@ -1,6 +1,6 @@
 # Daily agent performance
 
-Both Voice and Chat offered/missed default to Today (America/Chicago). Current session remains selectable. Existing Chat handled/completed columns continue to use daily contact history and last-agent attribution. Live state, channel slots, and state duration remain independent.
+Both Voice and Chat offered/missed default to Today (America/Chicago). Current session remains selectable. Voice and Chat each have their own independent performance period selector; changing one does not change the other. Existing Chat handled/completed columns continue to use daily contact history and last-agent attribution. Live state, channel slots, and state duration remain independent.
 
 The new access-checked `/api/webex/agent-performance` endpoint reconstructs daily totals from Webex historical agent sessions, keyed by agent ID and deduplicated by session ID. Closed sessions are included; there is no browser-owned history to erase. Historical agent rows survive logout. Average handle time is calculated from summed durations and counts, not averaged session averages. Provider history remains the source of truth across backend restarts. No additional database or storage binding is required.
 

@@ -18,6 +18,13 @@ test('Browser defaults Today, keeps history rows, supports session, rejects stal
  vm.runInContext(fs.readFileSync(new URL('../webex-agent-performance.js',import.meta.url),'utf8'),context);listeners.DOMContentLoaded();await new Promise(r=>setTimeout(r,10));
  const api=window.VB_AGENT_PERFORMANCE;assert.equal(api.mode(),'today');assert.equal(api.voice([])[0].inbound,12);assert.equal(api.voice([{agentId:'a',inbound:0,status:'Available'}])[0].status,'Available');
  change({target:{value:'session'}});assert.equal(api.voice([{agentId:'a',inbound:0}])[0].inbound,0);
+ assert.equal(api.mode('chat'),'today');
+ const chat=()=>({rows:[{agentId:'a',offeredSession:2,missedSession:0,ronaSession:0}]});
+ assert.equal(api.chat(chat()).rows[0].performanceOffered,13);
+ api.setChatMode('session');assert.equal(api.chat(chat()).rows[0].performanceOffered,2);
+ change({target:{value:'today'}});assert.equal(api.mode('chat'),'session');assert.equal(api.voice([{agentId:'a',inbound:0}])[0].inbound,12);
+ api.setChatMode('today');assert.equal(api.chat(chat()).rows[0].performanceOffered,13);
+
  change({target:{value:'today'}});clock+=150001;assert.equal(api.voice([{agentId:'a',inbound:0}])[0].inbound,null);clock=day+86400000;assert.equal(api.ready(),false);
  });
 

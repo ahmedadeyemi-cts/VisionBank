@@ -1,7 +1,7 @@
 /* Daily performance is independent of live status. Webex history is authoritative. */
 (() => {
  'use strict';
- let snapshot=null,mode='today',pending=false,next=0;
+ let snapshot=null,mode='today',chatMode='today',pending=false,next=0;
  const day=stamp=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp);
  const ready=()=>window.VB_SECURITY?.allowed===true&&snapshot?.success===true&&Date.now()-snapshot.observedAt<150000&&Date.now()-snapshot.observedAt>=-5000&&day(snapshot.dayStart)===day(Date.now());
  const rows=()=>ready()?snapshot.rows:[];
@@ -9,7 +9,8 @@
  const duration=n=>Number.isFinite(n)&&n>=0?[Math.floor(n/3600000),Math.floor(n/60000)%60,Math.floor(n/1000)%60].map(v=>String(v).padStart(2,'0')).join(':'):'Not reported';
  const metrics=(id,kind)=>rows().find(a=>String(a.agentId)===String(id))?.[kind];
  window.VB_AGENT_PERFORMANCE={
-  mode:()=>mode,ready,rows,
+  mode:(kind='voice')=>kind==='chat'?chatMode:mode,ready,rows,
+  setChatMode(value){chatMode=value==='session'?'session':'today';note();notify();},
   voice(agents){
    if(mode==='session')return agents;
    const merged=new Map(agents.map(a=>[String(a.agentId),a]));
@@ -21,18 +22,18 @@
   },
   chat(presentation){
    const byId=new Map(presentation.rows.map(a=>[String(a.agentId),a]));
-   if(mode==='today')for(const a of rows())if(a.chat&&!byId.has(String(a.agentId)))byId.set(String(a.agentId),{agentId:a.agentId,name:a.name,history:true,dataSource:'History only',routingState:'Not reported'});
+   if(chatMode==='today')for(const a of rows())if(a.chat&&!byId.has(String(a.agentId)))byId.set(String(a.agentId),{agentId:a.agentId,name:a.name,history:true,dataSource:'History only',routingState:'Not reported'});
    for(const a of byId.values()){
-    const t=mode==='today'?metrics(a.agentId,'chat'):null;
-    a.performanceOffered=mode==='today'?t?.offered??null:a.offeredSession;
-    a.performanceMissed=mode==='today'?t?.missed??null:a.missedSession;
-    const rona=mode==='today'?t?.rona:a.ronaSession;
+    const t=chatMode==='today'?metrics(a.agentId,'chat'):null;
+    a.performanceOffered=chatMode==='today'?t?.offered??null:a.offeredSession;
+    a.performanceMissed=chatMode==='today'?t?.missed??null:a.missedSession;
+    const rona=chatMode==='today'?t?.rona:a.ronaSession;
     a.performanceMissedDisplay=a.performanceMissed==null?'Not reported':rona>0?`${a.performanceMissed} (RONA ${rona})`:String(a.performanceMissed);
    }
    presentation.rows=[...byId.values()];return presentation;
   }
  };
- function note(){const el=document.getElementById('agent-performance-note');if(el)el.textContent=mode==='session'?'Voice totals and Chat offered/missed show the current login session. Chat handled/completed remain daily.':ready()?`Today (Central): totals across all reported login sessions. Updated ${new Date(snapshot.observedAt).toLocaleTimeString('en-US',{timeZone:'America/Chicago'})}. Live status and state duration remain current. Sessions spanning midnight show Not reported where today cannot be isolated.`:'Today (Central): daily totals are loading or temporarily unavailable. Live status remains independent; unavailable totals are not zero.';}
+ function note(){const el=document.getElementById('agent-performance-note');if(el)el.textContent=mode==='session'?'Voice totals show the current login session. Chat has its own performance period selector.':ready()?`Today (Central): totals across all reported login sessions. Updated ${new Date(snapshot.observedAt).toLocaleTimeString('en-US',{timeZone:'America/Chicago'})}. Live status and state duration remain current. Sessions spanning midnight show Not reported where today cannot be isolated.`:'Today (Central): daily totals are loading or temporarily unavailable. Live status remains independent; unavailable totals are not zero.';}
  async function tick(){
   note();
   if(window.VB_SECURITY?.allowed!==true){if(snapshot){snapshot=null;notify();}return;}

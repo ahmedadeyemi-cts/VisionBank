@@ -21,6 +21,7 @@ jobs:
         run: |
           node --check dashboard.js
           node --check portal-enterprise.js
+          node --check portal-help.js
           node --check security.js
           node --check directory.js
           node --check device.js

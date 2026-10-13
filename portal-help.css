@@ -1,0 +1,15 @@
+/* Shared page help; scoped to avoid changing existing portal controls. */
+body button.vb-help-trigger { display: inline-flex !important; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; padding: 0 !important; border-radius: 50% !important; border: 1px solid #207855 !important; background: #edf8f1 !important; color: #14553a !important; font: 700 20px/1 system-ui, sans-serif !important; cursor: pointer; }
+body .vb-help-dialog { box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 0; border: 1px solid #cbd9d2; border-radius: 16px; background: #fff; color: #182b23; box-shadow: 0 24px 80px #0005; font: 15px/1.6 system-ui, sans-serif; text-align: left; }
+.vb-help-dialog::backdrop { background: #10251dc2; }
+.vb-help-heading { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; background: inherit; border-bottom: 1px solid #cbd9d2; }
+body .vb-help-heading h2 { margin: 0; color: inherit; font: 700 20px/1.3 system-ui, sans-serif; }
+body .vb-help-close { flex-shrink: 0; padding: 8px 14px !important; border: 1px solid #207855 !important; border-radius: 8px; background: #edf8f1 !important; color: #14553a !important; font: 600 14px/1.4 system-ui, sans-serif; cursor: pointer; }
+.vb-help-content { padding: 4px 24px 24px; }
+body .vb-help-content h3 { margin: 24px 0 6px; color: inherit; font: 700 16px/1.4 system-ui, sans-serif; }
+body .vb-help-content p { margin: 12px 0; color: inherit; font: inherit; }
+body .vb-help-trigger:focus-visible, body .vb-help-close:focus-visible { outline: 3px solid #268bc9 !important; outline-offset: 3px; }
+body:is(.enterprise-dark, .dark-mode, .theme-dark, .dark) .vb-help-dialog { background: #172b25; color: #edf6f0; border-color: #476054; }
+body:is(.enterprise-dark, .dark-mode, .theme-dark, .dark) .vb-help-heading { border-color: #476054; }
+body:is(.enterprise-dark, .dark-mode, .theme-dark, .dark) button:is(.vb-help-trigger, .vb-help-close) { background: #244d3c !important; color: #f0fff5 !important; border-color: #82b99a !important; }
+@media (max-width: 480px) { .vb-help-heading { padding: 16px; } .vb-help-content { padding: 0 16px 16px; } }

@@ -218,6 +218,55 @@ test('capabilities reuses one Phonism discovery while probing providers in paral
   assert.equal(discoverCalls,1);
 });
 
+
+test('capabilities stays ready when generic Webex enrichment is limited but Calling members lookup succeeds',async()=>{
+  const phonismReader={
+    async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'GRIMES',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'US Signal',type:'Enterprise'},webexIntegration:null,truncated:false};},
+    async tenantPhones(){return {phones:[{id:'9001',tenantId:'101',tenantName:'GRIMES',mac:'44:DB:D2:C0:DD:0B',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1'}],truncated:false};},
+    async lines(){return [{lineNumber:1,registrationStatus:'not-monitored'}];}
+  };
+  const webexFetch=async(_env,url)=>{
+    const u=new URL(url);
+    if(u.pathname==='/v1/locations')return json({items:[{id:'loc-a',name:'GRIMES'}]});
+    if(u.pathname==='/v1/devices/webex-1')return json({message:'generic enrichment unavailable'},502);
+    if(u.pathname==='/v1/telephony/config/devices/webex-1/members')return json({members:[
+      {id:'user-1',displayName:'Dave Van Bruggen',memberType:'PEOPLE',extension:'1129',location:{id:'loc-a',name:'GRIMES'},lineType:'PRIMARY',port:1}
+    ]});
+    return json({message:'not found'},404);
+  };
+  const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['198.51.100.0/24'],phonismReader});
+  const r=await request(handler,'capabilities',{env:{WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32)}});
+  assert.equal(r.status,200);
+  assert.equal(r.data.webex.ready,true);
+  assert.equal(r.data.webex.memberRead,'available');
+  const calling=r.data.webex.checks.find(x=>x.label==='Webex Calling device/member lookup');
+  assert.equal(calling.status,'Available');
+  assert.equal(calling.severity,'ok');
+  const enrichment=r.data.webex.checks.find(x=>x.label==='Generic Webex device enrichment');
+  assert.equal(enrichment.status,'Limited');
+  assert.equal(enrichment.severity,'info');
+  assert.match(enrichment.cause,/generic Webex/);
+  assert.match(enrichment.remediation,/No change-workflow outage/);
+});
+
+test('capabilities treats missing Phonism registration_status as provider telemetry limitation',async()=>{
+  const phonismReader={
+    async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'GRIMES',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'US Signal',type:'Enterprise'},webexIntegration:null,truncated:false};},
+    async tenantPhones(){return {phones:[{id:'9001',tenantId:'101',tenantName:'GRIMES',mac:'44:DB:D2:C0:DD:0B',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1'}],truncated:false};},
+    async lines(){return [{lineNumber:1,registrationStatus:'not-monitored'}];}
+  };
+  const f=fixture({phonismReader});
+  const r=await request(f.handler,'capabilities',{env:{WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32)}});
+  assert.equal(r.status,200);
+  assert.equal(r.data.phonism.ready,true);
+  assert.equal(r.data.phonism.registrationMonitoring,'provider-not-reporting');
+  const check=r.data.phonism.checks.find(x=>x.label==='Line registration monitoring');
+  assert.equal(check.status,'Not exposed by Phonism');
+  assert.equal(check.severity,'info');
+  assert.match(check.cause,/registration_status/);
+  assert.match(check.remediation,/Webex registration/);
+});
+
 test('member search sends only relevant upstream filters',async()=>{
   const numeric=fixture();
   await request(numeric.handler,'members?deviceId=call-1&q=4000&limit=50');

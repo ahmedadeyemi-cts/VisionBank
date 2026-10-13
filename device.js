@@ -436,10 +436,26 @@
   function renderCheckList(id,items){
     const host=$(id);if(!host)return;
     host.innerHTML=items.length?items.map(item=>{
-      const label=typeof item==="string"?item:(item.label||item.name||"Check");
-      const suffix=typeof item==="object"&&item.status?(" — <strong>"+esc(item.status)+"</strong>"):"";
-      return "<li>"+esc(label)+suffix+"</li>";
-    }).join(""):"<li>No checks reported yet.</li>";
+      if(typeof item==="string")return '<li class="device-health-check"><div class="device-health-check-main"><span>'+esc(item)+'</span></div></li>';
+      const label=item?.label||item?.name||"Check";
+      const status=item?.status||"Unknown";
+      const rawSeverity=String(item?.severity||"").toLowerCase();
+      const inferred=/unavailable|failed|blocked/i.test(status)?"warning":/limited|not exposed|not reported/i.test(status)?"info":/available|connected|ready/i.test(status)?"ok":"neutral";
+      const severity=["ok","info","warning","error","neutral"].includes(rawSeverity)?rawSeverity:inferred;
+      const cause=item?.cause||"";
+      const remediation=item?.remediation||"";
+      const detail=item?.detail||"";
+      const code=item?.code||"";
+      const upstream=item?.upstreamStatus;
+      const technical=[code?("Code: "+code):"",upstream?("HTTP "+upstream):""].filter(Boolean).join(" · ");
+      return '<li class="device-health-check '+esc(severity)+'">'+
+        '<div class="device-health-check-main"><span>'+esc(label)+'</span><strong class="device-health-check-state">'+esc(status)+'</strong></div>'+
+        (detail?'<div class="device-health-check-detail">'+esc(detail)+'</div>':'')+
+        (cause?'<div class="device-health-check-detail"><b>Cause:</b> '+esc(cause)+'</div>':'')+
+        (remediation?'<div class="device-health-check-detail"><b>Recommended action:</b> '+esc(remediation)+'</div>':'')+
+        (technical?'<div class="device-health-check-technical">'+esc(technical)+'</div>':'')+
+        '</li>';
+    }).join(""):'<li class="device-health-check neutral"><div class="device-health-check-main"><span>No checks reported yet.</span></div></li>';
   }
 
   function setCapabilities(data){

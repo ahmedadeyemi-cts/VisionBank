@@ -218,3 +218,116 @@ body.enterprise-dark .device-phone-credentials label{color:#d9e5e0!important}
 body.enterprise-dark .device-fleet-card,body.enterprise-dark .device-fleet-actions{background:#0d1b16!important;border-color:#29453b!important;color:#e8f0ed!important}
 body.enterprise-dark .device-fleet-card code,body.enterprise-dark .device-fleet-card textarea{background:#13241e!important;border-color:#36574b!important;color:#f2f7f5!important}
 @media(max-width:800px){.device-fleet-grid{grid-template-columns:1fr}.device-fleet-actions{align-items:stretch;flex-direction:column}.device-fleet-actions .device-btn{width:100%}}
+
+/* Integration health diagnostics */
+.device-health-grid ul{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:9px}
+.device-health-check{margin:0!important;border:1px solid var(--vb-border);border-radius:10px;background:var(--vb-card);padding:10px 11px}
+.device-health-check-main{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;font-size:12px}
+.device-health-check-main>span{font-weight:750;color:var(--vb-text)}
+.device-health-check-state{flex:0 0 auto;font-size:10px;line-height:1.2;border-radius:999px;padding:4px 8px;background:#eef2f1;color:#52635d}
+.device-health-check.ok .device-health-check-state{background:#ecfdf3;color:#027a48}
+.device-health-check.info .device-health-check-state{background:#eff8ff;color:#175cd3}
+.device-health-check.warning .device-health-check-state{background:#fffaeb;color:#b54708}
+.device-health-check.error .device-health-check-state{background:#fef3f2;color:#b42318}
+.device-health-check-detail{margin-top:7px;color:var(--vb-muted);font-size:11px;line-height:1.45}
+.device-health-check-detail b{color:var(--vb-text)}
+.device-health-check-technical{margin-top:6px;color:var(--vb-muted);font:600 10px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+/* Device Manager dark-mode contrast */
+body.enterprise-dark{
+  --vb-bg:#07120e;
+  --vb-card:#0c1b15;
+  --vb-text:#e9f2ee;
+  --vb-muted:#a8bbb4;
+  --vb-border:#29453b;
+  --vb-surface-subtle:#0d1b16;
+  --vb-surface-strong:#13241e;
+  --vb-shadow:0 10px 30px rgba(0,0,0,.22);
+}
+body.enterprise-dark .device-main,
+body.enterprise-dark .device-shell{color:var(--vb-text)}
+body.enterprise-dark .device-panel,
+body.enterprise-dark .device-healthbar>div,
+body.enterprise-dark .device-kpi,
+body.enterprise-dark .device-health-grid article,
+body.enterprise-dark .device-filter-panel,
+body.enterprise-dark .device-current-phone,
+body.enterprise-dark .device-line2-workspace,
+body.enterprise-dark .device-change-details,
+body.enterprise-dark .device-admin-setting,
+body.enterprise-dark .device-admin-list-section,
+body.enterprise-dark .device-dialog-shell,
+body.enterprise-dark .device-dialog-heading,
+body.enterprise-dark .device-editor-body,
+body.enterprise-dark .device-dialog-actions,
+body.enterprise-dark .device-confirm-body{
+  background:#0c1b15!important;
+  color:#e9f2ee!important;
+  border-color:#29453b!important;
+}
+body.enterprise-dark .device-health-grid h3,
+body.enterprise-dark .device-panel-heading h2,
+body.enterprise-dark .device-table td,
+body.enterprise-dark .device-table strong,
+body.enterprise-dark .device-kpi strong,
+body.enterprise-dark .device-filter-grid label,
+body.enterprise-dark .device-line-card label,
+body.enterprise-dark .device-member-field,
+body.enterprise-dark .device-duration-label,
+body.enterprise-dark .device-operator-form label,
+body.enterprise-dark .device-reason-label{
+  color:#e9f2ee!important;
+}
+body.enterprise-dark .device-health-grid p,
+body.enterprise-dark .device-health-grid li,
+body.enterprise-dark .device-panel-heading p,
+body.enterprise-dark .device-kpi>span,
+body.enterprise-dark .device-kpi small,
+body.enterprise-dark .device-table small,
+body.enterprise-dark .device-filter-foot,
+body.enterprise-dark .device-helper,
+body.enterprise-dark .device-healthbar small{
+  color:#a8bbb4!important;
+}
+body.enterprise-dark .device-tab:not(.active),
+body.enterprise-dark .device-btn.secondary,
+body.enterprise-dark .device-row-action,
+body.enterprise-dark .device-filter-grid input,
+body.enterprise-dark .device-filter-grid select,
+body.enterprise-dark .device-line-card select,
+body.enterprise-dark .device-member-picker-button,
+body.enterprise-dark .device-member-picker-panel,
+body.enterprise-dark .device-member-search-wrap,
+body.enterprise-dark .device-member-search-wrap input,
+body.enterprise-dark .device-operator-form input,
+body.enterprise-dark .device-reason-label textarea,
+body.enterprise-dark .device-duration-label select,
+body.enterprise-dark .device-admin-add input,
+body.enterprise-dark .device-duration-admin-grid input,
+body.enterprise-dark .device-duration-override-add input{
+  background:#10231c!important;
+  color:#eef6f2!important;
+  border-color:#36574b!important;
+}
+body.enterprise-dark .device-table th{
+  background:#0d1b16!important;
+  color:#b7c8c1!important;
+  border-color:#29453b!important;
+}
+body.enterprise-dark .device-table td{border-color:#223b31!important}
+body.enterprise-dark .device-table tr:hover td{background:#10231c!important}
+body.enterprise-dark .device-member-option{color:#eef6f2!important}
+body.enterprise-dark .device-member-option:hover,
+body.enterprise-dark .device-member-option[aria-selected="true"]{background:#173027!important;border-color:#36574b!important}
+body.enterprise-dark .device-health-check{background:#10231c!important;border-color:#29453b!important}
+body.enterprise-dark .device-health-check-main>span,
+body.enterprise-dark .device-health-check-detail b{color:#eef6f2!important}
+body.enterprise-dark .device-health-check-detail,
+body.enterprise-dark .device-health-check-technical{color:#a8bbb4!important}
+body.enterprise-dark .device-health-check-state{background:#1c322a;color:#c8d8d2}
+body.enterprise-dark .device-health-check.ok .device-health-check-state{background:#123a2b;color:#86efac}
+body.enterprise-dark .device-health-check.info .device-health-check-state{background:#122f46;color:#93c5fd}
+body.enterprise-dark .device-health-check.warning .device-health-check-state{background:#3a2b0f;color:#fcd34d}
+body.enterprise-dark .device-health-check.error .device-health-check-state{background:#3b1715;color:#fca5a5}
+body.enterprise-dark .device-footer{background:rgba(7,18,14,.96)!important;color:#a8bbb4!important;border-color:#29453b!important}
+body.enterprise-dark .device-link-btn{color:#65d3ae!important}

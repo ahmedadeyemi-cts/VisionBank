@@ -6,7 +6,7 @@
 // CONFIG
 // ===============================
 // Cloudflare Worker base - all Webex credentials stay server-side.
-const WEBEX_DASHBOARD_BUILD = "2026.10.01-v10";
+const WEBEX_DASHBOARD_BUILD = "2026.10.13-v11";
 const SECURITY_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
 const WEBEX_DASHBOARD_API = `${SECURITY_BASE}/api/webex/dashboard`;
 const WEBEX_DASHBOARD_SETTINGS_API = `${SECURITY_BASE}/api/webex/dashboard/settings`;
@@ -530,12 +530,23 @@ function applyDashboardSettingsToForm(settings = {}, queueOptions = []) {
   const outbound = document.getElementById("showOutboundQueue");
   const chat = document.getElementById("showChatQueues");
   const outboundName = document.getElementById("outboundQueueDisplayName");
+  const recoveryMode = document.getElementById("missedInteractionRecoveryMode");
+  const recoverySeconds = document.getElementById("missedInteractionRecoverySeconds");
+  const recovery = settings.missedInteractionRecovery && typeof settings.missedInteractionRecovery === "object"
+    ? settings.missedInteractionRecovery
+    : {};
 
   if (telephony) telephony.checked = settings.showTelephonyQueues !== false;
   if (email) email.checked = settings.showEmailQueues === true;
   if (outbound) outbound.checked = settings.showOutboundQueue === true;
   if (chat) chat.checked = settings.showChatQueues === true;
   if (outboundName) outboundName.value = settings.outboundQueueDisplayName || "Outbound Calling Queue";
+  if (recoveryMode) recoveryMode.value = ["webex-default","auto-after-60"].includes(recovery.mode) ? recovery.mode : "auto-after-60";
+  if (recoverySeconds) {
+    const seconds = Number(recovery.seconds);
+    recoverySeconds.value = Number.isSafeInteger(seconds) && seconds >= 15 && seconds <= 600 ? String(seconds) : "60";
+    recoverySeconds.disabled = recoveryMode?.value === "webex-default";
+  }
 
   window.VB_AGENT_INDICATORS?.applySettings(settings.agentStateIndicators);
   lastDashboardSettingsUpdatedAt = settings.updatedAt || null;
@@ -579,6 +590,12 @@ async function saveDashboardSettings() {
   const saveBtn = document.getElementById("saveDashboardSettingsBtn");
 
   if (window.VB_AGENT_INDICATORS && !window.VB_AGENT_INDICATORS.validForm()) { if (status) status.textContent = "Check the Agent State Indicator settings."; return; }
+  const recoveryMode = document.getElementById("missedInteractionRecoveryMode")?.value || "auto-after-60";
+  const recoverySeconds = Number(document.getElementById("missedInteractionRecoverySeconds")?.value || 60);
+  if (!["webex-default","auto-after-60"].includes(recoveryMode) || !Number.isSafeInteger(recoverySeconds) || recoverySeconds < 15 || recoverySeconds > 600) {
+    if (status) status.textContent = "Check the Missed Interaction Recovery settings.";
+    return;
+  }
   const queueVisibility = {};
   document.querySelectorAll(".dashboard-queue-visibility-checkbox").forEach(input => {
     const id = String(input.dataset.queueId || "");
@@ -594,7 +611,12 @@ async function saveDashboardSettings() {
       document.getElementById("outboundQueueDisplayName")?.value?.trim() ||
       "Outbound Calling Queue",
     queueVisibility,
-    agentStateIndicators: window.VB_AGENT_INDICATORS?.readSettings()
+    agentStateIndicators: window.VB_AGENT_INDICATORS?.readSettings(),
+    missedInteractionRecovery: {
+      mode: recoveryMode,
+      seconds: recoverySeconds,
+      allowAgentOverride: true
+    }
   };
 
   try {
@@ -619,7 +641,7 @@ async function saveDashboardSettings() {
 
     dashboardSettingsDirty = false;
     lastDashboardSettingsUpdatedAt = data.settings?.updatedAt || null;
-    if (status) status.textContent = "Saved. All open dashboards will update within about 10 seconds.";
+    if (status) status.textContent = "Saved. Dashboards and agent desktops will pick up the organization default shortly. Existing agent overrides remain in effect.";
 
     invalidateWebexDashboardCache();
     await refreshAll();
@@ -643,15 +665,23 @@ function initDashboardSettingsUI() {
     document.getElementById("showEmailQueues"),
     document.getElementById("showOutboundQueue"),
     document.getElementById("showChatQueues"),
-    document.getElementById("outboundQueueDisplayName")
+    document.getElementById("outboundQueueDisplayName"),
+    document.getElementById("missedInteractionRecoveryMode"),
+    document.getElementById("missedInteractionRecoverySeconds")
   ].filter(Boolean);
 
   inputs.forEach(input => {
     input.addEventListener("change", () => markDashboardSettingsDirty());
 
-    if (input.tagName === "INPUT" && input.type === "text") {
+    if (input.tagName === "INPUT" && ["text","number"].includes(input.type)) {
       input.addEventListener("input", () => markDashboardSettingsDirty());
     }
+  });
+
+  const recoveryModeControl = document.getElementById("missedInteractionRecoveryMode");
+  const recoverySecondsControl = document.getElementById("missedInteractionRecoverySeconds");
+  recoveryModeControl?.addEventListener("change", () => {
+    if (recoverySecondsControl) recoverySecondsControl.disabled = recoveryModeControl.value === "webex-default";
   });
 
   // Category switches are convenient bulk controls. Individual queue checkboxes

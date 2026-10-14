@@ -8,7 +8,7 @@
   <title>VisionBank® | Device & Extension Manager</title>
   <meta name="description" content="VisionBank Webex Calling device and extension management">
   <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png">
-  <link rel="stylesheet" href="device.css?v=20261013-health1">
+  <link rel="stylesheet" href="device.css?v=20261014-issues1">
   <link rel="stylesheet" href="portal-enterprise.css?v=20261006-shell6">
 <link rel="stylesheet" href="portal-help.css?v=20261013-help1">
 </head>
@@ -56,6 +56,7 @@
     <nav class="device-tabs" aria-label="Device management views">
       <button type="button" class="device-tab active" data-device-tab="inventory">Device Assignments</button>
       <button type="button" class="device-tab" data-device-tab="history">Change History</button>
+      <button type="button" class="device-tab" data-device-tab="issues">Issues</button>
       <button type="button" class="device-tab" data-device-tab="health">Integration Health</button>
       <button id="deviceFleetTab" type="button" class="device-tab" data-device-tab="fleet" hidden>Fleet Keys</button>
     </nav>
@@ -151,6 +152,26 @@
             <tbody id="deviceHistoryRows"><tr><td colspan="9" class="device-empty">No device-management history loaded.</td></tr></tbody>
           </table>
         </div>
+      </section>
+    </section>
+    <section data-device-view="issues" hidden>
+      <section class="device-panel">
+        <div class="device-panel-heading">
+          <div><h2>Issues</h2><p>Recorded failures and warnings. These are historical events, not a list of confirmed current outages.</p></div>
+          <button id="deviceIssuesRefresh" class="device-btn secondary" type="button">Refresh issues</button>
+        </div>
+        <div class="device-issues-tools">
+          <label for="deviceIssuesSearch">Search loaded issues</label>
+          <input id="deviceIssuesSearch" type="search" placeholder="Phone name, MAC, extension, location, or error" autocomplete="off">
+          <button id="deviceIssuesCopy" class="device-btn secondary" type="button">Copy visible diagnostics</button>
+          <p id="deviceIssuesStatus" role="status">Open this tab to load recorded issues.</p>
+          <p class="device-helper">Refreshes every 15 seconds while this tab is visible. New records can take about a minute to appear. Times use your browser’s local time. A healthy integration check does not confirm that a handset save succeeded.</p>
+        </div>
+        <div class="device-table-wrap"><table class="device-table device-issues-table">
+          <thead><tr><th>When / result</th><th>Phone / location</th><th>Operation</th><th>Recorded evidence</th><th>Suggested next step</th></tr></thead>
+          <tbody id="deviceIssuesRows"><tr><td colspan="5" class="device-empty">Issues have not been loaded.</td></tr></tbody>
+        </table></div>
+        <div class="device-issues-tools"><button id="deviceIssuesMore" class="device-btn secondary" type="button" hidden>Load older records</button></div>
       </section>
     </section>
     <section data-device-view="health" hidden>
@@ -477,7 +498,7 @@
   </footer>
   <script src="portal-session.js?v=20261005-license1"></script>
   <script src="portal-enterprise.js?v=20261005-license1"></script>
-  <script src="device.js?v=20261013-health1"></script>
+  <script src="device.js?v=20261014-issues1"></script>
 <script src="portal-help.js?v=20261013-help1"></script>
 </body>
 </html>

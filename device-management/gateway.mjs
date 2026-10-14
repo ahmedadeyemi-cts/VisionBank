@@ -2,7 +2,7 @@ import {automaticEnrollmentHealth} from './auto-enrollment.mjs';
 import {resolveVerifiedWriteDevice} from './device-resolution.mjs';
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
-import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
+import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,listIssueRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
 import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease} from './write.mjs';
 import {
@@ -888,7 +888,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
       if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken,fleetKey,fleetMac,executionContext});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','save-readiness','save-readiness-result','members','history','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','save-readiness','save-readiness-result','members','history','issues','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
       const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
         'admin-settings/verification','admin-settings/default-hours','admin-settings/durations/set','admin-settings/durations/remove',
         'admin-settings/admins/add','admin-settings/admins/remove','admin-settings/fleet-keys/rotate',
@@ -1028,6 +1028,11 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           phoneIp:telemetry.phoneIp||null,sourceIp:telemetry.sourceIp||null,model:telemetry.model||'',firmware:telemetry.firmware||'',
           lastSeenAt:telemetry.lastSeenAt||null,lastEvent:telemetry.event||null
         }:null},200,headers);
+      }
+
+      if(part==='issues'){
+        const issues=await listIssueRecords(env,{cursor:url.searchParams.get('cursor')||''});
+        return output({success:true,...issues,readOnly:true},200,headers);
       }
 
       if(part==='history'){

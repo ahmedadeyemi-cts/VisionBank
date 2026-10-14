@@ -225,7 +225,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     const audit=buildAuditRecord({
       eventType:'temporary-line-change',action:'save-sync',request,session,
       device:preview.device,location:preview.location,
-      change:{beforeLine2:preview.baselineLine2,afterLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes},
+      change:{beforeLine2:preview.baselineLine2,afterLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,stage:webexSaved?'phonism-sync':'webex-members-write',errorCode:error?.code||'provider-operation-failed'},
       reason:preview.reason,webexStatus:webexSaved?(rolledBack?'rolled-back':'saved'):'failed',
       phonismStatus:phonismQueued?'sync-queued':'failed',result:rolledBack?'rolled-back':'failed'
     });
@@ -299,7 +299,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
       await writeAuditRecord(env,buildAuditRecord({
         eventType:'device-recovery',action:'automatic-reboot-after-save',
         systemActor:automatedActor(session.operator),device:preview.device,location:preview.location,
-        change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
+        change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2,stage:'automatic-reboot',errorCode:rebootError||'reboot-failed'},
         reason:'Webex save and Phonism Sync succeeded, but automatic TR-069 reboot retries could not be queued.',
         webexStatus:'saved',phonismStatus:'reboot-failed',result:'failed',
         originalAuditId:audit.auditId

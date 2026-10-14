@@ -1,3 +1,4 @@
+import {resolveVerifiedWriteDevice} from './device-resolution.mjs';
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
@@ -428,8 +429,7 @@ async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,lo
   const phone=inventory.phones.find(p=>String(p.id)===String(phonismPhoneId||''));
   if(!phone)throw new DeviceManagementError('phonism-phone-not-found',404);
   if(!isPilotDevice(env,phone.mac))throw new DeviceManagementError('device-write-not-enabled',403);
-  const found=await firstWebexDeviceForPhone(webexFetch,env,phone);
-  if(!found)throw new DeviceManagementError('webex-device-not-found',404);
+  const found=await resolveVerifiedWriteDevice({webexFetch,env,phone,deviceId,locationId,org});
   const base=deviceBase(found.data);
   const resolvedId=base.callingDeviceId||base.webexDeviceId;
   if(!resolvedId||String(resolvedId)!==String(deviceId||''))throw new DeviceManagementError('device-identity-mismatch',409);

@@ -438,7 +438,7 @@ async function resolveWriteContext({env,org,webexFetch,phonismReader,deviceId,lo
   return {
     device:{...base,id:resolvedId,displayName:base.displayName||phone.alias||'Partner-managed phone',mac:phone.mac||base.mac},
     location:{id:locationId,name:tenant.name||''},
-    phone,tenant,domain:discovery.domain,syncCompany:discovery.syncCompany||null
+    phone,tenant,domain:discovery.domain,syncCompany:discovery.syncCompany||null,lookupSource:found.source||'device-detail'
   };
 }
 
@@ -888,7 +888,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
       }
       if(part.startsWith('phone/'))return handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismReader,accessToken,fleetKey,fleetMac,executionContext});
       if(!ORIGINS.has(origin))throw new DeviceManagementError('origin-denied',403);
-      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','members','history','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
+      const readRoutes=new Set(['capabilities','locations','inventory','device-detail','save-readiness','save-readiness-result','members','history','operator-session','lease-status','identity-policy','admin-settings','admin-settings/fleet-keys','phone-enrollment']);
       const postRoutes=new Set(['operator-session','operator-session/logout','verification-request','verification-confirm',
         'admin-settings/verification','admin-settings/default-hours','admin-settings/durations/set','admin-settings/durations/remove',
         'admin-settings/admins/add','admin-settings/admins/remove','admin-settings/fleet-keys/rotate',
@@ -1063,6 +1063,34 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const locations=page.rows.map(x=>({id:id(x?.id),name:display(x?.name||x?.displayName,120),address:display([x?.address?.city,x?.address?.state].filter(Boolean).join(', '),160)})).filter(x=>x.id);
         return output({success:true,locations,truncated:page.truncated,readOnly:true},200,headers);
       }
+      // Read-only preparation probe, including the same background execution used by handset Save.
+      if(part==='save-readiness-result'){
+        const probeId=url.searchParams.get('id')||'';
+        if(!/^[0-9a-f-]{36}$/i.test(probeId))throw new DeviceManagementError('invalid-readiness-id');
+        const raw=await env.LOGS.get('device-save-readiness:'+probeId);
+        return output(raw?JSON.parse(raw):{success:true,state:'pending'},200,headers);
+      }
+      if(part==='save-readiness'){
+        const deviceId=id(url.searchParams.get('deviceId')),locationId=id(url.searchParams.get('locationId')),phonismPhoneId=id(url.searchParams.get('phonismPhoneId'));
+        if(!deviceId||!locationId||!phonismPhoneId)throw new DeviceManagementError('device-location-phonism-required');
+        const query=display(url.searchParams.get('q')||'',160),targetLocationId=id(url.searchParams.get('targetLocationId')),probeId=crypto.randomUUID();
+        const run=async()=>{
+          let stage='resolve-write-context';const lookups=[];
+          const observedFetch=async(e,u,o)=>{const response=await webexFetch(e,u,o);const path=new URL(u).pathname;lookups.push({kind:path.endsWith('/members')?'members':path.endsWith('/availableMembers')?'available-members':path.replace(/\/$/,'')==='/v1/devices'?'organization-inventory':'device-detail',status:response.status});return response;};
+          try{
+            const ctx=await resolveWriteContext({env,org,webexFetch:observedFetch,phonismReader,deviceId,locationId,phonismPhoneId});
+            stage='current-members-read';const members=await readWebexMembers(observedFetch,env,org,deviceId);
+            stage='target-member-revalidation';const target=query?await searchEligibleMembers({env,org,webexFetch:observedFetch,deviceId,query,locationId:targetLocationId}):null;
+            return {success:true,state:'complete',ready:!query||Boolean(target?.members?.length),deviceResolved:true,memberCount:members.members.length,targetMatches:target?.members?.length??null,lookupSource:ctx.lookupSource,lookups,checkedAt:new Date().toISOString()};
+          }catch(error){return {success:false,state:'complete',ready:false,stage,lookups,error:error?.code||'readiness-check-failed',checkedAt:new Date().toISOString()};}
+        };
+        if(url.searchParams.get('background')==='1'&&executionContext?.waitUntil){
+          executionContext.waitUntil(run().then(result=>env.LOGS.put('device-save-readiness:'+probeId,JSON.stringify(result),{expirationTtl:300})));
+          return output({success:true,state:'pending',probeId},202,headers);
+        }
+        return output(await run(),200,headers);
+      }
+
       if(part==='capabilities'){
         const checks=[];let locationsOk=false,devicesOk=false,memberRead='not-tested',callingCount=0,deviceCount=0;
         const locationsProbe=(async()=>{

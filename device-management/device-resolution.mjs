@@ -37,12 +37,41 @@ export async function resolveVerifiedWriteDevice({webexFetch,env,phone,deviceId,
       }finally{clearTimeout(timer);}
     }
     if(!data)continue;
+    verifyDevice(data,{phone,deviceId,locationId,org});
+    return {data,matchedId:candidate};
+  }
+  const fallback=await inventoryFallback({webexFetch,env,phone,deviceId,locationId,org,timeoutMs});
+  if(fallback)return fallback;
+  if(lastError)throw lastError;
+  throw new DeviceManagementError('webex-device-not-found',404);
+}
+
+function verifyDevice(data,{phone,deviceId,locationId,org}){
     if(String(data.callingDeviceId||data.id||'')!==String(deviceId||''))throw new DeviceManagementError('device-identity-mismatch',409);
     if(!mac(phone.mac)||mac(data.mac||data.macAddress)!==mac(phone.mac))throw new DeviceManagementError('device-mac-mismatch',409);
     if(String(data.locationId||'')!==String(locationId||''))throw new DeviceManagementError('device-location-mismatch',409);
     if(data.orgId&&organizationId(data.orgId)!==organizationId(org))throw new DeviceManagementError('device-organization-mismatch',409);
-    return {data,matchedId:candidate};
+}
+async function inventoryFallback({webexFetch,env,phone,deviceId,locationId,org,timeoutMs}){
+ let timer;const controller=new AbortController();
+ try{return await Promise.race([(async()=>{
+  const encoded=btoa('ciscospark://us/ORGANIZATION/'+organizationId(org));
+  let next=WEBEX+'/devices?orgId='+encodeURIComponent(encoded)+'&max=100',pages=0;const matches=[];
+  while(next){
+   const url=new URL(next);
+   if(url.origin!=='https://webexapis.com'||!['/v1/devices','/v1/devices/'].includes(url.pathname)||++pages>50)throw failure('webex-device-inventory-incomplete');
+   const response=await webexFetch(env,url.href,{method:'GET',signal:controller.signal});
+   if(response.status===404)return null;
+   if(!response.ok)throw failure(response.status===401||response.status===403?'webex-device-authentication-failed':response.status===429?'webex-device-rate-limited':'webex-device-lookup-unavailable');
+   const data=await response.json();if(!Array.isArray(data.items))throw failure('webex-device-response-invalid');
+   matches.push(...data.items.filter(d=>mac(d.mac||d.macAddress)===mac(phone.mac)));
+   next=(response.headers.get('Link')||'').match(/<([^>]+)>\s*;\s*rel="?next"?/i)?.[1]||null;
   }
-  if(lastError)throw lastError;
-  throw new DeviceManagementError('webex-device-not-found',404);
+  if(!matches.length)return null;
+  if(matches.length!==1)throw new DeviceManagementError('device-identity-ambiguous',409);
+  const data=matches[0];verifyDevice(data,{phone,deviceId,locationId,org});
+  if(!data.orgId)throw new DeviceManagementError('device-organization-mismatch',409);
+  return {data,matchedId:data.id,source:'organization-inventory'};
+ })(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(failure('webex-device-inventory-timeout'));},timeoutMs);})]);}
+ finally{clearTimeout(timer);}
 }

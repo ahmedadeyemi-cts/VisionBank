@@ -28,7 +28,7 @@ for(const [status,code] of [[401,'webex-device-authentication-failed'],[403,'web
 }
 test('bounds both network and response body waits',async()=>{
  for(const webexFetch of [async()=>new Promise(()=>{}),async()=>({ok:true,status:200,json:()=>new Promise(()=>{})})]){
-  await assert.rejects(resolveVerifiedWriteDevice({...args,phone:{mac:args.phone.mac},timeoutMs:5,webexFetch}),{code:'webex-device-lookup-timeout'});
+  await assert.rejects(resolveVerifiedWriteDevice({...args,phone:{mac:args.phone.mac},timeoutMs:5,webexFetch}),{code:'webex-device-inventory-timeout'});
  }
 });
 test('preserves a transient failure when a later alias returns 404',async()=>{
@@ -40,4 +40,18 @@ test('compares UUID and encoded Webex organization IDs without relaxing tenant c
  const encoded=btoa('ciscospark://us/ORGANIZATION/'+uuid).replace(/=+$/,'');
  await resolveVerifiedWriteDevice({...args,org:uuid,webexFetch:async()=>Response.json({...device,orgId:encoded})});
  await assert.rejects(resolveVerifiedWriteDevice({...args,org:'00000000-d8db-4adf-a591-912c02363806',webexFetch:async()=>Response.json({...device,orgId:encoded})}),{code:'device-organization-mismatch'});
+});
+
+test('recovers device-detail 404 through complete organization inventory',async()=>{
+ const calls=[];const found=await resolveVerifiedWriteDevice({...args,webexFetch:async(_,url)=>{calls.push(url);const u=new URL(url);if(u.pathname.includes('/devices/'))return new Response(null,{status:404});return Response.json({items:[device]});}});
+ assert.equal(found.source,'organization-inventory');assert.equal(found.data.callingDeviceId,args.deviceId);
+});
+test('inventory fallback follows trailing-slash next pages',async()=>{
+ const found=await resolveVerifiedWriteDevice({...args,webexFetch:async(_,url)=>{const u=new URL(url);if(u.pathname==='/v1/devices/')return Response.json({items:[device]});if(u.pathname==='/v1/devices')return Response.json({items:[]},{headers:{Link:'<https://webexapis.com/v1/devices/?start=100>; rel="next"'}});return new Response(null,{status:404});}});assert.equal(found.source,'organization-inventory');
+});
+for(const [name,rows,code] of [['wrong id',[{...device,callingDeviceId:'other'}],'device-identity-mismatch'],['wrong location',[{...device,locationId:'other'}],'device-location-mismatch'],['wrong organization',[{...device,orgId:'other'}],'device-organization-mismatch'],['duplicate MAC',[device,{...device,id:'another'}],'device-identity-ambiguous']])test('inventory fallback rejects '+name,async()=>{
+ await assert.rejects(resolveVerifiedWriteDevice({...args,webexFetch:async(_,url)=>new URL(url).pathname==='/v1/devices'?Response.json({items:rows}):new Response(null,{status:404})}),{code});
+});
+test('inventory fallback rejects off-host pagination',async()=>{
+ await assert.rejects(resolveVerifiedWriteDevice({...args,webexFetch:async(_,url)=>new URL(url).pathname==='/v1/devices'?Response.json({items:[device]},{headers:{Link:'<https://example.com/v1/devices/>; rel="next"'}}):new Response(null,{status:404})}),{code:'webex-device-inventory-incomplete'});
 });

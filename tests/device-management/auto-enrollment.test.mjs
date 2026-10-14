@@ -37,7 +37,7 @@ test('reports Webex-only physical phones but excludes customer-managed integrati
 test('updates verified fleet mapping after a replacement Webex record',async()=>{const f=fixture();await reconcilePhoneEnrollments(f);f.devices[0].callingDeviceId='replacement';const r=await reconcilePhoneEnrollments(f);assert.equal(r.updated,1);assert.equal(JSON.parse(f.data.get(key)).device.id,'replacement');});
 test('retains existing individual credentials',async()=>{const f=fixture();f.data.set(key,JSON.stringify({status:'active',authMode:'basic',device:{id:'old'},passwordHash:'test'}));const r=await reconcilePhoneEnrollments(f);assert.equal(r.created,0);assert.equal(JSON.parse(f.data.get(key)).passwordHash,'test');});
 test('follows complete inventory pagination but rejects off-host next links before writing',async()=>{
- const f=fixture();let calls=0;f.webexFetch=async()=>++calls===1?Response.json({items:[]},{headers:{Link:'<https://webexapis.com/v1/devices?cursor=2>; rel="next"'}}):Response.json({items:f.devices});assert.equal((await reconcilePhoneEnrollments(f)).created,1);assert.equal(calls,2);
+ const f=fixture();let calls=0;f.webexFetch=async()=>++calls===1?Response.json({items:[]},{headers:{Link:'<https://webexapis.com/v1/devices/?cursor=2>; rel="next"'}}):Response.json({items:f.devices});assert.equal((await reconcilePhoneEnrollments(f)).created,1);assert.equal(calls,2);
  const g=fixture();g.webexFetch=async()=>Response.json({items:g.devices},{headers:{Link:'<https://example.com/devices>; rel="next"'}});assert.equal((await reconcilePhoneEnrollments(g)).error,'webex-pagination-invalid');assert.equal(g.data.has(key),false);
 });
 test('bounded batches enroll remaining phones on the next run',async()=>{

@@ -12,7 +12,7 @@ async function webexInventory(env,webexFetch,org){
  let next='https://webexapis.com/v1/devices?orgId='+encodeURIComponent(encoded)+'&max=100',pages=0;const rows=[];
  while(next){
   if(++pages>50)throw Error('webex-inventory-incomplete');
-  const url=new URL(next);if(url.origin!=='https://webexapis.com'||url.pathname!=='/v1/devices')throw Error('webex-pagination-invalid');
+  const url=new URL(next);if(url.origin!=='https://webexapis.com'||!['/v1/devices','/v1/devices/'].includes(url.pathname))throw Error('webex-pagination-invalid');
   const response=await webexFetch(env,url.href,{method:'GET',signal:AbortSignal.timeout(20000)});
   if(!response.ok)throw Error('webex-inventory-http-'+response.status);
   const data=await response.json();if(!Array.isArray(data.items))throw Error('webex-inventory-invalid');

@@ -498,4 +498,3 @@ test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',
     assert.deepEqual(calls,['sync','reboot'],model+' Phonism sync and reboot');
   }
 });
-

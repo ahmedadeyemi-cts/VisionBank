@@ -1,3 +1,4 @@
+import {automaticEnrollmentHealth} from './auto-enrollment.mjs';
 import {resolveVerifiedWriteDevice} from './device-resolution.mjs';
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
@@ -1147,6 +1148,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         })();
 
         const [phonism]=await Promise.all([phonismPromise,locationsProbe,deviceProbe]);
+        phonism.checks.push(await automaticEnrollmentHealth(env));
 
         const ready=locationsOk&&devicesOk;
         const writeConfigured=writeScope!=='disabled';

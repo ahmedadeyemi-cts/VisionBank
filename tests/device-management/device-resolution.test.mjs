@@ -34,3 +34,10 @@ test('bounds both network and response body waits',async()=>{
 test('preserves a transient failure when a later alias returns 404',async()=>{
  let calls=0;await assert.rejects(resolveVerifiedWriteDevice({...args,webexFetch:async()=>new Response(null,{status:++calls<=2?503:404})}),{code:'webex-device-lookup-unavailable'});
 });
+
+test('compares UUID and encoded Webex organization IDs without relaxing tenant checks',async()=>{
+ const uuid='6f124f56-d8db-4adf-a591-912c02363806';
+ const encoded=btoa('ciscospark://us/ORGANIZATION/'+uuid).replace(/=+$/,'');
+ await resolveVerifiedWriteDevice({...args,org:uuid,webexFetch:async()=>Response.json({...device,orgId:encoded})});
+ await assert.rejects(resolveVerifiedWriteDevice({...args,org:'00000000-d8db-4adf-a591-912c02363806',webexFetch:async()=>Response.json({...device,orgId:encoded})}),{code:'device-organization-mismatch'});
+});

@@ -2,6 +2,11 @@ import {DeviceManagementError,normalizeMac} from './contracts.mjs';
 
 const WEBEX='https://webexapis.com/v1';
 const mac=value=>{try{return normalizeMac(value);}catch{return null;}};
+const organizationId=value=>{
+  const text=String(value||'');
+  try{const decoded=atob(text);const match=decoded.match(/^ciscospark:\/\/[^/]+\/ORGANIZATION\/([0-9a-f-]{36})$/i);if(match)return match[1].toLowerCase();}catch{}
+  return text.toLowerCase();
+};
 const failure=code=>new DeviceManagementError(code,503);
 
 // Enrollment and inventory can carry different Webex IDs. Revalidate the
@@ -35,7 +40,7 @@ export async function resolveVerifiedWriteDevice({webexFetch,env,phone,deviceId,
     if(String(data.callingDeviceId||data.id||'')!==String(deviceId||''))throw new DeviceManagementError('device-identity-mismatch',409);
     if(!mac(phone.mac)||mac(data.mac||data.macAddress)!==mac(phone.mac))throw new DeviceManagementError('device-mac-mismatch',409);
     if(String(data.locationId||'')!==String(locationId||''))throw new DeviceManagementError('device-location-mismatch',409);
-    if(data.orgId&&String(data.orgId)!==String(org))throw new DeviceManagementError('device-organization-mismatch',409);
+    if(data.orgId&&organizationId(data.orgId)!==organizationId(org))throw new DeviceManagementError('device-organization-mismatch',409);
     return {data,matchedId:candidate};
   }
   if(lastError)throw lastError;

@@ -1431,6 +1431,72 @@
     }
   }
 
+  const issueState={rows:[],visible:[],cursor:null,busy:false,timer:null,loaded:false,scanned:0};
+  const issuesActive=()=>document.visibilityState!=="hidden"&&document.querySelector('[data-device-tab="issues"]')?.classList.contains("active");
+  function issueGuidance(row){
+    const code=row.errorCode||"";
+    if(code==="webex-device-not-found")return "Webex did not return a verified device during this attempt. Check the phone’s MAC, enrollment and Webex inventory. This error alone does not establish a firmware problem.";
+    if(code.includes("timeout")||code.includes("unavailable"))return "The provider did not respond successfully. Check Integration Health and compare the next attempt’s timestamp before retrying.";
+    if(code.includes("authentication"))return "Check Webex authorization in Integration Health. An administrator may need to reconnect the integration.";
+    if(code.includes("rate-limited"))return "Webex limited requests. Allow time before retrying; repeated retries may prolong the limit.";
+    if(code.includes("mismatch")||code.includes("ambiguous"))return "The identity check blocked the change. Compare the MAC, device, organization and location in Webex and Phonism before retrying.";
+    if(code==="target-appearance-limit")return "The selected extension reached its allowed device appearances. Review its shared-line assignments in Webex.";
+    if(code==="target-member-not-available")return "The selected extension was not returned as eligible. Search again and check the extension’s current Webex assignments.";
+    if((row.phonismStatus||"").includes("reboot-failed"))return "The reboot request failed. Check the current line assignment and phone connectivity before using Reboot & Reverify.";
+    if(row.stage==="phonism-sync")return "Phonism synchronization failed. Check Integration Health and the recorded Webex outcome before attempting another save.";
+    return "Review the recorded stage and provider outcomes in Integration Health and Change History. The underlying cause has not been confirmed.";
+  }
+  function renderIssues(){
+    const query=normalize($("deviceIssuesSearch")?.value),compact=query.replace(/[^a-z0-9]/g,"");
+    const rows=issueState.rows.filter(r=>!query||normalize([r.deviceName,r.mac,r.locationName,r.extension,r.stage,r.errorCode,r.reason,r.result].join(" ")).includes(query)||(compact.length>=6&&normalize(r.mac).replace(/[^a-z0-9]/g,"").includes(compact)));
+    issueState.visible=rows;
+    const host=$("deviceIssuesRows");if(!host)return;
+    host.innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.at?new Date(r.at).toLocaleString():"Time not recorded")+'<br><span class="device-status '+(r.severity==="warning"?"pending":"unregistered")+'">'+esc(r.result||"Failure recorded")+'</span></td>'+
+      '<td><strong>'+esc(r.deviceName||"Phone not recorded")+'</strong><small>'+esc(r.mac||"MAC not recorded")+'</small><small>'+esc(r.locationName||"Location not recorded")+'</small></td>'+
+      '<td>'+esc(r.action||r.eventType)+'<small>Extension: '+esc(r.extension||"Not recorded")+'</small></td>'+
+      '<td><strong>Stage: '+esc(r.stage||"Not recorded")+'</strong><code>'+esc(r.errorCode||"Error code not recorded")+'</code>'+
+      '<p class="device-issue-evidence">Webex: '+esc(r.webexStatus||"Not recorded")+'<br>Phonism: '+esc(r.phonismStatus||"Not recorded")+'</p>'+
+      '<details><summary>Recorded details</summary><p>'+esc(r.reason||(r.detailAvailable?"No additional reason recorded.":"Detailed record unavailable; summary retained."))+'</p><small>Reference: '+esc(r.auditId)+'</small></details></td>'+
+      '<td>'+esc(issueGuidance(r))+'</td></tr>').join(""):'<tr><td colspan="5" class="device-empty">'+(query?'No matching issues in the loaded records.':'No issues found in the loaded records. This does not verify handset operation.')+'</td></tr>';
+    if($("deviceIssuesCopy"))$("deviceIssuesCopy").disabled=!rows.length;
+    if($("deviceIssuesMore"))$("deviceIssuesMore").hidden=!issueState.cursor;
+  }
+  function stopIssuesRefresh(){clearTimeout(issueState.timer);issueState.timer=null;}
+  function scheduleIssuesRefresh(){stopIssuesRefresh();if(issuesActive())issueState.timer=setTimeout(()=>void loadIssues({poll:true}),15000);}
+  async function loadIssues({more=false,poll=false}={}){
+    if(issueState.busy)return;
+    issueState.busy=true;stopIssuesRefresh();
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+    for(const id of ["deviceIssuesRefresh","deviceIssuesMore"])if($(id))$(id).disabled=true;
+    text("deviceIssuesStatus",issueState.loaded?"Refreshing recorded issues…":"Loading recorded issues…");
+    try{
+      const data=await api('/issues'+(more&&issueState.cursor?'?cursor='+encodeURIComponent(issueState.cursor):''),{signal:controller.signal});
+      const rows=Array.isArray(data.rows)?data.rows:[];
+      const merged=new Map((more||poll?issueState.rows:[]).map(r=>[r.auditId,r]));rows.forEach(r=>merged.set(r.auditId,r));
+      issueState.rows=[...merged.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+      if(!poll||!issueState.loaded)issueState.cursor=data.cursor||null;
+      issueState.scanned=more?issueState.scanned+(data.scanned||0):poll?issueState.scanned:data.scanned||0;
+      issueState.loaded=true;renderIssues();
+      text("deviceIssuesStatus",issueState.rows.length+' recorded issues loaded · Checked '+new Date(data.checkedAt||Date.now()).toLocaleTimeString()+(issueState.cursor?' · Older records available.':''));
+    }catch(error){
+      text("deviceIssuesStatus",'Issues refresh failed. '+(issueState.loaded?'Showing previously loaded records. ':'')+'Retrying in 15 seconds while this tab is open. '+(error.name==='AbortError'?'Request timed out.':friendlyDeviceError(error)));
+    }finally{
+      clearTimeout(timeout);issueState.busy=false;
+      for(const id of ["deviceIssuesRefresh","deviceIssuesMore"])if($(id))$(id).disabled=false;
+      scheduleIssuesRefresh();
+    }
+  }
+  async function copyIssueDiagnostics(){
+    const report=issueState.visible.map(r=>[
+      'Time: '+r.at,'Phone: '+r.deviceName,'MAC: '+r.mac,'Location: '+r.locationName,'Extension: '+r.extension,
+      'Operation: '+r.action,'Stage: '+(r.stage||'Not recorded'),'Error: '+(r.errorCode||'Not recorded'),
+      'Webex: '+r.webexStatus,'Phonism: '+r.phonismStatus,'Result: '+r.result,'Recorded details: '+r.reason,
+      'Reference: '+r.auditId,'Suggested next step (not a confirmed cause): '+issueGuidance(r)
+    ].join('\n')).join('\n\n');
+    try{await navigator.clipboard.writeText('VisionBank recorded issues (historical events)\n\n'+report);text("deviceIssuesStatus","Visible diagnostics copied.");}
+    catch{text("deviceIssuesStatus","Copy is unavailable in this browser. Select and copy the recorded details from the table.");}
+  }
+
   async function loadHistory(){
     const body=$("deviceHistoryRows");
     if(body)body.innerHTML='<tr><td colspan="9" class="device-empty">Loading history…</td></tr>';
@@ -1461,6 +1527,8 @@
       const tab=btn.dataset.deviceTab;
       document.querySelectorAll("[data-device-tab]").forEach(b=>b.classList.toggle("active",b===btn));
       document.querySelectorAll("[data-device-view]").forEach(v=>v.hidden=v.dataset.deviceView!==tab);
+      stopIssuesRefresh();
+      if(tab==="issues")void loadIssues();
       if(tab==="history")void loadHistory();
       if(tab==="fleet")void loadFleetKeys();
     }));
@@ -1492,6 +1560,13 @@
     $("deviceDurationHoursInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void setUserDuration();}});
     $("deviceAdminAddButton")?.addEventListener("click",()=>void addAdmin());
     $("deviceAdminEmailInput")?.addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();void addAdmin();}});
+    $("deviceIssuesRefresh")?.addEventListener("click",()=>void loadIssues());
+    $("deviceIssuesMore")?.addEventListener("click",()=>void loadIssues({more:true}));
+    $("deviceIssuesSearch")?.addEventListener("input",renderIssues);
+    $("deviceIssuesCopy")?.addEventListener("click",()=>void copyIssueDiagnostics());
+    window.addEventListener("pagehide",stopIssuesRefresh);
+    window.addEventListener("pageshow",()=>{if(issuesActive())void loadIssues({poll:true});});
+    document.addEventListener("visibilitychange",()=>{stopIssuesRefresh();if(issuesActive())void loadIssues({poll:true});});
     $("deviceHistoryRefresh")?.addEventListener("click",()=>void loadHistory());
     $("deviceFleetRefresh")?.addEventListener("click",()=>void loadFleetKeys());
     $("deviceFleetRotate")?.addEventListener("click",()=>void rotateFleetKey());

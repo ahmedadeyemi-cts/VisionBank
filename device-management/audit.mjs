@@ -143,3 +143,33 @@ export function automatedActor(originalOperator=null){
     originalOperator:originalOperator?{name:clean(originalOperator.name,100),email:clean(originalOperator.email,254)}:null
   };
 }
+
+// Only approved-network readers can reach this through the gateway. Return a
+// deliberate diagnostic projection, never credentials, sessions or raw records.
+export async function listIssueRecords(env,{cursor=''}={}){
+  if(!env?.LOGS?.list||!env?.LOGS?.get)throw new DeviceManagementError('device-audit-store-unavailable',503);
+  if(typeof cursor!=='string'||cursor.length>2048)throw new DeviceManagementError('invalid-issues-cursor');
+  const listed=await env.LOGS.list({prefix:AUDIT_PREFIX,limit:100,...(cursor?{cursor}:{})});
+  const isIssue=m=>/(?:fail|error|rolled-back|mismatch|attention)/i.test([m?.result,m?.webexStatus,m?.phonismStatus,m?.eventType].join(' '));
+  const keys=(listed.keys||[]).filter(k=>isIssue(k.metadata)),rows=[];
+  for(let i=0;i<keys.length;i+=8){
+    const batch=await Promise.all(keys.slice(i,i+8).map(async key=>{
+      const raw=await env.LOGS.get(key.name);let record=null;
+      try{record=typeof raw==='string'?JSON.parse(raw):raw;}catch{}
+      const m=key.metadata||{},c=record?.change||{};
+      const reason=clean(record?.reason||'',500);
+      const legacy=reason.match(/^([a-z][a-z0-9-]+): ([a-z][a-z0-9-]+)$/);
+      const code=clean(c.errorCode||legacy?.[2]||'',100);
+      return {auditId:clean(m.auditId,64),at:clean(m.at,40),deviceName:clean(record?.device?.name||m.deviceName,160),
+        mac:clean(record?.device?.mac,32),locationName:clean(record?.location?.name||m.locationName,160),
+        action:clean(m.action,120),eventType:clean(m.eventType,80),result:clean(m.result,80),
+        webexStatus:clean(m.webexStatus,80),phonismStatus:clean(m.phonismStatus,80),
+        extension:clean(c.requestedExtension||c.afterLine2?.extension||c.temporaryLine2?.extension,32),
+        stage:clean(c.stage||legacy?.[1]||'',100),errorCode:/^[a-z0-9-]+$/i.test(code)?code:'',
+        reason,detailAvailable:Boolean(record),severity:m.result==='rolled-back'?'warning':'error'};
+    }));rows.push(...batch);
+  }
+  rows.sort((a,b)=>b.at.localeCompare(a.at));
+  return {rows,cursor:listed.list_complete===true?null:listed.cursor||null,complete:listed.list_complete===true,
+    scanned:(listed.keys||[]).length,checkedAt:new Date().toISOString()};
+}

@@ -24,8 +24,8 @@ test('Device Manager stops polling while hidden and resumes when visible',()=>{
 });
 
 test('live refresh asset is cache-busted',()=>{
-  assert.match(html,/device\.js\?v=20261013-health1/);
-  assert.equal((html.match(/device\.js\?v=20261013-health1/g)||[]).length,1);
+  assert.match(html,/device\.js\?v=20261014-issues1/);
+  assert.equal((html.match(/device\.js\?v=20261014-issues1/g)||[]).length,1);
 });
 
 

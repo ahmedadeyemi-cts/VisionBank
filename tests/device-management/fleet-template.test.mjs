@@ -434,3 +434,68 @@ test('first Button 7 press auto-enrolls supported Yealink models by MAC with no 
     assert.match(saved.device.model,new RegExp(model),model+' model retained');
   }
 });
+
+test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',async()=>{
+  for(const model of ['T54W','T57W','T53','T46U']){
+    const env={WEBEX_ORG_ID:'org-1',PHONISM_API_KEY:'x'.repeat(32),DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+    await initializeFleetKeyConfig(env,{key:FLEET,actor:'test-admin',generatedAt:'2026-10-07T19:15:00.000Z'});
+    await upsertFleetEnrollment(env,{
+      device:{id:'call-1',displayName:'Pilot '+model,mac:MAC,model:'Yealink '+model},
+      location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'313135',now:'2026-10-07T19:15:00.000Z'
+    });
+
+    const webex={members:[structuredClone(PRIMARY)],puts:[]};
+    const webexFetch=async(_env,url,options={})=>{
+      const u=new URL(url),method=options.method||'GET';
+      if(u.pathname==='/v1/devices/call-1')return json({id:'webex-1',callingDeviceId:'call-1',displayName:'Pilot '+model,product:'Yealink '+model,mac:'805E0CEC1993',connectionStatus:'connected',personId:'user-1',locationId:'loc-a',managedBy:'PARTNER',type:'phone'});
+      if(u.pathname==='/v1/telephony/config/devices/call-1/members'){
+        if(method==='GET')return json({members:structuredClone(webex.members),maxLineCount:4});
+        if(method==='PUT'){const body=JSON.parse(options.body);webex.puts.push(body);webex.members=structuredClone(body.members);return new Response(null,{status:204});}
+      }
+      if(u.pathname==='/v1/telephony/config/devices/call-1/availableMembers')return json({members:[TARGET]});
+      if(u.pathname==='/v1/telephony/config/numbers')return json({phoneNumbers:[]});
+      return json({message:'not found'},404);
+    };
+
+    const calls=[];
+    const phonismReader={
+      async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
+      async tenantPhones(){return {phones:[{id:'313135',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,webexDeviceIds:[],webexDeviceId:null,webexDeviceType:'Yealink '+model}],truncated:false};},
+      async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'},{lineNumber:2,username:webex.members.find(x=>Number(x.port)===2)?.extension||'',alias:'Temporary User',registrationStatus:'not-monitored'}];},
+      async syncHierarchyIntegration(){calls.push('sync');return {accepted:true,status:202};},
+      async tr069Action(){calls.push('reboot');return {accepted:true,status:200};}
+    };
+
+    const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
+    const base='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
+
+    const search=await xml(handler,env,base+'/q?q=4102',model);
+    assert.equal(search.status,200,model+' search status');
+    assert.match(search.text,/4102 - Temporary User/,model+' target result');
+    assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
+
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+    assert.equal(confirm.status,200,model+' confirm status');
+    assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
+    assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
+    const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
+    assert.ok(match,model+' intent');
+
+    let background=null;
+    const executionContext={waitUntil(promise){background=promise;}};
+    const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
+    assert.equal(applied.status,200,model+' apply acknowledgement');
+    assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
+    assert.match(applied.text,/Saving Extension/,model+' fast Save title');
+    assert.match(applied.text,/Applying your extension\. Your phone will reboot automatically\. This may take up to 45 seconds\./,model+' reboot wait message');
+    assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
+    assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
+    assert.ok(background,model+' background task');
+    assert.equal(webex.members.find(x=>Number(x.port)===2),undefined,model+' response precedes Webex write');
+
+    await background;
+    assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2',model+' Webex background write');
+    assert.deepEqual(calls,['sync','reboot'],model+' Phonism sync and reboot');
+  }
+});
+

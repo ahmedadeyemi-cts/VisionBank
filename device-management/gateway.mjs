@@ -718,7 +718,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/xml'){
       if(lease&&lease.status!=='active')return phoneXmlResponse(textMenu('Temporary Line Removal',[
         {prompt:phoneLeaseStatus(lease),uri:home},
-        {prompt:'Automatic retry within 5 minutes',uri:home},
+        {prompt:'Automatic retry within about 1 minute',uri:home},
         {prompt:'Refresh',uri:home}
       ]));
       if(!lease){
@@ -747,7 +747,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(lease){
         const verification=await verifyLease({env,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader}).catch(()=>null);
         items.push({prompt:verification?phoneLeaseStatus(verification.lease):'Status unavailable - try Refresh',uri:home});
-        if(verification?.state==='sync-pending')items.push({prompt:'Automatic retry within 5 minutes',uri:home});
+        if(verification?.state==='sync-pending')items.push({prompt:'Automatic retry within about 1 minute',uri:home});
         const expiry=Date.parse(lease.expiresAt||''),label=Number.isFinite(expiry)?new Date(expiry).toLocaleString('en-US',{timeZone:'America/Chicago'}):lease.expiresAt;
         items.push({prompt:'Auto-remove: '+label+' Central',uri:home});
         items.push({prompt:'Duration: '+phoneDurationLabel(lease.durationMinutes),uri:home});
@@ -847,7 +847,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(intent.status==='processing'){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
           {timeout:60,lockIn:true,beep:false}
         ));
       }
@@ -858,7 +858,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         }));
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
           {timeout:60,lockIn:true,beep:false}
         ));
       }
@@ -869,14 +869,14 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(result.rebootQueued){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
           {timeout:60,lockIn:true,beep:false}
         ));
       }
       if(result.syncPending)return phoneXmlResponse(textMenu('Saved - Still Syncing',[
         {prompt:phoneMemberLabel(target),uri:home},
         {prompt:'Restart follows confirmed sync',uri:home},
-        {prompt:'Automatic retry within 5 minutes',uri:home},
+        {prompt:'Automatic retry within about 1 minute',uri:home},
         {prompt:'Refresh status',uri:home}
       ]));
       return phoneXmlResponse(textMenu('Saved - Reboot Needed',[

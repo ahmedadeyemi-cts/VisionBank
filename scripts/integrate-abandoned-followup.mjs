@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 export function integrate(source){
  if(source.includes('VB_FOLLOWUP_V1'))throw Error('Already integrated');
+ const route='if (path === \"/api/webex/abandoned-callback/settings\" ||';
+ if(source.split(route).length!==2)throw Error('Unexpected callback route baseline');
+ source=source.replace(route,'if (path === \"/api/webex/abandoned-callback/followups\" || path === \"/api/webex/abandoned-callback/settings\" ||');
  return source+`
 /* VB_FOLLOWUP_V1: preserve all existing reports; reuse the already-fetched outbound tasks. */
 import {outboundFollowups as vbOutboundFollowups,decorateFollowups as vbDecorateFollowups} from './callback-settings/followup.mjs';

@@ -23,3 +23,9 @@ test('public follow-up route requires approved origin/network, rejects forged id
  assert.equal((await handler(req({...body,contactIds:[id(88)]}),env)).status,409);
  assert.equal(writes,0);assert.equal((await handler(req(body),env)).status,200);assert.equal(writes,1);
 });
+
+test('integration explicitly routes follow-up writes through the existing secured callback handler',async()=>{
+ const {integrate}=await import('../../scripts/integrate-abandoned-followup.mjs');
+ const source='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history") { return vbCallbackSettingsV1(request,env,cors); }';
+ const patched=integrate(source);assert.match(patched,/path === "\/api\/webex\/abandoned-callback\/followups" \|\| path === "\/api\/webex\/abandoned-callback\/settings"/);assert.ok(patched.includes('return vbCallbackSettingsV1(request,env,cors)'));assert.throws(()=>integrate('unrecognized worker'));assert.throws(()=>integrate(patched));
+});

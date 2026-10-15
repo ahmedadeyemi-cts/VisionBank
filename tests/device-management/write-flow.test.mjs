@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases,endTemporaryLease
+  phonismLineMatchesTarget,composeMembers,membersFingerprint,writeWebexMembers,createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,sweepExpiredLeases,endTemporaryLease
 } from '../../device-management/write.mjs';
 import {deviceWriteScope,isPilotDevice} from '../../device-management/lease.mjs';
 
@@ -242,7 +242,7 @@ test('manual recovery can queue another reboot after the automatic reboot',async
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   assert.equal(applied.lease.recovery.automaticReboot,true);
-  const reboot=await runRecoveryAction({env:e,request:request(),session:SESSION,leaseId:applied.lease.leaseId,phonismReader:ph.reader});
+  const reboot=await runRecoveryAction({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:applied.lease.leaseId,phonismReader:ph.reader});
   assert.equal(reboot.lease.recovery.rebootAttempted,true);
   assert.equal(reboot.lease.recovery.automaticReboot,false);
   assert.deepEqual(ph.calls.filter(x=>x.type==='tr069').map(x=>x.action),['Reboot','Reboot']);
@@ -341,4 +341,83 @@ test('apply fails before Webex write when Enterprise Phonism sync owner is missi
   }),err=>err.code==='phonism-enterprise-sync-company-required');
   assert.equal(wx.state.puts.length,0);
   assert.equal(ph.calls.length,0);
+});
+
+
+test('line identity matching rejects extension prefixes and same-name prefixes',()=>{
+  assert.equal(phonismLineMatchesTarget([{lineNumber:2,username:'14060',alias:'Other'}],{extension:'1406',name:'Matt'}),false);
+  assert.equal(phonismLineMatchesTarget([{lineNumber:2,alias:'Matthew'}],{name:'Matt'}),false);
+  assert.equal(phonismLineMatchesTarget([{lineNumber:2,alias:'Matt - (m@example.test)'}],{name:'Matt'}),true);
+  assert.equal(phonismLineMatchesTarget([{lineNumber:'2',username:'1406'}],{extension:'1406'}),true);
+});
+
+test('unconfirmed save defers reboot; durable retry verifies both providers and reboots once',async()=>{
+  const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture({lineReadyAfter:99});
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:15,reason:'',
+    phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
+  });
+  const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  assert.equal(applied.syncPending,true);assert.equal(applied.rebootQueued,false);assert.equal(ph.state.rebootAttempts,0);
+  assert.equal(applied.lease.verification.state,'sync-pending');
+  const now=Date.parse(applied.lease.startsAt)+5*60000;
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
+  assert.equal(ph.state.rebootAttempts,0,'stale Phonism must not trigger reboot');
+  ph.state.lineReads=100;
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+1000});
+  assert.equal(ph.state.rebootAttempts,1);
+  const saved=JSON.parse(await e.LOGS.get('device-lease:'+applied.lease.leaseId));
+  assert.equal(saved.recovery.syncConfirmedBeforeReboot,true);assert.equal(saved.recovery.syncPending,false);
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+2000});
+  assert.equal(ph.state.rebootAttempts,1,'completed retry is not replayed');
+});
+
+async function pendingFixture(){
+  const e=env(),wx=webexFixture([PRIMARY]),ph=phonismFixture();
+  const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:15,reason:'',phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
+  const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  const lease=applied.lease;
+  lease.recovery={syncPending:true,syncPendingSince:lease.startsAt,rebootAttempted:false};
+  lease.verification.state='sync-pending';
+  await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
+  ph.state.rebootAttempts=0;
+  return {e,wx,ph,lease};
+}
+
+test('pending retry respects external changes and reports failure instead of rebooting stale target',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  wx.state.members=composeMembers([PRIMARY],{...TARGET,id:'someone-else'});
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+300000});
+  assert.equal(ph.state.rebootAttempts,0);
+  const saved=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
+  assert.equal(saved.verification.state,'sync-failed');assert.equal(saved.recovery.syncConfirmError,'webex-line-changed');
+});
+
+test('failed sync is bounded, audited, and still expires without applying the temporary target',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  ph.reader.lines=async()=>{throw Object.assign(new Error('unavailable'),{code:'phonism-unavailable'});};
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+600000});
+  assert.equal(ph.state.rebootAttempts,0);
+  const saved=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
+  assert.equal(saved.verification.state,'sync-failed');assert.equal(saved.recovery.syncPending,false);
+  const audits=await e.LOGS.list({prefix:'device-audit:'});
+  assert.ok(audits.keys.some(k=>k.metadata.eventType==='device-sync-failure'));
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.expiresAt)+1});
+  assert.equal(wx.state.members.some(m=>Number(m.port)===2),false);
+});
+
+test('manual recovery cannot bypass the sync check',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  ph.reader.lines=async()=>[{lineNumber:2,alias:'Wrong line'}];
+  await assert.rejects(()=>runRecoveryAction({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader}),e=>e.code==='phonism-line-not-ready');
+  assert.equal(ph.state.rebootAttempts,0);
+});
+
+test('unknown Phonism read is not proof that a removed line is absent',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  lease.temporaryLine2=null;lease.recovery={rebootAttempted:true};
+  await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
+  wx.state.members=[PRIMARY];ph.reader.lines=async()=>{throw new Error('timeout');};
+  const result=await verifyLease({env:e,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader});
+  assert.equal(result.state,'pending-verification');
 });

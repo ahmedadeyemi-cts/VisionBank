@@ -563,6 +563,17 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
   return searched.members.find(member=>String(member.id)===String(intent.memberId))||null;
 }
 
+function phoneLeaseStatus(lease){
+  const state=lease?.verification?.state;
+  if(state==='sync-pending')return 'Still syncing - restart will follow';
+  if(state==='sync-failed')return 'Sync needs attention - contact support';
+  if(state==='reboot-failed')return 'Restart failed - contact support';
+  if(state==='registration-failed')return 'Line registration failed - contact support';
+  if(state==='applied')return 'Line registration confirmed';
+  if(state==='applied-unverified')return 'Configured - handset not verified';
+  return 'Restart requested - check handset line';
+}
+
 async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure=false}){
   const session=phoneSession(enrollment);
   let stage='resolve-write-context';
@@ -715,7 +726,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-      items.push({prompt:'Temporary line active'+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      items.push({prompt:phoneLeaseStatus(lease)+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Refresh',uri:home});
       return phoneXmlResponse(textMenu('VisionBank Manage Extensions',items));
@@ -727,6 +738,9 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         {prompt:(lease?.temporaryLine2||line2Row)?'Current Line 2: '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
       if(lease){
+        const verification=await verifyLease({env,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader}).catch(()=>null);
+        items.push({prompt:verification?phoneLeaseStatus(verification.lease):'Status unavailable - try Refresh',uri:home});
+        if(verification?.state==='sync-pending')items.push({prompt:'Automatic retry within 5 minutes',uri:home});
         const expiry=Date.parse(lease.expiresAt||''),label=Number.isFinite(expiry)?new Date(expiry).toLocaleString('en-US',{timeZone:'America/Chicago'}):lease.expiresAt;
         items.push({prompt:'Auto-remove: '+label+' Central',uri:home});
         items.push({prompt:'Duration: '+phoneDurationLabel(lease.durationMinutes),uri:home});
@@ -818,7 +832,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const intentId=new URL(request.url).searchParams.get('intent');
       let intent=await readPhoneIntent(env,intentId,enrollment);
       if(intent.status==='completed'&&intent.result?.expiresAt){
-        return phoneXmlResponse(textMenu('Extension Already Added',[
+        return phoneXmlResponse(textMenu('Extension Already Saved',[
           {prompt:'Temporary until '+new Date(intent.result.expiresAt).toLocaleString('en-US',{timeZone:'America/Chicago'}),uri:home},
           {prompt:'Return',uri:home}
         ]));
@@ -826,8 +840,8 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(intent.status==='processing'){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds.',
-          {timeout:0,lockIn:true,beep:false}
+          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          {timeout:60,lockIn:true,beep:false}
         ));
       }
       intent=await startPhoneIntent(env,intentId,enrollment);
@@ -837,8 +851,8 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         }));
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds.',
-          {timeout:0,lockIn:true,beep:false}
+          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          {timeout:60,lockIn:true,beep:false}
         ));
       }
       const applied=await applyPhoneIntentWork({
@@ -848,10 +862,16 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(result.rebootQueued){
         return phoneXmlResponse(textScreen(
           'Saving Extension',
-          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds.',
-          {timeout:0,lockIn:true,beep:false}
+          'Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds. If delayed, reopen Add Extension to check status.',
+          {timeout:60,lockIn:true,beep:false}
         ));
       }
+      if(result.syncPending)return phoneXmlResponse(textMenu('Saved - Still Syncing',[
+        {prompt:phoneMemberLabel(target),uri:home},
+        {prompt:'Restart follows confirmed sync',uri:home},
+        {prompt:'Automatic retry within 5 minutes',uri:home},
+        {prompt:'Refresh status',uri:home}
+      ]));
       return phoneXmlResponse(textMenu('Saved - Reboot Needed',[
         {prompt:phoneMemberLabel(target),uri:home},
         {prompt:'Reboot needs attention',uri:home},
@@ -1344,9 +1364,9 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         try{
           const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
           return output({success:true,
-            message:result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
+            message:result.syncPending?'Webex saved the assignment. Phonism is still syncing; restart is deferred until the requested line is confirmed. Automatic retry runs within 5 minutes.':result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
             leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt,verification:result.lease.verification,
-            rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId),rebootError:result.rebootError||null},200,headers);
+            syncPending:result.syncPending===true,rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!result.syncPending,rebootError:result.rebootError||null},200,headers);
         }catch(error){
           if(error?.code==='target-appearance-limit'&&error?.targetMember?.memberId&&error?.location?.id){
             const appearances=await findMemberAppearances({
@@ -1367,7 +1387,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!leaseId)throw new DeviceManagementError('lease-id-required');
         const result=await verifyLease({env,webexFetch,orgId:org,leaseId,phonismReader});
         return output({success:true,leaseId,state:result.state,verification:result.lease.verification,
-          expiresAt:result.lease.expiresAt,rebootAvailable:Boolean(result.lease.phonismPhoneId),
+          expiresAt:result.lease.expiresAt,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!['sync-pending','sync-failed'].includes(result.state),
           automaticReboot:result.lease.recovery?.automaticReboot===true,rebootAttempted:result.lease.recovery?.rebootAttempted===true},200,headers);
       }
 
@@ -1375,7 +1395,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const session=await requireWriteOperator(env,request);
         const body=await readSmallJson(request,2048);
         if(!body||Object.keys(body).some(k=>!['leaseId'].includes(k))||typeof body.leaseId!=='string')throw new DeviceManagementError('invalid-recovery-request');
-        const result=await runRecoveryAction({env,request,session,leaseId:body.leaseId,phonismReader});
+        const result=await runRecoveryAction({env,request,session,webexFetch,orgId:org,leaseId:body.leaseId,phonismReader});
         return output({success:true,message:'Reboot queued in Phonism; re-verification required.',
           leaseId:result.lease.leaseId,rebootAvailable:true},200,headers);
       }

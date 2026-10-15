@@ -564,6 +564,8 @@ async function phoneMember({webexFetch,env,org,enrollment,intent}){
 }
 
 function phoneLeaseStatus(lease){
+  if(lease?.recovery?.cleanupSyncPending)return 'Removing old line - still syncing';
+  if(lease?.status?.startsWith('restore-'))return 'Removal pending - retrying';
   const state=lease?.verification?.state;
   if(state==='sync-pending')return 'Still syncing - restart will follow';
   if(state==='sync-failed')return 'Sync needs attention - contact support';
@@ -714,6 +716,11 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     };
 
     if(part==='phone/xml'){
+      if(lease&&lease.status!=='active')return phoneXmlResponse(textMenu('Temporary Line Removal',[
+        {prompt:phoneLeaseStatus(lease),uri:home},
+        {prompt:'Automatic retry within 5 minutes',uri:home},
+        {prompt:'Refresh',uri:home}
+      ]));
       if(!lease){
         return phoneXmlResponse(textMenu('VisionBank Manage Extensions',[
           {prompt:'Add Temporary Extension',uri:searchUrl},
@@ -726,7 +733,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-      items.push({prompt:phoneLeaseStatus(lease)+(minutes!==null?' · '+minutes+' min left':''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
+      items.push({prompt:phoneLeaseStatus(lease)+(minutes!==null?' · '+(minutes>=1440?Math.ceil(minutes/1440)+' days left':minutes+' min left'):''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Refresh',uri:home});
       return phoneXmlResponse(textMenu('VisionBank Manage Extensions',items));
@@ -1387,7 +1394,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!leaseId)throw new DeviceManagementError('lease-id-required');
         const result=await verifyLease({env,webexFetch,orgId:org,leaseId,phonismReader});
         return output({success:true,leaseId,state:result.state,verification:result.lease.verification,
-          expiresAt:result.lease.expiresAt,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!['sync-pending','sync-failed'].includes(result.state),
+          expiresAt:result.lease.expiresAt,rebootAvailable:result.lease.status==='active'&&Date.parse(result.lease.expiresAt)>Date.now()&&Boolean(result.lease.phonismPhoneId)&&!['sync-pending','sync-failed'].includes(result.state),
           automaticReboot:result.lease.recovery?.automaticReboot===true,rebootAttempted:result.lease.recovery?.rebootAttempted===true},200,headers);
       }
 

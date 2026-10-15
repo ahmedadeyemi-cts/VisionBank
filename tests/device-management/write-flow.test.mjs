@@ -256,6 +256,7 @@ test('early sign out restores baseline immediately, syncs Phonism, and reboots t
     phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1999',alias:'Old Line'}];
   const ended=await endTemporaryLease({
     env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,
     leaseId:applied.lease.leaseId,phonismReader:ph.reader,now:Date.now()+1000
@@ -278,6 +279,7 @@ test('expiry restores baseline, queues another Phonism sync, and reboots the han
     phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1999',alias:'Old Line'}];
   const due=Date.parse(applied.lease.expiresAt)+1;
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
   assert.equal(results[0].status,'restored');
@@ -295,6 +297,8 @@ test('expiry preserves a newer external Webex change and reconciles Phonism with
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
+  Object.assign(wx.state.members[1],{firstName:'Control Hub',lastName:'Line',extension:'1888'});
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1888',alias:'Control Hub Line'}];
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(applied.lease.expiresAt)+1});
   assert.equal(results[0].status,'external-change-reconciled');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
@@ -315,6 +319,8 @@ test('external-change reconciliation retries Phonism Sync without overwriting We
   });
   const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
+  Object.assign(wx.state.members[1],{firstName:'Control Hub',lastName:'Line',extension:'1888'});
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1888',alias:'Control Hub Line'}];
   const failingReader={...ph.reader,async syncHierarchyIntegration(){const error=new Error('sync-failed');error.code='sync-failed';throw error;}};
   const due=Date.parse(applied.lease.expiresAt)+1;
   const first=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:failingReader,now:due});
@@ -420,4 +426,54 @@ test('unknown Phonism read is not proof that a removed line is absent',async()=>
   wx.state.members=[PRIMARY];ph.reader.lines=async()=>{throw new Error('timeout');};
   const result=await verifyLease({env:e,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader});
   assert.equal(result.state,'pending-verification');
+});
+
+
+test('expiry waits for removal, retries safely, and does not reboot again once complete',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  const due=Date.parse(lease.expiresAt)+1;
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1806',alias:'Ryan Dea'}];
+  let results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
+  assert.equal(results[0].status,'restore-reboot-pending');
+  assert.equal(ph.state.rebootAttempts,0);
+  assert.equal(wx.state.members.some(m=>m.port===2),false);
+  const old=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
+  assert.equal(old.recovery.cleanupSyncPending,true);
+  await verifyLease({env:e,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader});
+  assert.equal(JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId)).status,'restore-reboot-pending');
+  ph.reader.lines=async()=>{throw new Error('unavailable');};
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due+300000});
+  assert.equal(ph.state.rebootAttempts,0);
+  ph.reader.lines=async()=>[];
+  results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due+600000});
+  assert.equal(results[0].status,'restored');
+  assert.equal(ph.state.rebootAttempts,1);
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due+900000});
+  assert.equal(ph.state.rebootAttempts,1);
+});
+
+test('a newer assignment supersedes delayed cleanup without an old restart or write',async()=>{
+  const {e,wx,ph,lease}=await pendingFixture();
+  const due=Date.parse(lease.expiresAt)+1;
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1806'}];
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
+  wx.state.members=composeMembers([PRIMARY],{...TARGET,id:'new-1128',extension:'1128'});
+  const writes=wx.state.puts.length;
+  const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due+300000});
+  assert.equal(results[0].status,'superseded');
+  assert.equal(wx.state.members[1].id,'new-1128');
+  assert.equal(wx.state.puts.length,writes);assert.equal(ph.state.rebootAttempts,0);
+});
+
+test('30 day assignment retains exact expiry and restores at that time',async()=>{
+  const e=env(),wx=webexFixture(),ph=phonismFixture();
+  const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:43200,reason:'',phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
+  const {lease}=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  const due=Date.parse(lease.expiresAt);
+  assert.equal(due-Date.parse(lease.startsAt),30*86400000);
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due-1});
+  assert.equal(wx.state.members[1].id,TARGET.id);
+  ph.reader.lines=async()=>[];
+  const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
+  assert.equal(results[0].status,'restored');assert.equal(wx.state.members.length,1);
 });

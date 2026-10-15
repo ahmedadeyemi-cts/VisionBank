@@ -60,11 +60,14 @@ test('check-in records handset IP, model and firmware independently of the butto
   assert.equal(telemetry.firmware,'96.86.0.70');
 });
 
-test('phone duration menu runs from 15 minutes through 12 hours',()=>{
-  assert.deepEqual(phoneDurationOptions(),[15,30,60,120,240,480,720]);
+test('phone duration menu runs from 15 minutes through 30 days',()=>{
+  assert.deepEqual(phoneDurationOptions(),[15,30,60,120,240,480,720,1440,10080,43200]);
   assert.equal(phoneDurationLabel(15),'15 minutes');
   assert.equal(phoneDurationLabel(60),'1 hour');
   assert.equal(phoneDurationLabel(720),'12 hours');
+  assert.equal(phoneDurationLabel(1440),'1 day');
+  assert.equal(phoneDurationLabel(10080),'7 days');
+  assert.equal(phoneDurationLabel(43200),'30 days');
 });
 
 test('XML input asks for extension or phone number and safely escapes values',()=>{

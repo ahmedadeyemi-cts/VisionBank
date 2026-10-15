@@ -76,6 +76,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
   assert.match(duration.text,/12 hours/);
+  for(const label of [/1 day/,/7 days/,/30 days/])assert.match(duration.text,label);
 
   const confirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=confirm&member=user-2&q=4102&locationId=loc-a&minutes=15');
   assert.match(confirm.text,/4102 - Temporary User/);

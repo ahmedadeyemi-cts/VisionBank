@@ -46,7 +46,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
     async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
     async tenantPhones(){return {phones:[{id:'9001',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,lastProvision:'2026-10-05 10:00:00',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'}],truncated:false};},
     async phone(){return {id:'9001',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,lastProvision:'2026-10-05 10:00:00',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'};},
-    async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'},{lineNumber:2,username:webex.members.find(x=>Number(x.port)===2)?.extension||'',alias:'Line 2',registrationStatus:'not-monitored'}];},
+    async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'},{lineNumber:2,username:webex.members.find(x=>Number(x.port)===2)?.id===TARGET.id?TARGET.extension:'3999',alias:'Line 2',registrationStatus:'not-monitored'}];},
     async syncHierarchyIntegration(_env,companyId,body){phonismCalls.push({type:'sync',companyId,body});return {accepted:true,status:202};},
     async tr069Action(_env,phoneId,action){phonismCalls.push({type:'reboot',phoneId,action});return {accepted:true,status:200};}
   };
@@ -89,7 +89,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(applied.status,200);
   assert.match(applied.text,/YealinkIPPhoneTextScreen/);
   assert.match(applied.text,/Saving Extension/);
-  assert.match(applied.text,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\./);
+  assert.match(applied.text,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\. If delayed, reopen Add Extension to check status\./);
   assert.doesNotMatch(applied.text,/<MenuItem>/);
   assert.doesNotMatch(applied.text,/Return/);
   assert.ok(background,'phone Save should schedule background work');

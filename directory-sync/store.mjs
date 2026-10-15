@@ -1,3 +1,4 @@
+import {removeApprovedLegacy} from './legacy-cleanup.mjs';
 import {DIRECTORY_KEY,planSync} from './sync.mjs';
 export class DirectoryStore {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
@@ -5,6 +6,17 @@ export class DirectoryStore {
   try{
    const storage=this.ctx.storage;let state=await storage.get('directory-state');
    if(!state){const contacts=await this.env.DIRECTORY_KV.get(DIRECTORY_KEY,'json');if(!Array.isArray(contacts))throw Error('Directory unavailable');state={contacts,revision:0,sync:null};await storage.put('directory-state',state);}
+   if(!await storage.get('legacy-cleanup-20261015')){
+    const clean=await removeApprovedLegacy(state.contacts);
+    if(clean.removed){
+     await storage.put('directory-backup:'+state.revision,state);
+     state={...state,contacts:clean.rows,revision:state.revision+1};
+     if(state.sync&&clean.removed===35)state.sync={...state.sync,unmatched:0,ambiguous:0};
+     await storage.put('directory-state',state);
+    }
+    await this.env.DIRECTORY_KV.put(DIRECTORY_KEY,JSON.stringify(state.contacts));
+    await storage.put('legacy-cleanup-20261015',{completedAt:Date.now(),removed:clean.removed});
+   }
    const path=new URL(request.url).pathname;
    if(request.method==='GET'&&path==='/directory/get')return Response.json({success:true,...state,count:state.contacts.length});
    if(request.method!=='POST')return Response.json({error:'method-not-allowed'},{status:405});

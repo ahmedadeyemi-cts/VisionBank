@@ -51,22 +51,40 @@ export async function defaultPhonismFetch(env,path,{method='GET',signal}={}){
   return response;
 }
 
-async function phonismWrite(env,path,{method='PUT',body}={}){
+async function phonismWrite(env,path,{method='PUT',body,retrySync=false}={}){
   if(!['PUT','POST'].includes(method))throw new DeviceManagementError('phonism-write-method-denied',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  const response=await fetch(PHONISM_BASE+safePath(path),{
-    method,redirect:'manual',
-    headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},
-    body:JSON.stringify(body||{})
-  });
-  if(response.status>=300&&response.status<400)throw new DeviceManagementError('phonism-unexpected-redirect',502);
-  let data={};try{data=await response.clone().json();}catch{}
-  if(!response.ok||!Array.isArray(data?.errors)||data.errors.length){
-    const error=new DeviceManagementError('phonism-write-failed',response.status===401||response.status===403?503:502);
-    error.upstreamStatus=response.status;throw error;
+  const url=PHONISM_BASE+safePath(path);
+  for(let attempt=1;attempt<=(retrySync?3:1);attempt++){
+    let response;
+    try{
+      response=await fetch(url,{
+        method,redirect:'manual',
+        ...(retrySync?{signal:AbortSignal.timeout(10000)}:{}),
+        headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},
+        body:JSON.stringify(body||{})
+      });
+    }catch(cause){
+      // An unknown transport outcome must not blindly repeat a potentially accepted job.
+      const error=new DeviceManagementError('phonism-write-failed',502);
+      error.providerFailure=cause?.name==='TimeoutError'||cause?.name==='AbortError'?'timeout':'transport';
+      error.providerAttempts=attempt;throw error;
+    }
+    let data={};try{data=await response.json();}catch{}
+    if(response.ok&&Array.isArray(data?.errors)&&!data.errors.length)return {status:response.status,data};
+    const error=new DeviceManagementError(response.status>=300&&response.status<400?'phonism-unexpected-redirect':'phonism-write-failed',response.status===401||response.status===403?503:502);
+    error.upstreamStatus=response.status;
+    error.providerAttempts=attempt;
+    error.providerFailure=response.status===401||response.status===403?'authentication':response.status===429?'rate-limited':response.status>=500?'provider-unavailable':!response.ok?'request-rejected':Array.isArray(data?.errors)?'provider-rejected':'invalid-response';
+    const retryAfter=response.headers.get('Retry-After');
+    const requestedDelay=retryAfter===null?null:(/^\d+(?:\.\d+)?$/.test(retryAfter)?Number(retryAfter)*1000:Date.parse(retryAfter)-Date.now());
+    const delay=requestedDelay===null?[500,1500][attempt-1]:Math.max(0,requestedDelay);
+    // Retry only explicitly temporary HTTP failures, only for integration sync.
+    // A long Retry-After is honored by stopping rather than retrying prematurely.
+    if(!retrySync||attempt>=3||![429,502,503,504].includes(response.status)||!Number.isFinite(delay)||delay>3000)throw error;
+    await new Promise(resolve=>setTimeout(resolve,delay));
   }
-  return {status:response.status,data};
 }
 
 async function readJson(response){
@@ -247,7 +265,7 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       if(!assets.length)throw new DeviceManagementError('phonism-sync-assets-required');
       const body={asset_type:assets};
       if(tenantId)body.tenant_id=Number(tenantId)||tenantId;
-      const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body});
+      const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body,retrySync:true});
       if(result.status!==202&&result.status!==200)throw new DeviceManagementError('phonism-sync-not-accepted',502);
       return {accepted:true,status:result.status};
     },

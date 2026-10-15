@@ -249,7 +249,7 @@
       agentPanel.querySelector('h2').textContent='Agent Performance — Calls & Chats';
       agent.querySelector('h2').hidden=true;
     }
-    table(agent,'chat-agents',[
+    const combinedColumns=[
       ['Agent',r=>[r.name||r.agentId,r.voice?.team,r.voice?.number].filter(Boolean).join(' · ')],
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
@@ -257,7 +257,46 @@
       ['Calls',r=>`Inbound: ${r.voice?.inbound??'Not reported'}\nMissed: ${r.voice?.missed??'Not reported'}\nOutbound: ${r.voice?.outbound??'Not reported'}\nTransferred: ${r.voice?.transferred??'Not reported'}\nAvg handle: ${r.voice?.avgHandle??'Not reported'}`,r=>r.voice?.inbound??-1],
       ['Chats',r=>`Offered: ${r.performanceOffered??'Not reported'}\nMissed / RONA: ${r.performanceMissedDisplay??'Not reported'}\nHandled today: ${r.lastHandlerContactsToday??'Not reported'}\nCompleted today*: ${r.lastHandlerCompletedStartedToday??'Not reported'}\nWrap-up now: ${r.wrapup??'Not reported'}`,r=>r.performanceOffered??-1,null,'missed'],
       ['Start time (Central)',r=>r.currentVoice?(document.querySelector('input[name="startDateMode"]:checked')?.value==='reporting'&&r.voice?.sessionRolledOver?r.voice.reportingStartCentral:r.voice?.sessionStartCentral)||'Not reported':'—']
-    ]);
+    ];
+    const separateColumns=[
+      ['Agent',r=>r.name||r.agentId],
+      ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
+      ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
+      ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
+      ['Offered (selected period)',r=>r.performanceOffered??'Not reported',r=>r.performanceOffered??-1,null,'offered'],
+      ['Missed / RONA (selected period)',r=>r.performanceMissedDisplay??'Not reported',r=>r.performanceMissed??-1,null,'missed'],
+      ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
+      ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
+    ];
+    let performanceView='combined';
+    try{if(localStorage.getItem('vb-agent-performance-view')==='separate')performanceView='separate';}catch{}
+    const viewLabel=document.createElement('label');viewLabel.className='vb-performance-period';
+    viewLabel.innerHTML='<span>Performance view:</span><select id="agent-performance-view" aria-describedby="agent-performance-view-note"><option value="combined">Calls & Chats together</option><option value="separate">Separate Calls and Chats</option></select>';
+    agentPanel?.querySelector('.vb-performance-controls')?.prepend(viewLabel);
+    const viewNote=document.createElement('p');viewNote.id='agent-performance-view-note';viewNote.className='vb-ops-meta';
+    viewNote.textContent='Choose one combined table or separate call and chat tables. Your choice is saved in this browser. The performance period and logged-out filter apply to both.';
+    agentPanel?.querySelector('.vb-performance-controls')?.insertAdjacentElement('afterend',viewNote);
+    function applyPerformanceView(){
+      const separate=performanceView==='separate';
+      const search=$('chat-agents-search')?.value||'';
+      agentPanel?.classList.toggle('vb-combined-agent-panel',!separate);
+      agentPanel?.classList.toggle('vb-separated-agent-panel',separate);
+      agentPanel.querySelector('h2').textContent=separate?'Agent Performance — Calls':'Agent Performance — Calls & Chats';
+      agent.querySelector('h2').textContent=separate?'Chat Agent Performance':'Calls and Chats';
+      agent.querySelector('h2').hidden=!separate;
+      agent.querySelector('.vb-ops-table-block')?.remove();
+      table(agent,'chat-agents',separate?separateColumns:combinedColumns);
+      const note=agent.querySelector('.vb-chat-session-note');
+      if(note)agent.insertBefore(agent.querySelector('.vb-ops-table-block'),note);
+      $('chat-agents-search').value=search;
+      $('agent-performance-view').value=performanceView;
+    }
+    $('agent-performance-view').addEventListener('change',event=>{
+      performanceView=event.target.value==='separate'?'separate':'combined';
+      try{localStorage.setItem('vb-agent-performance-view',performanceView);}catch{}
+      applyPerformanceView();render();
+    });
+    applyPerformanceView();
     agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">The performance period applies to call totals and chat offered/missed totals. Chat handled and completed always cover today and count toward the last agent. *Completed includes chats started today. RONA means an offered chat was not accepted. Live activity and time in state remain current.</p>');
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
@@ -325,7 +364,7 @@
     presentation.rows=[...byId.values()];
     enrichAgentPresentation(presentation);
     fill('chat-agents', window.VB_AGENT_PERFORMANCE?.filterRows(presentation.rows,base)||presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh || window.VB_AGENT_PERFORMANCE?.ready()),
-      `${window.VB_AGENT_PERFORMANCE?.filterMessage(base)||''} Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. Calls and chats share one agent row. A free chat slot does not guarantee that Webex will route a chat to the agent.`);
+      `${window.VB_AGENT_PERFORMANCE?.filterMessage(base)||''} Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. ${$('agent-performance-view')?.value==='separate'?'Calls and chats appear in separate tables.':'Calls and chats share one agent row.'} A free chat slot does not guarantee that Webex will route a chat to the agent.`);
     renderAgentActivity(presentation);
     const filter=tables.get('chat-handled')?.filter||'all';let handled=[],handledOK=false,note='';
     if(filter==='active'){handled=(live?.liveRows?.filter(r=>r.status==='Active')||[]).map(r=>({...r,connectedAt:daily?.rows?.find(d=>d.contactId===r.contactId)?.connectedAt??null}));handledOK=liveOK;note=`Currently connected contacts from the 30-day snapshot · ${time(live?.liveObservedAt)}`;}

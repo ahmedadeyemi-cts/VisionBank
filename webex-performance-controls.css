@@ -63,3 +63,6 @@ body .vb-performance-controls button:focus-visible { outline: 3px solid #e5ad16;
 .vb-combined-agent-panel #chat-agents-body td:nth-child(6) { white-space:pre-line; text-align:left; min-width:150px; line-height:1.65; }
 .vb-combined-agent-panel #chat-agents-body td:first-child { min-width:150px; }
 .vb-combined-agent-panel #chat-agents-body td:last-child { min-width:155px; }
+
+.vb-separated-agent-panel #vbChatAgents { margin-top:24px; border-top:1px solid var(--border, #cbd8d3); padding-top:18px; }
+.vb-separated-agent-panel #vbChatAgents > h2 { display:block; }

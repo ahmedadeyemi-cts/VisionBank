@@ -46,7 +46,7 @@
    presentation.rows=[...byId.values()];return presentation;
   }
  };
- function note(){const el=document.getElementById('agent-performance-note');if(el)el.textContent=mode==='session'?'Voice totals show the current login session. Chat has its own performance period selector.':ready()?`Today (Central): totals across all reported login sessions. Updated ${new Date(snapshot.observedAt).toLocaleTimeString('en-US',{timeZone:'America/Chicago'})}. Live status and state duration remain current. Sessions spanning midnight show Not reported where today cannot be isolated.`:'Today (Central): daily totals are loading or temporarily unavailable. Live status remains independent; unavailable totals are not zero.';}
+ function note(){const el=document.getElementById('agent-performance-note');if(el)el.textContent=mode==='session'?'Call and chat offered/missed totals show the current login session. Chat handled/completed remain daily totals.':ready()?`Today (Central): totals across all reported login sessions. Updated ${new Date(snapshot.observedAt).toLocaleTimeString('en-US',{timeZone:'America/Chicago'})}. Live status and state duration remain current. Sessions spanning midnight show Not reported where today cannot be isolated.`:'Today (Central): daily totals are loading or temporarily unavailable. Live status remains independent; unavailable totals are not zero.';}
  async function tick(){
   note();
   if(window.VB_SECURITY?.allowed!==true){if(snapshot){snapshot=null;notify();}return;}
@@ -66,7 +66,7 @@
  document.addEventListener('click',event=>{if(event.target?.closest?.('[data-vb-hide-logged-out]'))window.VB_AGENT_PERFORMANCE.setHideLoggedOut(!hideLoggedOut);});
  document.addEventListener('DOMContentLoaded',()=>{
   syncLoginButtons();
-  document.getElementById('agent-performance-period')?.addEventListener('change',e=>{mode=e.target.value==='session'?'session':'today';note();notify();});
+  document.getElementById('agent-performance-period')?.addEventListener('change',e=>{mode=e.target.value==='session'?'session':'today';chatMode=mode;note();notify();});
   void tick();setInterval(tick,5000);
  });
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){next=0;void tick();notify();}});

@@ -1,0 +1,31 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {FollowupStore,parseFollowup,outboundFollowups,decorateFollowups} from '../../callback-settings/followup.mjs';
+import {centralDate} from '../../callback-settings/selection.mjs';
+const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+const now=Date.now(),a={contactId:id(1),ani:'+15155550100',startEpoch:now-60000,endEpoch:now-50000};
+const task={id:id(2),channelType:'telephony',direction:'outbound',destination:'(515) 555-0100',createdTime:now-10000,status:'completed',isActive:false,transferCount:0,lastAgent:{name:'Agent Test'},connectedDuration:0};
+test('outbound matches full destination after abandonment and reports attempt without asserting help',()=>{const r=outboundFollowups([a],[task],[],now)[0];assert.equal(r.outboundFollowup.agentName,'Agent Test');assert.equal(r.outboundFollowup.at,task.createdTime);assert.equal(r.outboundFollowup.connectionReported,false);assert.equal(r.manualFollowup,undefined);});
+test('earlier calls, inbound calls, suffix matches, and withheld numbers do not match',()=>{for(const t of [{...task,createdTime:a.endEpoch},{...task,direction:'inbound'},{...task,destination:'5550100'},{...task,destination:'Private'},{...task,destination:'+15155550101'}])assert.equal(outboundFollowups([a],[t],[],now)[0].outboundFollowup,null);});
+test('one outbound matches only latest missed contact; tied latest contacts remain unresolved',()=>{const b={...a,contactId:id(3),endEpoch:now-30000};let r=outboundFollowups([a,b],[task],[],now);assert.equal(r[0].outboundFollowup,null);assert.equal(r[1].outboundFollowup.contactId,task.id);r=outboundFollowups([a,{...a,contactId:id(3)}],[task],[],now);assert.ok(r.every(x=>x.outboundFollowup===null));});
+test('transferred call does not mislabel its final agent as the caller; complete activities identify earliest reported agent',()=>{const t={...task,transferCount:1};assert.equal(outboundFollowups([a],[t],[],now)[0].outboundFollowup.agentName,null);const cars=[{id:t.id,activities:{pageInfo:{hasNextPage:false},nodes:[{createdTime:t.createdTime+2,agentId:id(8),agentName:'Second'},{createdTime:t.createdTime+1,agentId:id(7),agentName:'First'}]}}];assert.equal(outboundFollowups([a],[t],cars,now)[0].outboundFollowup.agentName,'First');});
+test('manual marks persist, replay idempotently, audit changes, and reopen without deleting evidence',async()=>{const map=new Map(),storage={get:async k=>map.get(k),put:async(k,v)=>map.set(k,v),transaction:async f=>f(storage)};const store=new FollowupStore(storage);const change={mutationId:id(20),action:'done',contactIds:[a.contactId],agentName:'Operator Test',note:'Called manually'};const source={date:centralDate(now),observedAt:now},actor={sourceIp:'192.0.2.1',source:'cloudflare-edge',identityVerified:false};const write=change=>store.fetch(new Request('https://internal/followups',{method:'POST',body:JSON.stringify({change,source,actor})}));let r=await(await write(change)).json();assert.equal(r.rows[0].done,true);r=await(await write(change)).json();assert.equal(r.replayed,true);assert.equal(r.rows[0].revision,1);await assert.rejects(write({...change,note:'different'}),/mutation-id-reused/);r=await(await write({...change,mutationId:id(21),action:'reopen'})).json();assert.equal(r.rows[0].done,false);assert.equal(r.rows[0].revision,2);assert.equal([...map.keys()].filter(k=>k.startsWith('followup-audit:')).length,2);const report=await decorateFollowups({abandonedCalls:[a]},store);assert.equal(report.followupStatus,'ready');assert.equal(report.abandonedCalls[0].manualFollowup.done,false);});
+test('reject oversized, duplicate, malformed or unnamed manual changes',()=>{const base={mutationId:id(20),action:'done',contactIds:[id(1)],agentName:'Name',note:''};for(const change of [{...base,contactIds:Array.from({length:101},(_,i)=>id(i))},{...base,contactIds:[id(1),id(1)]},{...base,contactIds:['not-a-call']},{...base,agentName:''},{...base,agentName:'a\nb'},{...base,extra:true}])assert.throws(()=>parseFollowup(change));});
+
+test('public follow-up route requires approved origin/network, rejects forged identity and non-report IDs',async()=>{
+ const {createCallbackSettingsHandler}=await import('../../callback-settings/gateway.mjs');let writes=0;
+ const store={fetch:async r=>{writes++;const data=await r.json();assert.equal(data.actor.identityVerified,false);assert.equal(data.actor.sourceIp,'192.0.2.1');return Response.json({success:true,rows:[]});}};
+ const handler=createCallbackSettingsHandler({checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['192.0.2.1'],getAbandonedReport:async()=>({success:true,followupStatus:'ready',generatedAtEpoch:Date.now(),abandonedCalls:[a]})});
+ const env={WEBEX_ORG_ID:'test-org',ABANDONED_CALLBACK_SETTINGS:{idFromName:n=>n,get:()=>store}};
+ const body={mutationId:id(99),action:'done',contactIds:[a.contactId],agentName:'Test Operator',note:''};
+ const req=(body,origin='https://visionbank-dashboard.onrender.com')=>{const r=new Request('https://worker/api/webex/abandoned-callback/followups',{method:'POST',headers:{Origin:origin,'CF-Connecting-IP':'192.0.2.1','Content-Type':'application/json'},body:JSON.stringify(body)});Object.defineProperty(r,'cf',{value:{}});return r;};
+ assert.equal((await handler(req(body,'https://unapproved.example'),env)).status,403);
+ assert.equal((await handler(req({...body,actor:{sourceIp:'forged'}}),env)).status,400);
+ assert.equal((await handler(req({...body,contactIds:[id(88)]}),env)).status,409);
+ assert.equal(writes,0);assert.equal((await handler(req(body),env)).status,200);assert.equal(writes,1);
+});
+
+test('integration explicitly routes follow-up writes through the existing secured callback handler',async()=>{
+ const {integrate}=await import('../../scripts/integrate-abandoned-followup.mjs');
+ const source='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history") { return vbCallbackSettingsV1(request,env,cors); }';
+ const patched=integrate(source);assert.match(patched,/path === "\/api\/webex\/abandoned-callback\/followups" \|\| path === "\/api\/webex\/abandoned-callback\/settings"/);assert.ok(patched.includes('return vbCallbackSettingsV1(request,env,cors)'));assert.throws(()=>integrate('unrecognized worker'));assert.throws(()=>integrate(patched));
+});

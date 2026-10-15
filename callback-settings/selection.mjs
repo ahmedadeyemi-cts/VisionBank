@@ -90,6 +90,8 @@ export function buildPreview(body, state, report, queueOptions, now = Date.now()
     if (!row || !Number.isFinite(row.startEpoch) || centralDate(row.startEpoch) !== centralDate(now)) reason = 'not-in-todays-abandoned-report';
     else if (!Number.isFinite(row.endEpoch) || row.endEpoch <= 0 || row.endEpoch > now || row.endEpoch < row.startEpoch) reason = 'call-not-confirmed-ended';
     else if (row.isContactHandled === true || row.isActive === true) reason = 'no-longer-abandoned';
+    else if (row.manualFollowup?.done === true) reason = 'marked-done';
+    else if (report.followupStatus === 'unavailable') reason = 'followup-status-unavailable';
     else if (row.callbackScheduleId || Number(row.callbackAttempts) > 0) reason = 'callback-already-recorded';
     else if (!number) reason = 'invalid-or-withheld-number';
     else if (seenNumbers.has(number)) reason = 'same-number-already-in-batch';

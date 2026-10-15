@@ -379,3 +379,11 @@ body.enterprise-dark .vb-followup-status-review {
 body.enterprise-dark .vb-followup-method {
   color: #9fb3aa;
 }
+
+.vb-followup-status-manual-done { background:#d9f6e5; color:#05603a; border:1px solid #78b798; }
+.vb-followup-status-outbound-attempt { background:#e8f0ff; color:#184785; border:1px solid #8caedc; }
+body.enterprise-dark .vb-followup-status-manual-done { background:#143f2d; color:#c9f8dd; }
+body.enterprise-dark .vb-followup-status-outbound-attempt { background:#18334e; color:#d9eaff; }
+#vbCallbackFollowupForm { display:grid; gap:14px; }
+#vbCallbackFollowupForm label { display:grid; gap:6px; }
+#vbCallbackFollowupForm input { padding:10px; width:100%; box-sizing:border-box; }

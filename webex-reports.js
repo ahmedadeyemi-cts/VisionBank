@@ -79,6 +79,8 @@
   function followupLabel(code) {
     return ({
       "needs-followup": "Needs Follow-up",
+      "manual-done": "Marked Done",
+      "outbound-attempt": "Outbound Call Placed",
       "returned-unresolved": "Called Back — Not Helped",
       "helped": "Called Back — Helped",
       "review": "Possible Return — Needs Review"
@@ -182,6 +184,19 @@
     });
   }
 
+  function applyFollowupEvidence(rows) {
+    const stamp=at=>new Date(at).toLocaleString('en-US',{timeZone:REPORT_TIMEZONE,timeZoneName:'short'});
+    return rows.map(row=>{
+      const manual=row.manualFollowup,call=row.outboundFollowup;
+      const outboundDetail=call?`Matched by full customer number and later call time. Webex reports: ${call.status}. ${call.connectionReported?'A connection duration was reported.':'Customer connection is not confirmed.'} This does not confirm the customer was helped.`:'';
+      if(manual?.done)return {...row,followupCode:'manual-done',followupLabel:'Marked Done',followupEpoch:call?.at||manual.at,
+        followupTimeCentral:call?stamp(call.at):stamp(manual.at)+' (marked)',followupAgent:call?.agentName||manual.agentName+' (entered)',
+        followupDetail:`Marked done by ${manual.agentName} (name entered, not verified) at ${stamp(manual.at)}. ${manual.note||''} ${outboundDetail}`};
+      if(call&&row.followupCode!=='helped')return {...row,followupCode:'outbound-attempt',followupLabel:'Outbound Call Placed',followupEpoch:call.at,
+        followupTimeCentral:stamp(call.at),followupAgent:call.agentName||'Not reported',followupDetail:outboundDetail};
+      return row;
+    });
+  }
   function getFollowupFilter() {
     return byId("abandonedFollowupFilter")?.value || "all";
   }
@@ -203,8 +218,10 @@
       `${totals["needs-followup"] || 0} need follow-up`,
       `${totals["returned-unresolved"] || 0} returned but unresolved`,
       `${totals.helped || 0} confirmed helped`,
-      `${totals.review || 0} need review`
-    ].join(" · ") + ". Confirmed-helped rows are excluded from dashboard callback scheduling.";
+      `${totals.review || 0} need review`,
+      `${totals["manual-done"] || 0} marked done`,
+      `${totals["outbound-attempt"] || 0} outbound calls placed`
+    ].join(" · ") + (lastPayload?.followupStatus==='unavailable'?". Saved follow-up status is unavailable; marking and scheduling are paused.":"") + ". Helped and marked-done rows are excluded from new dashboard callback scheduling. An outbound attempt alone does not confirm help.";
   }
 
   function setText(id, value) {
@@ -500,10 +517,10 @@
         lastPayload = data;
         reportReady = true;
         states.answered.rows = Array.isArray(data.answeredCalls) ? data.answeredCalls : [];
-        states.abandoned.rows = correlateAbandonedFollowups(
+        states.abandoned.rows = applyFollowupEvidence(correlateAbandonedFollowups(
           Array.isArray(data.abandonedCalls) ? data.abandonedCalls : [],
           states.answered.rows
-        );
+        ));
 
         renderSummary(data.summary || {});
         renderOperatingMode(data);
@@ -853,7 +870,7 @@
       "Abandonment Stage",
       "Agent Name",
       "Follow-up Status",
-      "Return Call Time",
+      "Follow-up / Call Time",
       "Handled By",
       "Follow-up Detail"
     ];
@@ -911,9 +928,14 @@
       const s = states.abandoned, start = (s.page - 1) * REPORT_PAGE_SIZE;
       const search=getSearchValue('abandoned'),followup=getFollowupFilter();
       return { rows: s.rows, filtered: s.filtered, pageRows: s.filtered.slice(start, start + REPORT_PAGE_SIZE),
-        ready: reportCurrent(), filter: [search,followup!=='all'?followup:''].filter(Boolean).join('|'), observedAt: lastPayload?.generatedAtEpoch ?? null };
+        followupReady: lastPayload?.followupStatus==='ready', ready: reportCurrent(), filter: [search,followup!=='all'?followup:''].filter(Boolean).join('|'), observedAt: lastPayload?.generatedAtEpoch ?? null };
     },
-    redraw() { renderTable('abandoned'); }
+    redraw() { renderTable('abandoned'); },
+    updateFollowups(rows) {
+      const byId=new Map(rows.map(r=>[r.contactId,r]));
+      states.abandoned.rows=applyFollowupEvidence(correlateAbandonedFollowups(states.abandoned.rows.map(r=>({...r,manualFollowup:byId.get(r.contactId)||r.manualFollowup})),states.answered.rows));
+      renderTable('abandoned');
+    }
   });
 
   window.VB_WEBEX_REPORTS_TEST = {

@@ -43,6 +43,8 @@ jobs:
           node --check callback-settings/execution.mjs
           node --check webex-abandoned-selection.js
           node --check callback-settings/selection.mjs
+          node --check callback-settings/followup.mjs
+          node --check scripts/integrate-abandoned-followup.mjs
           node --check callback-settings/plans.mjs
           node --check callback-settings/planning-gateway.mjs
           node --check callback-settings/readiness.mjs

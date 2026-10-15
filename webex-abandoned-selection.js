@@ -15,8 +15,10 @@ const key = row => String(row.contactId || '').toLowerCase();
 const fingerprint = row => JSON.stringify([key(row), row.ani, row.startEpoch, row.endEpoch]);
 const possible = row => /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(key(row)) &&
   callbackNumber(row.ani) && Number.isFinite(row.endEpoch) && row.endEpoch > 0 &&
-  row.followupCode !== 'helped' &&
+  !['helped','manual-done'].includes(row.followupCode) &&
+  current?.followupReady !== false &&
   !row.callbackScheduleId && !(Number(row.callbackAttempts) > 0) && !ledger.has(key(row));
+const selectable=row=>/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(key(row))&&Number.isFinite(row.endEpoch)&&row.endEpoch>0;
 const fresh = s => accessReady() && s?.ready !== false &&
   Number.isFinite(s?.observedAt) && Date.now() - s.observedAt <= 180000 &&
   s.observedAt <= Date.now() + 5000 && centralDate(s.observedAt) === centralDate(Date.now());
@@ -24,14 +26,18 @@ const canPrepare=()=>accessReady() && (editingPlan?.status==='draft' || fresh(wi
 function status(message) { if (id('SelectionStatus')) id('SelectionStatus').textContent = message; }
 function syncButtons() {
   const available = fresh(current), matching = current?.filtered.filter(possible) || [];
-  id('ScheduleSelected').disabled = !available || selected.size === 0 || busy;
-  id('ScheduleSelected').textContent = `Schedule selected (${selected.size})`;
+  const scheduleCount=current?.filtered.filter(r=>selected.has(key(r))&&possible(r)).length||0;
+  id('ScheduleSelected').disabled = !available || scheduleCount === 0 || busy;
+  id('ScheduleSelected').textContent = `Schedule selected (${scheduleCount})`;
   id('ScheduleAll').disabled = !available || matching.length === 0 || busy;
   id('ScheduleAll').textContent = current?.filter ? `Schedule all matching (${matching.length})` : `Schedule all eligible today (${matching.length})`;
-  id('SelectMatching').disabled = !available || !matching.length;
-  id('SelectMatching').textContent = `Select all matching across pages (${matching.length})`;
+  const selectableRows=current?.filtered.filter(selectable)||[];
+  id('SelectMatching').disabled = !available || !selectableRows.length;
+  if(id('MarkDone'))id('MarkDone').disabled=!available||!current?.followupReady||busy||selected.size===0||selected.size>100;
+  if(id('Reopen'))id('Reopen').disabled=!available||!current?.followupReady||busy||!current.filtered.some(r=>selected.has(key(r))&&r.manualFollowup?.done)||selected.size>100;
+  id('SelectMatching').textContent = `Select all matching across pages (${selectableRows.length})`;
   id('ClearSelection').disabled = selected.size === 0;
-  status(`${selected.size} selected. ${matching.length} records remain callback-eligible after confirmed-helped exclusions; native duplicate checks remain pending. New arrivals are not automatically selected.`);
+  status(`${selected.size} selected. ${matching.length} records remain callback-eligible after helped / marked-done exclusions; native duplicate checks remain pending. New arrivals are not automatically selected. Mark Done supports up to 100 selected calls.`);
   for (const box of document.querySelectorAll('input[data-callback-select]')) box.checked = selected.has(box.dataset.callbackSelect);
 }
 function setSelected(row, checked) {
@@ -50,13 +56,13 @@ function render() {
   const records = new Map(current.filtered.map(row => [key(row), row]));
   for (const [contactId, signature] of selected) {
     const row = records.get(contactId);
-    if (!row || !possible(row) || fingerprint(row) !== signature) selected.delete(contactId);
+    if (!row || !selectable(row) || fingerprint(row) !== signature) selected.delete(contactId);
   }
   const header = document.querySelector('#abandonedCallsTable thead tr');
   if (!header.querySelector('[data-callback-heading]')) {
     const th = node('th', ''), box = document.createElement('input'); box.type = 'checkbox';
     box.id = 'vbCallbackSelectPage'; box.setAttribute('aria-label', 'Select eligible calls on this page');
-    box.addEventListener('change', () => { for (const row of current.pageRows.filter(possible)) setSelected(row, box.checked); });
+    box.addEventListener('change', () => { for (const row of current.pageRows.filter(selectable)) setSelected(row, box.checked); });
     th.dataset.callbackHeading = 'selection'; th.append(box); header.prepend(th);
     for (const title of ['Callback status', 'Scheduled window — CST/CDT']) {
       const cell = node('th', title); cell.dataset.callbackHeading = title; header.append(cell);
@@ -68,16 +74,16 @@ function render() {
     if (tr.querySelector('[data-callback-cell]')) return;
     const row = current.pageRows[index]; if (!row || tr.cells.length !== 11) return;
     const td = node('td', ''), box = document.createElement('input'); box.type = 'checkbox';
-    td.dataset.callbackCell = 'selection'; box.dataset.callbackSelect = key(row); box.disabled = !possible(row);
+    td.dataset.callbackCell = 'selection'; box.dataset.callbackSelect = key(row); box.disabled = !selectable(row);
     box.setAttribute('aria-label', 'Select abandoned call from ' + String(row.ani || 'unknown number'));
     box.addEventListener('change', () => setSelected(row, box.checked)); td.append(box); tr.prepend(td);
-    const label = row.followupCode === 'helped' ? 'Called back — helped' : row.callbackScheduleId ? 'Already scheduled' : possible(row) ? 'Native status not verified' : 'Not eligible / already attempted';
+    const label = row.manualFollowup?.done ? 'Marked done — excluded' : row.followupCode === 'helped' ? 'Called back — helped' : row.callbackScheduleId ? 'Already scheduled' : possible(row) ? 'Native status not verified' : 'Not eligible / already attempted';
     const statusCell=node('td',label),windowCell=node('td',row.callbackScheduledWindow||'—');
     statusCell.dataset.callbackStatus=key(row);windowCell.dataset.callbackWindow=key(row);tr.append(statusCell,windowCell);
   });
   applyLedger();void loadRecords();
   syncButtons();
-  const eligiblePage = current.pageRows.filter(possible), checked = eligiblePage.filter(row => selected.has(key(row))).length;
+  const eligiblePage = current.pageRows.filter(selectable), checked = eligiblePage.filter(row => selected.has(key(row))).length;
   const page = id('SelectPage'); page.disabled = !eligiblePage.length;
   page.checked = checked > 0 && checked === eligiblePage.length; page.indeterminate = checked > 0 && checked < eligiblePage.length;
 }
@@ -129,7 +135,7 @@ async function openPlan(all = false,planToOpen = null) {
   current = window.VB_ABANDONED_REPORT?.snapshot();
   if (!accessReady() || !planToOpen&&!fresh(current)) { invalidate('Refresh the abandoned-call report before preparing callbacks.'); return; }
   editingPlan=planToOpen;pendingPlanSave=null;
-  frozenIds = editingPlan ? [...editingPlan.contactIds] : all ? current.filtered.filter(possible).map(key) : [...selected.keys()];
+  frozenIds = editingPlan ? [...editingPlan.contactIds] : all ? current.filtered.filter(possible).map(key) : current.filtered.filter(r=>selected.has(key(r))&&possible(r)).map(key);
   frozenIds = [...new Set(frozenIds)]; scope = editingPlan?.scope || (all ? 'all-matching' : 'selected');
   if (!frozenIds.length || frozenIds.length > MAX_SELECTION) { status(`Select between 1 and ${MAX_SELECTION} calls per batch.`); return; }
   busy = true; syncButtons(); saved = null;preparedIntent=null;
@@ -201,9 +207,13 @@ function init() {
   id('NextWindow').addEventListener('click',()=>{if(!saved)return;const w=nextWindow(saved.state.settings,planningNow());id('Date').value=w.date;id('Time').value=w.startTime;preparedIntent=null;id('Execute').disabled=true;updateWindowBounds();id('Time').focus();});
   id('ScheduleSelected').addEventListener('click', () => void openPlan(false));
   id('ScheduleAll').addEventListener('click', () => void openPlan(true));
+  id('MarkDone').addEventListener('click',()=>openFollowup('done'));
+  id('Reopen').addEventListener('click',()=>openFollowup('reopen'));
+  id('FollowupClose').addEventListener('click',()=>id('FollowupDialog').close());
+  id('FollowupForm').addEventListener('submit',saveFollowup);
   id('SelectMatching').addEventListener('click', () => {
     current = window.VB_ABANDONED_REPORT?.snapshot(); if (!fresh(current)) return invalidate('Report unavailable.');
-    const rows = current.filtered.filter(possible);
+    const rows = current.filtered.filter(selectable);
     if (rows.length > MAX_SELECTION) return status(`This batch exceeds ${MAX_SELECTION} calls. Narrow the search before selecting.`);
     selected.clear(); for (const row of rows) selected.set(key(row), fingerprint(row)); render();
   });
@@ -232,8 +242,7 @@ function applyLedger(){
     const time=document.querySelector('[data-callback-window="'+row.contactId+'"]');
     if(time)time.textContent=new Date(row.window.startEpoch).toLocaleString('en-US',{timeZone:'America/Chicago',timeZoneName:'short'})+' – '+
       new Date(row.window.endEpoch).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit'});
-    const box=document.querySelector('[data-callback-select="'+row.contactId+'"]');if(box){box.disabled=true;box.checked=false;}
-    selected.delete(row.contactId);
+    const box=document.querySelector('[data-callback-select="'+row.contactId+'"]');if(box){box.disabled=!fresh(current);}
   }
 }
 async function loadRecords(force=false){
@@ -309,4 +318,28 @@ async function savePlan(){
     else{try{const result=await api('plans?mutationId='+mutationId);if(result.mutation&&result.plan)accept(result.plan);else id('DraftStatus').textContent='Save result not confirmed. Check Saved callback plans before creating another plan.';}
       catch{id('DraftStatus').textContent='Save result not confirmed. No Webex scheduling was requested.';}}}
   finally{busy=false;id('SavePlan').disabled=!accessReady();id('Preview').disabled=!canPrepare();syncButtons();}
+}
+
+let followupIntent=null,followupPending=null;
+function openFollowup(action){
+ current=window.VB_ABANDONED_REPORT?.snapshot();if(!fresh(current)||!current.followupReady||busy)return;
+ const rows=current.filtered.filter(r=>selected.has(key(r))&&(action!=='reopen'||r.manualFollowup?.done));
+ if(!rows.length||rows.length>100)return status('Select between 1 and 100 calls.');
+ followupIntent={action,contactIds:rows.map(key)};followupPending=null;
+ id('FollowupTitle').textContent=action==='done'?'Mark selected calls done':'Reopen selected calls';
+ id('FollowupDescription').textContent=`${rows.length} selected call(s). `+(action==='done'?'Use this after someone has manually followed up. This records completion; it does not place a call.':'This removes the manual done mark so these calls can be reviewed again.');
+ id('FollowupSave').textContent=action==='done'?'Mark Done':'Reopen';id('FollowupSave').disabled=false;
+ id('FollowupStatus').textContent='';id('FollowupNote').value='';id('FollowupDialog').showModal();
+}
+async function saveFollowup(event){
+ event.preventDefault();if(busy||!followupIntent||!accessReady()||!id('FollowupForm').reportValidity())return;
+ const change={...followupIntent,agentName:id('FollowupName').value.trim(),note:id('FollowupNote').value.trim()};
+ const signature=JSON.stringify(change);
+ if(followupPending&&followupPending.signature!==signature){id('FollowupStatus').textContent='Retry the unchanged request to confirm the previous save before changing its details.';return;}
+ followupPending ||= {signature,mutationId:crypto.randomUUID()};
+ busy=true;id('FollowupSave').disabled=true;syncButtons();id('FollowupStatus').textContent='Saving follow-up status…';
+ try{const result=await api('followups',{...change,mutationId:followupPending.mutationId});
+  selected.clear();window.VB_ABANDONED_REPORT?.updateFollowups(result.rows);followupPending=null;id('FollowupDialog').close();status(`Saved follow-up status for ${result.rows.length} call(s).`);
+ }catch(error){if(error.status&&error.status<500)followupPending=null;id('FollowupStatus').textContent='Save not confirmed: '+error.message+'. You can retry; the same request will not be recorded twice.';}
+ finally{busy=false;id('FollowupSave').disabled=false;syncButtons();}
 }

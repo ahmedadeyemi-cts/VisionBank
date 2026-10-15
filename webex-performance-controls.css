@@ -54,3 +54,12 @@ body .vb-performance-controls button:focus-visible { outline: 3px solid #e5ad16;
   body .vb-performance-controls select { width: 100%; }
   body .vb-performance-start-date { flex-basis: 100%; }
 }
+
+/* One row per agent, with compact call/chat summaries. */
+.vb-combined-agent-panel .vb-legacy-agent-table { display:none !important; }
+.vb-combined-agent-panel #vbChatAgents { margin-top:12px; border:0; padding:0; }
+.vb-combined-agent-panel #vbChatAgents > h2 { display:none !important; }
+.vb-combined-agent-panel #chat-agents-body td:nth-child(5),
+.vb-combined-agent-panel #chat-agents-body td:nth-child(6) { white-space:pre-line; text-align:left; min-width:150px; line-height:1.65; }
+.vb-combined-agent-panel #chat-agents-body td:first-child { min-width:150px; }
+.vb-combined-agent-panel #chat-agents-body td:last-child { min-width:155px; }

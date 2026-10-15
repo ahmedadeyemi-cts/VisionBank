@@ -1,3 +1,4 @@
+import {FollowupStore} from './followup.mjs';
 import {CallbackPlans} from './plans.mjs';
 import {CallbackExecution} from './execution.mjs';
 import { REVISION, SettingsError, initialState, parseMutation, normalizeSettings, processingState } from './policy.mjs';
@@ -38,6 +39,7 @@ export class AbandonedCallbackSettingsV1 {
   async fetch(request) {
     try {
       const u = new URL(request.url);
+      if(u.pathname==='/followups')return await new FollowupStore(this.storage).fetch(request);
       if(u.pathname==='/plans')return this.plans.fetch(request);
       if(u.pathname==='/flow-token/status'&&request.method==='GET'){
         const meta=await this.storage.get('flow-token:meta');return output({success:true,configured:!!meta,createdAt:meta?.createdAt||null,lastRotatedAt:meta?.lastRotatedAt||null,fingerprint:meta?.fingerprint||null});

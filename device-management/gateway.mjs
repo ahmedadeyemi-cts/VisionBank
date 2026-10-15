@@ -613,6 +613,9 @@ async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,en
         requestedExtension:intent.memberQuery||target?.extension||'',
         targetMemberId:intent.memberId||target?.id||'',
         durationMinutes:intent.durationMinutes,
+        upstreamStatus:error?.upstreamStatus||null,
+        providerFailure:error?.providerFailure||null,
+        providerAttempts:error?.providerAttempts||1,
         stage
       },
       reason:stage+': '+String(error?.code||error?.message||'phone-save-failed').slice(0,160),

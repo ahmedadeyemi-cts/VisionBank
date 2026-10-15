@@ -228,7 +228,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     const audit=buildAuditRecord({
       eventType:'temporary-line-change',action:'save-sync',request,session,
       device:preview.device,location:preview.location,
-      change:{beforeLine2:preview.baselineLine2,afterLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,stage:webexSaved?'phonism-sync':'webex-members-write',errorCode:error?.code||'provider-operation-failed'},
+      change:{beforeLine2:preview.baselineLine2,afterLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,stage:webexSaved?'phonism-sync':'webex-members-write',errorCode:error?.code||'provider-operation-failed',upstreamStatus:error?.upstreamStatus||null,providerFailure:error?.providerFailure||null,providerAttempts:error?.providerAttempts||1},
       reason:preview.reason,webexStatus:webexSaved?(rolledBack?'rolled-back':'saved'):'failed',
       phonismStatus:phonismQueued?'sync-queued':'failed',result:rolledBack?'rolled-back':'failed'
     });

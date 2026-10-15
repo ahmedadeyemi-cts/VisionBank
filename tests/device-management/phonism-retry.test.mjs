@@ -51,3 +51,10 @@ test('line confirmation asks intermediaries for fresh status',async t=>{
  await defaultPhonismFetch(env,'/hierarchy/');
  assert.equal(headers['Cache-Control'],undefined);
 });
+
+test('bounded fallback dispatch makes only one request even for temporary errors',async t=>{
+ let calls=0;
+ t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({errors:[]},{status:503});});
+ await assert.rejects(createPhonismReader().syncHierarchyIntegration(env,'123',{singleAttempt:true,timeoutMs:3000}));
+ assert.equal(calls,1);
+});

@@ -367,8 +367,8 @@ test('unconfirmed save defers reboot; durable retry verifies both providers and 
   assert.equal(applied.syncPending,true);assert.equal(applied.rebootQueued,false);assert.equal(ph.state.rebootAttempts,0);
   assert.equal(applied.lease.verification.state,'sync-pending');
   assert.ok(applied.lease.recovery.initialSyncCheckCompletedAt);
-  assert.ok(Date.parse(applied.lease.recovery.phonePollUntil)>Date.now()+80000);
-  const now=Date.parse(applied.lease.startsAt)+5*60000;
+  assert.ok(Date.parse(applied.lease.recovery.phonePollUntil)>Date.now()+290000);
+  const now=Date.parse(applied.lease.recovery.phonePollUntil)+1;
   await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
   assert.equal(ph.state.rebootAttempts,0,'stale Phonism must not trigger reboot');
   ph.state.lineReads=100;

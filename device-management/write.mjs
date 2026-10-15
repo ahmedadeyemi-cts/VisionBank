@@ -271,7 +271,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     if(!syncConfirmation.confirmed){
       lease.recovery={...lease.recovery,syncConfirmAttempts:syncConfirmation.attempts,syncConfirmError:syncConfirmation.error||'phonism-line-not-ready',initialSyncCheckCompletedAt:new Date().toISOString(),
         // Give the active handset a bounded fast-check window; cron takes over afterwards.
-        phonePollUntil:session.actorType==='device'?new Date(Date.now()+90000).toISOString():null};
+        phonePollUntil:session.actorType==='device'?new Date(Date.now()+300000).toISOString():null};
       lease.verification={...lease.verification,phonism:'pending',state:'sync-pending',lastCheckedAt:new Date().toISOString()};
       await putLease(env,lease);
       await writeAuditRecord(env,buildAuditRecord({
@@ -534,11 +534,18 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
   const checkStartedAt=Date.now();
   let error=null,confirmed=false;
   try{
-    const current=await boundedProviderCall(()=>readWebexMembers(webexFetch,env,orgId,lease.device.id),4000);
-    const line2=line2SummaryFromMembers(current.members);
+    // Both reads are independent; do not add their network latencies together.
+    // Settle both so a failed Phonism read cannot conceal a changed Webex assignment.
+    const [webex,phonism]=await Promise.allSettled([
+      boundedProviderCall(()=>readWebexMembers(webexFetch,env,orgId,lease.device.id),4000),
+      boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),3000)
+    ]);
+    if(webex.status==='rejected')throw webex.reason;
+    const line2=line2SummaryFromMembers(webex.value.members);
     const same=lease.temporaryLine2?String(line2?.memberId||'')===String(lease.temporaryLine2.memberId):!line2;
     if(!same)error='webex-line-changed';
-    else confirmed=phonismLineMatchesTarget(await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),3000),lease.temporaryLine2);
+    else if(phonism.status==='rejected')throw phonism.reason;
+    else confirmed=phonismLineMatchesTarget(phonism.value,lease.temporaryLine2);
   }catch(e){error=e?.code||'line-sync-check-failed';}
   // Never cross the fixed ownership boundary or restart after expiry.
   if(phoneDeadline&&Date.now()>=phoneDeadline)return;

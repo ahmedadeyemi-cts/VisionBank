@@ -18,8 +18,8 @@ async function setup(model='T57W'){
  const now=Date.now();
  const lease={leaseId:crypto.randomUUID(),status:'active',device:enrollment.device,location:enrollment.location,phonismPhoneId:'phone',startsAt:new Date(now-130000).toISOString(),expiresAt:new Date(now+600000).toISOString(),temporaryLine2:{memberId:'target',extension:'1406'},recovery:{syncPending:true},verification:{state:'sync-pending'}};
  const state={reboots:0,webexReads:0,lineReads:0,member:'target',line:'1406',fail:false};
- const webexFetch=async()=>{state.webexReads++;return Response.json({members:[{id:state.member,port:2,extension:state.line}]});};
- const phonismReader={async lines(){state.lineReads++;return [{lineNumber:2,username:state.line}];},async tr069Action(){state.reboots++;if(state.fail)throw Error('provider-timeout');return {accepted:true};}};
+ const webexFetch=async()=>{state.webexReads++;if(state.waitForLineRead)await state.waitForLineRead;return Response.json({members:[{id:state.member,port:2,extension:state.line}]});};
+ const phonismReader={async lines(){state.lineReads++;state.onLineRead?.();if(state.failLineRead)throw Error('line-read-failed');return [{lineNumber:2,username:state.line}];},async tr069Action(){state.reboots++;if(state.fail)throw Error('provider-timeout');return {accepted:true};}};
  const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
  const base=enrolled.xmlUrl;
  async function get(action='progress',intentId=intent.intentId){const req=new Request(base+'?a='+action+'&intent='+intentId,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-'+model}});Object.defineProperty(req,'cf',{value:{colo:'TEST'}});const r=await handler(req,env);return {status:r.status,text:await r.text()};}
@@ -115,4 +115,41 @@ test('countdown follows original Save time, survives refresh, and switches at ze
  const ready={status:'active',expiresAt:new Date(start+900000).toISOString(),recovery:{syncConfirmedBeforeReboot:true,syncPending:false,rebootAt:new Date(start+20000).toISOString()}};
  assert.equal(phoneProgressState(intent,ready,start+25000).title,'Restarting your phone...');
  assert.equal(phoneProgressState(intent,ready,start+81000).kind,'restart');
+});
+
+test('T53, T54W and T57W keep fast confirmation beyond the old ninety-second cutoff',async()=>{
+ for(const model of ['T53','T54W','T57W']){
+  const f=await setup(model);
+  f.lease.startsAt=new Date(Date.now()-220000).toISOString();
+  f.lease.recovery={syncPending:true,syncPendingSince:f.lease.startsAt,initialSyncCheckCompletedAt:f.lease.startsAt,phonePollUntil:new Date(Date.now()+80000).toISOString()};
+  await f.saved();
+  assert.equal((await f.get()).status,200);
+  assert.equal(f.state.reboots,1);
+  assert.equal((await getLease(f.env,f.lease.leaseId)).recovery.lastSyncCheckSource,'phone-progress');
+ }
+});
+test('confirmation starts Phonism and Webex reads concurrently',async()=>{
+ const f=await setup();
+ f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+300000).toISOString()};
+ f.state.waitForLineRead=new Promise(resolve=>{f.state.onLineRead=resolve;});
+ await f.saved();await f.get();
+ assert.equal(f.state.reboots,1);
+ assert.equal(f.state.webexReads,1);assert.equal(f.state.lineReads,1);
+});
+test('parallel check rejects changed assignment even when Phonism read fails',async()=>{
+ const f=await setup();
+ f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+300000).toISOString()};
+ f.state.member='someone-else';f.state.failLineRead=true;
+ await f.saved();await f.get();
+ assert.equal(f.state.reboots,0);
+ const lease=await getLease(f.env,f.lease.leaseId);
+ assert.equal(lease.recovery.syncFailed,true);
+ assert.equal(lease.recovery.syncConfirmError,'webex-line-changed');
+});
+test('expired assignment cannot reboot during the extended fast-check window',async()=>{
+ const f=await setup();
+ f.lease.expiresAt=new Date(Date.now()-1000).toISOString();
+ f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+300000).toISOString()};
+ await f.saved();await f.get();
+ assert.equal(f.state.reboots,0);assert.equal(f.state.webexReads,0);
 });

@@ -1,0 +1,23 @@
+{
+  "revision": "20261015-followup2",
+  "candidates": [
+    {
+      "name": "visionbank-abandoned-callback-settings",
+      "base": "aa685680-8678-49c7-9484-1795a54dfb73",
+      "candidate": "254da860-0b6d-48f0-ad55-594b7e3f7e96",
+      "modules": 4,
+      "bindings": 3
+    },
+    {
+      "name": "visionbank-security",
+      "base": "45ae511b-2667-4c56-8f45-f88ceb5d61e6",
+      "candidate": "f54ff706-988f-47f1-ad9d-942e2d9ed8de",
+      "modules": 22,
+      "bindings": 39
+    }
+  ],
+  "zeroTrafficVerified": true,
+  "classMigrations": false,
+  "existingSchedulesCanceled": false,
+  "automaticallyDials": false
+}

@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20261001-token-manager1">
 <link rel="stylesheet" href="webex-abandoned-selection.css?v=20261004-chat-callback-ui1">
 <link rel="stylesheet" href="portal-enterprise.css?v=20261006-shell6">
-<link rel="stylesheet" href="webex-performance-controls.css?v=20261015-view1">
+<link rel="stylesheet" href="webex-performance-controls.css?v=20261015-compact1">
 <link rel="stylesheet" href="portal-help.css?v=20261013-help1">
 </head>
 
@@ -70,7 +70,7 @@
     </div>
   </div>
 </header>
-<div class="vb-callback-toolbar"><button type="button" id="abandonedCallbackSettingsToggle" class="vb-callback-settings-btn" aria-controls="abandonedCallbackSettingsPanel" aria-expanded="false">Abandoned Callback Settings</button></div>
+<div class="vb-callback-toolbar" id="dashboard-section-links"><nav class="vb-section-links" aria-label="Jump to dashboard section"><span>Jump to:</span><a href="#queue-panel">Queues</a><a href="#agent-performance-panel">Agents</a><a href="#voice-statistics-panel">Voice stats</a><a href="#vbChatStats">Chat stats</a><a href="#enterpriseAnalyticsPanel">Analytics</a><a href="#answeredCallsPanel">Answered calls</a><a href="#vbHandledChats">Handled chats</a><a href="#abandonedCallsPanel">Abandoned calls</a><a href="#vbAbandonedChats">Abandoned chats</a><a href="#vbCallbackWorkspace">Callback workspace</a><a href="#vbCallbacks">Callback history</a></nav><button type="button" id="abandonedCallbackSettingsToggle" class="vb-callback-settings-btn" aria-controls="abandonedCallbackSettingsPanel" aria-expanded="false">Abandoned Callback Settings</button></div>
 <section id="abandonedCallbackSettingsPanel" class="vb-callback-panel" hidden aria-labelledby="abandonedCallbackSettingsTitle">
   <div class="vb-callback-heading"><h2 id="abandonedCallbackSettingsTitle">Abandoned Callback Settings</h2>
     <button type="button" id="abandonedCallbackClose" aria-label="Close abandoned callback settings">Close</button></div>
@@ -418,8 +418,9 @@
   </section>
 
   <!-- AGENT PERFORMANCE (MIDDLE) -->
-  <section class="panel">
+  <section class="panel" id="agent-performance-panel">
     <h2>Agent Performance</h2>
+    <details id="agent-performance-options" class="vb-performance-options"><summary>Performance options, search &amp; notes</summary>
       <div class="agent-startdate-toggle vb-performance-controls">
   <label class="vb-performance-period"><span>Performance period:</span><select id="agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label>
   <button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button>
@@ -447,6 +448,7 @@
 
     <p id="agent-login-filter-note" role="status"></p>
     <p id="agent-performance-note" role="status">Loading daily performance…</p>
+    </details>
     <table class="data-table">
       <thead>
         <tr>
@@ -472,7 +474,7 @@
   </section>
 
   <!-- REALTIME GLOBAL STATISTICS (BOTTOM) -->
-  <section class="panel">
+  <section class="panel" id="voice-statistics-panel">
     <h2>Realtime Global Statistics</h2>
     <div id="global-error" class="error"></div>
 
@@ -931,7 +933,7 @@
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
-<script src="webex-integrated-chat.js?v=20261015-view1"></script>
+<script src="webex-integrated-chat.js?v=20261015-compact1"></script>
 <script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
 <script type="module" src="webex-abandoned-selection.js?v=20261015-followup2"></script>

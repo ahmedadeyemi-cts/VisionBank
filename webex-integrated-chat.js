@@ -250,7 +250,7 @@
       agent.querySelector('h2').hidden=true;
     }
     const combinedColumns=[
-      ['Agent',r=>[r.name||r.agentId,r.voice?.team,r.voice?.number].filter(Boolean).join(' · ')],
+      ['Agent',r=>[r.name||r.agentId,r.voice?.team,r.voice?.number].filter(Boolean).join('\n')],
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Time in state',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
@@ -284,10 +284,14 @@
       agentPanel.querySelector('h2').textContent=separate?'Agent Performance — Calls':'Agent Performance — Calls & Chats';
       agent.querySelector('h2').textContent=separate?'Chat Agent Performance':'Calls and Chats';
       agent.querySelector('h2').hidden=!separate;
+      $('chat-agents-meta')?.remove();
+      $('chat-agents-search')?.closest('.vb-ops-tools')?.remove();
       agent.querySelector('.vb-ops-table-block')?.remove();
       table(agent,'chat-agents',separate?separateColumns:combinedColumns);
       const note=agent.querySelector('.vb-chat-session-note');
       if(note)agent.insertBefore(agent.querySelector('.vb-ops-table-block'),note);
+      const options=$('agent-performance-options');
+      if(options){options.append($('chat-agents-meta'),$('chat-agents-search').closest('.vb-ops-tools'));}
       $('chat-agents-search').value=search;
       $('agent-performance-view').value=performanceView;
     }
@@ -299,6 +303,8 @@
     applyPerformanceView();
     agent?.insertAdjacentHTML('beforeend','<p class="vb-ops-meta vb-chat-session-note">The performance period applies to call totals and chat offered/missed totals. Chat handled and completed always cover today and count toward the last agent. *Completed includes chats started today. RONA means an offered chat was not accepted. Live activity and time in state remain current.</p>');
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
+    const options=$('agent-performance-options');
+    for(const node of agent.querySelectorAll('.vb-chat-session-note,.vb-channel-legend'))options?.append(node);
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
     const fields=[['Customer Name',nameFor],['Contact ID',r=>r.contactId],['Queue',r=>r.queue||'Unavailable'],['Agent (reported)',r=>r.agent||'Unavailable'],

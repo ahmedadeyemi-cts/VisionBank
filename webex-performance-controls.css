@@ -66,3 +66,21 @@ body .vb-performance-controls button:focus-visible { outline: 3px solid #e5ad16;
 
 .vb-separated-agent-panel #vbChatAgents { margin-top:24px; border-top:1px solid var(--border, #cbd8d3); padding-top:18px; }
 .vb-separated-agent-panel #vbChatAgents > h2 { display:block; }
+
+/* Compact performance display with optional controls and guidance. */
+.vb-performance-options { margin:8px 0 12px; border:1px solid var(--border,#cbd8d3); border-radius:8px; padding:8px 12px; }
+.vb-performance-options summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--text,#15231e); }
+.vb-performance-options summary:focus-visible,.vb-section-links a:focus-visible { outline:3px solid #e5ad16; outline-offset:3px; }
+.vb-combined-agent-panel #chat-agents-body td:first-child { width:135px; min-width:110px; max-width:155px; white-space:pre-line; text-align:left; }
+.vb-combined-agent-panel #chat-agents-body td { padding:6px; }
+.vb-combined-agent-panel #chat-agents-body td:nth-child(5),
+.vb-combined-agent-panel #chat-agents-body td:nth-child(6) { min-width:125px; line-height:1.45; }
+.vb-combined-agent-panel #chat-agents-body td:last-child { min-width:115px; max-width:145px; }
+.vb-combined-agent-panel #chat-agents-body td.vb-channel-cell { min-width:190px; padding:6px!important; }
+.vb-combined-agent-panel #chat-agents-body .vb-channel { min-width:80px; gap:4px; }
+.vb-combined-agent-panel #vbChatAgents table { min-width:820px; }
+body .vb-callback-toolbar { flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; }
+.vb-section-links { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; flex:1 1 650px; font-size:12px; }
+.vb-section-links span { font-weight:600; }
+.vb-section-links a { color:var(--text,#185342); text-decoration:underline; text-underline-offset:3px; padding:4px 0; }
+.panel[id],#vbChatStats { scroll-margin-top:24px; }

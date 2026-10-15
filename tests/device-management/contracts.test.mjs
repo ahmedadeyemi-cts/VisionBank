@@ -69,14 +69,14 @@ test('preview becomes executable only with both write paths and a verified non-d
   assert.match(plan.summary,/Phonism Sync/);
 });
 
-test('apply request requires a temporary duration and caps it at 30 days',()=>{
+test('apply request requires a temporary duration and caps it at 365 days',()=>{
   assert.deepEqual(
     validateApplyRequest({mutationId:MID,expectedVersion:3,durationMinutes:720}),
     {mutationId:MID,expectedVersion:3,durationMinutes:720}
   );
   assert.equal(validateTemporaryDuration(15),15);
-  for(const minutes of [720,1440,10080,43200])assert.equal(validateTemporaryDuration(minutes),minutes);
-  assert.throws(()=>validateTemporaryDuration(43201),error=>error.code==='invalid-temporary-duration');
+  for(const minutes of [720,1440,10080,43200,44640,525600])assert.equal(validateTemporaryDuration(minutes),minutes);
+  assert.throws(()=>validateTemporaryDuration(525601),error=>error.code==='invalid-temporary-duration');
   assert.throws(()=>validateTemporaryDuration(0),error=>error.code==='invalid-temporary-duration');
   assert.throws(
     ()=>validateApplyRequest({mutationId:MID,expectedVersion:3,durationMinutes:60,deviceId:'dev-1'}),

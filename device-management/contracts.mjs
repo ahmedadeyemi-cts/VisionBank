@@ -1,7 +1,7 @@
 const OWNER_TYPES=new Set(["PEOPLE","PLACE"]);
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export const TEMP_LINE_MIN_MINUTES=15;
-export const TEMP_LINE_MAX_MINUTES=30*24*60;
+export const TEMP_LINE_MAX_MINUTES=365*24*60;
 
 export class DeviceManagementError extends Error{
   constructor(code,status=400){super(code);this.code=code;this.status=status;}

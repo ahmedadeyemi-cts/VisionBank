@@ -467,12 +467,12 @@ test('a newer assignment supersedes delayed cleanup without an old restart or wr
   assert.equal(wx.state.puts.length,writes);assert.equal(ph.state.rebootAttempts,0);
 });
 
-test('30 day assignment retains exact expiry and restores at that time',async()=>{
+test('365 day assignment retains exact expiry and restores at that time',async()=>{
   const e=env(),wx=webexFixture(),ph=phonismFixture();
-  const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:43200,reason:'',phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
+  const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:525600,reason:'',phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
   const {lease}=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   const due=Date.parse(lease.expiresAt);
-  assert.equal(due-Date.parse(lease.startsAt),30*86400000);
+  assert.equal(due-Date.parse(lease.startsAt),365*86400000);
   await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due-1});
   assert.equal(wx.state.members[1].id,TARGET.id);
   ph.reader.lines=async()=>[];

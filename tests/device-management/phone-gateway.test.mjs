@@ -80,12 +80,12 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
 
   assert.match(duration.text,/Custom Days/);
   const custom=await xml(handler,env,'https://worker.example/p/'+token+'?a=n&member=user-2&q=4102&locationId=loc-a');
-  assert.equal(custom.status,200);assert.match(custom.text,/<YealinkIPPhoneInputScreen type="number"/);assert.match(custom.text,/<Parameter>days<\/Parameter>/);assert.match(custom.text,/Enter days \(1-30\)/);
-  for(const days of ['', '0','31','-1','1.5','1e1','Infinity','abc','999999999']){
+  assert.equal(custom.status,200);assert.match(custom.text,/<YealinkIPPhoneInputScreen type="number"/);assert.match(custom.text,/<Parameter>days<\/Parameter>/);assert.match(custom.text,/Enter days \(1-365\)/);
+  for(const days of ['', '0','366','-1','1.5','1e1','Infinity','abc','999999999']){
     const invalid=await xml(handler,env,'https://worker.example/p/'+token+'?a=c&member=user-2&q=4102&locationId=loc-a&days='+encodeURIComponent(days));
     assert.equal(invalid.status,200);assert.match(invalid.text,/Whole days only/);assert.doesNotMatch(invalid.text,/intent=/);
   }
-  for(const days of [1,2,10,30]){
+  for(const days of [1,2,10,30,31,180,365]){
     const customConfirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=c&member=user-2&q=4102&locationId=loc-a&days='+days);
     assert.equal(customConfirm.status,200);assert.ok(customConfirm.text.includes('Save - '+days+(days===1?' day':' days')));
     const customIntent=customConfirm.text.match(/intent=([0-9a-f-]{36})/i)[1];
@@ -93,9 +93,9 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   }
   assert.equal(webex.puts.length,0,'entering custom days must not save before confirmation');
 
-  const confirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=confirm&member=user-2&q=4102&locationId=loc-a&days=10');
+  const confirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=confirm&member=user-2&q=4102&locationId=loc-a&days=365');
   assert.match(confirm.text,/4102 - Temporary User/);
-  assert.match(confirm.text,/Save - 10 days/);
+  assert.match(confirm.text,/Save - 365 days/);
   assert.match(confirm.text,/Change time/);
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
   assert.ok(match);
@@ -116,8 +116,8 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,1);
 
   const leases=[...env.LOGS.map.entries()].filter(([k])=>k.startsWith('device-lease:')).map(([,v])=>JSON.parse(v.value));
-  assert.equal(leases[0].durationMinutes,14400);
-  assert.equal(Date.parse(leases[0].expiresAt)-Date.parse(leases[0].startsAt),10*86400000);
+  assert.equal(leases[0].durationMinutes,525600);
+  assert.equal(Date.parse(leases[0].expiresAt)-Date.parse(leases[0].startsAt),365*86400000);
   const activeHome=await xml(handler,env,launch);
   assert.match(activeHome.text,/Line 2: 4102 - Temporary User/);
   assert.match(activeHome.text,/Sign Out Temporary Line/);

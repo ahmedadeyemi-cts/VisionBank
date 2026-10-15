@@ -18,13 +18,13 @@ async function setup(model='T57W'){
  const now=Date.now();
  const lease={leaseId:crypto.randomUUID(),status:'active',device:enrollment.device,location:enrollment.location,phonismPhoneId:'phone',startsAt:new Date(now-130000).toISOString(),expiresAt:new Date(now+600000).toISOString(),temporaryLine2:{memberId:'target',extension:'1406'},recovery:{syncPending:true},verification:{state:'sync-pending'}};
  const state={reboots:0,webexReads:0,lineReads:0,member:'target',line:'1406',fail:false};
- const webexFetch=async()=>{state.webexReads++;if(state.waitForLineRead)await state.waitForLineRead;return Response.json({members:[{id:state.member,port:2,extension:state.line}]});};
- const phonismReader={async lines(){state.lineReads++;state.onLineRead?.();if(state.failLineRead)throw Error('line-read-failed');return [{lineNumber:2,username:state.line}];},async tr069Action(){state.reboots++;if(state.fail)throw Error('provider-timeout');return {accepted:true};}};
+ const webexFetch=async()=>{state.webexReads++;if(state.waitForLineRead)await state.waitForLineRead;return Response.json({members:state.member?[{id:state.member,port:2,extension:state.line}]:[]});};
+ const phonismReader={async syncHierarchyIntegration(){return {accepted:true};},async lines(){state.lineReads++;state.onLineRead?.();if(state.failLineRead)throw Error('line-read-failed');return state.line?[{lineNumber:2,username:state.line}]:[];},async tr069Action(){state.reboots++;if(state.fail)throw Error('provider-timeout');return {accepted:true};}};
  const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
  const base=enrolled.xmlUrl;
  async function get(action='progress',intentId=intent.intentId){const req=new Request(base+'?a='+action+'&intent='+intentId,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-'+model}});Object.defineProperty(req,'cf',{value:{colo:'TEST'}});const r=await handler(req,env);return {status:r.status,text:await r.text()};}
  async function saved(){await putLease(env,lease);await finishPhoneIntent(env,intent.intentId,{leaseId:lease.leaseId,expiresAt:lease.expiresAt});}
- return {env,enrollment,intent,lease,state,get,saved};
+ return {env,enrollment,intent,lease,state,get,saved,handler,base};
 }
 test('refresh XML escapes URL and leaves other text screens unchanged',()=>{
  const xml=textScreen('Adding','Wait',{refresh:5,url:'https://example.test/p?a=g&intent=x'});
@@ -152,4 +152,28 @@ test('expired assignment cannot reboot during the extended fast-check window',as
  f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+300000).toISOString()};
  await f.saved();await f.get();
  assert.equal(f.state.reboots,0);assert.equal(f.state.webexReads,0);
+});
+
+
+test('sign-out confirmation automatically restores, refreshes and restarts each phone without a lease scan',async()=>{
+ for(const model of ['T53','T54W','T57W']){
+  const f=await setup(model);await f.saved();
+  // Restore is already present in Webex; provider still shows the old temporary line.
+  f.state.member=null;
+  const call=async(action,ctx)=>{const req=new Request(f.base+'?a='+action+'&lease='+f.lease.leaseId,{headers:{'CF-Connecting-IP':'203.0.113.44','User-Agent':'Yealink SIP-'+model}});Object.defineProperty(req,'cf',{value:{colo:'TEST'}});const res=await f.handler(req,f.env,{},ctx);return {status:res.status,text:await res.text()};};
+  const tasks=[];const response=await call('o',{waitUntil:p=>tasks.push(p)});
+  assert.equal(response.status,200);assert.match(response.text,/Signing out/);assert.match(response.text,/refresh="5"/);assert.match(response.text,/a=h/);assert.doesNotMatch(response.text,/Return|Sign Out Now/);
+  await Promise.all(tasks);
+  const first=await getLease(f.env,f.lease.leaseId);assert.ok(first.manualEndRequestedAt);assert.equal(f.state.reboots,0);
+  await call('o');assert.equal((await getLease(f.env,f.lease.leaseId)).manualEndRequestedAt,first.manualEndRequestedAt);
+  // Empty Phonism line confirms the removal, then exactly one restart is dispatched.
+  f.state.line='';
+  const done=await call('h');assert.equal(done.status,200);assert.match(done.text,/Signed Out/);assert.equal(f.state.reboots,1);
+  await call('h');assert.equal(f.state.reboots,1);
+ }
+});
+test('sign-out rejects a lease belonging to another phone',async()=>{
+ const f=await setup();f.lease.phonismPhoneId='different';await f.saved();
+ const req=new Request(f.base+'?a=o&lease='+f.lease.leaseId,{headers:{'CF-Connecting-IP':'203.0.113.44'}});Object.defineProperty(req,'cf',{value:{colo:'TEST'}});
+ assert.equal((await f.handler(req,f.env)).status,403);assert.equal(f.state.reboots,0);assert.equal((await getLease(f.env,f.lease.leaseId)).manualEndRequestedAt,undefined);
 });

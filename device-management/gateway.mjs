@@ -4,7 +4,7 @@ import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistrat
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,listIssueRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
 import {isPilotDevice,listLeases,getLease,deviceWriteScope} from './lease.mjs';
-import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease,advancePhoneLineSync} from './write.mjs';
+import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease,advancePhoneLineSync,advancePhoneSignout} from './write.mjs';
 import {
   identityPolicy,getAdminSettings,setVerificationEnabled,setDefaultVerificationHours,
   setUserVerificationHours,removeUserVerificationHours,addDeviceAdmin,removeDeviceAdmin,
@@ -505,8 +505,8 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o',progress:'g',restart:'r',customDays:'n'};
-const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply',g:'progress',r:'restart',n:'customDays'};
+const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o',progress:'g',restart:'r',customDays:'n',signoutProgress:'h'};
+const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply',g:'progress',r:'restart',n:'customDays',h:'signoutProgress'};
 const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
@@ -707,6 +707,24 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   const generatedOrigin=fleetKey?phoneActionOrigin(request,{fleetKey:true}):null;
   await recordPhoneNavigationEvent(env,request,enrollment,{action:navigationAction,outcome:'received',generatedOrigin}).catch(()=>{});
   try{
+    const signoutResponse=async(leaseId,start=false)=>{
+      let current=await getLease(env,leaseId);
+      if(!current||current.device?.mac!==enrollment.device.mac||String(current.phonismPhoneId)!==String(enrollment.phonismPhoneId))throw new DeviceManagementError('phone-credential-invalid',403);
+      if(start)await endTemporaryLease({env,request,session:phoneSession(enrollment),webexFetch,orgId:org,leaseId,phonismReader,deferWork:true});
+      const work=advancePhoneSignout({env,enrollment,leaseId,webexFetch,orgId:org,phonismReader});
+      if(executionContext?.waitUntil)executionContext.waitUntil(work.catch(()=>{}));
+      else await work;
+      current=await getLease(env,leaseId);
+      const done=['restored','external-change-reconciled','superseded'].includes(current.status);
+      const elapsed=Date.now()-Date.parse(current.manualEndRequestedAt||'');
+      const title=done?'Signed Out':elapsed>=120000?'Taking longer than expected':'Signing out...';
+      const text=done?(current.status==='superseded'?'Sign-out finished. A newer phone assignment has been preserved.':'Your temporary line is signed out. Restart requested. Please wait for your phone to restart.'):
+        'Please wait. Your temporary line is being removed and your phone will restart automatically. No further action is needed.';
+      return phoneXmlResponse(textScreen(title,text,{timeout:done?120:0,lockIn:!done,refresh:done?0:5,url:phoneRouteUrl(request,'signoutProgress',{lease:leaseId},accessToken,fleetKey,normalizedFleetMac)}));
+    };
+    if(part==='phone/signoutProgress'||(part==='phone/signoutApply'&&phoneUrl.searchParams.get('lease'))){
+      return await signoutResponse(phoneUrl.searchParams.get('lease'),part==='phone/signoutApply');
+    }
     const progressResponse=async(intent)=>{
       const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
       if(current&&(current.device?.mac!==enrollment.device.mac||String(current.phonismPhoneId)!==String(enrollment.phonismPhoneId)))throw new DeviceManagementError('phone-credential-invalid',403);
@@ -791,7 +809,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!lease?.temporaryLine2)await loadLine2();
       const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
       return phoneXmlResponse(textMenu('Sign Out '+currentLabel,[
-        {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{},accessToken,fleetKey,normalizedFleetMac)},
+        {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{lease:lease.leaseId},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Keep Line Active',uri:home}
       ],{cancelAction:home}));
     }
@@ -800,18 +818,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!lease)return phoneXmlResponse(textMenu('Already Signed Out',[
         {prompt:'Return',uri:home}
       ],{cancelAction:home}));
-      const session=phoneSession(enrollment);
-      const ended=await endTemporaryLease({
-        env,request,session,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader
-      });
-      const status=ended.result?.status||'unknown';
-      const rebootQueued=status==='restored'||status==='external-change-reconciled';
-      const baseline=ended.lease?.baselineLine2?phoneMemberLabel(ended.lease.baselineLine2):'No Line 2';
-      return phoneXmlResponse(textMenu(rebootQueued?'Signed Out - Phone Restarting':'Sign Out Pending',[
-        {prompt:'Restored: '+baseline,uri:home},
-        {prompt:rebootQueued?'Rebooting automatically':'Finishing restore automatically',uri:home},
-        {prompt:'Return',uri:home}
-      ],{cancelAction:home}));
+      return await signoutResponse(lease.leaseId,true);
     }
 
     if(part==='phone/search'){

@@ -504,11 +504,11 @@ async function deviceFirstPending(){
  f.ph.calls.length=0;f.ph.reader.lines=async()=>[];
  return f;
 }
-test('device-first queues broader sync once after forty-five seconds and still verifies before reboot',async()=>{
+test('device-first queues broader sync once after fifteen seconds and still verifies before reboot',async()=>{
  const {e,wx,ph,lease}=await deviceFirstPending(),start=Date.parse(lease.startsAt);
  const run=now=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
- await run(start+44000);assert.equal(ph.calls.length,0);
- await run(start+45000);
+ await run(start+14000);assert.equal(ph.calls.length,0);
+ await run(start+15000);
  assert.equal(ph.calls.length,1);assert.deepEqual(ph.calls[0].body.assetTypes,['People','Workspace','Device']);
  assert.equal(ph.calls[0].body.tenantId,lease.phonismTenantId);
  assert.equal(ph.calls[0].body.singleAttempt,true);assert.equal(ph.calls[0].body.timeoutMs,3000);
@@ -520,7 +520,7 @@ test('device-first queues broader sync once after forty-five seconds and still v
 test('ambiguous broader sync failure stays claimed and is not resubmitted every refresh',async()=>{
  const {e,wx,ph,lease}=await deviceFirstPending();let calls=0;
  ph.reader.syncHierarchyIntegration=async()=>{calls++;throw Object.assign(new Error('timeout'),{code:'phonism-write-failed',providerFailure:'timeout'});};
- for(const age of [45000,50000,60000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
+ for(const age of [15000,50000,60000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
  assert.equal(calls,1);assert.equal(ph.state.rebootAttempts,0);
  const saved=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
  assert.ok(saved.recovery.fullSyncFallbackAttemptedAt);assert.equal(saved.recovery.syncPending,true);
@@ -542,4 +542,37 @@ test('legacy pending jobs and timed-out device-first jobs do not enqueue a new f
   await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+(legacy?60000:600000)});
   assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
  }
+});
+
+
+test('deferred sign-out touches only its lease, preserves expiry and hands off automatically',async()=>{
+ const {e,wx,ph,lease}=await pendingFixture();
+ const now=Date.now(),expiry=Date.parse(lease.expiresAt);
+ e.LOGS.list=async()=>{throw Error('must not scan fleet');};
+ const first=await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader,now,deferWork:true});
+ assert.equal(first.result.status,'signout-requested');assert.equal(ph.state.rebootAttempts,0);assert.equal(Date.parse(first.lease.expiresAt),Math.min(now,expiry));
+ ph.reader.lines=async()=>[];
+ const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,onlyLeaseId:lease.leaseId,now:now+1});
+ assert.equal(results[0].status,'restored');assert.equal(ph.state.rebootAttempts,1);
+ assert.deepEqual(ph.calls.findLast(c=>c.type==='sync').body.assetTypes,['Device']);
+});
+
+
+test('sign-out waits for confirmed removal and uses one broader fallback after fifteen seconds',async()=>{
+ const {e,wx,ph,lease}=await pendingFixture(),now=Date.now();ph.calls.length=0;
+ await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader,now,deferWork:true});
+ const run=age=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,onlyLeaseId:lease.leaseId,now:now+age});
+ await run(1);assert.equal(ph.state.rebootAttempts,0);
+ await run(14000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,1);
+ await run(15001);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);
+ await run(20000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);assert.equal(ph.state.rebootAttempts,0);
+ ph.reader.lines=async()=>[];await run(25000);assert.equal(ph.state.rebootAttempts,1);
+ await run(30000);assert.equal(ph.state.rebootAttempts,1);assert.equal(wx.state.puts.length,2);
+});
+test('scheduled cleanup yields to phone checks then resumes automatically after handoff',async()=>{
+ const {e,wx,ph,lease}=await pendingFixture(),now=Date.now();
+ await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader,now,deferWork:true});
+ ph.reader.lines=async()=>[];
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+10000});assert.equal(ph.state.rebootAttempts,0);
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+300001});assert.equal(ph.state.rebootAttempts,1);
 });

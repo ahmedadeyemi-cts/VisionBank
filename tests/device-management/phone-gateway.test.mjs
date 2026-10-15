@@ -129,9 +129,9 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
 
   const signedOut=await xml(handler,env,'https://worker.example/p/'+token+'?a=o');
   assert.equal(signedOut.status,200);
-  assert.match(signedOut.text,/Signed Out - Phone Restarting/);
-  assert.match(signedOut.text,/Restored: 3999 - Original Line/);
-  assert.match(signedOut.text,/Rebooting automatically/);
+  assert.match(signedOut.text,/Signed Out/);
+  assert.match(signedOut.text,/Your temporary line is signed out/);
+  assert.match(signedOut.text,/Restart requested/);
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,2);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);

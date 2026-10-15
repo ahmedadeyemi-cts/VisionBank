@@ -1,3 +1,4 @@
+import {parseFollowup} from './followup.mjs';
 import {handleFlowPolicy} from './flow-policy.mjs';
 import {handlePlanRequest} from './planning-gateway.mjs';
 import { SettingsError, UUID, browserDetails, parseMutation } from './policy.mjs';
@@ -39,7 +40,7 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
     try {
       const u=new URL(request.url),part=u.pathname.slice(PREFIX.length),origin=request.headers.get('Origin');
       if (!ORIGINS.has(origin)) throw new SettingsError('origin-denied',403);
-      if (!['settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status','flow-token-status','flow-token-generate','flow-token-test','flow-token-policy-test'].includes(part) || !['GET','POST'].includes(request.method) ||
+      if (!['followups','settings','history','preview','schedule','readiness','jobs','records','plans','plan-preview','plan-schedule','register','refresh-record','manage','management','automation-status','flow-token-status','flow-token-generate','flow-token-test','flow-token-policy-test'].includes(part) || !['GET','POST'].includes(request.method) ||
           (['history','readiness','jobs','records','register','management','automation-status','flow-token-status'].includes(part) && request.method!=='GET') || (['preview','schedule','plan-preview','plan-schedule','refresh-record','manage','flow-token-generate','flow-token-test','flow-token-policy-test'].includes(part) && request.method!=='POST')) throw new SettingsError('method-or-route-not-allowed',405);
       const sourceIp=request.headers.get('CF-Connecting-IPv6') || request.headers.get('CF-Connecting-IP');
       if (!request.cf || request.headers.has('CF-Worker') || !validIp(sourceIp)) throw new SettingsError('source-not-verifiable',403);
@@ -51,6 +52,17 @@ export function createCallbackSettingsHandler({checkAccess,loadIpRules,getWebexQ
       const org=String(env.WEBEX_ORG_ID||'');
       if (!org || !env.ABANDONED_CALLBACK_SETTINGS?.idFromName) throw new SettingsError('callback-storage-not-configured',503);
       const store=env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(org+':settings:v1'));
+      if(part==='followups'){
+        if(request.method!=='POST')throw new SettingsError('method-not-allowed',405);
+        const change=parseFollowup(await readJsonBody(request,16384));
+        const report=await bounded(getAbandonedReport(env),20000),now=Date.now();
+        if(report?.success!==true||report.followupStatus!=='ready'||!Number.isFinite(report.generatedAtEpoch)||now-report.generatedAtEpoch>180000||report.generatedAtEpoch>now+5000)throw new SettingsError('followup-report-unavailable',503);
+        const rows=new Map(report.abandonedCalls.map(r=>[String(r.contactId).toLowerCase(),r]));
+        const date=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'});
+        for(const id of change.contactIds){const row=rows.get(id);if(!row||!Number.isFinite(row.endEpoch)||row.endEpoch<=0||row.endEpoch>now||row.isActive===true||date.format(row.startEpoch)!==date.format(now))throw new SettingsError('call-no-longer-in-todays-report',409);}
+        const r=await bounded(store.fetch(new Request('https://callback-settings.internal/followups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({change,actor:{sourceIp,source:'cloudflare-edge',identityVerified:false,...browserDetails(request.headers.get('User-Agent'))},source:{date:date.format(now),observedAt:report.generatedAtEpoch}})})),12000);
+        return send(await r.json(),r.status);
+      }
       if(part==='flow-token-status'){
         const r=await bounded(store.fetch(new Request('https://callback-settings.internal/flow-token/status')),8000),value=await r.json();
         return send({...value,legacyConfigured:typeof env.CALLBACK_FLOW_POLICY_TOKEN==='string'&&env.CALLBACK_FLOW_POLICY_TOKEN.length>=40},r.status);

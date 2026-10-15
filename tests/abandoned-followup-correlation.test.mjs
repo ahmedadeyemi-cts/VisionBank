@@ -80,8 +80,8 @@ test('abandoned-call UI exposes status/filter/time/agent columns and callback se
   const selection=read('webex-abandoned-selection.js');
   assert.match(html,/id="abandonedFollowupFilter"/);
   assert.match(html,/id="abandonedFollowupSummary"/);
-  for(const title of ['Follow-up Status','Return Call Time','Handled By']) assert.ok(html.includes(title));
-  assert.match(selection,/row\.followupCode !== 'helped'/);
+  for(const title of ['Follow-up Status','Follow-up / Call Time','Handled By']) assert.ok(html.includes(title));
+  assert.ok(selection.includes("!['helped','manual-done'].includes(row.followupCode)"));
   assert.match(selection,/tr\.cells\.length !== 11/);
   assert.match(selection,/colspan', '14'/);
   assert.match(selection,/Called back — helped/);
@@ -103,7 +103,7 @@ test('follow-up styling uses status text plus semantic color instead of color al
 
 test('report and callback assets are cache-busted for follow-up correlation',()=>{
   const html=read('webex.html');
-  assert.match(html,/webex-reports\.css\?v=20261006-followup1/);
-  assert.match(html,/webex-reports\.js\?v=20261006-followup1/);
-  assert.match(html,/webex-abandoned-selection\.js\?v=20261006-followup1/);
+  assert.match(html,/webex-reports\.css\?v=20261015-followup2/);
+  assert.match(html,/webex-reports\.js\?v=20261015-followup2/);
+  assert.match(html,/webex-abandoned-selection\.js\?v=20261015-followup2/);
 });

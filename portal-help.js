@@ -10,11 +10,11 @@
       ],
       [
         "See the whole day or the current login",
-        "Choose Today (Central) to include the agent’s reported work for the day, even if they logged out and back in. Choose Current session for work from the current login. The voice and chat tables each have their own selector. One exception: chat handled/completed totals always cover the day and count toward the last agent who helped with the chat."
+        "Choose Today (Central) to include the agent’s reported work for the day, even if they logged out and back in. Choose Current session for work from the current login. The combined table has one row per agent, with call and chat summaries and one shared selector. One exception: chat handled/completed totals always cover the day and count toward the last agent who helped with the chat."
       ],
       [
         "Show only agents who are logged in",
-        "Hide logged-out agents is on by default. Turn it off to see agents who worked earlier but have signed out. Changing it updates both performance tables and is remembered in your browser. Agents on Lunch, on a call, or finishing work still appear if they are logged in. Hiding someone never deletes their work. If the system cannot confirm who is logged in, it temporarily shows the full list."
+        "Hide logged-out agents is on by default. Turn it off to see agents who worked earlier but have signed out. The choice is remembered in your browser. Agents on Lunch, on a call, or finishing work still appear if they are logged in. Hiding someone never deletes their work. If the system cannot confirm who is logged in, it temporarily shows the full list."
       ],
       [
         "Understand start times and missing numbers",
@@ -26,7 +26,7 @@
       ],
       [
         "Arrange a callback",
-        "A callback is an outgoing call to someone who left before being helped. In Abandoned Callback Settings, choose which calls qualify and when callbacks are allowed. Select calls and review the preview before scheduling. Save plan — no calls only saves your choices; it does not place a call. Callback Workspace shows plans and requests. Turning callbacks off does not cancel calls already scheduled or end calls in progress."
+        "A callback is an outgoing call to someone who left before being helped. Select abandoned calls and use Mark Done after manual follow-up. Reopen corrects a mistaken mark. The system also shows later Webex outbound calls to the same customer number, with the reported agent and call time. An outbound attempt does not prove the customer was helped. In Abandoned Callback Settings, choose which calls qualify and when callbacks are allowed. Select calls and review the preview before scheduling. Save plan — no calls only saves your choices; it does not place a call. Callback Workspace shows plans and requests. Turning callbacks off does not cancel calls already scheduled or end calls in progress."
       ],
       [
         "Customize the dashboard and notifications",

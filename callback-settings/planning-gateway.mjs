@@ -1,3 +1,4 @@
+import {readFollowups} from './followup.mjs';
 import {SettingsError,UUID} from './policy.mjs';
 import {buildPreview,parseSelection} from './selection.mjs';
 import {parsePlanChange,planFingerprint,previewSavedPlan} from './plans.mjs';
@@ -38,6 +39,8 @@ export async function handlePlanRequest({part,body,store,queueOptions,getReport,
   }
   fail(plan.revision===body.expectedPlanRevision,'plan-changed-reload',409);
   const value=await stateResponse(),options=await queueOptions(),preview=previewSavedPlan(selection,value.state,plan,options);
+  const done=new Set((await readFollowups(store,plan.contactIds)).filter(r=>r.done).map(r=>r.contactId));
+  for(const row of preview.rows)if(done.has(row.contactId)){row.disposition='skipped';row.reason='marked-done';}
   const ledger=await call('records?ids='+encodeURIComponent(plan.contactIds.join(','))),previous=new Map(ledger.rows.map(r=>[r.contactId,r]));
   for(const row of preview.rows)if(previous.has(row.contactId)){row.disposition='skipped';row.reason='callback-already-reserved';}
   if(part==='plan-preview'){

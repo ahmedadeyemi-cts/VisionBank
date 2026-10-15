@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
 
     <link rel="stylesheet" href="webex.css?v=20261013-loginfilter1" />
-    <link rel="stylesheet" href="webex-reports.css?v=20261006-followup1" />
+    <link rel="stylesheet" href="webex-reports.css?v=20261015-followup2" />
     <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
     <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261013-enterprise4" />
 
@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20261001-token-manager1">
 <link rel="stylesheet" href="webex-abandoned-selection.css?v=20261004-chat-callback-ui1">
 <link rel="stylesheet" href="portal-enterprise.css?v=20261006-shell6">
-<link rel="stylesheet" href="webex-performance-controls.css?v=20261013-controls1">
+<link rel="stylesheet" href="webex-performance-controls.css?v=20261015-followup2">
 <link rel="stylesheet" href="portal-help.css?v=20261013-help1">
 </head>
 
@@ -790,6 +790,8 @@
         <select id="abandonedFollowupFilter" aria-label="Filter abandoned calls by follow-up status">
           <option value="all">All abandoned calls</option>
           <option value="needs-followup">Needs follow-up</option>
+          <option value="manual-done">Marked done</option>
+          <option value="outbound-attempt">Outbound call placed</option>
           <option value="returned-unresolved">Returned — unresolved</option>
           <option value="helped">Called back — helped</option>
           <option value="review">Needs review</option>
@@ -799,7 +801,7 @@
     </div>
 
 <div id="abandonedFollowupSummary" class="vb-followup-summary" role="status" aria-live="polite">Return-call correlation will appear when today's reports load.</div>
-<p class="vb-followup-method">Correlation uses today’s reporting scope. “Called Back — Helped” requires the same ANI and called number followed by a later answered contact. Same-ANI returns to a different or unavailable called number stay in “Needs Review” and remain callback-eligible.</p>
+<p class="vb-followup-method">Select calls, then choose Mark Done if someone has already followed up. Reopen corrects a mistaken mark. Webex outbound calls are matched to the most recent earlier abandoned call with the same full customer number today. An outbound attempt does not prove the customer was helped. Hover over the status for details. Marking done does not cancel an existing scheduled callback.</p>
 
 <div class="vb-cb-selection" aria-label="Prepare abandoned callbacks">
   <div class="vb-cb-buttons">
@@ -807,10 +809,23 @@
     <button id="vbCallbackClearSelection" type="button" disabled>Clear selection</button>
     <button id="vbCallbackScheduleSelected" type="button" disabled>Schedule selected (0)</button>
     <button id="vbCallbackScheduleAll" type="button" disabled>Schedule all eligible today</button>
+    <button id="vbCallbackMarkDone" type="button" disabled>Mark Done</button>
+    <button id="vbCallbackReopen" type="button" disabled>Reopen</button>
   </div>
   <p id="vbCallbackSelectionStatus" role="status">Waiting for the abandoned-call report.</p>
   <small>Filter to choose a group, or clear the search to include all of today's results across pages. Scheduling opens a preparation panel; it never submits merely by selecting rows.</small>
 </div>
+<dialog id="vbCallbackFollowupDialog" class="vb-cb-plan" aria-labelledby="vbCallbackFollowupTitle">
+  <div class="vb-cb-plan-heading"><h2 id="vbCallbackFollowupTitle">Mark selected calls done</h2><button id="vbCallbackFollowupClose" type="button">Cancel</button></div>
+  <form id="vbCallbackFollowupForm">
+    <p id="vbCallbackFollowupDescription"></p>
+    <label>Your name / person who followed up <input id="vbCallbackFollowupName" required minlength="2" maxlength="120" autocomplete="name"></label>
+    <label>Note (optional) <input id="vbCallbackFollowupNote" maxlength="500" placeholder="For example: Called customer and answered their question"></label>
+    <p>Names entered here are recorded as manual entries. A matched Webex call shows its reported agent and actual call time separately. Existing scheduled callbacks are not canceled.</p>
+    <p id="vbCallbackFollowupStatus" role="status"></p>
+    <button id="vbCallbackFollowupSave" type="submit">Mark Done</button>
+  </form>
+</dialog>
 <dialog id="vbCallbackPlan" class="vb-cb-plan" aria-labelledby="vbCallbackPlanTitle">
   <div class="vb-cb-plan-heading"><h2 id="vbCallbackPlanTitle">Prepare callbacks</h2>
     <button id="vbCallbackPlanClose" type="button" aria-label="Close callback preparation">Close</button></div>
@@ -850,7 +865,7 @@
             <th data-sort="abandonmentStage">Abandonment Stage</th>
             <th data-sort="agentName">Agent Name</th>
             <th data-sort="followupCode">Follow-up Status</th>
-            <th data-sort="followupEpoch">Return Call Time</th>
+            <th data-sort="followupEpoch">Follow-up / Call Time</th>
             <th data-sort="followupAgent">Handled By</th>
           </tr>
         </thead>
@@ -909,17 +924,17 @@
 ></div>
 <script src="portal-enterprise.js?v=20261005-license1"></script>
 <script src="webex-report-health.js?v=20261001-completion-audit1"></script>
-<script src="webex-agent-performance.js?v=20261013-loginfilter2"></script>
+<script src="webex-agent-performance.js?v=20261015-followup2"></script>
 <script src="webex.js?v=20261013-loginfilter1"></script>
-<script src="webex-reports.js?v=20261006-followup1"></script>
+<script src="webex-reports.js?v=20261015-followup2"></script>
 <script src="webex-chat.js?v=20260924-v2"></script>
 <script src="webex-agent-indicators.js?v=20260929-channels1"></script>
 <script src="webex-channel-activity.js?v=20260929-channels1"></script>
 <script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
-<script src="webex-integrated-chat.js?v=20261013-controls1"></script>
+<script src="webex-integrated-chat.js?v=20261015-followup2"></script>
 <script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
 <script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
-<script type="module" src="webex-abandoned-selection.js?v=20261006-followup1"></script>
-<script src="portal-help.js?v=20261013-help1"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20261015-followup2"></script>
+<script src="portal-help.js?v=20261015-followup2"></script>
 </body>
 </html>

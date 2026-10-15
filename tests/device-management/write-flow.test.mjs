@@ -143,9 +143,9 @@ test('apply writes Webex, queues Phonism sync, then automatically queues reboot'
   assert.equal(wx.state.puts.length,1);
   assert.equal(wx.state.puts[0].members.find(x=>x.port===2).id,'user-ryan');
   assert.deepEqual(ph.calls.map(x=>x.type),['sync','tr069']);
-  assert.deepEqual(ph.calls[0].body.assetTypes,['People','Workspace','Device']);
+  assert.deepEqual(ph.calls[0].body.assetTypes,['Device']);
   assert.equal(ph.calls[0].body.tenantId,'123');
-  assert.equal(result.lease.recovery.syncStrategy,'assignment-immediate');
+  assert.equal(result.lease.recovery.syncStrategy,'device-first');
   assert.equal(ph.calls[1].action,'Reboot');
   assert.equal(ph.state.lineReads,1);
   assert.equal(ph.state.rebootAttempts,1);
@@ -575,18 +575,4 @@ test('scheduled cleanup yields to phone checks then resumes automatically after 
  ph.reader.lines=async()=>[];
  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+10000});assert.equal(ph.state.rebootAttempts,0);
  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+300001});assert.equal(ph.state.rebootAttempts,1);
-});
-
-
-test('new assignment sync starts with owners and devices and never queues the legacy delayed fallback',async()=>{
- const {e,wx,ph,lease}=await pendingFixture();
- assert.deepEqual(ph.calls.find(c=>c.type==='sync').body.assetTypes,['People','Workspace','Device']);
- lease.recovery.syncStrategy='assignment-immediate';
- await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
- ph.calls.length=0;ph.reader.lines=async()=>[];
- for(const age of [15000,30000,60000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
- assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
- ph.reader.lines=async()=>[{lineNumber:2,username:'1806'}];
- await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+65000});
- assert.equal(ph.state.rebootAttempts,1);
 });

@@ -104,8 +104,8 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const applied=await xml(handler,env,'https://worker.example/p/'+token+'?a=apply&intent='+match[1],executionContext);
   assert.equal(applied.status,200);
   assert.match(applied.text,/YealinkIPPhoneTextScreen/);
-  assert.match(applied.text,/Adding your extension/);
-  assert.match(applied.text,/Allow approximately 1-2 minutes/);
+  assert.match(applied.text,/Preparing your phone/);
+  assert.match(applied.text,/Estimated time remaining:/);
   assert.doesNotMatch(applied.text,/<MenuItem>/);
   assert.doesNotMatch(applied.text,/Return/);
   assert.ok(background,'phone Save should schedule background work');

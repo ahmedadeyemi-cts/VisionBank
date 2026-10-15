@@ -314,8 +314,8 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
-    assert.match(applied.text,/Adding your extension/,model+' fast Save title');
-    assert.match(applied.text,/Allow approximately 1-2 minutes/,model+' reboot wait message');
+    assert.match(applied.text,/Preparing your phone/,model+' fast Save title');
+    assert.match(applied.text,/Estimated time remaining:/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');
@@ -365,7 +365,7 @@ test('background phone Save failure is persisted with the exact failing stage',a
   const executionContext={waitUntil(promise){background=promise;}};
   const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
   assert.equal(applied.status,200);
-  assert.match(applied.text,/Adding your extension/);
+  assert.match(applied.text,/Preparing your phone/);
   await background;
 
   const auditRows=[...env.LOGS.map.entries()]
@@ -486,8 +486,8 @@ test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',
     const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
-    assert.match(applied.text,/Adding your extension/,model+' fast Save title');
-    assert.match(applied.text,/Allow approximately 1-2 minutes/,model+' reboot wait message');
+    assert.match(applied.text,/Preparing your phone/,model+' fast Save title');
+    assert.match(applied.text,/Estimated time remaining:/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');
@@ -550,8 +550,8 @@ test('background save recovers generic device 404 via org inventory across Yeali
     const applied=await xml(handler,env,base+'/p?intent='+match[1],model,executionContext);
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
-    assert.match(applied.text,/Adding your extension/,model+' fast Save title');
-    assert.match(applied.text,/Allow approximately 1-2 minutes/,model+' reboot wait message');
+    assert.match(applied.text,/Preparing your phone/,model+' fast Save title');
+    assert.match(applied.text,/Estimated time remaining:/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');

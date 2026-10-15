@@ -33,7 +33,7 @@ test('refresh XML escapes URL and leaves other text screens unchanged',()=>{
 });
 test('estimate, overdue, failure and ended states do not claim unconfirmed success',()=>{
  const now=Date.now(),intent={status:'processing',startedAt:new Date(now-119999).toISOString()};
- assert.match(phoneProgressState(intent,null,now).text,/1-2 minutes/);
+ assert.match(phoneProgressState(intent,null,now).text,/Estimated time remaining: 0:01/);
  intent.startedAt=new Date(now-120000).toISOString();
  assert.doesNotMatch(phoneProgressState(intent,null,now).text,/extension is saved/);
  const lease={status:'active',expiresAt:new Date(now+60000).toISOString(),recovery:{syncPending:true}};
@@ -44,7 +44,7 @@ test('estimate, overdue, failure and ended states do not claim unconfirmed succe
 });
 test('T53, T54W and T57W progress auto-refreshes without provider calls or new saves',async()=>{
  for(const model of ['T53','T54W','T57W']){
-  const f=await setup(model);let r=await f.get();assert.equal(r.status,200);assert.match(r.text,/Adding your extension/);assert.match(r.text,/refresh="5"/);assert.match(r.text,/a=g/);
+  const f=await setup(model);let r=await f.get();assert.equal(r.status,200);assert.match(r.text,/Preparing your phone/);assert.match(r.text,/refresh="5"/);assert.match(r.text,/a=g/);
   await f.saved();r=await f.get();assert.doesNotMatch(r.text,/Restart Now/);assert.equal(f.state.webexReads,0);assert.equal(f.state.lineReads,0);assert.equal(f.state.reboots,0);
   const raw=JSON.parse(await f.env.SESSIONS.get('device-phone-intent:'+f.intent.intentId));raw.startedAt=new Date(Date.now()-121000).toISOString();await f.env.SESSIONS.put('device-phone-intent:'+f.intent.intentId,JSON.stringify(raw));
   r=await f.get();assert.match(r.text,/Taking longer than expected/);assert.match(r.text,/You do not need to save again/);
@@ -97,4 +97,22 @@ test('phone fast checks wait for initial completion and stop at scheduled handof
 test('overlapping phone progress coalesces synchronization and reboot',async()=>{
  const f=await setup();f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+90000).toISOString()};await f.saved();
  await Promise.all([f.get(),f.get()]);assert.equal(f.state.reboots,1);assert.equal(f.state.webexReads,1);
+});
+
+
+test('countdown follows original Save time, survives refresh, and switches at zero',()=>{
+ const start=Date.parse('2026-10-15T18:00:00Z');
+ const intent={status:'processing',startedAt:new Date(start).toISOString()};
+ for(const [elapsed,label] of [[0,'2:00'],[5000,'1:55'],[15000,'1:45'],[60000,'1:00'],[115000,'0:05'],[119999,'0:01']]){
+  const first=phoneProgressState(intent,null,start+elapsed);
+  assert.ok(first.text.includes('Estimated time remaining: '+label));
+  assert.deepEqual(phoneProgressState(intent,null,start+elapsed),first);
+ }
+ for(const elapsed of [120000,125000,180000]){
+  const state=phoneProgressState(intent,null,start+elapsed);
+  assert.equal(state.title,'Taking longer than expected');assert.doesNotMatch(state.text,/Estimated time remaining/);
+ }
+ const ready={status:'active',expiresAt:new Date(start+900000).toISOString(),recovery:{syncConfirmedBeforeReboot:true,syncPending:false,rebootAt:new Date(start+20000).toISOString()}};
+ assert.equal(phoneProgressState(intent,ready,start+25000).title,'Restarting your phone...');
+ assert.equal(phoneProgressState(intent,ready,start+81000).kind,'restart');
 });

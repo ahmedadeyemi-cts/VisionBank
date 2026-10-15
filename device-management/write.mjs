@@ -198,7 +198,7 @@ async function queueAutomaticReboot({env,phonismReader,phoneId}){
   return {queued:false,attempts:delays.length,error:lastError||'reboot-failed'};
 }
 
-export async function applyWritePreview({env,request,session,webexFetch,orgId,mutationId,phonismReader=createPhonismReader()}){
+export async function applyWritePreview({env,request,session,webexFetch,orgId,mutationId,phonismReader=createPhonismReader(),saveRequestedAt=null}){
   const preview=await getPreview(env,mutationId);
   if(!preview)throw new DeviceManagementError('preview-expired',409);
   if(preview.sessionId!==session.id)throw new DeviceManagementError('preview-operator-mismatch',403);
@@ -257,6 +257,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     phonismTenantId:pc.tenantId,phonismCompanyId:pc.companyId
   });
   lease.baselineMember=preview.baselineMember||null;
+  lease.timing={saveRequestedAt:saveRequestedAt||lease.startsAt,webexAndSyncSavedAt:lease.startsAt};
   // Persist before waiting: scheduled maintenance can recover a terminated request.
   lease.recovery={syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
   lease.verification.state='sync-pending';
@@ -268,7 +269,9 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
       env,phonismReader,phoneId:pc.phoneId,target:preview.targetMember
     });
     if(!syncConfirmation.confirmed){
-      lease.recovery={...lease.recovery,syncConfirmAttempts:syncConfirmation.attempts,syncConfirmError:syncConfirmation.error||'phonism-line-not-ready'};
+      lease.recovery={...lease.recovery,syncConfirmAttempts:syncConfirmation.attempts,syncConfirmError:syncConfirmation.error||'phonism-line-not-ready',initialSyncCheckCompletedAt:new Date().toISOString(),
+        // Give the active handset a bounded fast-check window; cron takes over afterwards.
+        phonePollUntil:session.actorType==='device'?new Date(Date.now()+90000).toISOString():null};
       lease.verification={...lease.verification,phonism:'pending',state:'sync-pending',lastCheckedAt:new Date().toISOString()};
       await putLease(env,lease);
       await writeAuditRecord(env,buildAuditRecord({
@@ -281,8 +284,9 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
       return {lease,audit,rebootQueued:false,rebootError:null,syncPending:true};
     }
     lease.recovery.syncPending=false;
-    await putLease(env,lease);
     const rebootAt=new Date().toISOString();
+    lease.timing={...lease.timing,syncConfirmedAt:rebootAt,restartRequestedAt:rebootAt,saveToRestartRequestMs:Math.max(0,Date.parse(rebootAt)-Date.parse(lease.timing.saveRequestedAt))};
+    await putLease(env,lease);
     const reboot=await queueAutomaticReboot({env,phonismReader,phoneId:pc.phoneId});
     rebootQueued=reboot.queued;
     rebootError=reboot.error;
@@ -523,17 +527,24 @@ export async function endTemporaryLease({env,request,session,webexFetch,orgId,le
 }
 
 
-async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now}){
+async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now,phoneDeadline=null}){
   // Do not overlap the initial request's bounded work.
-  if(now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<30000)return;
+  if(lease.status!=='active'||Date.parse(lease.expiresAt)<=now)return;
+  if(!lease.recovery.initialSyncCheckCompletedAt&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<30000)return;
+  const checkStartedAt=Date.now();
   let error=null,confirmed=false;
   try{
-    const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
+    const current=await boundedProviderCall(()=>readWebexMembers(webexFetch,env,orgId,lease.device.id),4000);
     const line2=line2SummaryFromMembers(current.members);
     const same=lease.temporaryLine2?String(line2?.memberId||'')===String(lease.temporaryLine2.memberId):!line2;
     if(!same)error='webex-line-changed';
-    else confirmed=phonismLineMatchesTarget(await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),2000),lease.temporaryLine2);
+    else confirmed=phonismLineMatchesTarget(await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),3000),lease.temporaryLine2);
   }catch(e){error=e?.code||'line-sync-check-failed';}
+  // Never cross the fixed ownership boundary or restart after expiry.
+  if(phoneDeadline&&Date.now()>=phoneDeadline)return;
+  const checkedAt=phoneDeadline?Date.now():now;
+  if(Date.parse(lease.expiresAt)<=checkedAt)return;
+  lease.recovery={...lease.recovery,syncRetryChecks:Number(lease.recovery.syncRetryChecks||0)+1,lastSyncCheckAt:new Date(checkedAt).toISOString(),lastSyncCheckMs:Date.now()-checkStartedAt,lastSyncCheckSource:phoneDeadline?'phone-progress':'scheduled'};
   if(!confirmed){
     const failed=error==='webex-line-changed'||now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=10*60000;
     lease.recovery={...lease.recovery,syncPending:!failed,syncFailed:failed,syncConfirmError:error||'phonism-line-not-ready'};
@@ -549,14 +560,16 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
   }
   // Persist completion of the synchronization stage before sending the reboot.
   lease.recovery={...lease.recovery,syncPending:false,syncFailed:false,syncConfirmedBeforeReboot:true};
+  const restartRequestedAt=new Date().toISOString();
+  lease.timing={...(lease.timing||{}),syncConfirmedAt:restartRequestedAt,restartRequestedAt,saveToRestartRequestMs:Math.max(0,Date.parse(restartRequestedAt)-Date.parse(lease.timing?.saveRequestedAt||lease.startsAt))};
   await putLease(env,lease);
   const reboot=await queueAutomaticReboot({env,phonismReader,phoneId:lease.phonismPhoneId});
-  lease.recovery={...lease.recovery,rebootAttempted:reboot.queued,rebootAt:new Date(now).toISOString(),autoRebootFailed:!reboot.queued,autoRebootError:reboot.error,autoRebootAttempts:reboot.attempts};
+  lease.recovery={...lease.recovery,rebootAttempted:reboot.queued,rebootAt:restartRequestedAt,autoRebootFailed:!reboot.queued,autoRebootError:reboot.error,autoRebootAttempts:reboot.attempts};
   lease.verification={...lease.verification,state:reboot.queued?'reboot-queued':'reboot-failed',lastCheckedAt:new Date(now).toISOString()};
   await putLease(env,lease);
   await writeAuditRecord(env,buildAuditRecord({
     eventType:'device-recovery',action:'automatic-reboot-after-sync',systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,
-    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2,stage:'automatic-reboot',errorCode:reboot.error||null},
+    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2,stage:'automatic-reboot',errorCode:reboot.error||null,timing:lease.timing,syncRetryChecks:lease.recovery.syncRetryChecks,source:lease.recovery.lastSyncCheckSource},
     reason:reboot.queued?'Requested Line 2 confirmed in Webex and Phonism; automatic reboot queued.':'Line 2 confirmed, but reboot request failed.',
     webexStatus:'confirmed',phonismStatus:reboot.queued?'reboot-queued':'reboot-failed',result:reboot.queued?'pending-verification':'failed',originalAuditId:lease.auditId,now
   }));
@@ -570,7 +583,7 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     const expires=Date.parse(lease.expiresAt||'');
     if(!Number.isFinite(expires))continue;
     if(expires>now){
-      if(lease.status==='active'&&lease.recovery?.syncPending){
+      if(lease.status==='active'&&lease.recovery?.syncPending&&!(Date.parse(lease.recovery.phonePollUntil||'')>now)){
         try{await resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now});}
         catch(error){results.push({leaseId:lease.leaseId,status:'sync-retry-pending',error:error?.code||'sync-check-failed'});}
       }
@@ -731,4 +744,21 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     }
   }
   return results;
+}
+
+// Handset requests are serial; coalesce overlapping requests within a Worker isolate.
+// Cron never owns a lease during this fixed window. Leave ten seconds for handoff.
+const phoneSyncInFlight=new Map();
+export async function advancePhoneLineSync({env,enrollment,leaseId,webexFetch,orgId,phonismReader=createPhonismReader()}){
+  if(phoneSyncInFlight.has(leaseId))return phoneSyncInFlight.get(leaseId);
+  const work=(async()=>{
+    const lease=await getLease(env,leaseId);
+    if(!lease||lease.device?.mac!==enrollment.device.mac||String(lease.phonismPhoneId)!==String(enrollment.phonismPhoneId))throw new DeviceManagementError('phone-credential-invalid',403);
+    if(!isPilotDevice(env,lease.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
+    const now=Date.now(),until=Date.parse(lease.recovery?.phonePollUntil||'');
+    if(lease.status!=='active'||Date.parse(lease.expiresAt)<=now||!lease.recovery?.syncPending||!lease.recovery.initialSyncCheckCompletedAt||!Number.isFinite(until)||now>=until-10000)return;
+    await resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now,phoneDeadline:until-10000});
+  })();
+  phoneSyncInFlight.set(leaseId,work);
+  try{return await work;}finally{phoneSyncInFlight.delete(leaseId);}
 }

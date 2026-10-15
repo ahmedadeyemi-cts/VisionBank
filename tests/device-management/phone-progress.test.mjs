@@ -74,3 +74,27 @@ test('expired progress intent cannot reach providers or restart',async()=>{
 });
 
 test('canonical Webex ID normalization keeps progress bound to the same physical phone',async()=>{const f=await setup('T54W');f.lease.device={...f.lease.device,id:'normalized-calling-id'};await f.saved();assert.equal((await f.get()).status,200);f.lease.phonismPhoneId='different-phone';await putLease(f.env,f.lease);assert.equal((await f.get()).status,403);});
+
+test('active phone checks sync immediately after initial checks and requests restart without a cron tick',async()=>{
+ const f=await setup('T54W');
+ f.lease.startsAt=new Date().toISOString();
+ f.lease.timing={saveRequestedAt:new Date(Date.now()-15000).toISOString()};
+ f.lease.recovery={syncPending:true,syncPendingSince:f.lease.startsAt,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+90000).toISOString()};
+ await f.saved();
+ f.state.line='old';await f.get();assert.equal(f.state.reboots,0);
+ f.state.line='1406';assert.equal((await f.get()).status,200);assert.equal(f.state.reboots,1);
+ const current=await getLease(f.env,f.lease.leaseId);
+ assert.equal(current.recovery.syncPending,false);assert.equal(current.recovery.lastSyncCheckSource,'phone-progress');assert.equal(current.recovery.syncRetryChecks,2);
+ assert.ok(current.timing.saveToRestartRequestMs>=15000);assert.ok(current.timing.saveToRestartRequestMs<30000);
+ await f.get();assert.equal(f.state.reboots,1);
+});
+test('phone fast checks wait for initial completion and stop at scheduled handoff',async()=>{
+ const f=await setup();f.lease.recovery={syncPending:true,phonePollUntil:new Date(Date.now()+90000).toISOString()};await f.saved();
+ await f.get();assert.equal(f.state.webexReads,0);
+ f.lease.recovery.initialSyncCheckCompletedAt=new Date().toISOString();f.lease.recovery.phonePollUntil=new Date(Date.now()+9000).toISOString();await putLease(f.env,f.lease);
+ await f.get();assert.equal(f.state.webexReads,0);assert.equal(f.state.reboots,0);
+});
+test('overlapping phone progress coalesces synchronization and reboot',async()=>{
+ const f=await setup();f.lease.recovery={syncPending:true,initialSyncCheckCompletedAt:new Date().toISOString(),phonePollUntil:new Date(Date.now()+90000).toISOString()};await f.saved();
+ await Promise.all([f.get(),f.get()]);assert.equal(f.state.reboots,1);assert.equal(f.state.webexReads,1);
+});

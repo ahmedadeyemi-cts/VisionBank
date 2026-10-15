@@ -4,7 +4,7 @@ import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistrat
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,listIssueRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
 import {isPilotDevice,listLeases,getLease,deviceWriteScope} from './lease.mjs';
-import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease} from './write.mjs';
+import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease,advancePhoneLineSync} from './write.mjs';
 import {
   identityPolicy,getAdminSettings,setVerificationEnabled,setDefaultVerificationHours,
   setUserVerificationHours,removeUserVerificationHours,addDeviceAdmin,removeDeviceAdmin,
@@ -597,7 +597,7 @@ async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,en
       phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null}
     });
     stage='apply-write-preview';
-    const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:preview.mutationId,phonismReader});
+    const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:preview.mutationId,phonismReader,saveRequestedAt:intent.startedAt});
     stage='intent-complete';
     await finishPhoneIntent(env,intent.intentId,{leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt});
     return {result,target};
@@ -717,6 +717,9 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     };
     if(part==='phone/progress'||part==='phone/restart'){
       const intent=await readPhoneIntent(env,phoneUrl.searchParams.get('intent'),enrollment);
+      if(part==='phone/progress'&&intent.result?.leaseId){
+        await advancePhoneLineSync({env,enrollment,leaseId:intent.result.leaseId,webexFetch,orgId:org,phonismReader});
+      }
       if(part==='phone/restart'){
         const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
         if(!current||current.device?.mac!==enrollment.device.mac||String(current.phonismPhoneId)!==String(enrollment.phonismPhoneId))throw new DeviceManagementError('phone-credential-invalid',403);

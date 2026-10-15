@@ -850,7 +850,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
       const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-30)',submit,'days',{type:'number',cancelAction:back}));
+      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-365)',submit,'days',{type:'number',cancelAction:back}));
     }
 
     if(part==='phone/confirm'){
@@ -858,10 +858,10 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const url=new URL(request.url),memberId=id(url.searchParams.get('member')),q=display(url.searchParams.get('q')||'',80),locationId=id(url.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const custom=url.searchParams.has('days'),days=url.searchParams.get('days')||'';
-      if(custom&&(!/^[0-9]{1,2}$/.test(days)||Number(days)<1||Number(days)>30)){
+      if(custom&&(!/^[0-9]{1,3}$/.test(days)||Number(days)<1||Number(days)>365)){
         const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
         const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-        return phoneXmlResponse(inputScreen('Enter 1 to 30 days','Whole days only (1-30)',submit,'days',{type:'number',cancelAction:back}));
+        return phoneXmlResponse(inputScreen('Enter 1 to 365 days','Whole days only (1-365)',submit,'days',{type:'number',cancelAction:back}));
       }
       const minutes=custom?Number(days)*1440:Number(url.searchParams.get('minutes'));
       if(!custom&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');

@@ -315,7 +315,7 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
     assert.match(applied.text,/Saving Extension/,model+' fast Save title');
-    assert.match(applied.text,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\. If delayed, reopen Add Extension to check status\./,model+' reboot wait message');
+    assert.match(applied.text,/Please Wait!! Do not use your phone until it restarts\. Your phone will restart within the next 40 seconds/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');
@@ -487,7 +487,7 @@ test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
     assert.match(applied.text,/Saving Extension/,model+' fast Save title');
-    assert.match(applied.text,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\. If delayed, reopen Add Extension to check status\./,model+' reboot wait message');
+    assert.match(applied.text,/Please Wait!! Do not use your phone until it restarts\. Your phone will restart within the next 40 seconds/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');
@@ -551,7 +551,7 @@ test('background save recovers generic device 404 via org inventory across Yeali
     assert.equal(applied.status,200,model+' apply acknowledgement');
     assert.match(applied.text,/YealinkIPPhoneTextScreen/,model+' TextScreen acknowledgement');
     assert.match(applied.text,/Saving Extension/,model+' fast Save title');
-    assert.match(applied.text,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\. If delayed, reopen Add Extension to check status\./,model+' reboot wait message');
+    assert.match(applied.text,/Please Wait!! Do not use your phone until it restarts\. Your phone will restart within the next 40 seconds/,model+' reboot wait message');
     assert.doesNotMatch(applied.text,/<MenuItem>/,model+' no post-save menu items');
     assert.doesNotMatch(applied.text,/Return/,model+' no post-save Return prompt');
     assert.ok(background,model+' background task');

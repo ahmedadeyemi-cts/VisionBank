@@ -505,8 +505,8 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o',progress:'g',restart:'r'};
-const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply',g:'progress',r:'restart'};
+const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o',progress:'g',restart:'r',customDays:'n'};
+const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply',g:'progress',r:'restart',n:'customDays'};
 const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
@@ -839,15 +839,32 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         prompt:phoneDurationLabel(minutes),
         uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken,fleetKey,normalizedFleetMac)
       }));
+      items.push({prompt:'Custom Days',uri:phoneRouteUrl(request,'customDays',{member:memberId,q,locationId:target.locationId||''},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Cancel',uri:home});
       return phoneXmlResponse(textMenu('Use '+phoneMemberLabel(target)+' For',items,{cancelAction:home}));
+    }
+
+    if(part==='phone/customDays'){
+      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      const memberId=id(phoneUrl.searchParams.get('member')),q=display(phoneUrl.searchParams.get('q')||'',80),locationId=id(phoneUrl.searchParams.get('locationId'));
+      if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
+      const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
+      const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
+      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-30)',submit,'days',{type:'number',cancelAction:back}));
     }
 
     if(part==='phone/confirm'){
       if(lease)throw new DeviceManagementError('phone-active-lease',409);
       const url=new URL(request.url),memberId=id(url.searchParams.get('member')),q=display(url.searchParams.get('q')||'',80),locationId=id(url.searchParams.get('locationId'));
-      const minutes=Number(url.searchParams.get('minutes'));
-      if(!phoneDurationOptions().includes(minutes)||!memberId)throw new DeviceManagementError('invalid-temporary-duration');
+      if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
+      const custom=url.searchParams.has('days'),days=url.searchParams.get('days')||'';
+      if(custom&&(!/^[0-9]{1,2}$/.test(days)||Number(days)<1||Number(days)>30)){
+        const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
+        const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
+        return phoneXmlResponse(inputScreen('Enter 1 to 30 days','Whole days only (1-30)',submit,'days',{type:'number',cancelAction:back}));
+      }
+      const minutes=custom?Number(days)*1440:Number(url.searchParams.get('minutes'));
+      if(!custom&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
       const target=searched.members.find(member=>String(member.id)===String(memberId));
       if(!target)throw new DeviceManagementError('target-member-not-available',409);

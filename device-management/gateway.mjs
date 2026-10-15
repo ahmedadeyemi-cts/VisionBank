@@ -706,7 +706,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   try{
     const progressResponse=async(intent)=>{
       const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
-      if(current&&(current.device?.id!==enrollment.device.id||current.device?.mac!==enrollment.device.mac))throw new DeviceManagementError('phone-credential-invalid',403);
+      if(current&&(current.device?.mac!==enrollment.device.mac||String(current.phonismPhoneId)!==String(enrollment.phonismPhoneId)))throw new DeviceManagementError('phone-credential-invalid',403);
       const state=phoneProgressState(intent,current);
       const progressUrl=phoneRouteUrl(request,'progress',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac);
       if(state.kind==='restart')return phoneXmlResponse(textMenu(state.title,[
@@ -719,7 +719,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const intent=await readPhoneIntent(env,phoneUrl.searchParams.get('intent'),enrollment);
       if(part==='phone/restart'){
         const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
-        if(!current||current.device?.id!==enrollment.device.id||current.device?.mac!==enrollment.device.mac)throw new DeviceManagementError('phone-credential-invalid',403);
+        if(!current||current.device?.mac!==enrollment.device.mac||String(current.phonismPhoneId)!==String(enrollment.phonismPhoneId))throw new DeviceManagementError('phone-credential-invalid',403);
         if(phoneProgressState(intent,current).kind==='restart'){
           await runRecoveryAction({env,request,session:phoneSession(enrollment),leaseId:current.leaseId,webexFetch,orgId:org,phonismReader,phoneFallback:true});
         }

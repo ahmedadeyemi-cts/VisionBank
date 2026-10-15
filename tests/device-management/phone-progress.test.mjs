@@ -63,7 +63,7 @@ test('Restart Now is gated, revalidates target and accepts only one fallback req
 test('restart refuses changed assignments and cross-phone leases',async()=>{
  const f=await setup();f.lease.recovery={syncPending:false,syncConfirmedBeforeReboot:true,rebootAt:new Date(Date.now()-61000).toISOString()};await f.saved();
  f.state.member='new-target';assert.equal((await f.get('restart')).status,409);assert.equal(f.state.reboots,0);
- f.lease.device={...f.lease.device,id:'other-device'};await putLease(f.env,f.lease);assert.equal((await f.get()).status,403);assert.equal(f.state.reboots,0);
+ f.lease.device={...f.lease.device,id:'other-device',mac:'AA:BB:CC:DD:EE:FF'};await putLease(f.env,f.lease);assert.equal((await f.get()).status,403);assert.equal(f.state.reboots,0);
 });
 test('ambiguous restart failure stays claimed to prevent repeated restarts',async()=>{
  const f=await setup();f.lease.recovery={syncPending:false,syncConfirmedBeforeReboot:true,rebootAt:new Date(Date.now()-61000).toISOString()};await f.saved();f.state.fail=true;
@@ -72,3 +72,5 @@ test('ambiguous restart failure stays claimed to prevent repeated restarts',asyn
 test('expired progress intent cannot reach providers or restart',async()=>{
  const f=await setup();const raw={...f.intent,expiresAt:new Date(Date.now()-1000).toISOString()};await f.env.SESSIONS.put('device-phone-intent:'+raw.intentId,JSON.stringify(raw));assert.equal((await f.get()).status,409);assert.equal(f.state.reboots,0);
 });
+
+test('canonical Webex ID normalization keeps progress bound to the same physical phone',async()=>{const f=await setup('T54W');f.lease.device={...f.lease.device,id:'normalized-calling-id'};await f.saved();assert.equal((await f.get()).status,200);f.lease.phonismPhoneId='different-phone';await putLease(f.env,f.lease);assert.equal((await f.get()).status,403);});

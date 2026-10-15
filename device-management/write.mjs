@@ -376,17 +376,35 @@ export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=cr
   return {lease,webexLine2,phonismLine2,state};
 }
 
-export async function runRecoveryAction({env,request,session,leaseId,webexFetch,orgId,phonismReader=createPhonismReader()}){
+const phoneRestartInFlight=new Set();
+export async function runRecoveryAction(args){
+  const key=args.leaseId;
+  if(args.phoneFallback&&phoneRestartInFlight.has(key))throw new DeviceManagementError('restart-already-requested',409);
+  if(args.phoneFallback)phoneRestartInFlight.add(key);
+  try{return await performRecoveryAction(args);}finally{if(args.phoneFallback)phoneRestartInFlight.delete(key);}
+}
+async function performRecoveryAction({env,request,session,leaseId,webexFetch,orgId,phonismReader=createPhonismReader(),phoneFallback=false}){
   const lease=await getLease(env,leaseId);
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
   if(!isPilotDevice(env,lease.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
   if(lease.status!=='active'||Date.parse(lease.expiresAt)<=Date.now())throw new DeviceManagementError('lease-not-active',409);
   if(lease.recovery?.syncPending)throw new DeviceManagementError('phonism-line-not-ready',409);
+  if(phoneFallback){
+    if(session?.deviceIdentity?.mac!==lease.device.mac)throw new DeviceManagementError('phone-credential-invalid',403);
+    const since=Date.parse(lease.recovery?.rebootAt||lease.recovery?.autoRebootFailedAt||'');
+    if(!lease.recovery?.syncConfirmedBeforeReboot||!Number.isFinite(since)||Date.now()-since<60000)throw new DeviceManagementError('restart-not-ready',409);
+    if(lease.recovery?.manualPhoneRestartAt)throw new DeviceManagementError('restart-already-requested',409);
+  }
   const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
   const currentLine2=line2SummaryFromMembers(current.members);
   if(lease.temporaryLine2?String(currentLine2?.memberId||'')!==String(lease.temporaryLine2.memberId):Boolean(currentLine2))throw new DeviceManagementError('webex-line-changed',409);
   const lines=await phonismReader.lines(env,lease.phonismPhoneId);
   if(!phonismLineMatchesTarget(lines,lease.temporaryLine2))throw new DeviceManagementError('phonism-line-not-ready',409);
+  if(phoneFallback){
+    // Persist before sending. An ambiguous provider response must not invite a second restart.
+    lease.recovery={...lease.recovery,manualPhoneRestartAt:new Date().toISOString()};
+    await putLease(env,lease);
+  }
   const result=await phonismReader.tr069Action(env,lease.phonismPhoneId,'Reboot');
   const rebootAt=new Date().toISOString();
   lease.recovery={...(lease.recovery||{}),rebootAttempted:true,rebootAt,automaticReboot:false,syncPending:false,syncFailed:false};

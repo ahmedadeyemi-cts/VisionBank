@@ -3,7 +3,7 @@ import {resolveVerifiedWriteDevice} from './device-resolution.mjs';
 import {DeviceManagementError,normalizeMac,normalizeOwnerType,normalizeRegistration} from './contracts.mjs';
 import {createPhonismReader} from './phonism.mjs';
 import {createOperatorSession,readOperatorSession,requireOperatorSession,deleteOperatorSession,listAuditRecords,listIssueRecords,buildAuditRecord,writeAuditRecord} from './audit.mjs';
-import {isPilotDevice,listLeases,deviceWriteScope} from './lease.mjs';
+import {isPilotDevice,listLeases,getLease,deviceWriteScope} from './lease.mjs';
 import {createWritePreview,applyWritePreview,verifyLease,runRecoveryAction,readWebexMembers,endTemporaryLease} from './write.mjs';
 import {
   identityPolicy,getAdminSettings,setVerificationEnabled,setDefaultVerificationHours,
@@ -16,7 +16,7 @@ import {
   getFleetKeySettings,rotateFleetKey,recordFleetKeyUse,
   recordPhoneSeen,recordPhoneNavigationEvent,handlePhoneCheckin,createPhoneIntent,readPhoneIntent,startPhoneIntent,failPhoneIntent,finishPhoneIntent,phoneSession,
   attachPhoneSelfService,phoneDurationOptions,phoneDurationLabel,textMenu,textScreen,inputScreen,phoneXmlResponse,phoneNoContent,
-  phoneUnauthorized,phoneErrorMenu
+  phoneUnauthorized,phoneErrorMenu,phoneProgressState
 } from './phone-selfservice.mjs';
 
 const ORIGINS=new Set(['https://visionbank-dashboard.onrender.com','https://ahmedadeyemi-cts.github.io']);
@@ -505,8 +505,8 @@ async function requireWriteOperator(env,request){
   return session;
 }
 
-const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o'};
-const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply'};
+const PHONE_ACTION_CODE={status:'s',search:'q',duration:'d',confirm:'c',apply:'p',signout:'e',signoutApply:'o',progress:'g',restart:'r'};
+const PHONE_CODE_ACTION={s:'status',q:'search',d:'duration',c:'confirm',p:'apply',e:'signout',o:'signoutApply',g:'progress',r:'restart'};
 const PHONE_CANONICAL_ORIGIN='https://visionbank-security.ahmedadeyemi.workers.dev';
 const compactPhoneMac=value=>normalizeMac(value).replace(/:/g,'').toLowerCase();
 
@@ -704,6 +704,28 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
   const generatedOrigin=fleetKey?phoneActionOrigin(request,{fleetKey:true}):null;
   await recordPhoneNavigationEvent(env,request,enrollment,{action:navigationAction,outcome:'received',generatedOrigin}).catch(()=>{});
   try{
+    const progressResponse=async(intent)=>{
+      const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
+      if(current&&(current.device?.id!==enrollment.device.id||current.device?.mac!==enrollment.device.mac))throw new DeviceManagementError('phone-credential-invalid',403);
+      const state=phoneProgressState(intent,current);
+      const progressUrl=phoneRouteUrl(request,'progress',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac);
+      if(state.kind==='restart')return phoneXmlResponse(textMenu(state.title,[
+        {prompt:state.text,uri:progressUrl},
+        {prompt:'Restart Now',uri:phoneRouteUrl(request,'restart',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)}
+      ],{cancelAction:home}));
+      return phoneXmlResponse(textScreen(state.title,state.text,{timeout:state.kind==='wait'?0:120,lockIn:state.kind==='wait',refresh:state.kind==='wait'?5:0,url:progressUrl}));
+    };
+    if(part==='phone/progress'||part==='phone/restart'){
+      const intent=await readPhoneIntent(env,phoneUrl.searchParams.get('intent'),enrollment);
+      if(part==='phone/restart'){
+        const current=intent.result?.leaseId?await getLease(env,intent.result.leaseId):null;
+        if(!current||current.device?.id!==enrollment.device.id||current.device?.mac!==enrollment.device.mac)throw new DeviceManagementError('phone-credential-invalid',403);
+        if(phoneProgressState(intent,current).kind==='restart'){
+          await runRecoveryAction({env,request,session:phoneSession(enrollment),leaseId:current.leaseId,webexFetch,orgId:org,phonismReader,phoneFallback:true});
+        }
+      }
+      return await progressResponse(intent);
+    }
     const leaseIndex=await activeLeaseIndex(env),lease=activePhoneLease(leaseIndex,enrollment);
     let line2Loaded=false,line2Row=null;
     const loadLine2=async()=>{
@@ -835,55 +857,24 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     }
 
     if(part==='phone/apply'){
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
       const intentId=new URL(request.url).searchParams.get('intent');
       let intent=await readPhoneIntent(env,intentId,enrollment);
-      if(intent.status==='completed'&&intent.result?.expiresAt){
-        return phoneXmlResponse(textMenu('Extension Already Saved',[
-          {prompt:'Temporary until '+new Date(intent.result.expiresAt).toLocaleString('en-US',{timeZone:'America/Chicago'}),uri:home},
-          {prompt:'Return',uri:home}
-        ]));
-      }
+      if(intent.status==='completed')return await progressResponse(intent);
+      if(lease)throw new DeviceManagementError('phone-active-lease',409);
       if(intent.status==='processing'){
-        return phoneXmlResponse(textScreen(
-          'Saving Extension',
-          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
-          {timeout:60,lockIn:true,beep:false}
-        ));
+        return await progressResponse(intent);
       }
       intent=await startPhoneIntent(env,intentId,enrollment);
       if(typeof executionContext?.waitUntil==='function'){
         executionContext.waitUntil(applyPhoneIntentWork({
           env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure:false
         }));
-        return phoneXmlResponse(textScreen(
-          'Saving Extension',
-          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
-          {timeout:60,lockIn:true,beep:false}
-        ));
+        return await progressResponse(intent);
       }
-      const applied=await applyPhoneIntentWork({
+      await applyPhoneIntentWork({
         env,request,org,webexFetch,phonismReader,enrollment,intent,throwOnFailure:true
       });
-      const {result,target}=applied;
-      if(result.rebootQueued){
-        return phoneXmlResponse(textScreen(
-          'Saving Extension',
-          'Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds',
-          {timeout:60,lockIn:true,beep:false}
-        ));
-      }
-      if(result.syncPending)return phoneXmlResponse(textMenu('Saved - Still Syncing',[
-        {prompt:phoneMemberLabel(target),uri:home},
-        {prompt:'Restart follows confirmed sync',uri:home},
-        {prompt:'Automatic retry within about 1 minute',uri:home},
-        {prompt:'Refresh status',uri:home}
-      ]));
-      return phoneXmlResponse(textMenu('Saved - Reboot Needed',[
-        {prompt:phoneMemberLabel(target),uri:home},
-        {prompt:'Reboot needs attention',uri:home},
-        {prompt:'Return',uri:home}
-      ]));
+      return await progressResponse(await readPhoneIntent(env,intentId,enrollment));
     }
 
     return phoneXmlResponse(phoneErrorMenu('not-found',home),404);
@@ -1371,7 +1362,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         try{
           const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:body.mutationId,phonismReader});
           return output({success:true,
-            message:result.syncPending?'Webex saved the assignment. Phonism is still syncing; restart is deferred until the requested line is confirmed. Automatic retry runs within 5 minutes.':result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
+            message:result.syncPending?'Webex saved the assignment. Phonism is still syncing; restart is deferred until the requested line is confirmed. Automatic retry runs within about 1 minute.':result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
             leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt,verification:result.lease.verification,
             syncPending:result.syncPending===true,rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!result.syncPending,rebootError:result.rebootError||null},200,headers);
         }catch(error){

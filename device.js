@@ -1223,7 +1223,7 @@
       '<div class="device-confirm-row"><span>Current Line 2</span><strong>'+esc(before?.name||"None")+' '+esc(before?.extension||"")+(before?.locationName?' · '+esc(before.locationName):'')+'</strong></div>'+
       '<div class="device-confirm-row"><span>New Line 2</span><strong>'+esc(after?.name||"None")+' '+esc(after?.extension||"")+'</strong></div>'+
       (after?'<div class="device-confirm-row"><span>Selected line location</span><strong>'+esc(after.locationName||"Location unavailable")+'</strong></div>':"")+
-      '<div class="device-confirm-row"><span>Temporary duration</span><strong>'+esc(plan.lease?.durationMinutes?String(plan.lease.durationMinutes)+" minutes":"Temporary")+'</strong></div>'+
+      '<div class="device-confirm-row"><span>Temporary duration</span><strong>'+esc(plan.lease?.durationMinutes?(plan.lease.durationMinutes>=1440&&plan.lease.durationMinutes%1440===0?String(plan.lease.durationMinutes/1440)+(plan.lease.durationMinutes===1440?" day":" days"):String(plan.lease.durationMinutes)+" minutes"):"Temporary")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Auto-revert</span><strong>'+esc(plan.lease?.expiresAt?new Date(plan.lease.expiresAt).toLocaleString():"At lease expiry")+'</strong></div>'+
       '<div class="device-confirm-row"><span>Post-save action</span><strong>'+esc(plan.phonismActionLabel||"Phonism Sync + registration verification")+'</strong></div>'+
       (($("deviceChangeReason")?.value||"").trim()?'<div class="device-confirm-row"><span>Reason</span><strong>'+esc(($("deviceChangeReason")?.value||"").trim())+'</strong></div>':"")+

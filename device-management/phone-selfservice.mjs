@@ -14,7 +14,7 @@ const FLEET_CONFIG_KEY='device-phone-fleet-keys:v1';
 const FLEET_ROTATION_GRACE_MS=24*60*60*1000;
 const MAX_FLEET_HISTORY=10;
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-const DURATIONS=[15,30,60,120,240,480,720];
+const DURATIONS=[15,30,60,120,240,480,720,1440,10080,43200];
 
 const clean=(value,max=180)=>String(value??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').slice(0,max);
 const xmlEscape=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
@@ -49,6 +49,7 @@ async function accessKey(token){return ACCESS_PREFIX+await sha256(token);}
 export function phoneDurationOptions(){return [...DURATIONS];}
 export function phoneDurationLabel(minutes){
   const value=validateTemporaryDuration(minutes);
+  if(value>=1440&&value%1440===0)return value/1440+(value===1440?' day':' days');
   if(value<60)return value+' minutes';
   const hours=value/60;
   return Number.isInteger(hours)?hours+(hours===1?' hour':' hours'):value+' minutes';

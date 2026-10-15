@@ -75,10 +75,10 @@ export function textMenu(title,items,{cancelAction='SoftKey:Exit',timeout=120}={
     '</YealinkIPPhoneTextMenu>';
 }
 
-export function textScreen(title,text,{timeout=0,lockIn=true,beep=false}={}){
+export function textScreen(title,text,{timeout=0,lockIn=true,beep=false,refresh=0,url=null}={}){
   const seconds=Number.isFinite(Number(timeout))?Math.max(0,Math.floor(Number(timeout))):0;
   return '<?xml version="1.0" encoding="UTF-8"?>\n'+
-    '<YealinkIPPhoneTextScreen Beep="'+(beep?'yes':'no')+'" Timeout="'+seconds+'" LockIn="'+(lockIn?'yes':'no')+'">'+
+    '<YealinkIPPhoneTextScreen Beep="'+(beep?'yes':'no')+'" Timeout="'+seconds+'" LockIn="'+(lockIn?'yes':'no')+'"'+(url&&Number(refresh)>0?' refresh="'+Math.max(1,Math.floor(Number(refresh)))+'" url="'+xmlEscape(url)+'"':'')+'>'+
     '<Title wrap="yes">'+xmlEscape(title)+'</Title>'+
     '<Text>'+xmlEscape(text)+'</Text>'+
     '</YealinkIPPhoneTextScreen>';
@@ -97,6 +97,10 @@ export function phoneErrorMenu(code,homeUrl){
     'phone-enrollment-not-found':'This phone is not enrolled for self-service.',
     'phone-enrollment-revoked':'Phone self-service is disabled for this phone.',
     'phone-credential-invalid':'Phone authorization failed.',
+    'restart-already-requested':'A restart has already been requested. Please wait. If your phone does not restart, contact support.',
+    'restart-not-ready':'Your phone is still being prepared. Please wait.',
+    'phonism-line-not-ready':'Your phone is still being prepared. Please wait.',
+    'webex-line-changed':'Your extension changed. Please return to Manage Extensions to check it.',
     'phone-active-lease':'A temporary Line 2 is already active. Wait for it to expire or manage it from the Device Management page.',
     'target-member-not-available':'That extension or number is no longer available for this phone.',
     'device-state-changed-review-again':'The phone assignment changed. Start again and review the current lines.',
@@ -428,8 +432,8 @@ export async function readPhoneIntent(env,intentId,enrollment){
 export async function startPhoneIntent(env,intentId,enrollment){
   const intent=await readPhoneIntent(env,intentId,enrollment);
   if(intent.status==='completed'||intent.status==='processing')return intent;
-  const next={...intent,status:'processing',startedAt:new Date().toISOString(),error:null,failedAt:null};
-  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:300});
+  const next={...intent,status:'processing',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+15*60000).toISOString(),error:null,failedAt:null};
+  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:900});
   return next;
 }
 
@@ -437,13 +441,13 @@ export async function failPhoneIntent(env,intentId,error){
   const intent=await readJson(env.SESSIONS,INTENT_PREFIX+intentId);
   if(!intent)return null;
   const next={...intent,status:'failed',error:String(error?.code||error?.message||'phone-save-failed').slice(0,160),failedAt:new Date().toISOString()};
-  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:300});
+  await putJson(env.SESSIONS,INTENT_PREFIX+intentId,next,{expirationTtl:900});
   return next;
 }
 
 export async function finishPhoneIntent(env,intentId,result){
   const intent=await readJson(env.SESSIONS,INTENT_PREFIX+intentId);
-  if(intent)await putJson(env.SESSIONS,INTENT_PREFIX+intentId,{...intent,status:'completed',result,error:null,completedAt:new Date().toISOString()},{expirationTtl:300});
+  if(intent)await putJson(env.SESSIONS,INTENT_PREFIX+intentId,{...intent,status:'completed',result,error:null,completedAt:new Date().toISOString()},{expirationTtl:900});
 }
 
 export function phoneSession(enrollment){
@@ -462,4 +466,21 @@ export function attachPhoneSelfService(device,enrollmentIndex,telemetryIndex){
     phoneIp:telemetry?.phoneIp||null,sourceIp:telemetry?.sourceIp||null,model:telemetry?.model||device?.model||'',firmware:telemetry?.firmware||'',
     lastSeenAt:telemetry?.lastSeenAt||null,lastEvent:telemetry?.event||null
   }};
+}
+
+// Progress reads saved state only. The scheduled worker remains the single automatic retry owner.
+export function phoneProgressState(intent,lease,now=Date.now()){
+  const elapsed=now-Date.parse(intent.startedAt||intent.createdAt);
+  if(intent.status==='failed')return {kind:'help',title:'Unable to finish',text:'We could not finish adding your extension. Please contact support before trying again.'};
+  if(lease&&(lease.status!=='active'||Date.parse(lease.expiresAt)<=now))return {kind:'done',title:'Extension ended',text:'This temporary extension is no longer active.'};
+  if(lease?.recovery?.syncFailed)return {kind:'help',title:'Help needed',text:'Your extension could not be prepared. Please contact support. You do not need to save again.'};
+  if(lease?.recovery?.manualPhoneRestartAt)return {kind:'help',title:'Restart requested',text:'Please wait for your phone to restart. If it still does not restart, contact support. You do not need to save again.'};
+  const recovery=lease?.recovery;
+  if(recovery?.syncConfirmedBeforeReboot&&!recovery.syncPending){
+    const since=Date.parse(recovery.rebootAt||recovery.autoRebootFailedAt||'');
+    if(Number.isFinite(since)&&now-since>=60000)return {kind:'restart',title:'Ready to restart',text:'If your phone has not restarted, select Restart Now.'};
+    return {kind:'wait',title:'Restarting your phone...',text:'Please wait. Do not use your phone until it restarts.'};
+  }
+  if(elapsed>=120000)return {kind:'wait',title:'Taking longer than expected',text:lease?'Your extension is saved. We are still preparing your phone. Please wait. You do not need to save again.':'We are still checking your change. Please wait. You do not need to save again.'};
+  return {kind:'wait',title:'Adding your extension',text:'Please wait. Your phone will restart automatically. Allow approximately 1-2 minutes. Please do not use your phone until it restarts.'};
 }

@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import fs from 'node:fs';
 import {patchPhoneFastRetry,PHONE_RETRY_CRON} from '../../scripts/patch-phone-fast-retry.mjs';
 const original=`const worker={async scheduled(event, env, ctx) {
  ctx.waitUntil(reconcilePhoneEnrollments());
@@ -27,9 +26,4 @@ test('original five-minute schedule keeps all existing jobs including phone fall
 });
 test('patch is idempotent and rejects unexpected worker handlers',()=>{
  const once=patchPhoneFastRetry(original);assert.equal(patchPhoneFastRetry(once),once);assert.throws(()=>patchPhoneFastRetry('export default {}'));
-});
-test('all three phone wait responses use the exact customer wording',()=>{
- const source=fs.readFileSync('device-management/gateway.mjs','utf8');
- const message='Please Wait!! Do not use your phone until it restarts. Your phone will restart within the next 40 seconds';
- assert.equal(source.split("'"+message+"'").length-1,3);assert.ok(!source.includes('If delayed, reopen Add Extension'));
 });

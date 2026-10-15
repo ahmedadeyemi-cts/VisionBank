@@ -41,7 +41,7 @@ export class FollowupStore{
 // Caller/called numbers must match in full; no suffix or extension guessing.
 export function outboundFollowups(abandoned,tasks,cars,now){
  const activities=new Map((cars||[]).map(t=>[t.id,t.activities]));
- const outbound=(tasks||[]).filter(t=>String(t.channelType).toLowerCase()==='telephony'&&String(t.direction).toLowerCase()==='outbound'&&UUID.test(t.id||'')&&Number.isFinite(t.createdTime)&&t.createdTime<=now);
+ const outbound=(tasks||[]).filter(t=>String(t.channelType).toLowerCase()==='telephony'&&['outbound','outdial'].includes(String(t.direction).toLowerCase())&&UUID.test(t.id||'')&&Number.isFinite(t.createdTime)&&t.createdTime<=now);
  const bySource=new Map();
  for(const t of outbound){
   const number=callbackNumber(t.destination);if(!number)continue;

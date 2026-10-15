@@ -29,3 +29,16 @@ test('integration explicitly routes follow-up writes through the existing secure
  const source='if (path === "/api/webex/abandoned-callback/settings" || path === "/api/webex/abandoned-callback/history") { return vbCallbackSettingsV1(request,env,cors); }';
  const patched=integrate(source);assert.match(patched,/path === "\/api\/webex\/abandoned-callback\/followups" \|\| path === "\/api\/webex\/abandoned-callback\/settings"/);assert.ok(patched.includes('return vbCallbackSettingsV1(request,env,cors)'));assert.throws(()=>integrate('unrecognized worker'));assert.throws(()=>integrate(patched));
 });
+
+// Agent Desktop reports direction=outdial, with a ten-digit customer destination.
+test('Agent Desktop outdial matches an E.164 abandoned ANI and retains manual completion',()=>{
+ const missed={...a,ani:'+15155550100',startEpoch:1792079773100,endEpoch:1792079781017,manualFollowup:{done:true,agentName:'Operator Test'}};
+ const outbound={...task,direction:'outdial',destination:'5155550100',createdTime:1792079804575,endedTime:1792079817529,status:'ended',connectedDuration:5502};
+ const result=outboundFollowups([missed],[outbound],[],1792079881009)[0];
+ assert.equal(result.outboundFollowup.contactId,outbound.id);
+ assert.equal(result.outboundFollowup.agentName,'Agent Test');
+ assert.equal(result.outboundFollowup.at,1792079804575);
+ assert.equal(result.outboundFollowup.connectionReported,true);
+ assert.deepEqual(result.manualFollowup,missed.manualFollowup);
+ for(const direction of ['inbound','unknown',''])assert.equal(outboundFollowups([missed],[{...outbound,direction}],[],1792079881009)[0].outboundFollowup,null);
+});

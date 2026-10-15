@@ -1,3 +1,5 @@
+> Superseded for new assignments by PHONE-IMMEDIATE-LINE-SYNC.md. Legacy pending jobs retain this fallback behavior.
+
 # Device-first assignment synchronization
 
 The 2026-10-15 post-release tests still showed about 18 seconds from save acceptance to restart request for Ahmed's T57W and about 96 seconds for the T53 test handset. Both were using frequent handset confirmation, so extending polling alone did not remove the provider-side readiness delay.

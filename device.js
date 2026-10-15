@@ -1310,7 +1310,16 @@
           return await finishVerifiedLease(last,"Save & Sync completed. Webex and Phonism are confirmed after the automatic reboot. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
         }
         if(last.state==="applied-unverified"){
-          return await finishVerifiedLease(last,"Save & Sync completed and the automatic reboot was queued. Webex and Phonism contain the temporary line, but Phonism does not provide registration telemetry for this handset. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
+          return await finishVerifiedLease(last,"Configuration saved and restart requested. Handset activation is not verified because Phonism does not provide registration telemetry. Confirm that the extension appears on the phone before using it. Temporary lease expires "+new Date(last.expiresAt).toLocaleString()+".");
+        }
+        if(last.state==="sync-pending"){
+          text("deviceInventoryStatus","Extension saved; phone configuration is still syncing. Restart will follow once confirmed. Automatic retry runs within 5 minutes.");
+        }
+        if(last.state==="sync-failed"){
+          text("deviceRecoveryReason","The requested line could not be confirmed in Phonism. No restart was sent. Contact support; the assignment will still expire automatically.");
+          const reboot=$("deviceReboot");if(reboot)reboot.disabled=true;
+          $("deviceRecovery")?.showModal();
+          return last;
         }
         if(last.state==="reboot-failed"){
           text("deviceRecoveryReason","The line change and Phonism Sync completed, but the automatic reboot could not be queued. Use Reboot & Reverify.");
@@ -1326,6 +1335,10 @@
         text("deviceInventoryStatus","Verification check delayed: "+error.message);
       }
       if(i<attempts-1)await wait(delayMs);
+    }
+    if(last?.state==="sync-pending"){
+      text("deviceInventoryStatus","Still syncing. Automatic retry runs within 5 minutes; use Refresh to check status. Do not add the extension again.");
+      return last;
     }
     text("deviceRecoveryReason","The temporary line has not fully converged after the automatic reboot. Use Reboot & Reverify if the handset still needs attention.");
     const reboot=$("deviceReboot");if(reboot)reboot.disabled=!state.recovery?.rebootAvailable;

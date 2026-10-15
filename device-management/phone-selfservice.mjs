@@ -468,9 +468,13 @@ export function attachPhoneSelfService(device,enrollmentIndex,telemetryIndex){
   }};
 }
 
-// Progress reads saved state only. The scheduled worker remains the single automatic retry owner.
+// Presentation uses the original Save time; refreshing never resets the estimate.
 export function phoneProgressState(intent,lease,now=Date.now()){
-  const elapsed=now-Date.parse(intent.startedAt||intent.createdAt);
+  const started=Date.parse(intent.startedAt||intent.createdAt);
+  const elapsed=Number.isFinite(started)?Math.max(0,now-started):0;
+  const seconds=Math.max(0,Math.ceil((120000-elapsed)/1000));
+  const countdown=Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');
+  const estimate='Estimated time remaining: '+countdown;
   if(intent.status==='failed')return {kind:'help',title:'Unable to finish',text:'We could not finish adding your extension. Please contact support before trying again.'};
   if(lease&&(lease.status!=='active'||Date.parse(lease.expiresAt)<=now))return {kind:'done',title:'Extension ended',text:'This temporary extension is no longer active.'};
   if(lease?.recovery?.syncFailed)return {kind:'help',title:'Help needed',text:'Your extension could not be prepared. Please contact support. You do not need to save again.'};
@@ -479,8 +483,9 @@ export function phoneProgressState(intent,lease,now=Date.now()){
   if(recovery?.syncConfirmedBeforeReboot&&!recovery.syncPending){
     const since=Date.parse(recovery.rebootAt||recovery.autoRebootFailedAt||'');
     if(Number.isFinite(since)&&now-since>=60000)return {kind:'restart',title:'Ready to restart',text:'If your phone has not restarted, select Restart Now.'};
-    return {kind:'wait',title:'Restarting your phone...',text:'Please wait. Do not use your phone until it restarts.'};
+    if(elapsed>=120000)return {kind:'wait',title:'Taking longer than expected',text:'Your restart has been requested. Please wait. You do not need to save again.'};
+    return {kind:'wait',title:'Restarting your phone...',text:estimate+'\nPlease wait. Do not use your phone until it restarts.'};
   }
   if(elapsed>=120000)return {kind:'wait',title:'Taking longer than expected',text:lease?'Your extension is saved. We are still preparing your phone. Please wait. You do not need to save again.':'We are still checking your change. Please wait. You do not need to save again.'};
-  return {kind:'wait',title:'Adding your extension',text:'Please wait. Your phone will restart automatically. Allow approximately 1-2 minutes. Please do not use your phone until it restarts.'};
+  return {kind:'wait',title:'Preparing your phone',text:estimate+'\nYour phone will restart automatically. Please do not use it until it restarts.'};
 }

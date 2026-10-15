@@ -106,11 +106,11 @@ test('phone-originated changes audit as a verified device',()=>{
 
 
 test('TextScreen renders a locked message with no menu items',()=>{
-  const xml=textScreen('Saving Extension','Applying your extension. Your phone will reboot automatically. This may take up to 45 seconds.',{timeout:0,lockIn:true,beep:false});
+  const xml=textScreen('Saving Extension','Please wait! Do not use your phone until it restarts. Your phone should restart within about 40 seconds.',{timeout:0,lockIn:true,beep:false});
   assert.match(xml,/YealinkIPPhoneTextScreen/);
   assert.match(xml,/Timeout="0"/);
   assert.match(xml,/LockIn="yes"/);
   assert.match(xml,/Saving Extension/);
-  assert.match(xml,/Applying your extension\. Your phone will reboot automatically\. This may take up to 45 seconds\./);
+  assert.match(xml,/Please wait! Do not use your phone until it restarts\. Your phone should restart within about 40 seconds\./);
   assert.doesNotMatch(xml,/<MenuItem>/);
 });

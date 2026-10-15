@@ -47,6 +47,23 @@ const searchExtension = document.getElementById("searchExtension");
 const locationFilter = document.getElementById("locationFilter");
 
 let contacts = [];
+let directoryRevision=null,directoryDirty=false;
+const syncDirectoryBtn=document.getElementById('syncDirectoryBtn');
+function showSyncStatus(sync){
+ const el=document.getElementById('directorySyncStatus');if(!el)return;
+ const intro='Webex sync runs every 3 hours. WG entries are never changed by sync. ';
+ el.textContent=intro+(sync?.state==='ready'?`Last synced: ${new Date(sync.completedAt).toLocaleString()}. ${sync.updated} updated, ${sync.deleted||0} removed, ${sync.protected} WG entries protected. ${sync.unmatched+sync.ambiguous} entries have no unique Webex match and were left unchanged.`:sync?.state==='error'?'Last sync could not complete. '+sync.message:'Waiting for the first sync.');
+}
+directoryTableBody?.addEventListener('input',()=>{directoryDirty=true;});
+syncDirectoryBtn?.addEventListener('click',async()=>{
+ if(directoryDirty){directoryStatus.textContent='Save your directory edits before syncing, or reload this page to discard them.';return;}
+ const controls=[...appView.querySelectorAll('input,button,select')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);
+ directoryStatus.textContent='Syncing users and workspaces from Webex…';
+ try{const response=await fetch(`${SECURITY_BASE}/api/directory/sync`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:'{}'});const data=await response.json();if(!response.ok||!data.success)throw Error(data.error||'Sync failed');
+ contacts=data.contacts;directoryRevision=data.revision;directoryDirty=false;populateLocationFilter();renderDirectory();showSyncStatus(data.sync);directoryStatus.textContent='Sync complete. The phone directory has been updated.';
+ }catch(error){directoryStatus.textContent='Unable to sync: '+error.message;}
+ finally{controls.forEach(([el,disabled])=>el.disabled=disabled);}
+});
 
 // =====================================================
 // SECURITY
@@ -143,6 +160,7 @@ async function loadDirectory() {
     }
 
     contacts = Array.isArray(data.contacts) ? data.contacts : [];
+    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync);
     populateLocationFilter();
     renderDirectory();
 
@@ -162,7 +180,7 @@ async function saveDirectory() {
     const res = await fetch(`${SECURITY_BASE}/api/directory/save`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ contacts })
+      body: JSON.stringify({ contacts, revision:directoryRevision })
     });
 
     const data = await res.json();
@@ -172,12 +190,13 @@ async function saveDirectory() {
     }
 
     contacts = Array.isArray(data.contacts) ? data.contacts : [];
+    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync);
     renderDirectory();
 
     directoryStatus.textContent = `Directory saved. ${data.count || contacts.length} contacts published.`;
   } catch (err) {
     console.error(err);
-    directoryStatus.textContent = "Unable to save directory.";
+    directoryStatus.textContent = "Unable to save directory. "+err.message;
   }
 }
 function populateLocationFilter() {
@@ -243,6 +262,7 @@ function collectContactsFromTable() {
     const displayName = row.querySelector(".contact-name")?.value.trim() || `${firstName} ${lastName}`.trim();
 
     return {
+      webexDirectoryId:contacts[Number(row.dataset.index)]?.webexDirectoryId,
       firstName,
       lastName,
       name: displayName,
@@ -255,6 +275,7 @@ function collectContactsFromTable() {
   }).filter(c => c.name && (c.extension || c.phone));
 }
 function addContact() {
+  directoryDirty=true;
   collectContactsFromTable();
 
   contacts.push({
@@ -272,6 +293,7 @@ function addContact() {
 }
 
 function deleteContact(index) {
+  directoryDirty=true;
   collectContactsFromTable();
   contacts.splice(index, 1);
   renderDirectory();
@@ -346,6 +368,7 @@ uploadCsvInput?.addEventListener("change", async event => {
 
   const text = await file.text();
   const imported = parseCsv(text);
+  directoryDirty=true;
 
 contacts = imported
   .map(row => {

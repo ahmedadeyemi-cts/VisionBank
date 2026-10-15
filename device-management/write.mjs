@@ -218,8 +218,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     const pc=preview.phonismContext||{};
     await phonismReader.syncHierarchyIntegration(env,pc.companyId,{
       tenantId:pc.tenantId,
-      // Include line owners immediately; device-only jobs required a delayed broader sync.
-      assetTypes:['People','Workspace','Device']
+      assetTypes:['Device']
     });
     phonismQueued=true;
   }catch(error){
@@ -260,7 +259,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   lease.baselineMember=preview.baselineMember||null;
   lease.timing={saveRequestedAt:saveRequestedAt||lease.startsAt,webexAndSyncSavedAt:lease.startsAt};
   // Persist before waiting: scheduled maintenance can recover a terminated request.
-  lease.recovery={syncStrategy:'assignment-immediate',syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
+  lease.recovery={syncStrategy:'device-first',syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
   lease.verification.state='sync-pending';
   await putLease(env,lease);
 

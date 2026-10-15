@@ -51,17 +51,17 @@ export async function defaultPhonismFetch(env,path,{method='GET',signal,fresh=fa
   return response;
 }
 
-async function phonismWrite(env,path,{method='PUT',body,retrySync=false}={}){
+async function phonismWrite(env,path,{method='PUT',body,retrySync=false,timeoutMs=10000,singleAttempt=false}={}){
   if(!['PUT','POST'].includes(method))throw new DeviceManagementError('phonism-write-method-denied',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
   const url=PHONISM_BASE+safePath(path);
-  for(let attempt=1;attempt<=(retrySync?3:1);attempt++){
+  for(let attempt=1;attempt<=(retrySync&&!singleAttempt?3:1);attempt++){
     let response;
     try{
       response=await fetch(url,{
         method,redirect:'manual',
-        ...(retrySync?{signal:AbortSignal.timeout(10000)}:{}),
+        ...(retrySync?{signal:AbortSignal.timeout(Math.min(10000,Math.max(1000,Number(timeoutMs)||10000)))}:{}),
         headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},
         body:JSON.stringify(body||{})
       });
@@ -82,7 +82,7 @@ async function phonismWrite(env,path,{method='PUT',body,retrySync=false}={}){
     const delay=requestedDelay===null?[500,1500][attempt-1]:Math.max(0,requestedDelay);
     // Retry only explicitly temporary HTTP failures, only for integration sync.
     // A long Retry-After is honored by stopping rather than retrying prematurely.
-    if(!retrySync||attempt>=3||![429,502,503,504].includes(response.status)||!Number.isFinite(delay)||delay>3000)throw error;
+    if(!retrySync||singleAttempt||attempt>=3||![429,502,503,504].includes(response.status)||!Number.isFinite(delay)||delay>3000)throw error;
     await new Promise(resolve=>setTimeout(resolve,delay));
   }
 }
@@ -258,14 +258,14 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       return data.map(lineRow).filter(x=>x.lineNumber);
     },
 
-    async syncHierarchyIntegration(env,companyId,{tenantId,assetTypes=['People','Workspace','Device']}={}){
+    async syncHierarchyIntegration(env,companyId,{tenantId,assetTypes=['People','Workspace','Device'],singleAttempt=false,timeoutMs=10000}={}){
       if(!companyId)throw new DeviceManagementError('phonism-company-required',409);
       const allowed=new Set(['Organization','Location','People','Workspace','Device']);
       const assets=(Array.isArray(assetTypes)?assetTypes:[assetTypes]).map(x=>String(x||'')).filter(x=>allowed.has(x));
       if(!assets.length)throw new DeviceManagementError('phonism-sync-assets-required');
       const body={asset_type:assets};
       if(tenantId)body.tenant_id=Number(tenantId)||tenantId;
-      const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body,retrySync:true});
+      const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body,retrySync:true,singleAttempt,timeoutMs});
       if(result.status!==202&&result.status!==200)throw new DeviceManagementError('phonism-sync-not-accepted',502);
       return {accepted:true,status:result.status};
     },

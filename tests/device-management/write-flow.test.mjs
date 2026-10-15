@@ -143,6 +143,9 @@ test('apply writes Webex, queues Phonism sync, then automatically queues reboot'
   assert.equal(wx.state.puts.length,1);
   assert.equal(wx.state.puts[0].members.find(x=>x.port===2).id,'user-ryan');
   assert.deepEqual(ph.calls.map(x=>x.type),['sync','tr069']);
+  assert.deepEqual(ph.calls[0].body.assetTypes,['Device']);
+  assert.equal(ph.calls[0].body.tenantId,'123');
+  assert.equal(result.lease.recovery.syncStrategy,'device-first');
   assert.equal(ph.calls[1].action,'Reboot');
   assert.equal(ph.state.lineReads,1);
   assert.equal(ph.state.rebootAttempts,1);
@@ -491,4 +494,52 @@ test('completed initial check avoids the old thirty-second scheduler skip',async
  const {e,wx,ph,lease}=await pendingFixture();lease.recovery.initialSyncCheckCompletedAt=new Date().toISOString();
  await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+15000});assert.equal(ph.state.rebootAttempts,1);
+});
+
+async function deviceFirstPending(){
+ const f=await pendingFixture();
+ f.lease.recovery.syncStrategy='device-first';
+ f.lease.recovery.initialSyncCheckCompletedAt=f.lease.startsAt;
+ await f.e.LOGS.put('device-lease:'+f.lease.leaseId,JSON.stringify(f.lease));
+ f.ph.calls.length=0;f.ph.reader.lines=async()=>[];
+ return f;
+}
+test('device-first queues broader sync once after forty-five seconds and still verifies before reboot',async()=>{
+ const {e,wx,ph,lease}=await deviceFirstPending(),start=Date.parse(lease.startsAt);
+ const run=now=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
+ await run(start+44000);assert.equal(ph.calls.length,0);
+ await run(start+45000);
+ assert.equal(ph.calls.length,1);assert.deepEqual(ph.calls[0].body.assetTypes,['People','Workspace','Device']);
+ assert.equal(ph.calls[0].body.tenantId,lease.phonismTenantId);
+ assert.equal(ph.calls[0].body.singleAttempt,true);assert.equal(ph.calls[0].body.timeoutMs,3000);
+ assert.equal(ph.state.rebootAttempts,0);
+ await run(start+55000);assert.equal(ph.calls.length,1);
+ ph.reader.lines=async()=>[{lineNumber:2,username:'1806'}];
+ await run(start+60000);assert.equal(ph.state.rebootAttempts,1);
+});
+test('ambiguous broader sync failure stays claimed and is not resubmitted every refresh',async()=>{
+ const {e,wx,ph,lease}=await deviceFirstPending();let calls=0;
+ ph.reader.syncHierarchyIntegration=async()=>{calls++;throw Object.assign(new Error('timeout'),{code:'phonism-write-failed',providerFailure:'timeout'});};
+ for(const age of [45000,50000,60000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
+ assert.equal(calls,1);assert.equal(ph.state.rebootAttempts,0);
+ const saved=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
+ assert.ok(saved.recovery.fullSyncFallbackAttemptedAt);assert.equal(saved.recovery.syncPending,true);
+ assert.equal(saved.recovery.fullSyncFallbackError,'phonism-write-failed');
+});
+test('changed assignment and unreadable providers never dispatch broader sync',async()=>{
+ for(const failure of ['changed','unreadable']){
+  const {e,wx,ph,lease}=await deviceFirstPending();
+  if(failure==='changed')wx.state.members=composeMembers([PRIMARY],{...TARGET,id:'new-owner'});
+  else ph.reader.lines=async()=>{throw Error('network');};
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+60000});
+  assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
+ }
+});
+test('legacy pending jobs and timed-out device-first jobs do not enqueue a new full sync',async()=>{
+ for(const legacy of [true,false]){
+  const {e,wx,ph,lease}=await deviceFirstPending();
+  if(legacy){delete lease.recovery.syncStrategy;await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));}
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+(legacy?60000:600000)});
+  assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
+ }
 });

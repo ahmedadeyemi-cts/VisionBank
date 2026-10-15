@@ -218,7 +218,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     const pc=preview.phonismContext||{};
     await phonismReader.syncHierarchyIntegration(env,pc.companyId,{
       tenantId:pc.tenantId,
-      assetTypes:['People','Workspace','Device']
+      assetTypes:['Device']
     });
     phonismQueued=true;
   }catch(error){
@@ -259,7 +259,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   lease.baselineMember=preview.baselineMember||null;
   lease.timing={saveRequestedAt:saveRequestedAt||lease.startsAt,webexAndSyncSavedAt:lease.startsAt};
   // Persist before waiting: scheduled maintenance can recover a terminated request.
-  lease.recovery={syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
+  lease.recovery={syncStrategy:'device-first',syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
   lease.verification.state='sync-pending';
   await putLease(env,lease);
 
@@ -553,6 +553,35 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
   if(Date.parse(lease.expiresAt)<=checkedAt)return;
   lease.recovery={...lease.recovery,syncRetryChecks:Number(lease.recovery.syncRetryChecks||0)+1,lastSyncCheckAt:new Date(checkedAt).toISOString(),lastSyncCheckMs:Date.now()-checkStartedAt,lastSyncCheckSource:phoneDeadline?'phone-progress':'scheduled'};
   if(!confirmed){
+    // Device sync avoids user/workspace inventory scans in the common case.
+    // Persist a one-shot broader fallback before dispatch; never enqueue on every refresh.
+    const fallbackDue=lease.recovery.syncStrategy==='device-first'&&
+      !lease.recovery.fullSyncFallbackAttemptedAt&&lease.phonismCompanyId&&lease.phonismTenantId&&
+      !error&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=45000&&
+      now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<10*60000&&
+      (!phoneDeadline||phoneDeadline-Date.now()>8000)&&Date.parse(lease.expiresAt)>Math.max(now,Date.now())+5000;
+    if(fallbackDue){
+      const fallbackAt=new Date().toISOString();
+      lease.recovery={...lease.recovery,fullSyncFallbackAttemptedAt:fallbackAt};
+      await putLease(env,lease);
+      let fallbackError=null;
+      try{
+        await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
+          tenantId:lease.phonismTenantId,assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000
+        });
+        lease.recovery.fullSyncFallbackAcceptedAt=new Date().toISOString();
+      }catch(e){fallbackError=e;lease.recovery.fullSyncFallbackError=e?.code||'sync-failed';}
+      await writeAuditRecord(env,buildAuditRecord({
+        eventType:'device-sync-recovery',action:'device-sync-broader-fallback',
+        systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,
+        change:{leaseId:lease.leaseId,stage:'phonism-sync',syncStrategy:'device-first',
+          assetTypes:['People','Workspace','Device'],errorCode:fallbackError?.code||null,
+          upstreamStatus:fallbackError?.upstreamStatus||null,providerFailure:fallbackError?.providerFailure||null},
+        reason:'Device-only sync has not confirmed the requested line after 45 seconds; one broader synchronization attempt issued.',
+        webexStatus:'confirmed',phonismStatus:fallbackError?'fallback-not-confirmed':'fallback-queued',
+        result:'pending-verification',originalAuditId:lease.auditId
+      }));
+    }
     const failed=error==='webex-line-changed'||now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=10*60000;
     lease.recovery={...lease.recovery,syncPending:!failed,syncFailed:failed,syncConfirmError:error||'phonism-line-not-ready'};
     lease.verification={...lease.verification,state:failed?'sync-failed':'sync-pending',lastCheckedAt:new Date(now).toISOString()};

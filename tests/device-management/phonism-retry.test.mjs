@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPhonismReader} from '../../device-management/phonism.mjs';
+import {createPhonismReader,defaultPhonismFetch} from '../../device-management/phonism.mjs';
 const env={PHONISM_API_KEY:'test-key-not-a-real-secret'};
 test('sync retries temporary HTTP failures without changing scope or payload',async t=>{
  const calls=[];
@@ -41,4 +41,13 @@ test('reboot does not inherit integration retry policy',async t=>{
  t.mock.method(globalThis,'fetch',async()=>{calls++;return new Response('no',{status:503});});
  await assert.rejects(createPhonismReader().tr069Action(env,'123','Reboot'));
  assert.equal(calls,1);
+});
+
+test('line confirmation asks intermediaries for fresh status',async t=>{
+ let headers;
+ t.mock.method(globalThis,'fetch',async(url,options)=>{headers=options.headers;return Response.json({errors:[],data:[]});});
+ await createPhonismReader().lines(env,'123');
+ assert.equal(headers['Cache-Control'],'no-cache');
+ await defaultPhonismFetch(env,'/hierarchy/');
+ assert.equal(headers['Cache-Control'],undefined);
 });

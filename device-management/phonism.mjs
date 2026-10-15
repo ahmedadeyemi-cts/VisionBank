@@ -39,13 +39,13 @@ function safePath(path){
   return path;
 }
 
-export async function defaultPhonismFetch(env,path,{method='GET',signal}={}){
+export async function defaultPhonismFetch(env,path,{method='GET',signal,fresh=false}={}){
   if(method!=='GET')throw new DeviceManagementError('phonism-read-only',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
   const response=await fetch(PHONISM_BASE+safePath(path),{
     method:'GET',redirect:'manual',signal,
-    headers:{Accept:'application/json','x-api-key':key}
+    headers:{Accept:'application/json','x-api-key':key,...(fresh?{'Cache-Control':'no-cache'}:{})}
   });
   if(response.status>=300&&response.status<400)throw new DeviceManagementError('phonism-unexpected-redirect',502);
   return response;
@@ -252,7 +252,7 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
     },
 
     async lines(env,phoneId){
-      const response=await fetcher(env,'/phones/'+encodeURIComponent(phoneId)+'/lines',{method:'GET'});
+      const response=await fetcher(env,'/phones/'+encodeURIComponent(phoneId)+'/lines',{method:'GET',fresh:true});
       const body=await readJson(response);
       const data=Array.isArray(body.data)?body.data:(body.data==null?[]:[body.data]);
       return data.map(lineRow).filter(x=>x.lineNumber);

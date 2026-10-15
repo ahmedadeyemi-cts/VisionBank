@@ -363,9 +363,11 @@ test('unconfirmed save defers reboot; durable retry verifies both providers and 
     env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:15,reason:'',
     phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}
   });
-  const applied=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+  const applied=await applyWritePreview({env:e,request:request(),session:{...SESSION,actorType:'device',verified:true,deviceIdentity:{mac:MAC,model:'T54W'}},webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
   assert.equal(applied.syncPending,true);assert.equal(applied.rebootQueued,false);assert.equal(ph.state.rebootAttempts,0);
   assert.equal(applied.lease.verification.state,'sync-pending');
+  assert.ok(applied.lease.recovery.initialSyncCheckCompletedAt);
+  assert.ok(Date.parse(applied.lease.recovery.phonePollUntil)>Date.now()+80000);
   const now=Date.parse(applied.lease.startsAt)+5*60000;
   await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
   assert.equal(ph.state.rebootAttempts,0,'stale Phonism must not trigger reboot');
@@ -476,4 +478,17 @@ test('30 day assignment retains exact expiry and restores at that time',async()=
   ph.reader.lines=async()=>[];
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
   assert.equal(results[0].status,'restored');assert.equal(wx.state.members.length,1);
+});
+
+test('scheduler respects active handset ownership then takes over after its deadline',async()=>{
+ const {e,wx,ph,lease}=await pendingFixture();const now=Date.parse(lease.startsAt)+15000;
+ lease.recovery.initialSyncCheckCompletedAt=new Date(now).toISOString();lease.recovery.phonePollUntil=new Date(now+90000).toISOString();
+ await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});assert.equal(ph.state.rebootAttempts,0);
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+90001});assert.equal(ph.state.rebootAttempts,1);
+});
+test('completed initial check avoids the old thirty-second scheduler skip',async()=>{
+ const {e,wx,ph,lease}=await pendingFixture();lease.recovery.initialSyncCheckCompletedAt=new Date().toISOString();
+ await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+15000});assert.equal(ph.state.rebootAttempts,1);
 });

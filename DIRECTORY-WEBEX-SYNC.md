@@ -1,0 +1,11 @@
+# Directory synchronization
+
+The directory uses Webex People, Workspaces, Calling Numbers, and Locations, with complete pagination and the configured tenant. Sync runs every three hours (17 minutes past 00, 03, 06, 09, 12, 15, 18, 21 UTC). The existing five-minute maintenance trigger performs the first sync once. Operators can also choose **Sync now** on the directory page.
+
+First sync links existing entries by unique email or exact normalized display name. It never guesses using an extension that could have been reassigned. Subsequent runs use the saved Webex identity, updating name, primary phone, extension, email, location and the Location line in notes. Other note content is retained. Explicit extension-only assignments clear the old external phone. Unreported fields are retained.
+
+Every entry whose trimmed first name starts with WG (case insensitive) is excluded before matching, updates, or deletions. Previously linked users/workspaces missing from complete source lists are removed. Entries without a unique match, service entries, and existing duplicates remain untouched. New, unlinked Webex records are not automatically inserted; this avoids duplicating legacy entries with mismatched names. Add a directory entry with the correct name/email and sync to link it.
+
+Directory data is serialized in the existing companion Durable Object class under a dedicated `orgId:directory:v1` object, separate from callback settings and execution. That object receives a DIRECTORY_KV binding. It initializes from the existing directory, keeps revision backups, and publishes the existing KV mirror. Directory JSON/XML reads use the same canonical state. Manual saves require the revision loaded by the editor; stale saves return 409. The UI retains Webex identity through edits and blocks manual sync while unsaved edits exist.
+
+Deploy with scripts/integrate-directory-sync.mjs over the current live Worker modules, preserving unrelated live changes. The companion adds directory-sync/store.mjs and directory-sync/sync.mjs, inherits existing bindings/migration tag and adds DIRECTORY_KV. The main adds directory-sync/sync.mjs and the three-hour cron without removing existing schedules. Keep backups and remove the new cron before any rollback; avoid switching the main back to legacy KV writes after canonical directory edits have begun.

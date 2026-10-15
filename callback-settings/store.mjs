@@ -1,3 +1,4 @@
+import {DirectoryStore} from '../directory-sync/store.mjs';
 import {FollowupStore} from './followup.mjs';
 import {CallbackPlans} from './plans.mjs';
 import {CallbackExecution} from './execution.mjs';
@@ -24,7 +25,7 @@ function validateState(state) {
 }
 // Accessible only through a Worker binding; the companion has no public routes.
 export class AbandonedCallbackSettingsV1 {
-  constructor(ctx,env={}) { this.storage = ctx.storage; this.plans=new CallbackPlans(ctx.storage); this.execution=new CallbackExecution(ctx,env); }
+  constructor(ctx,env={}) { this.storage = ctx.storage; this.directory=new DirectoryStore(ctx,env); this.plans=new CallbackPlans(ctx.storage); this.execution=new CallbackExecution(ctx,env); }
   async alarm() {
     try{if(!await this.execution.management.run()){const work=await this.storage.list({prefix:'work:',limit:1});if(work.size)await this.execution.run();else await this.execution.outcomes.run();}}
     finally{await this.execution.nextAlarm();await this.execution.management.ensureAlarm();await this.execution.outcomes.ensureAlarm();}
@@ -39,6 +40,7 @@ export class AbandonedCallbackSettingsV1 {
   async fetch(request) {
     try {
       const u = new URL(request.url);
+      if(u.pathname.startsWith('/directory/'))return this.directory.fetch(request);
       if(u.pathname==='/followups')return await new FollowupStore(this.storage).fetch(request);
       if(u.pathname==='/plans')return this.plans.fetch(request);
       if(u.pathname==='/flow-token/status'&&request.method==='GET'){

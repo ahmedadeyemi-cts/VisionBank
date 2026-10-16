@@ -385,14 +385,14 @@ async function activeLeaseIndex(env){
     if(lease?.device?.id)byDevice.set(String(lease.device.id),lease);
     if(lease?.device?.mac)byMac.set(String(lease.device.mac).toUpperCase(),lease);
   }
-  return {byDevice,byMac};
+  return {byDevice,byMac,leases:active};
 }
 
 function attachLease(device,index){
   const lease=index?.byDevice?.get(String(device?.id||''))||index?.byMac?.get(String(device?.mac||'').toUpperCase())||null;
   return {...device,temporaryLease:lease?{
     leaseId:lease.leaseId,status:lease.status,startsAt:lease.startsAt,expiresAt:lease.expiresAt,
-    durationMinutes:lease.durationMinutes,temporaryLine2:lease.temporaryLine2,baselineLine2:lease.baselineLine2
+    durationMinutes:lease.durationMinutes,lineNumber:lease.lineNumber||2,permanent:lease.permanent===true,temporaryLine2:lease.temporaryLine2,baselineLine2:lease.baselineLine2
   }:null};
 }
 
@@ -593,7 +593,7 @@ async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,en
     stage='preview-create';
     const preview=await createWritePreview({
       env,session,device:ctx.device,location:ctx.location,currentMembers:refreshed.members,targetMember:target,
-      durationMinutes:intent.durationMinutes,reason:'Phone self-service temporary Line 2',
+      durationMinutes:intent.durationMinutes,reason:'Phone self-service extension',allocateLine:true,maxLineCount:refreshed.maxLineCount,
       phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null,domainId:ctx.domain?.id||null}
     });
     stage='apply-write-preview';
@@ -750,37 +750,31 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       }
       return await progressResponse(intent);
     }
-    const leaseIndex=await activeLeaseIndex(env),lease=activePhoneLease(leaseIndex,enrollment);
+    const leaseIndex=await activeLeaseIndex(env);
+    const phoneLeases=leaseIndex.leases.filter(item=>String(item.device?.id)===String(enrollment.device.id));
+    const requestedLease=phoneUrl.searchParams.get('lease');
+    const lease=requestedLease?phoneLeases.find(item=>item.leaseId===requestedLease):activePhoneLease(leaseIndex,enrollment);
+    if(requestedLease&&!lease)throw new DeviceManagementError('lease-not-found',404);
+    const changing=phoneLeases.some(item=>item.status!=='active'||item.recovery?.syncPending||item.manualEndRequestedAt);
     let line2Loaded=false,line2Row=null;
     const loadLine2=async()=>{
       if(line2Loaded)return line2Row;
       const current=await readWebexMembers(webexFetch,env,org,enrollment.device.id);
-      const line2=current.members.find(member=>Number(member?.port)===2)||null;
+      const line2=current.members.find(member=>Number(member?.port)===(lease?.lineNumber||2))||null;
       line2Row=line2?memberRow(line2):null;
       line2Loaded=true;
       return line2Row;
     };
 
     if(part==='phone/xml'){
-      if(lease&&lease.status!=='active')return phoneXmlResponse(textMenu('Temporary Line Removal',[
-        {prompt:phoneLeaseStatus(lease),uri:home},
-        {prompt:'Automatic retry within about 1 minute',uri:home},
-        {prompt:'Refresh',uri:home}
-      ]));
-      if(!lease){
-        return phoneXmlResponse(textMenu('VisionBank Manage Extensions',[
-          {prompt:'Add Temporary Extension',uri:searchUrl},
-          {prompt:'Refresh',uri:home}
-        ]));
-      }
-      if(!lease.temporaryLine2)await loadLine2();
       const items=[];
-      const activeLineLabel=lease.temporaryLine2?phoneMemberLabel(lease.temporaryLine2):(line2Row?phoneMemberLabel(line2Row):null);
-      if(activeLineLabel)items.push({prompt:'Line 2: '+activeLineLabel,uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
-      else items.push({prompt:'Line 2: None',uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
-      const expiry=Date.parse(lease.expiresAt||''),minutes=Number.isFinite(expiry)?Math.max(0,Math.ceil((expiry-Date.now())/60000)):null;
-      items.push({prompt:phoneLeaseStatus(lease)+(minutes!==null?' · '+(minutes>=1440?Math.ceil(minutes/1440)+' days left':minutes+' min left'):''),uri:phoneRouteUrl(request,'status',{},accessToken,fleetKey,normalizedFleetMac)});
-      items.push({prompt:'Sign Out Temporary Line',uri:phoneRouteUrl(request,'signout',{},accessToken,fleetKey,normalizedFleetMac)});
+      for(const item of phoneLeases){
+        items.push({prompt:'Line '+(item.lineNumber||2)+': '+phoneMemberLabel(item.temporaryLine2),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
+        items.push({prompt:item.permanent?'Permanent - no expiration':('Auto-remove: '+new Date(item.expiresAt).toLocaleString('en-US',{timeZone:'America/Chicago'})+' Central'),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
+        items.push({prompt:phoneLeaseStatus(item),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
+        if(item.status==='active')items.push({prompt:(item.permanent?'Remove':'Sign Out')+' Line '+(item.lineNumber||2),uri:phoneRouteUrl(request,'signout',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
+      }
+      if(!changing)items.push({prompt:'Add Extension',uri:searchUrl});
       items.push({prompt:'Refresh',uri:home});
       return phoneXmlResponse(textMenu('VisionBank Manage Extensions',items));
     }
@@ -788,18 +782,18 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/status'){
       await loadLine2();
       const items=[
-        {prompt:(lease?.temporaryLine2||line2Row)?'Current Line 2: '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
+        {prompt:(lease?.temporaryLine2||line2Row)?'Current Line '+(lease?.lineNumber||2)+': '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
       if(lease){
         const verification=await verifyLease({env,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader}).catch(()=>null);
         items.push({prompt:verification?phoneLeaseStatus(verification.lease):'Status unavailable - try Refresh',uri:home});
         if(verification?.state==='sync-pending')items.push({prompt:'Automatic retry within about 1 minute',uri:home});
         const expiry=Date.parse(lease.expiresAt||''),label=Number.isFinite(expiry)?new Date(expiry).toLocaleString('en-US',{timeZone:'America/Chicago'}):lease.expiresAt;
-        items.push({prompt:'Auto-remove: '+label+' Central',uri:home});
+        items.push({prompt:lease.permanent?'Permanent - no automatic removal':'Auto-remove: '+label+' Central',uri:home});
         items.push({prompt:'Duration: '+phoneDurationLabel(lease.durationMinutes),uri:home});
-      }else items.push({prompt:'No active temporary lease',uri:home});
+      }else items.push({prompt:'No managed extension',uri:home});
       items.push({prompt:'Return',uri:home});
-      return phoneXmlResponse(textMenu('Temporary Line Status',items));
+      return phoneXmlResponse(textMenu('Extension Status',items));
     }
 
     if(part==='phone/signout'){
@@ -808,8 +802,8 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       ],{cancelAction:home}));
       if(!lease?.temporaryLine2)await loadLine2();
       const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
-      return phoneXmlResponse(textMenu('Sign Out '+currentLabel,[
-        {prompt:'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{lease:lease.leaseId},accessToken,fleetKey,normalizedFleetMac)},
+      return phoneXmlResponse(textMenu((lease.permanent?'Remove ':'Sign Out ')+currentLabel,[
+        {prompt:lease.permanent?'Remove Now':'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{lease:lease.leaseId},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Keep Line Active',uri:home}
       ],{cancelAction:home}));
     }
@@ -822,9 +816,9 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     }
 
     if(part==='phone/search'){
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const q=display(new URL(request.url).searchParams.get('q')||'',80);
-      if(!q)return phoneXmlResponse(inputScreen('Add Temporary Extension','Extension or phone number',searchUrl,'q',{cancelAction:home}));
+      if(!q)return phoneXmlResponse(inputScreen('Add Extension','Extension or phone number',searchUrl,'q',{cancelAction:home}));
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
       const rows=searched.members.filter(member=>member?.id).slice(0,8);
       if(!rows.length)return phoneXmlResponse(textMenu('No Matching Extensions',[
@@ -839,7 +833,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     }
 
     if(part==='phone/duration'){
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const url=new URL(request.url),memberId=id(url.searchParams.get('member')),q=display(url.searchParams.get('q')||'',80),locationId=id(url.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
@@ -850,31 +844,32 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Custom Days',uri:phoneRouteUrl(request,'customDays',{member:memberId,q,locationId:target.locationId||''},accessToken,fleetKey,normalizedFleetMac)});
+      items.push({prompt:'Permanent',uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes:'permanent'},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Cancel',uri:home});
       return phoneXmlResponse(textMenu('Use '+phoneMemberLabel(target)+' For',items,{cancelAction:home}));
     }
 
     if(part==='phone/customDays'){
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const memberId=id(phoneUrl.searchParams.get('member')),q=display(phoneUrl.searchParams.get('q')||'',80),locationId=id(phoneUrl.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
       const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-365)',submit,'days',{type:'number',cancelAction:back}));
+      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-999)',submit,'days',{type:'number',cancelAction:back}));
     }
 
     if(part==='phone/confirm'){
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const url=new URL(request.url),memberId=id(url.searchParams.get('member')),q=display(url.searchParams.get('q')||'',80),locationId=id(url.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const custom=url.searchParams.has('days'),days=url.searchParams.get('days')||'';
-      if(custom&&(!/^[0-9]{1,3}$/.test(days)||Number(days)<1||Number(days)>365)){
+      if(custom&&(!/^[0-9]{1,3}$/.test(days)||Number(days)<1||Number(days)>999)){
         const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
         const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-        return phoneXmlResponse(inputScreen('Enter 1 to 365 days','Whole days only (1-365)',submit,'days',{type:'number',cancelAction:back}));
+        return phoneXmlResponse(inputScreen('Enter 1 to 999 days','Whole days only (1-999)',submit,'days',{type:'number',cancelAction:back}));
       }
-      const minutes=custom?Number(days)*1440:Number(url.searchParams.get('minutes'));
-      if(!custom&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');
+      const minutes=custom?Number(days)*1440:url.searchParams.get('minutes')==='permanent'?'permanent':Number(url.searchParams.get('minutes'));
+      if(!custom&&minutes!=='permanent'&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
       const target=searched.members.find(member=>String(member.id)===String(memberId));
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
@@ -890,7 +885,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const intentId=new URL(request.url).searchParams.get('intent');
       let intent=await readPhoneIntent(env,intentId,enrollment);
       if(intent.status==='completed')return await progressResponse(intent);
-      if(lease)throw new DeviceManagementError('phone-active-lease',409);
+      if(changing)throw new DeviceManagementError('phone-active-lease',409);
       if(intent.status==='processing'){
         return await progressResponse(intent);
       }
@@ -1373,13 +1368,13 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           durationMinutes:body.durationMinutes,reason:body.reason,
           phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null,domainId:ctx.domain?.id||null}
         });
-        const expiresAt=new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
+        const expiresAt=preview.durationMinutes==='permanent'?null:new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
         const executable=Boolean(ctx.syncCompany?.id);
         return output({success:true,plan:{
           mutationId:preview.mutationId,expectedVersion:0,executable,
           device:preview.device,location:preview.location,
           before:{line2:preview.baselineLine2},after:{line2:preview.targetMember},
-          lease:{temporary:true,durationMinutes:preview.durationMinutes,startsAt:preview.createdAt,expiresAt,baselineLine2:preview.baselineLine2},
+          lease:{temporary:preview.durationMinutes!=='permanent',durationMinutes:preview.durationMinutes,startsAt:preview.createdAt,expiresAt,baselineLine2:preview.baselineLine2},
           phonismActionLabel:'Force Phonism Webex Sync',
           summary:executable?'Webex Line 2 will be saved first, Phonism Sync will be forced immediately through the Enterprise integration, and both systems will be re-read before the temporary lease is considered healthy.':'Review is valid, but Save & Sync remains locked until the Enterprise-level Phonism Sync owner is resolved.'
         },readOnly:false},200,headers);
@@ -1415,7 +1410,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         if(!leaseId)throw new DeviceManagementError('lease-id-required');
         const result=await verifyLease({env,webexFetch,orgId:org,leaseId,phonismReader});
         return output({success:true,leaseId,state:result.state,verification:result.lease.verification,
-          expiresAt:result.lease.expiresAt,rebootAvailable:result.lease.status==='active'&&Date.parse(result.lease.expiresAt)>Date.now()&&Boolean(result.lease.phonismPhoneId)&&!['sync-pending','sync-failed'].includes(result.state),
+          expiresAt:result.lease.expiresAt,rebootAvailable:result.lease.status==='active'&&(result.lease.permanent||Date.parse(result.lease.expiresAt)>Date.now())&&Boolean(result.lease.phonismPhoneId)&&!['sync-pending','sync-failed'].includes(result.state),
           automaticReboot:result.lease.recovery?.automaticReboot===true,rebootAttempted:result.lease.recovery?.rebootAttempted===true},200,headers);
       }
 

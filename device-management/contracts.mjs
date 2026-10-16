@@ -1,7 +1,7 @@
 const OWNER_TYPES=new Set(["PEOPLE","PLACE"]);
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export const TEMP_LINE_MIN_MINUTES=15;
-export const TEMP_LINE_MAX_MINUTES=365*24*60;
+export const TEMP_LINE_MAX_MINUTES=999*24*60;
 
 export class DeviceManagementError extends Error{
   constructor(code,status=400){super(code);this.code=code;this.status=status;}
@@ -47,6 +47,7 @@ export function assertAssignableMember(member,device){
 }
 
 export function validateTemporaryDuration(value){
+  if(value==='permanent')return 'permanent';
   const minutes=Number(value);
   if(!Number.isSafeInteger(minutes)||minutes<TEMP_LINE_MIN_MINUTES||minutes>TEMP_LINE_MAX_MINUTES)throw new DeviceManagementError("invalid-temporary-duration");
   return minutes;
@@ -67,6 +68,7 @@ function lineIdentity(line){
 
 export function leaseExpiryDecision({lease,currentLine2}={}){
   if(!lease||lease.status!=="active")return {action:"noop",reason:"lease-not-active"};
+  if(lease.permanent&&!lease.manualEndRequestedAt)return {action:"noop",reason:"permanent-assignment"};
   const expected=lineIdentity(lease.temporaryLine2),current=lineIdentity(currentLine2);
   if(expected!==current)return {action:"preserve-current",reason:"external-change-detected"};
   return {action:"restore-baseline",baselineLine2:lease.baselineLine2||null,reason:"temporary-lease-expired"};
@@ -96,7 +98,7 @@ export function buildChangePlan({device,targetMember,currentLine2=null,version=0
   if(!Number.isSafeInteger(version)||version<0)throw new DeviceManagementError("invalid-device-version");
   const leaseMinutes=validateTemporaryDuration(durationMinutes);
   if(!Number.isFinite(Number(now)))throw new DeviceManagementError("invalid-current-time");
-  const startsAt=new Date(Number(now)).toISOString(),expiresAt=new Date(Number(now)+leaseMinutes*60000).toISOString();
+  const startsAt=new Date(Number(now)).toISOString(),expiresAt=leaseMinutes==='permanent'?null:new Date(Number(now)+leaseMinutes*60000).toISOString();
   let action=null;
   try{action=validatePostSaveAction(postSaveAction);}catch(error){if(error.code!=="phonism-action-not-verified")throw error;}
   const writeReady=capabilities.webexWrite===true&&capabilities.phonismWrite===true&&Boolean(action);
@@ -106,7 +108,7 @@ export function buildChangePlan({device,targetMember,currentLine2=null,version=0
     location:{id:device.locationId,name:device.locationName||"Location"},
     before:{line2:currentLine2},
     after:{line2:member?{memberId:member.id,name:member.name||member.displayName||"Member",extension:member.extension||member.phoneNumber,type:normalizeOwnerType(member.type)}:null},
-    lease:{temporary:true,durationMinutes:leaseMinutes,startsAt,expiresAt,baselineLine2:currentLine2||null},
+    lease:{temporary:leaseMinutes!=='permanent',durationMinutes:leaseMinutes,startsAt,expiresAt,baselineLine2:currentLine2||null},
     phonismActionLabel:action?.label||"Phonism Sync + registration verification",
     summary:writeReady?"Current state will be revalidated, Webex will be saved, Phonism Sync will be forced, and both registration states will be re-read.":"Preview only: Webex write and Phonism Sync are not fully validated."
   };

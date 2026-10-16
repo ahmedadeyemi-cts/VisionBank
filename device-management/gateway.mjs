@@ -594,7 +594,7 @@ async function applyPhoneIntentWork({env,request,org,webexFetch,phonismReader,en
     const preview=await createWritePreview({
       env,session,device:ctx.device,location:ctx.location,currentMembers:refreshed.members,targetMember:target,
       durationMinutes:intent.durationMinutes,reason:'Phone self-service temporary Line 2',
-      phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null}
+      phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null,domainId:ctx.domain?.id||null}
     });
     stage='apply-write-preview';
     const result=await applyWritePreview({env,request,session,webexFetch,orgId:org,mutationId:preview.mutationId,phonismReader,saveRequestedAt:intent.startedAt});
@@ -1371,7 +1371,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const preview=await createWritePreview({
           env,session,device:ctx.device,location:ctx.location,currentMembers:current.members,targetMember,
           durationMinutes:body.durationMinutes,reason:body.reason,
-          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null}
+          phonismContext:{phoneId:ctx.phone.id,tenantId:ctx.tenant.id,companyId:ctx.syncCompany?.id||null,domainId:ctx.domain?.id||null}
         });
         const expiresAt=new Date(Date.parse(preview.createdAt)+preview.durationMinutes*60000).toISOString();
         const executable=Boolean(ctx.syncCompany?.id);

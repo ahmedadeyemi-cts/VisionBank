@@ -58,3 +58,14 @@ test('bounded fallback dispatch makes only one request even for temporary errors
  await assert.rejects(createPhonismReader().syncHierarchyIntegration(env,'123',{singleAttempt:true,timeoutMs:3000}));
  assert.equal(calls,1);
 });
+
+
+test('sync keeps integration owner separate from target company and location',async t=>{
+ const calls=[];
+ t.mock.method(globalThis,'fetch',async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return Response.json({errors:[],data:null},{status:202});});
+ await createPhonismReader().syncHierarchyIntegration(env,'30',{targetCompanyId:'40',tenantId:'101',assetTypes:['Device']});
+ assert.ok(calls[0].url.endsWith('/hierarchy/30/integrations/sync'));
+ assert.deepEqual(calls[0].body,{company_id:40,tenant_id:101,asset_type:['Device']});
+ await createPhonismReader().syncHierarchyIntegration(env,'30',{tenantId:'101'});
+ assert.equal(Object.hasOwn(calls[1].body,'company_id'),false);
+});

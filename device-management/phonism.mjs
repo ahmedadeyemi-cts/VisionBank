@@ -258,12 +258,14 @@ export function createPhonismReader({fetcher=defaultPhonismFetch,domainName='Vis
       return data.map(lineRow).filter(x=>x.lineNumber);
     },
 
-    async syncHierarchyIntegration(env,companyId,{tenantId,assetTypes=['People','Workspace','Device'],singleAttempt=false,timeoutMs=10000}={}){
+    async syncHierarchyIntegration(env,companyId,{tenantId,targetCompanyId,assetTypes=['People','Workspace','Device'],singleAttempt=false,timeoutMs=10000}={}){
       if(!companyId)throw new DeviceManagementError('phonism-company-required',409);
       const allowed=new Set(['Organization','Location','People','Workspace','Device']);
       const assets=(Array.isArray(assetTypes)?assetTypes:[assetTypes]).map(x=>String(x||'')).filter(x=>allowed.has(x));
       if(!assets.length)throw new DeviceManagementError('phonism-sync-assets-required');
+      // The route identifies the integration owner; company_id scopes its Webex organization.
       const body={asset_type:assets};
+      if(targetCompanyId)body.company_id=Number(targetCompanyId)||targetCompanyId;
       if(tenantId)body.tenant_id=Number(tenantId)||tenantId;
       const result=await phonismWrite(env,'/hierarchy/'+encodeURIComponent(companyId)+'/integrations/sync',{method:'PUT',body,retrySync:true,singleAttempt,timeoutMs});
       if(result.status!==202&&result.status!==200)throw new DeviceManagementError('phonism-sync-not-accepted',502);

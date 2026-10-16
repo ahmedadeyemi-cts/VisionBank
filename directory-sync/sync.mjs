@@ -1,5 +1,6 @@
 export const CRON='17 */3 * * *';
 export const DIRECTORY_KEY='visionbank-directory';
+export const SYNC_VERSION=2;
 export const STATUS_KEY='visionbank-directory-sync-status';
 const clean=v=>String(v??'').trim(),key=v=>clean(v).toLowerCase().replace(/\s+/g,' '),digits=v=>clean(v).replace(/\D/g,'');
 export const protectedEntry=c=>/^wg/i.test(clean(c.firstName));
@@ -11,10 +12,22 @@ export function sourceRows({people,workspaces,numbers,locations}){
   const n=ns.length===1?ns[0]:null,person=type==='PEOPLE'?entity:null;
   rows.push({id:entity.id,type,name:clean(entity.displayName),firstName:clean(person?.firstName),lastName:clean(person?.lastName),emails:person?.emails||[],email:clean(person?.emails?.[0]),extension:n?digits(n.extension):'',phone:n?digits(n.phoneNumber):'',clearFields:n?['phone','extension']:[],location:clean(locs.get(entity.locationId)||locs.get(n?.location?.id)||n?.location?.name)});
  }
+ // Assigned service lines are separate Webex owners, not users or workspaces.
+ const serviceTypes=new Set(['VOICE_MESSAGING','VOICEMAIL_GROUP','VIRTUAL_LINE','CALL_QUEUE','CONTACT_CENTER_ADAPTER','AUTO_ATTENDANT','PAGING_GROUP']);
+ for(const n of numbers){
+  const o=n.owner;if(!o?.id||!serviceTypes.has(o.type))continue;
+  const phone=digits(n.phoneNumber),extension=digits(n.extension);
+  if(!phone&&!extension)continue;
+  const name=[clean(o.firstName),clean(o.lastName)].filter(Boolean).join(' ');
+  if(!name)throw Error('Assigned Webex service has no name');
+  rows.push({id:'service:'+o.type+':'+o.id+':'+(phone||extension),type:o.type,name,firstName:clean(o.firstName),lastName:clean(o.lastName),emails:[],email:'',phone,extension,clearFields:['phone','extension'],location:clean(locs.get(n.location?.id)||n.location?.name)});
+ }
  return rows;
 }
 
 export function planSync(contacts,sources){
+ if(new Set(sources.map(s=>s.id)).size!==sources.length)throw Error('Duplicate Webex source identity');
+ const added=[],blocked=new Set();
  const changes=[],unmatched=[],ambiguous=[],deleted=[];let protectedCount=0,matched=0;
  const candidates=contacts.map((c,index)=>{
   if(protectedEntry(c)){protectedCount++;return null;}
@@ -24,7 +37,7 @@ export function planSync(contacts,sources){
    const byEmail=clean(c.email)?sources.filter(s=>s.emails.some(e=>key(e)===key(c.email))):[];
    matches=byEmail.length?byEmail:sources.filter(s=>key(s.name)===key(c.name||[c.firstName,c.lastName].filter(Boolean).join(' ')));
   }
-  if(matches.length!==1){(matches.length?ambiguous:unmatched).push(index);return null;}
+  if(matches.length!==1){for(const s of matches)blocked.add(s.id);(matches.length?ambiguous:unmatched).push(index);return null;}
   return matches[0];
  });
  const counts=new Map();for(const s of candidates)if(s)counts.set(s.id,(counts.get(s.id)||0)+1);
@@ -38,7 +51,13 @@ export function planSync(contacts,sources){
   if(s.location){const location='Location: '+s.location;next.notes=/^Location:[^\r\n]*/im.test(c.notes||'')?String(c.notes).replace(/^Location:[^\r\n]*/im,()=>location):[clean(c.notes),location].filter(Boolean).join('\n');}
   const fields=Object.keys(next).filter(k=>next[k]!==c[k]);if(fields.length)changes.push({index,fields});return next;
  });
- return {rows:rows.filter(Boolean),changes,deleted,matched,protectedCount,unmatched,ambiguous};
+ const result=rows.filter(Boolean),represented=new Set(result.map(r=>r.webexDirectoryId).filter(Boolean));
+ for(const s of sources){
+  if(represented.has(s.id)||counts.has(s.id)||blocked.has(s.id)||!s.name||(!s.phone&&!s.extension)||protectedEntry(s))continue;
+  const next={webexDirectoryId:s.id,name:s.name,firstName:s.firstName||s.name.split(' ')[0],lastName:s.lastName||((s.type==='PLACE')?s.name.split(' ').slice(1).join(' '):''),phone:s.phone||'',extension:s.extension||'',email:s.email||'',location:s.location||'',notes:s.location?'Location: '+s.location:''};
+  result.push(next);added.push(s.id);represented.add(s.id);
+ }
+ return {rows:result,added,changes,deleted,matched,protectedCount,unmatched,ambiguous};
 }
 export async function fetchSources(env,webexFetch){
  const raw=clean(env.WEBEX_ORG_ID);if(!raw)throw Error('Webex organization missing');
@@ -57,8 +76,8 @@ export async function fetchSources(env,webexFetch){
 export function directoryStore(env){return env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(env.WEBEX_ORG_ID+':directory:v1'));}
 export async function storeRequest(env,path,body){const r=await directoryStore(env).fetch(new Request('https://internal/directory/'+path,{method:body?'POST':'GET',...(body?{body:JSON.stringify(body),headers:{'Content-Type':'application/json'}}:{})}));const data=await r.json();if(!r.ok){const e=new Error(data.error||'Directory storage unavailable');e.status=r.status;throw e;}return data;}
 export async function runDirectorySync(env,webexFetch){
- try{const sources=await fetchSources(env,webexFetch);return await storeRequest(env,'sync',{sources});}
+ try{const sources=await fetchSources(env,webexFetch);return await storeRequest(env,'sync',{sources,version:SYNC_VERSION});}
  catch(error){await storeRequest(env,'error',{message:String(error.message).slice(0,180)});throw error;}
 }
 // Bootstrap once through the existing maintenance trigger; regular sync uses CRON.
-export async function initializeDirectorySync(env,webexFetch){const state=await storeRequest(env,'get');if(!state.sync)return runDirectorySync(env,webexFetch);}
+export async function initializeDirectorySync(env,webexFetch){const state=await storeRequest(env,'get');if(!state.sync||state.sync.version!==SYNC_VERSION)return runDirectorySync(env,webexFetch);}

@@ -52,7 +52,7 @@ const syncDirectoryBtn=document.getElementById('syncDirectoryBtn');
 function showSyncStatus(sync){
  const el=document.getElementById('directorySyncStatus');if(!el)return;
  const intro='Webex sync runs every 3 hours. WG entries are never changed by sync. ';
- el.textContent=intro+(sync?.state==='ready'?`Last synced: ${new Date(sync.completedAt).toLocaleString()}. ${sync.updated} updated, ${sync.deleted||0} removed, ${sync.protected} WG entries protected. ${sync.unmatched+sync.ambiguous} entries have no unique Webex match and were left unchanged.`:sync?.state==='error'?'Last sync could not complete. '+sync.message:'Waiting for the first sync.');
+ el.textContent=intro+(sync?.state==='ready'?`Last synced: ${new Date(sync.completedAt).toLocaleString()}. ${sync.added||0} added, ${sync.updated} updated, ${sync.deleted||0} removed, ${sync.protected} WG entries protected. ${sync.unmatched+sync.ambiguous} entries have no unique Webex match and were left unchanged.`:sync?.state==='error'?'Last sync could not complete. '+sync.message:'Waiting for the first sync.');
 }
 directoryTableBody?.addEventListener('input',()=>{directoryDirty=true;});
 syncDirectoryBtn?.addEventListener('click',async()=>{

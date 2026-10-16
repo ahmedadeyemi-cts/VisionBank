@@ -591,3 +591,22 @@ test('normal asynchronous sync completion reboots promptly without a second sync
   await run(readyAfter+5000);assert.equal(ph.state.rebootAttempts,1);
  }
 });
+
+
+test('verified domain scope survives save, delayed recovery, and expiry cleanup',async()=>{
+ const e=env(),wx=webexFixture(),ph=phonismFixture();
+ const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:[PRIMARY],targetMember:TARGET,durationMinutes:15,reason:'',phonismContext:{phoneId:'313135',tenantId:'101',companyId:'30',domainId:'40'}});
+ const {lease}=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:ph.reader});
+ assert.equal(lease.phonismDomainId,'40');
+ assert.equal(ph.calls.find(c=>c.type==='sync').companyId,'30');
+ assert.equal(ph.calls.find(c=>c.type==='sync').body.targetCompanyId,'40');
+ lease.recovery={syncStrategy:'device-first',syncPending:true,syncPendingSince:lease.startsAt,initialSyncCheckCompletedAt:lease.startsAt};
+ await e.LOGS.put('device-lease:'+lease.leaseId,JSON.stringify(lease));
+ ph.reader.lines=async()=>[];
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+120000});
+ assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);
+ assert.equal(ph.calls.findLast(c=>c.type==='sync').body.targetCompanyId,'40');
+ await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.expiresAt)+1});
+ assert.equal(ph.calls.findLast(c=>c.type==='sync').body.targetCompanyId,'40');
+ assert.equal(ph.calls.findLast(c=>c.type==='sync').body.tenantId,'101');
+});

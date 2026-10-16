@@ -217,7 +217,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
 
     const pc=preview.phonismContext||{};
     await phonismReader.syncHierarchyIntegration(env,pc.companyId,{
-      tenantId:pc.tenantId,
+      tenantId:pc.tenantId,targetCompanyId:pc.domainId,
       assetTypes:['Device']
     });
     phonismQueued=true;
@@ -254,7 +254,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     device:preview.device,location:preview.location,baselineLine2:preview.baselineLine2,
     temporaryLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,
     operator:session.operator,auditId:audit.auditId,phonismPhoneId:pc.phoneId,
-    phonismTenantId:pc.tenantId,phonismCompanyId:pc.companyId
+    phonismTenantId:pc.tenantId,phonismCompanyId:pc.companyId,phonismDomainId:pc.domainId
   });
   lease.baselineMember=preview.baselineMember||null;
   lease.timing={saveRequestedAt:saveRequestedAt||lease.startsAt,webexAndSyncSavedAt:lease.startsAt};
@@ -430,7 +430,7 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
  const manual=Boolean(lease.manualEndRequestedAt);
  if(manual)lease.recovery={...(lease.recovery||{}),cleanupSyncStrategy:'device-first',cleanupSyncSince:lease.recovery?.cleanupSyncSince||new Date(now).toISOString()};
  await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
-   tenantId:lease.phonismTenantId,assetTypes:manual?['Device']:['People','Workspace','Device'],
+   tenantId:lease.phonismTenantId,targetCompanyId:lease.phonismDomainId,assetTypes:manual?['Device']:['People','Workspace','Device'],
    ...(manual?{singleAttempt:true,timeoutMs:3000}:{})
  });
 }
@@ -454,7 +454,7 @@ async function confirmCleanupSync({env,lease,phonismReader,webexFetch,orgId,now,
     lease.recovery={...(lease.recovery||{}),cleanupFullSyncAttemptedAt:new Date().toISOString()};
     await putLease(env,lease);
     try{
-      await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{tenantId:lease.phonismTenantId,assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000});
+      await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{tenantId:lease.phonismTenantId,targetCompanyId:lease.phonismDomainId,assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000});
       lease.recovery.cleanupFullSyncAcceptedAt=new Date().toISOString();
     }catch(e){lease.recovery.cleanupFullSyncError=e?.code||'sync-failed';}
   }
@@ -593,7 +593,7 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
       let fallbackError=null;
       try{
         await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
-          tenantId:lease.phonismTenantId,assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000
+          tenantId:lease.phonismTenantId,targetCompanyId:lease.phonismDomainId,assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000
         });
         lease.recovery.fullSyncFallbackAcceptedAt=new Date().toISOString();
       }catch(e){fallbackError=e;lease.recovery.fullSyncFallbackError=e?.code||'sync-failed';}

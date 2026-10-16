@@ -577,11 +577,13 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
   if(Date.parse(lease.expiresAt)<=checkedAt)return;
   lease.recovery={...lease.recovery,syncRetryChecks:Number(lease.recovery.syncRetryChecks||0)+1,lastSyncCheckAt:new Date(checkedAt).toISOString(),lastSyncCheckMs:Date.now()-checkStartedAt,lastSyncCheckSource:phoneDeadline?'phone-progress':'scheduled'};
   if(!confirmed){
-    // Device sync avoids user/workspace inventory scans in the common case.
-    // Persist a one-shot broader fallback before dispatch; never enqueue on every refresh.
+    // An accepted Device sync is asynchronous. Observed readiness takes 35–100s;
+    // a 15s fallback can overlap that work; logs show second updates during reboot.
+    // Keep checking immediately, but reserve broad inventory sync for recovery.
+    // Persist its one-shot claim before dispatch; never enqueue on every refresh.
     const fallbackDue=lease.recovery.syncStrategy==='device-first'&&
       !lease.recovery.fullSyncFallbackAttemptedAt&&lease.phonismCompanyId&&lease.phonismTenantId&&
-      !error&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=15000&&
+      !error&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=120000&&
       now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<10*60000&&
       (!phoneDeadline||phoneDeadline-Date.now()>8000)&&Date.parse(lease.expiresAt)>Math.max(now,Date.now())+5000;
     if(fallbackDue){
@@ -601,7 +603,7 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
         change:{leaseId:lease.leaseId,stage:'phonism-sync',syncStrategy:'device-first',
           assetTypes:['People','Workspace','Device'],errorCode:fallbackError?.code||null,
           upstreamStatus:fallbackError?.upstreamStatus||null,providerFailure:fallbackError?.providerFailure||null},
-        reason:'Device-only sync has not confirmed the requested line after 15 seconds; one broader synchronization attempt issued.',
+        reason:'Device-only sync has not confirmed the requested line after 120 seconds; one broader recovery synchronization attempt issued.',
         webexStatus:'confirmed',phonismStatus:fallbackError?'fallback-not-confirmed':'fallback-queued',
         result:'pending-verification',originalAuditId:lease.auditId
       }));

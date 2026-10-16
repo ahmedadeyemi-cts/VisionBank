@@ -504,23 +504,23 @@ async function deviceFirstPending(){
  f.ph.calls.length=0;f.ph.reader.lines=async()=>[];
  return f;
 }
-test('device-first queues broader sync once after fifteen seconds and still verifies before reboot',async()=>{
+test('device-first reserves broader sync for two-minute recovery and still verifies before reboot',async()=>{
  const {e,wx,ph,lease}=await deviceFirstPending(),start=Date.parse(lease.startsAt);
  const run=now=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now});
- await run(start+14000);assert.equal(ph.calls.length,0);
- await run(start+15000);
+ for(const age of [15000,35000,85000,119999]){await run(start+age);assert.equal(ph.calls.length,0);}
+ await run(start+120000);
  assert.equal(ph.calls.length,1);assert.deepEqual(ph.calls[0].body.assetTypes,['People','Workspace','Device']);
  assert.equal(ph.calls[0].body.tenantId,lease.phonismTenantId);
  assert.equal(ph.calls[0].body.singleAttempt,true);assert.equal(ph.calls[0].body.timeoutMs,3000);
  assert.equal(ph.state.rebootAttempts,0);
- await run(start+55000);assert.equal(ph.calls.length,1);
+ await run(start+125000);assert.equal(ph.calls.length,1);
  ph.reader.lines=async()=>[{lineNumber:2,username:'1806'}];
- await run(start+60000);assert.equal(ph.state.rebootAttempts,1);
+ await run(start+130000);assert.equal(ph.state.rebootAttempts,1);
 });
 test('ambiguous broader sync failure stays claimed and is not resubmitted every refresh',async()=>{
  const {e,wx,ph,lease}=await deviceFirstPending();let calls=0;
  ph.reader.syncHierarchyIntegration=async()=>{calls++;throw Object.assign(new Error('timeout'),{code:'phonism-write-failed',providerFailure:'timeout'});};
- for(const age of [15000,50000,60000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
+ for(const age of [120000,125000,180000])await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+age});
  assert.equal(calls,1);assert.equal(ph.state.rebootAttempts,0);
  const saved=JSON.parse(await e.LOGS.get('device-lease:'+lease.leaseId));
  assert.ok(saved.recovery.fullSyncFallbackAttemptedAt);assert.equal(saved.recovery.syncPending,true);
@@ -531,7 +531,7 @@ test('changed assignment and unreadable providers never dispatch broader sync',a
   const {e,wx,ph,lease}=await deviceFirstPending();
   if(failure==='changed')wx.state.members=composeMembers([PRIMARY],{...TARGET,id:'new-owner'});
   else ph.reader.lines=async()=>{throw Error('network');};
-  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+60000});
+  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:Date.parse(lease.startsAt)+120000});
   assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
  }
 });
@@ -575,4 +575,19 @@ test('scheduled cleanup yields to phone checks then resumes automatically after 
  ph.reader.lines=async()=>[];
  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+10000});assert.equal(ph.state.rebootAttempts,0);
  await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:now+300001});assert.equal(ph.state.rebootAttempts,1);
+});
+
+
+test('normal asynchronous sync completion reboots promptly without a second synchronization',async()=>{
+ for(const readyAfter of [35000,85000,115000,120000]){
+  const {e,wx,ph,lease}=await deviceFirstPending(),start=Date.parse(lease.startsAt);
+  const run=age=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:start+age});
+  for(let age=15000;age<readyAfter;age+=5000)await run(age);
+  assert.equal(ph.calls.length,0);assert.equal(ph.state.rebootAttempts,0);
+  ph.reader.lines=async()=>[{lineNumber:2,username:'1806'}];
+  await run(readyAfter);
+  assert.equal(ph.calls.filter(c=>c.type==='sync').length,0);
+  assert.equal(ph.state.rebootAttempts,1);
+  await run(readyAfter+5000);assert.equal(ph.state.rebootAttempts,1);
+ }
 });

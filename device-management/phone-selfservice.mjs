@@ -14,7 +14,7 @@ const FLEET_CONFIG_KEY='device-phone-fleet-keys:v1';
 const FLEET_ROTATION_GRACE_MS=24*60*60*1000;
 const MAX_FLEET_HISTORY=10;
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-const DURATIONS=[15,30,60,120,240,480,720,1440,10080,43200];
+const DURATIONS=[15,540,10080,43200];
 
 const clean=(value,max=180)=>String(value??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').slice(0,max);
 const xmlEscape=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
@@ -49,6 +49,8 @@ async function accessKey(token){return ACCESS_PREFIX+await sha256(token);}
 export function phoneDurationOptions(){return [...DURATIONS];}
 export function phoneDurationLabel(minutes){
   const value=validateTemporaryDuration(minutes);
+  if(value==='permanent')return 'Permanent';
+  if(value===540)return 'All Day (9 hours)';
   if(value>=1440&&value%1440===0)return value/1440+(value===1440?' day':' days');
   if(value<60)return value+' minutes';
   const hours=value/60;
@@ -101,7 +103,9 @@ export function phoneErrorMenu(code,homeUrl){
     'restart-not-ready':'Your phone is still being prepared. Please wait.',
     'phonism-line-not-ready':'Your phone is still being prepared. Please wait.',
     'webex-line-changed':'Your extension changed. Please return to Manage Extensions to check it.',
-    'phone-active-lease':'A temporary Line 2 is already active. Wait for it to expire or manage it from the Device Management page.',
+    'phone-active-lease':'An extension change is still processing. Please wait for it to finish.',
+    'phone-lines-full':'All supported phone lines are occupied. Remove an extension before adding another.',
+    'phone-line-capacity-unavailable':'Unable to confirm available phone lines. Please try again.',
     'target-member-not-available':'That extension or number is no longer available for this phone.',
     'device-state-changed-review-again':'The phone assignment changed. Start again and review the current lines.',
     'device-write-not-enabled':'Phone self-service is not enabled for this device.',

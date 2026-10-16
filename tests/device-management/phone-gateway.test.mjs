@@ -46,7 +46,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
     async discover(){return {domain:{id:'40',name:'VisionBank Iowa'},tenants:[{id:'101',name:'CLIVE',webexLocationId:'loc-a'}],syncCompany:{id:'500',name:'VisionBank',type:'Enterprise'},webexIntegration:{id:'501'},truncated:false};},
     async tenantPhones(){return {phones:[{id:'9001',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,lastProvision:'2026-10-05 10:00:00',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'}],truncated:false};},
     async phone(){return {id:'9001',tenantId:'101',tenantName:'CLIVE',mac:MAC,state:'1',serviceState:['tr069'],tr069:true,lastProvision:'2026-10-05 10:00:00',webexDeviceIds:['webex-1'],webexDeviceId:'webex-1',webexDeviceType:'Yealink T57W'};},
-    async lines(){return [{lineNumber:1,username:'3223',alias:'Primary User',registrationStatus:'registered'},{lineNumber:2,username:webex.members.find(x=>Number(x.port)===2)?.id===TARGET.id?TARGET.extension:'3999',alias:'Line 2',registrationStatus:'not-monitored'}];},
+    async lines(){return webex.members.map(m=>({lineNumber:Number(m.port),username:m.id===TARGET.id?TARGET.extension:m.id===BASELINE.id?'3999':'3223',alias:m.id,registrationStatus:'not-monitored'}));},
     async syncHierarchyIntegration(_env,companyId,body){phonismCalls.push({type:'sync',companyId,body});return {accepted:true,status:202};},
     async tr069Action(_env,phoneId,action){phonismCalls.push({type:'reboot',phoneId,action});return {accepted:true,status:200};}
   };
@@ -61,7 +61,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const home=await xml(handler,env,launch);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add Temporary Extension/);
+  assert.match(home.text,/Add Extension/);
   assert.match(home.text,/Refresh/);
   assert.doesNotMatch(home.text,/Line 2:/);
 
@@ -75,17 +75,17 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
 
   const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
-  assert.match(duration.text,/12 hours/);
-  for(const label of [/1 day/,/7 days/,/30 days/])assert.match(duration.text,label);
+  assert.match(duration.text,/All Day \(9 hours\)/);assert.match(duration.text,/Permanent/);assert.doesNotMatch(duration.text,/12 hours/);
+  for(const label of [/7 days/,/30 days/])assert.match(duration.text,label);
 
   assert.match(duration.text,/Custom Days/);
   const custom=await xml(handler,env,'https://worker.example/p/'+token+'?a=n&member=user-2&q=4102&locationId=loc-a');
-  assert.equal(custom.status,200);assert.match(custom.text,/<YealinkIPPhoneInputScreen type="number"/);assert.match(custom.text,/<Parameter>days<\/Parameter>/);assert.match(custom.text,/Enter days \(1-365\)/);
-  for(const days of ['', '0','366','-1','1.5','1e1','Infinity','abc','999999999']){
+  assert.equal(custom.status,200);assert.match(custom.text,/<YealinkIPPhoneInputScreen type="number"/);assert.match(custom.text,/<Parameter>days<\/Parameter>/);assert.match(custom.text,/Enter days \(1-999\)/);
+  for(const days of ['', '0','1000','-1','1.5','1e1','Infinity','abc','999999999']){
     const invalid=await xml(handler,env,'https://worker.example/p/'+token+'?a=c&member=user-2&q=4102&locationId=loc-a&days='+encodeURIComponent(days));
     assert.equal(invalid.status,200);assert.match(invalid.text,/Whole days only/);assert.doesNotMatch(invalid.text,/intent=/);
   }
-  for(const days of [1,2,10,30,31,180,365]){
+  for(const days of [1,2,10,30,31,180,365,999]){
     const customConfirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=c&member=user-2&q=4102&locationId=loc-a&days='+days);
     assert.equal(customConfirm.status,200);assert.ok(customConfirm.text.includes('Save - '+days+(days===1?' day':' days')));
     const customIntent=customConfirm.text.match(/intent=([0-9a-f-]{36})/i)[1];
@@ -111,7 +111,8 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.ok(background,'phone Save should schedule background work');
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old','response should return before background apply completes');
   await background;
-  assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'user-2');
+  assert.equal(webex.members.find(x=>Number(x.port)===3)?.id,'user-2');
+  assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,1);
 
@@ -119,15 +120,22 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(leases[0].durationMinutes,525600);
   assert.equal(Date.parse(leases[0].expiresAt)-Date.parse(leases[0].startsAt),365*86400000);
   const activeHome=await xml(handler,env,launch);
-  assert.match(activeHome.text,/Line 2: 4102 - Temporary User/);
-  assert.match(activeHome.text,/Sign Out Temporary Line/);
+  assert.match(activeHome.text,/Line 3: 4102 - Temporary User/);
+  assert.match(activeHome.text,/Sign Out Line 3/);
   assert.match(activeHome.text,/Refresh/);
-  const signoutReview=await xml(handler,env,'https://worker.example/p/'+token+'?a=e');
+  const permanentId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  await env.LOGS.put('device-lease:'+permanentId,JSON.stringify({...leases[0],leaseId:permanentId,lineNumber:4,permanent:true,expiresAt:null,durationMinutes:'permanent',temporaryLine2:{memberId:'keep-permanent',name:'Permanent User',extension:'4111'},recovery:{}}));
+  webex.members.push({id:'keep-permanent',port:4,lineType:'SHARED_CALL_APPEARANCE'});
+  const multiHome=await xml(handler,env,launch);
+  assert.match(multiHome.text,/Line 3: 4102/);assert.match(multiHome.text,/Line 4: 4111/);
+  assert.match(multiHome.text,/Permanent - no expiration/);assert.match(multiHome.text,/Remove Line 4/);
+  assert.match(multiHome.text,/Add Extension/);
+  const signoutReview=await xml(handler,env,'https://worker.example/p/'+token+'?a=e&lease='+leases[0].leaseId);
   assert.match(signoutReview.text,/Sign Out 4102 - Temporary User/);
   assert.match(signoutReview.text,/Sign Out Now/);
   assert.match(signoutReview.text,/Keep Line Active/);
 
-  const signedOut=await xml(handler,env,'https://worker.example/p/'+token+'?a=o');
+  const signedOut=await xml(handler,env,'https://worker.example/p/'+token+'?a=o&lease='+leases[0].leaseId);
   assert.equal(signedOut.status,200);
   assert.match(signedOut.text,/Signed Out/);
   assert.match(signedOut.text,/Your temporary line is signed out/);
@@ -135,6 +143,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,2);
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);
+  assert.equal(webex.members.find(x=>x.port===4)?.id,'keep-permanent');
 });
 
 test('Button 7 token is bound to the enrolled MAC when the Yealink supplies $mac',async()=>{

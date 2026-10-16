@@ -61,7 +61,7 @@ test('check-in records handset IP, model and firmware independently of the butto
 });
 
 test('phone duration menu runs from 15 minutes through 30 days',()=>{
-  assert.deepEqual(phoneDurationOptions(),[15,30,60,120,240,480,720,1440,10080,43200]);
+  assert.deepEqual(phoneDurationOptions(),[15,540,10080,43200]);
   assert.equal(phoneDurationLabel(15),'15 minutes');
   assert.equal(phoneDurationLabel(60),'1 hour');
   assert.equal(phoneDurationLabel(720),'12 hours');

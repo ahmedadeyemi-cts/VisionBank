@@ -49,7 +49,7 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   const home=await xml(handler,env,base);
   assert.equal(home.status,200);
   assert.match(home.text,/VisionBank Manage Extensions/);
-  assert.match(home.text,/Add Temporary Extension/);
+  assert.match(home.text,/Add Extension/);
   assert.match(home.text,/Refresh/);
   assert.doesNotMatch(home.text,/Line 2:/);
 
@@ -64,13 +64,13 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
 
   const status=await xml(handler,env,base+'/s');
   assert.equal(status.status,200);
-  assert.match(status.text,/Temporary Line Status/);
+  assert.match(status.text,/Extension Status/);
   const search=await xml(handler,env,base+'/q');
   assert.equal(search.status,200);
   assert.match(search.text,/Extension or phone number/);
   const duration=await xml(handler,env,base+'/d?member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
-  assert.match(duration.text,/12 hours/);
+  assert.match(duration.text,/All Day \(9 hours\)/);
 });
 
 test('fleet template rejects the wrong fleet key and unknown MAC before a write',async()=>{
@@ -116,7 +116,7 @@ test('Add temporary line input screen is returned without Webex or Phonism provi
   const url='https://worker.example/x/'+FLEET+'/805e0cec1993/q';
   const response=await xml(handler,env,url);
   assert.equal(response.status,200);
-  assert.match(response.text,/Add Temporary Extension/);
+  assert.match(response.text,/Add Extension/);
   assert.match(response.text,/Extension or phone number/);
   assert.equal(providerCalls,0);
 });
@@ -187,13 +187,13 @@ test('cached fleet enrollment stays provider-independent after long idle periods
 
   const response=await xml(handler,env,'https://visionbank-dashboard.onrender.com/x/'+FLEET+'/805e0cec1993','T54W');
   assert.equal(response.status,200);
-  assert.match(response.text,/Add Temporary Extension/);
+  assert.match(response.text,/Add Extension/);
   assert.match(response.text,/Refresh/);
   assert.equal(providerCalls,0);
 });
 
 
-test('fleet Button 7 entry and Add Temporary Extension work across supported Yealink model paths',async()=>{
+test('fleet Button 7 entry and Add Extension work across supported Yealink model paths',async()=>{
   const models=['T54W','T57W','T53','T46U'];
 
   for(const model of models){
@@ -215,7 +215,7 @@ test('fleet Button 7 entry and Add Temporary Extension work across supported Yea
     const home=await xml(handler,env,vanity,model);
     assert.equal(home.status,200,model+' home status');
     assert.match(home.text,/VisionBank Manage Extensions/,model+' home title');
-    assert.match(home.text,/Add Temporary Extension/,model+' Add Temporary Extension');
+    assert.match(home.text,/Add Extension/,model+' Add Extension');
     assert.match(home.text,/Refresh/,model+' Refresh');
     assert.ok(home.text.includes('https://visionbank-security.ahmedadeyemi.workers.dev/x/'),model+' action origin');
 
@@ -302,9 +302,9 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');
@@ -355,7 +355,7 @@ test('background phone Save failure is persisted with the exact failing stage',a
   const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
   const base='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
 
-  const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+  const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
   assert.equal(confirm.status,200);
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
   assert.ok(match);
@@ -424,7 +424,7 @@ test('first Button 7 press auto-enrolls supported Yealink models by MAC with no 
     );
     assert.equal(response.status,200,model+' first Button 7 status');
     assert.match(response.text,/VisionBank Manage Extensions/,model+' first Button 7 menu');
-    assert.match(response.text,/Add Temporary Extension/,model+' Add Temporary Extension');
+    assert.match(response.text,/Add Extension/,model+' Add Extension');
 
     const saved=await readPhoneEnrollment(env,MAC);
     assert.ok(saved,model+' enrollment persisted');
@@ -474,9 +474,9 @@ test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');
@@ -538,9 +538,9 @@ test('background save recovers generic device 404 via org inventory across Yeali
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=30',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 30 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');

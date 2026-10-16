@@ -24,10 +24,11 @@ export function isPilotDevice(env,mac){
 export async function putLease(env,lease){
   if(!env?.LOGS?.put)throw new DeviceManagementError('device-lease-store-unavailable',503);
   if(!UUID.test(String(lease?.leaseId||'')))throw new DeviceManagementError('invalid-lease-id');
+  const permanent=lease.permanent===true&&!lease.manualEndRequestedAt;
   const expires=Date.parse(lease.expiresAt||'');
-  if(!Number.isFinite(expires))throw new DeviceManagementError('invalid-lease-expiry');
+  if(!permanent&&!Number.isFinite(expires))throw new DeviceManagementError('invalid-lease-expiry');
   const ttl=Math.max(3600,Math.ceil((expires-Date.now())/1000)+24*60*60);
-  await env.LOGS.put(PREFIX+lease.leaseId,JSON.stringify(lease),{expirationTtl:ttl,metadata:{
+  await env.LOGS.put(PREFIX+lease.leaseId,JSON.stringify(lease),{...(permanent?{}:{expirationTtl:ttl}),metadata:{
     leaseId:lease.leaseId,status:lease.status||'active',deviceId:clean(lease.device?.id),mac:clean(lease.device?.mac,32),
     locationId:clean(lease.location?.id),locationName:clean(lease.location?.name),expiresAt:lease.expiresAt,
     operatorName:clean(lease.operator?.name,100),operatorEmail:clean(lease.operator?.email,254)
@@ -53,10 +54,10 @@ export async function listLeases(env,{limit=200}={}){
   return leases.sort((a,b)=>String(a.expiresAt||'').localeCompare(String(b.expiresAt||'')));
 }
 
-export function createLease({device,location,baselineLine2,temporaryLine2,durationMinutes,operator,auditId,phonismPhoneId,phonismTenantId,phonismCompanyId,phonismDomainId,now=Date.now()}){
-  const leaseId=crypto.randomUUID(),startsAt=new Date(now).toISOString(),expiresAt=new Date(now+Number(durationMinutes)*60000).toISOString();
+export function createLease({device,location,baselineLine2,temporaryLine2,durationMinutes,operator,auditId,phonismPhoneId,phonismTenantId,phonismCompanyId,phonismDomainId,lineNumber=2,now=Date.now()}){
+  const leaseId=crypto.randomUUID(),startsAt=new Date(now).toISOString(),expiresAt=durationMinutes==='permanent'?null:new Date(now+Number(durationMinutes)*60000).toISOString();
   return {
-    leaseId,status:'active',startsAt,expiresAt,durationMinutes:Number(durationMinutes),
+    leaseId,status:'active',startsAt,expiresAt,lineNumber,permanent:durationMinutes==='permanent',durationMinutes:durationMinutes==='permanent'?'permanent':Number(durationMinutes),
     device:{id:device.id,name:device.displayName||device.name||'',mac:device.mac||''},
     location:{id:location.id,name:location.name||''},
     baselineLine2:baselineLine2||null,temporaryLine2:temporaryLine2||null,
@@ -69,3 +70,5 @@ export function createLease({device,location,baselineLine2,temporaryLine2,durati
 export function decideExpiry(lease,currentLine2){
   return leaseExpiryDecision({lease,currentLine2});
 }
+
+export function leaseEnd(lease){return lease?.permanent&&!lease?.manualEndRequestedAt?Infinity:Date.parse(lease?.expiresAt||'');}

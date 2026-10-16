@@ -610,3 +610,52 @@ test('verified domain scope survives save, delayed recovery, and expiry cleanup'
  assert.equal(ph.calls.findLast(c=>c.type==='sync').body.targetCompanyId,'40');
  assert.equal(ph.calls.findLast(c=>c.type==='sync').body.tenantId,'101');
 });
+
+for(const occupied of [1,2])test('allocated assignment preserves '+occupied+' existing secondary lines through expiry',async()=>{
+  const e=env(),existing=[PRIMARY,BASELINE];
+  if(occupied===2)existing.push({...BASELINE,id:'other',port:3,lineLabel:'Keep me'});
+  const w=webexFixture(existing),p=phonismFixture();
+  p.reader.lines=async()=>w.state.members.map(m=>({lineNumber:m.port,username:m.id===TARGET.id?TARGET.extension:m.id,alias:m.id,registrationStatus:'not-monitored'}));
+  const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:w.state.members,targetMember:TARGET,durationMinutes:540,allocateLine:true,maxLineCount:4,phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
+  assert.equal(preview.lineNumber,occupied+2);assert.equal(preview.baselineLine2,null);
+  const {lease}=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:w.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:p.reader});
+  assert.equal(lease.lineNumber,occupied+2);
+  assert.equal(w.state.members.find(m=>m.port===2).id,BASELINE.id);
+  const verification=await verifyLease({env:e,webexFetch:w.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:p.reader});
+  assert.equal(verification.state,'applied-unverified');
+  await sweepExpiredLeases({env:e,webexFetch:w.fetch,orgId:ORG,phonismReader:p.reader,now:Date.parse(lease.expiresAt)+1});
+  assert.deepEqual(w.state.members.map(m=>[m.port,m.id,m.lineLabel]),existing.map(m=>[m.port,m.id,m.lineLabel]));
+});
+
+test('permanent assignment survives future cleanup and is removable only by explicit action',async()=>{
+ const e=env(),w=webexFixture([PRIMARY,BASELINE]),p=phonismFixture();
+ p.reader.lines=async()=>w.state.members.map(m=>({lineNumber:m.port,username:m.id===TARGET.id?TARGET.extension:m.id,alias:m.id,registrationStatus:'not-monitored'}));
+ const preview=await createWritePreview({env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:w.state.members,targetMember:TARGET,durationMinutes:'permanent',allocateLine:true,maxLineCount:4,phonismContext:{phoneId:'313135',tenantId:'123',companyId:'40'}});
+ const {lease}=await applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:w.fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader:p.reader});
+ assert.equal(lease.expiresAt,null);assert.equal(lease.permanent,true);
+ const writes=w.state.puts.length;
+ await sweepExpiredLeases({env:e,webexFetch:w.fetch,orgId:ORG,phonismReader:p.reader,now:Date.now()+1000*86400000});
+ assert.equal(w.state.puts.length,writes);
+ await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:w.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:p.reader});
+ assert.deepEqual(w.state.members.map(m=>m.id),[PRIMARY.id,BASELINE.id]);
+});
+
+test('free-line allocation fails closed for missing capacity, a full phone, and weighted occupied lines',async()=>{
+ const {firstAvailableLine}=await import('../../device-management/write.mjs');
+ assert.equal(firstAvailableLine([PRIMARY],4),2);
+ assert.equal(firstAvailableLine([{...PRIMARY,lineWeight:2}],4),3);
+ assert.throws(()=>firstAvailableLine([PRIMARY],null),e=>e.code==='phone-line-capacity-unavailable');
+ assert.throws(()=>firstAvailableLine([PRIMARY,BASELINE,{...BASELINE,port:3},{...BASELINE,port:4}],4),e=>e.code==='phone-lines-full');
+});
+
+test('999-day validation and permanent storage do not use a fake expiration',async()=>{
+ const {validateTemporaryDuration}=await import('../../device-management/contracts.mjs');
+ const {createLease,putLease}=await import('../../device-management/lease.mjs');
+ assert.equal(validateTemporaryDuration(999*1440),999*1440);
+ assert.throws(()=>validateTemporaryDuration(1000*1440));
+ assert.equal(validateTemporaryDuration('permanent'),'permanent');
+ let options;
+ const lease=createLease({device:DEVICE,location:LOCATION,durationMinutes:'permanent',lineNumber:3});
+ await putLease({LOGS:{put:async(_key,_value,opts)=>{options=opts;}}},lease);
+ assert.equal('expirationTtl' in options,false);
+});

@@ -1,5 +1,5 @@
 import {DeviceManagementError,validateTemporaryDuration} from './contracts.mjs';
-import {createLease,putLease,getLease,listLeases,decideExpiry,isPilotDevice} from './lease.mjs';
+import {createLease,putLease,getLease,listLeases,decideExpiry,isPilotDevice,leaseEnd} from './lease.mjs';
 import {buildAuditRecord,writeAuditRecord,automatedActor} from './audit.mjs';
 import {createPhonismReader} from './phonism.mjs';
 
@@ -27,16 +27,16 @@ function writableMember(raw,portOverride=null){
   return member;
 }
 
-export function line2SummaryFromMembers(members=[]){
-  const row=members.find(m=>Number(m?.port)===2);
+export function line2SummaryFromMembers(members=[],lineNumber=2){
+  const row=members.find(m=>Number(m?.port)===lineNumber);
   return row?{memberId:String(row.id),name:clean(row.displayName||[row.firstName,row.lastName].filter(Boolean).join(' ')||row.lineLabel||'',160),extension:clean(row.extension||'',32),phoneNumber:clean(row.phoneNumber||'',64),type:clean(row.memberType||'',40)}:null;
 }
 
-export function composeMembers(currentMembers=[],target=null){
-  const keep=currentMembers.filter(m=>Number(m?.port)!==2).map(m=>writableMember(m));
+export function composeMembers(currentMembers=[],target=null,lineNumber=2){
+  const keep=currentMembers.filter(m=>Number(m?.port)!==lineNumber).map(m=>writableMember(m));
   if(target){
     keep.push({
-      port:2,id:String(target.id),primaryOwner:false,
+      port:lineNumber,id:String(target.id),primaryOwner:false,
       lineType:'SHARED_CALL_APPEARANCE',
       lineWeight:numberOr(target.lineWeight,1),
       hotlineEnabled:false,
@@ -105,16 +105,17 @@ async function getPreview(env,mutationId){
   try{return typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}
 }
 
-export async function createWritePreview({env,session,device,location,currentMembers,targetMember,durationMinutes,reason,phonismContext}){
+export async function createWritePreview({env,session,device,location,currentMembers,targetMember,durationMinutes,reason,phonismContext,allocateLine=false,maxLineCount=null}){
   if(!isPilotDevice(env,device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
   const minutes=validateTemporaryDuration(durationMinutes);
+  const lineNumber=allocateLine?firstAvailableLine(currentMembers,maxLineCount,targetMember?.lineWeight):2;
   const mutationId=crypto.randomUUID(),currentHash=await membersFingerprint(currentMembers);
   const preview={
     mutationId,sessionId:session.id,createdAt:new Date().toISOString(),
     device:{id:device.id,displayName:device.displayName||device.name||'',mac:device.mac||''},
     location:{id:location.id,name:location.name||''},
-    currentHash,baselineLine2:line2SummaryFromMembers(currentMembers),
-    baselineMember:(()=>{const row=currentMembers.find(m=>Number(m?.port)===2);return row?writableMember(row):null;})(),
+    currentHash,lineNumber,allocateLine,baselineLine2:line2SummaryFromMembers(currentMembers,lineNumber),
+    baselineMember:(()=>{const row=currentMembers.find(m=>Number(m?.port)===lineNumber);return row?writableMember(row):null;})(),
     targetMember:targetMember?{
       id:targetMember.id,name:targetMember.name||targetMember.displayName||'',displayName:targetMember.name||targetMember.displayName||'',
       extension:targetMember.extension||'',phoneNumber:targetMember.phoneNumber||'',type:targetMember.type||targetMember.memberType||'',
@@ -129,9 +130,9 @@ export async function createWritePreview({env,session,device,location,currentMem
   return preview;
 }
 
-function restoreMembers(currentMembers,baselineMember){
-  const keep=currentMembers.filter(m=>Number(m?.port)!==2).map(m=>writableMember(m));
-  if(baselineMember)keep.push({...baselineMember,port:2});
+function restoreMembers(currentMembers,baselineMember,lineNumber=2){
+  const keep=currentMembers.filter(m=>Number(m?.port)!==lineNumber).map(m=>writableMember(m));
+  if(baselineMember)keep.push({...baselineMember,port:lineNumber});
   return keep.sort((a,b)=>a.port-b.port);
 }
 
@@ -155,8 +156,8 @@ async function boundedProviderCall(factory,ms=1200){
   }finally{clearTimeout(timer);}
 }
 
-export function phonismLineMatchesTarget(lines=[],target=null){
-  const line2=(Array.isArray(lines)?lines:[]).find(x=>Number(x?.lineNumber)===2)||null;
+export function phonismLineMatchesTarget(lines=[],target=null,lineNumber=2){
+  const line2=(Array.isArray(lines)?lines:[]).find(x=>Number(x?.lineNumber)===lineNumber)||null;
   if(!target)return !line2;
   if(!line2)return false;
   const targetName=clean(target.name||target.displayName||'',160).toLowerCase();
@@ -168,14 +169,14 @@ export function phonismLineMatchesTarget(lines=[],target=null){
   return Boolean(extensionMatches||nameMatches);
 }
 
-async function waitForPhonismLine2({env,phonismReader,phoneId,target}){
+async function waitForPhonismLine2({env,phonismReader,phoneId,target,lineNumber=2}){
   const delays=[0,1000,1500,2500,3500];
   let lastError=null;
   for(let i=0;i<delays.length;i++){
     if(delays[i])await wait(delays[i]);
     try{
       const lines=await boundedProviderCall(()=>phonismReader.lines(env,phoneId),1200);
-      if(phonismLineMatchesTarget(lines,target))return {confirmed:true,attempts:i+1,error:null};
+      if(phonismLineMatchesTarget(lines,target,lineNumber))return {confirmed:true,attempts:i+1,error:null};
     }catch(error){
       lastError=String(error?.code||error?.message||'phonism-line-check-failed').slice(0,160);
     }
@@ -209,7 +210,8 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   const freshHash=await membersFingerprint(current.members);
   if(freshHash!==preview.currentHash)throw new DeviceManagementError('device-state-changed-review-again',409);
 
-  const desired=composeMembers(current.members,preview.targetMember);
+  if(preview.allocateLine&&firstAvailableLine(current.members,current.maxLineCount,preview.targetMember?.lineWeight)!==preview.lineNumber)throw new DeviceManagementError('device-state-changed-review-again',409);
+  const desired=composeMembers(current.members,preview.targetMember,preview.lineNumber||2);
   let webexSaved=false,phonismQueued=false,rolledBack=false;
   try{
     await writeWebexMembers(webexFetch,env,orgId,preview.device.id,desired);
@@ -250,7 +252,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   await writeAuditRecord(env,audit);
 
   const pc=preview.phonismContext||{};
-  const lease=createLease({
+  const lease=createLease({lineNumber:preview.lineNumber||2,
     device:preview.device,location:preview.location,baselineLine2:preview.baselineLine2,
     temporaryLine2:targetSummary(preview.targetMember),durationMinutes:preview.durationMinutes,
     operator:session.operator,auditId:audit.auditId,phonismPhoneId:pc.phoneId,
@@ -266,7 +268,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   let rebootQueued=false,rebootError=null;
   if(pc.phoneId){
     const syncConfirmation=await waitForPhonismLine2({
-      env,phonismReader,phoneId:pc.phoneId,target:preview.targetMember
+      env,phonismReader,phoneId:pc.phoneId,lineNumber:preview.lineNumber||2,target:preview.targetMember
     });
     if(!syncConfirmation.confirmed){
       lease.recovery={...lease.recovery,syncConfirmAttempts:syncConfirmation.attempts,syncConfirmError:syncConfirmation.error||'phonism-line-not-ready',initialSyncCheckCompletedAt:new Date().toISOString(),
@@ -339,9 +341,9 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
 export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=createPhonismReader()}){
   const lease=await getLease(env,leaseId);
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
-  if(lease.status!=='active'||Date.parse(lease.expiresAt)<=Date.now())return {lease,state:lease.status,webexLine2:null,phonismLine2:null};
+  if(lease.status!=='active'||leaseEnd(lease)<=Date.now())return {lease,state:lease.status,webexLine2:null,phonismLine2:null};
   const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
-  const webexLine2=line2SummaryFromMembers(current.members);
+  const webexLine2=line2SummaryFromMembers(current.members,lease.lineNumber||2);
   const removingLine2=!lease.temporaryLine2;
   const targetId=String(lease.temporaryLine2?.memberId||'');
   const webexMatches=removingLine2?!webexLine2:String(webexLine2?.memberId||'')===targetId;
@@ -351,11 +353,11 @@ export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=cr
     try{
       phonismLines=await phonismReader.lines(env,lease.phonismPhoneId);
       phonismRead=true;
-      phonismLine2=phonismLines.find(x=>Number(x.lineNumber)===2)||null;
+      phonismLine2=phonismLines.find(x=>Number(x.lineNumber)===(lease.lineNumber||2))||null;
     }catch{}
   }
 
-  const phonismPresent=phonismRead&&phonismLineMatchesTarget(phonismLines,lease.temporaryLine2);
+  const phonismPresent=phonismRead&&phonismLineMatchesTarget(phonismLines,lease.temporaryLine2,lease.lineNumber||2);
   const phonismRegistration=removingLine2?'removed':(phonismLine2?.registrationStatus||'pending');
   const configConverged=webexMatches&&phonismPresent;
 
@@ -391,7 +393,7 @@ async function performRecoveryAction({env,request,session,leaseId,webexFetch,org
   const lease=await getLease(env,leaseId);
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
   if(!isPilotDevice(env,lease.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
-  if(lease.status!=='active'||Date.parse(lease.expiresAt)<=Date.now())throw new DeviceManagementError('lease-not-active',409);
+  if(lease.status!=='active'||leaseEnd(lease)<=Date.now())throw new DeviceManagementError('lease-not-active',409);
   if(lease.recovery?.syncPending)throw new DeviceManagementError('phonism-line-not-ready',409);
   if(phoneFallback){
     if(session?.deviceIdentity?.mac!==lease.device.mac)throw new DeviceManagementError('phone-credential-invalid',403);
@@ -400,10 +402,10 @@ async function performRecoveryAction({env,request,session,leaseId,webexFetch,org
     if(lease.recovery?.manualPhoneRestartAt)throw new DeviceManagementError('restart-already-requested',409);
   }
   const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
-  const currentLine2=line2SummaryFromMembers(current.members);
+  const currentLine2=line2SummaryFromMembers(current.members,lease.lineNumber||2);
   if(lease.temporaryLine2?String(currentLine2?.memberId||'')!==String(lease.temporaryLine2.memberId):Boolean(currentLine2))throw new DeviceManagementError('webex-line-changed',409);
   const lines=await phonismReader.lines(env,lease.phonismPhoneId);
-  if(!phonismLineMatchesTarget(lines,lease.temporaryLine2))throw new DeviceManagementError('phonism-line-not-ready',409);
+  if(!phonismLineMatchesTarget(lines,lease.temporaryLine2,lease.lineNumber||2))throw new DeviceManagementError('phonism-line-not-ready',409);
   if(phoneFallback){
     // Persist before sending. An ambiguous provider response must not invite a second restart.
     lease.recovery={...lease.recovery,manualPhoneRestartAt:new Date().toISOString()};
@@ -438,9 +440,9 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
 async function confirmCleanupSync({env,lease,phonismReader,webexFetch,orgId,now,target,cleanupDeadline=null}){
   let error=null;
   try{
-    const current=line2SummaryFromMembers((await readWebexMembers(webexFetch,env,orgId,lease.device.id)).members);
+    const current=line2SummaryFromMembers((await readWebexMembers(webexFetch,env,orgId,lease.device.id)).members,lease.lineNumber||2);
     if((current?.memberId||null)!==(target?.memberId||null))error='webex-line-changed';
-    else if(!phonismLineMatchesTarget(await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),2000),target))error='phonism-line-not-ready';
+    else if(!phonismLineMatchesTarget(await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),2000),target,lease.lineNumber||2))error='phonism-line-not-ready';
   }catch(e){error=e?.code||'line-sync-check-failed';}
   if(cleanupDeadline&&Date.now()>=cleanupDeadline)return false;
   if(!error){
@@ -533,7 +535,7 @@ export async function endTemporaryLease({env,request,session,webexFetch,orgId,le
     name:clean(session?.operator?.name||'',100),
     email:clean(session?.operator?.email||'',254)
   };
-  lease.expiresAt=new Date(Math.min(now,Date.parse(lease.expiresAt))).toISOString();
+  lease.expiresAt=new Date(lease.permanent?now:Math.min(now,leaseEnd(lease))).toISOString();
   if(deferWork)lease.recovery={...(lease.recovery||{}),phoneCleanupUntil:new Date(now+300000).toISOString()};
   await putLease(env,lease);
   await writeAuditRecord(env,buildAuditRecord({
@@ -553,7 +555,7 @@ export async function endTemporaryLease({env,request,session,webexFetch,orgId,le
 
 async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now,phoneDeadline=null}){
   // Do not overlap the initial request's bounded work.
-  if(lease.status!=='active'||Date.parse(lease.expiresAt)<=now)return;
+  if(lease.status!=='active'||leaseEnd(lease)<=now)return;
   if(!lease.recovery.initialSyncCheckCompletedAt&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<30000)return;
   const checkStartedAt=Date.now();
   let error=null,confirmed=false;
@@ -565,16 +567,16 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
       boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),3000)
     ]);
     if(webex.status==='rejected')throw webex.reason;
-    const line2=line2SummaryFromMembers(webex.value.members);
+    const line2=line2SummaryFromMembers(webex.value.members,lease.lineNumber||2);
     const same=lease.temporaryLine2?String(line2?.memberId||'')===String(lease.temporaryLine2.memberId):!line2;
     if(!same)error='webex-line-changed';
     else if(phonism.status==='rejected')throw phonism.reason;
-    else confirmed=phonismLineMatchesTarget(phonism.value,lease.temporaryLine2);
+    else confirmed=phonismLineMatchesTarget(phonism.value,lease.temporaryLine2,lease.lineNumber||2);
   }catch(e){error=e?.code||'line-sync-check-failed';}
   // Never cross the fixed ownership boundary or restart after expiry.
   if(phoneDeadline&&Date.now()>=phoneDeadline)return;
   const checkedAt=phoneDeadline?Date.now():now;
-  if(Date.parse(lease.expiresAt)<=checkedAt)return;
+  if(leaseEnd(lease)<=checkedAt)return;
   lease.recovery={...lease.recovery,syncRetryChecks:Number(lease.recovery.syncRetryChecks||0)+1,lastSyncCheckAt:new Date(checkedAt).toISOString(),lastSyncCheckMs:Date.now()-checkStartedAt,lastSyncCheckSource:phoneDeadline?'phone-progress':'scheduled'};
   if(!confirmed){
     // An accepted Device sync is asynchronous. Observed readiness takes 35–100s;
@@ -585,7 +587,7 @@ async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,n
       !lease.recovery.fullSyncFallbackAttemptedAt&&lease.phonismCompanyId&&lease.phonismTenantId&&
       !error&&now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)>=120000&&
       now-Date.parse(lease.recovery.syncPendingSince||lease.startsAt)<10*60000&&
-      (!phoneDeadline||phoneDeadline-Date.now()>8000)&&Date.parse(lease.expiresAt)>Math.max(now,Date.now())+5000;
+      (!phoneDeadline||phoneDeadline-Date.now()>8000)&&leaseEnd(lease)>Math.max(now,Date.now())+5000;
     if(fallbackDue){
       const fallbackAt=new Date().toISOString();
       lease.recovery={...lease.recovery,fullSyncFallbackAttemptedAt:fallbackAt};
@@ -644,8 +646,8 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     if(onlyLeaseId&&String(lease.leaseId)!==String(onlyLeaseId))continue;
     if(!onlyLeaseId&&Date.parse(lease.recovery?.phoneCleanupUntil||'')>now)continue;
     if(cleanupDeadline&&Date.now()>=cleanupDeadline)continue;
-    const expires=Date.parse(lease.expiresAt||'');
-    if(!Number.isFinite(expires))continue;
+    const expires=leaseEnd(lease);
+    if(!Number.isFinite(expires)&&expires!==Infinity)continue;
     if(expires>now){
       if(lease.status==='active'&&lease.recovery?.syncPending&&!(Date.parse(lease.recovery.phonePollUntil||'')>now)){
         try{await resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now});}
@@ -657,7 +659,7 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     if(['restore-sync-pending','restore-reboot-pending','external-change-sync-pending','external-change-reboot-pending'].includes(lease.status)){
       try{
         const target=lease.status.startsWith('restore-')?lease.baselineLine2:lease.externalCurrentLine2;
-        const current=line2SummaryFromMembers((await readWebexMembers(webexFetch,env,orgId,lease.device.id)).members);
+        const current=line2SummaryFromMembers((await readWebexMembers(webexFetch,env,orgId,lease.device.id)).members,lease.lineNumber||2);
         if((current?.memberId||null)!==(target?.memberId||null)){
           lease.status='superseded';lease.closedAt=new Date(now).toISOString();
           lease.recovery={...(lease.recovery||{}),cleanupSyncPending:false};
@@ -740,7 +742,7 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
     if(lease.status!=='active')continue;
     try{
       const current=await readWebexMembers(webexFetch,env,orgId,lease.device.id);
-      const currentLine2=line2SummaryFromMembers(current.members);
+      const currentLine2=line2SummaryFromMembers(current.members,lease.lineNumber||2);
       const decision=decideExpiry(lease,currentLine2);
 
       if(decision.action==='preserve-current'){
@@ -758,7 +760,7 @@ export async function sweepExpiredLeases({env,webexFetch,orgId,phonismReader=cre
       }
 
       if(cleanupDeadline&&Date.now()>=cleanupDeadline)continue;
-      const restored=restoreMembers(current.members,lease.baselineMember||null);
+      const restored=restoreMembers(current.members,lease.baselineMember||null,lease.lineNumber||2);
       await writeWebexMembers(webexFetch,env,orgId,lease.device.id,restored);
       try{
         await queueCleanupSync({env,lease,phonismReader,now});
@@ -809,7 +811,7 @@ export async function advancePhoneLineSync({env,enrollment,leaseId,webexFetch,or
     if(!lease||lease.device?.mac!==enrollment.device.mac||String(lease.phonismPhoneId)!==String(enrollment.phonismPhoneId))throw new DeviceManagementError('phone-credential-invalid',403);
     if(!isPilotDevice(env,lease.device.mac))throw new DeviceManagementError('device-write-not-enabled',403);
     const now=Date.now(),until=Date.parse(lease.recovery?.phonePollUntil||'');
-    if(lease.status!=='active'||Date.parse(lease.expiresAt)<=now||!lease.recovery?.syncPending||!lease.recovery.initialSyncCheckCompletedAt||!Number.isFinite(until)||now>=until-10000)return;
+    if(lease.status!=='active'||leaseEnd(lease)<=now||!lease.recovery?.syncPending||!lease.recovery.initialSyncCheckCompletedAt||!Number.isFinite(until)||now>=until-10000)return;
     await resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now,phoneDeadline:until-10000});
   })();
   phoneSyncInFlight.set(leaseId,work);
@@ -831,4 +833,20 @@ export async function advancePhoneSignout({env,enrollment,leaseId,webexFetch,org
  })();
  phoneCleanupInFlight.set(leaseId,work);
  try{return await work;}finally{phoneCleanupInFlight.delete(leaseId);}
+}
+
+export function firstAvailableLine(members=[],maxLineCount,lineWeight=1){
+  const capacity=Number(maxLineCount);
+  if(!Number.isSafeInteger(capacity)||capacity<2)throw new DeviceManagementError('phone-line-capacity-unavailable',409);
+  const required=Number(lineWeight)||1;
+  if(!Number.isSafeInteger(required)||required<1)throw new DeviceManagementError('phone-line-capacity-unavailable',409);
+  const occupied=new Set();
+  for(const member of members){
+    const port=Number(member.port),weight=Math.max(1,Number(member.lineWeight)||1);
+    for(let offset=0;offset<weight;offset++)occupied.add(port+offset);
+  }
+  for(let line=2;line+required-1<=capacity;line++){
+    if(Array.from({length:required},(_,offset)=>line+offset).every(port=>!occupied.has(port)))return line;
+  }
+  throw new DeviceManagementError('phone-lines-full',409);
 }

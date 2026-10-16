@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="directory.css?v=20261004-enterprise1">
   <link rel="stylesheet" href="portal-enterprise.css?v=20261006-shell6">
 <link rel="stylesheet" href="portal-help.css?v=20261013-help1">
+<style>.sync-clock{display:flex;flex-wrap:wrap;gap:1rem 2rem;margin:1rem 0}.sync-clock>div{min-width:190px}.sync-clock span{font-variant-numeric:tabular-nums}</style>
 </head>
 
 <body>
@@ -166,6 +167,11 @@
         </strong>
       </div>
 
+      <div class="sync-clock" aria-label="Directory sync schedule">
+        <div><strong>Last successful sync</strong><br><span id="directoryLastSync">Loading…</span></div>
+        <div><strong>Next scheduled sync</strong><br><span id="directoryNextSync">Loading…</span></div>
+        <div><strong>Next sync in</strong><br><span id="directorySyncCountdown">Loading…</span></div>
+      </div>
       <p id="directorySyncStatus" class="status-text" role="status">Webex sync runs every 3 hours. Entries beginning with WG are excluded.</p>
       <div id="directoryStatus" class="status-text" role="status" aria-live="polite"></div>
 
@@ -238,7 +244,7 @@
 
 <script src="portal-session.js?v=20261005-license1"></script>
   <script src="portal-enterprise.js?v=20261005-license1"></script>
-  <script src="directory.js?v=20261016-fullsync1"></script>
+  <script src="directory.js?v=20261016-filterclock1"></script>
 
 <script src="portal-help.js?v=20261015-followup2"></script>
 </body>

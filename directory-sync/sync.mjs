@@ -1,9 +1,10 @@
 export const CRON='17 */3 * * *';
 export const DIRECTORY_KEY='visionbank-directory';
-export const SYNC_VERSION=2;
+export const SYNC_VERSION=3;
 export const STATUS_KEY='visionbank-directory-sync-status';
 const clean=v=>String(v??'').trim(),key=v=>clean(v).toLowerCase().replace(/\s+/g,' '),digits=v=>clean(v).replace(/\D/g,'');
 export const protectedEntry=c=>/^wg/i.test(clean(c.firstName));
+export const excludedEntry=c=>{const name=clean(c.name||[c.firstName,c.lastName].filter(Boolean).join(' '));return /^FAX_/i.test(name)||/^Contact Center RTMS$/i.test(name)||/^Voice Messaging Group(?:\s|$)/i.test(name);};
 export function sourceRows({people,workspaces,numbers,locations}){
  const locs=new Map(locations.map(x=>[x.id,x.name]));
  const rows=[];
@@ -27,16 +28,18 @@ export function sourceRows({people,workspaces,numbers,locations}){
 
 export function planSync(contacts,sources){
  if(new Set(sources.map(s=>s.id)).size!==sources.length)throw Error('Duplicate Webex source identity');
- const added=[],blocked=new Set();
+ const added=[],excluded=[],blocked=new Set();
  const changes=[],unmatched=[],ambiguous=[],deleted=[];let protectedCount=0,matched=0;
  const candidates=contacts.map((c,index)=>{
   if(protectedEntry(c)){protectedCount++;return null;}
+  if(excludedEntry(c)){excluded.push(index);deleted.push(index);return null;}
   let matches=[];
   if(c.webexDirectoryId){matches=sources.filter(s=>s.id===c.webexDirectoryId);if(!matches.length){deleted.push(index);return null;}}
   else {
    const byEmail=clean(c.email)?sources.filter(s=>s.emails.some(e=>key(e)===key(c.email))):[];
    matches=byEmail.length?byEmail:sources.filter(s=>key(s.name)===key(c.name||[c.firstName,c.lastName].filter(Boolean).join(' ')));
   }
+  if(matches.length===1&&excludedEntry(matches[0])){excluded.push(index);deleted.push(index);return null;}
   if(matches.length!==1){for(const s of matches)blocked.add(s.id);(matches.length?ambiguous:unmatched).push(index);return null;}
   return matches[0];
  });
@@ -53,11 +56,11 @@ export function planSync(contacts,sources){
  });
  const result=rows.filter(Boolean),represented=new Set(result.map(r=>r.webexDirectoryId).filter(Boolean));
  for(const s of sources){
-  if(represented.has(s.id)||counts.has(s.id)||blocked.has(s.id)||!s.name||(!s.phone&&!s.extension)||protectedEntry(s))continue;
+  if(represented.has(s.id)||counts.has(s.id)||blocked.has(s.id)||!s.name||(!s.phone&&!s.extension)||protectedEntry(s)||excludedEntry(s))continue;
   const next={webexDirectoryId:s.id,name:s.name,firstName:s.firstName||s.name.split(' ')[0],lastName:s.lastName||((s.type==='PLACE')?s.name.split(' ').slice(1).join(' '):''),phone:s.phone||'',extension:s.extension||'',email:s.email||'',location:s.location||'',notes:s.location?'Location: '+s.location:''};
   result.push(next);added.push(s.id);represented.add(s.id);
  }
- return {rows:result,added,changes,deleted,matched,protectedCount,unmatched,ambiguous};
+ return {rows:result,added,excluded,changes,deleted,matched,protectedCount,unmatched,ambiguous};
 }
 export async function fetchSources(env,webexFetch){
  const raw=clean(env.WEBEX_ORG_ID);if(!raw)throw Error('Webex organization missing');

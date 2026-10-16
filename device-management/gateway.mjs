@@ -733,7 +733,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(state.kind==='restart')return phoneXmlResponse(textMenu(state.title,[
         {prompt:state.text,uri:progressUrl},
         {prompt:'Restart Now',uri:phoneRouteUrl(request,'restart',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
       return phoneXmlResponse(textScreen(state.title,state.text,{timeout:state.kind==='wait'?0:120,lockIn:state.kind==='wait',refresh:state.kind==='wait'?5:0,url:progressUrl}));
     };
     if(part==='phone/progress'||part==='phone/restart'){
@@ -799,37 +799,37 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/signout'){
       if(!lease)return phoneXmlResponse(textMenu('No Temporary Line',[
         {prompt:'Return',uri:home}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
       if(!lease?.temporaryLine2)await loadLine2();
       const currentLabel=phoneMemberLabel(lease.temporaryLine2||line2Row);
       return phoneXmlResponse(textMenu((lease.permanent?'Remove ':'Sign Out ')+currentLabel,[
         {prompt:lease.permanent?'Remove Now':'Sign Out Now',uri:phoneRouteUrl(request,'signoutApply',{lease:lease.leaseId},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Keep Line Active',uri:home}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
     }
 
     if(part==='phone/signoutApply'){
       if(!lease)return phoneXmlResponse(textMenu('Already Signed Out',[
         {prompt:'Return',uri:home}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
       return await signoutResponse(lease.leaseId,true);
     }
 
     if(part==='phone/search'){
       if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const q=display(new URL(request.url).searchParams.get('q')||'',80);
-      if(!q)return phoneXmlResponse(inputScreen('Add Extension','Extension or phone number',searchUrl,'q',{cancelAction:home}));
+      if(!q)return phoneXmlResponse(inputScreen('Add Extension','Extension or phone number',searchUrl,'q',{type:'number',cancelAction:''}));
       const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
       const rows=searched.members.filter(member=>member?.id).slice(0,8);
       if(!rows.length)return phoneXmlResponse(textMenu('No Matching Extensions',[
         {prompt:'Search again',uri:searchUrl},{prompt:'Return',uri:home}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
       const items=rows.map(member=>({
         prompt:phoneMemberLabel(member),
         uri:phoneRouteUrl(request,'duration',{member:member.id,q,locationId:member.locationId||''},accessToken,fleetKey,normalizedFleetMac)
       }));
       items.push({prompt:'Search again',uri:searchUrl});
-      return phoneXmlResponse(textMenu('Select Extension',items,{cancelAction:home}));
+      return phoneXmlResponse(textMenu('Select Extension',items,{cancelAction:''}));
     }
 
     if(part==='phone/duration'){
@@ -846,7 +846,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       items.push({prompt:'Custom Days',uri:phoneRouteUrl(request,'customDays',{member:memberId,q,locationId:target.locationId||''},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Permanent',uri:phoneRouteUrl(request,'confirm',{member:memberId,q,locationId:target.locationId||'',minutes:'permanent'},accessToken,fleetKey,normalizedFleetMac)});
       items.push({prompt:'Cancel',uri:home});
-      return phoneXmlResponse(textMenu('Use '+phoneMemberLabel(target)+' For',items,{cancelAction:home}));
+      return phoneXmlResponse(textMenu('Use '+phoneMemberLabel(target)+' For',items,{cancelAction:''}));
     }
 
     if(part==='phone/customDays'){
@@ -854,8 +854,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const memberId=id(phoneUrl.searchParams.get('member')),q=display(phoneUrl.searchParams.get('q')||'',80),locationId=id(phoneUrl.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
       const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-      const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-999)',submit,'days',{type:'number',cancelAction:back}));
+      return phoneXmlResponse(inputScreen('Custom Days','Enter days (1-999)',submit,'days',{type:'number',cancelAction:''}));
     }
 
     if(part==='phone/confirm'){
@@ -865,8 +864,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       const custom=url.searchParams.has('days'),days=url.searchParams.get('days')||'';
       if(custom&&(!/^[0-9]{1,3}$/.test(days)||Number(days)<1||Number(days)>999)){
         const submit=phoneRouteUrl(request,'confirm',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-        const back=phoneRouteUrl(request,'duration',{member:memberId,q,locationId},accessToken,fleetKey,normalizedFleetMac);
-        return phoneXmlResponse(inputScreen('Enter 1 to 999 days','Whole days only (1-999)',submit,'days',{type:'number',cancelAction:back}));
+        return phoneXmlResponse(inputScreen('Enter 1 to 999 days','Whole days only (1-999)',submit,'days',{type:'number',cancelAction:''}));
       }
       const minutes=custom?Number(days)*1440:url.searchParams.get('minutes')==='permanent'?'permanent':Number(url.searchParams.get('minutes'));
       if(!custom&&minutes!=='permanent'&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');
@@ -878,7 +876,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
         {prompt:'Save - '+phoneDurationLabel(minutes),uri:phoneRouteUrl(request,'apply',{intent:intent.intentId},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Change time',uri:phoneRouteUrl(request,'duration',{member:memberId,q,locationId:target.locationId||''},accessToken,fleetKey,normalizedFleetMac)},
         {prompt:'Cancel',uri:home}
-      ],{cancelAction:home}));
+      ],{cancelAction:''}));
     }
 
     if(part==='phone/apply'){

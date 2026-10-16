@@ -69,6 +69,15 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const searchUrl='https://worker.example/p/'+token+'?a=search';
   const searchForm=await xml(handler,env,searchUrl);
   assert.match(searchForm.text,/Extension or phone number/);
+  assert.match(searchForm.text,/<YealinkIPPhoneInputScreen type="number"/);
+  assert.match(searchForm.text,/<InputField type="number"/);
+  for(const screen of [home,searchForm]){
+    assert.match(screen.text,/cancelAction=""/);
+    assert.match(screen.text,/destroyOnExit="yes"/);
+    assert.match(screen.text,/LockIn="no"/);
+  }
+  assert.match(searchForm.text,/<Label>Exit<\/Label><URI>SoftKey:Exit<\/URI>/);
+  assert.doesNotMatch(searchForm.text,/SoftKey:ChangeMode/);
 
   const search=await xml(handler,env,searchUrl+'&q=4102');
   assert.match(search.text,/4102 - Temporary User/);
@@ -79,6 +88,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   for(const label of [/7 days/,/30 days/])assert.match(duration.text,label);
 
   assert.match(duration.text,/Custom Days/);
+  assert.match(duration.text,/cancelAction=""/);
   const custom=await xml(handler,env,'https://worker.example/p/'+token+'?a=n&member=user-2&q=4102&locationId=loc-a');
   assert.equal(custom.status,200);assert.match(custom.text,/<YealinkIPPhoneInputScreen type="number"/);assert.match(custom.text,/<Parameter>days<\/Parameter>/);assert.match(custom.text,/Enter days \(1-999\)/);
   for(const days of ['', '0','1000','-1','1.5','1e1','Infinity','abc','999999999']){

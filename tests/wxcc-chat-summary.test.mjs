@@ -5,8 +5,8 @@ const context=vm.createContext({window:{}});vm.runInContext(block+'\nglobalThis.
 const values=row=>context.columns.map(c=>c[1](row));
 test('comparison keeps call and chat metrics distinct and callbacks unknown',()=>{
  const row={agentId:'a',name:'Agent',voice:{inbound:12,missed:2,outbound:3,transferred:1},performanceMissed:4,lastHandlerContactsToday:5,lastHandlerCompletedStartedToday:9};
- assert.deepEqual(Array.from(values(row)).slice(4),[12,2,3,1,5,4,'Not reported']);
+ assert.deepEqual(Array.from(values(row)).slice(5),[12,2,1,3,5,4,'Not reported']);
 });
 test('missing totals remain unknown and reported zero stays zero',()=>{
- assert.deepEqual(Array.from(values({voice:{inbound:0},lastHandlerContactsToday:0})).slice(4),[0,'Not reported','Not reported','Not reported',0,'Not reported','Not reported']);
+ assert.deepEqual(Array.from(values({voice:{inbound:0},lastHandlerContactsToday:0})).slice(5),[0,'Not reported','Not reported','Not reported',0,'Not reported','Not reported']);
 });

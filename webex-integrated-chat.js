@@ -86,7 +86,7 @@
       <div class="vb-ops-tools"><label>Search <input type="search" id="${id}-search" aria-label="Search ${esc(panel.querySelector('h2').textContent)}" autocomplete="off"></label>
       ${choices.length?`<label>View <select id="${id}-filter">${choices.map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('')}</select></label>`:''}
       <button type="button" id="${id}-export" disabled>Export CSV</button></div>
-      <div class="vb-ops-scroll"><table${groups?' class="wxcc-comparison"':''}>${groups?'<colgroup><col style="width:18%"><col style="width:12%"><col style="width:12%"><col style="width:9%"></colgroup><colgroup><col span="4" style="width:7%"></colgroup><colgroup><col span="3" style="width:7%"></colgroup>':''}<thead>${groups?'<tr class="wxcc-metric-groups">'+groups.map(g=>`<th scope="colgroup" colspan="${g[1]}">${esc(g[0])}</th>`).join('')+'</tr>':''}<tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}" aria-label="Sort by ${esc(c[0])}">${esc(groups?c[0].replace(/^(Calls|Chats): /,''):c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
+      <div class="vb-ops-scroll"><table${groups?' class="wxcc-comparison"':''}>${groups?'<colgroup><col style="width:16%"><col style="width:11%"><col style="width:8%"><col style="width:14%"><col style="width:8%"></colgroup><colgroup><col span="4" style="width:6.14%"></colgroup><colgroup><col span="3" style="width:6.14%"></colgroup>':''}<thead>${groups?'<tr class="wxcc-metric-groups">'+groups.map(g=>`<th scope="colgroup" colspan="${g[1]}">${esc(g[0])}</th>`).join('')+'</tr>':''}<tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}" aria-label="Sort by ${esc(c[0])}">${esc(groups?c[0].replace(/^(Calls|Chats): /,''):c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
       <div class="vb-ops-tools vb-ops-paging"><button type="button" id="${id}-prev">Previous</button><span id="${id}-page">Unavailable</span><button type="button" id="${id}-next">Next</button></div>`;
     panel.append(container);
     const state={id,columns,rows:[],ready:false,page:1,sort:0,desc:false,filter:'all',filtered:[]};tables.set(id,state);
@@ -110,7 +110,7 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='metric'?' data-vb-metric="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{if(c[4]==='state-channels')return `<td class="wxcc-agent-status"><div class="wxcc-state-label" data-vb-overall-state="true">${esc(c[1](r))}</div><div data-vb-channel-cell="true"></div></td>`;const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='metric'?' data-vb-metric="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     if(s.id==='chat-agents' && window.VB_CHANNEL_ACTIVITY){
       const byId=new Map(rows.map(r=>[String(r.agentId),r]));
       for(const tr of $(s.id+'-body').querySelectorAll('tr[data-vb-agent-id]'))window.VB_CHANNEL_ACTIVITY.render(tr.querySelector('[data-vb-channel-cell]'),byId.get(tr.dataset.vbAgentId)?.channelActivity);
@@ -261,14 +261,15 @@
       ['Start time (Central)',r=>r.currentVoice?(document.querySelector('input[name="startDateMode"]:checked')?.value==='reporting'&&r.voice?.sessionRolledOver?r.voice.reportingStartCentral:r.voice?.sessionStartCentral)||'Not reported':'—']
     ];
     const comparisonColumns=[
-      ['Agent',r=>[r.name||r.agentId,[r.voice?.team,r.voice?.number?`Ext. ${r.voice.number}`:null].filter(Boolean).join(' · ')].filter(Boolean).join('\n')],
-      ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
-      ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
-      ['Time in state',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
+      ['Agent',r=>r.name||r.agentId],
+      ['Team',r=>r.voice?.team||'Not reported'],
+      ['Number',r=>r.voice?.number||'Not reported'],
+      ['Agent state',r=>r.overall||'Not reported',null,null,'state-channels'],
+      ['Duration',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
       ['Calls: Inbound',r=>r.voice?.inbound??'Not reported',r=>r.voice?.inbound??-1,null,'metric'],
       ['Calls: Missed',r=>r.voice?.missed??'Not reported',r=>r.voice?.missed??-1,null,'metric'],
-      ['Calls: Outbound',r=>r.voice?.outbound??'Not reported',r=>r.voice?.outbound??-1,null,'metric'],
       ['Calls: Transferred',r=>r.voice?.transferred??'Not reported',r=>r.voice?.transferred??-1,null,'metric'],
+      ['Calls: Outbound',r=>r.voice?.outbound??'Not reported',r=>r.voice?.outbound??-1,null,'metric'],
       ['Chats: Handled',r=>r.lastHandlerContactsToday??'Not reported',r=>r.lastHandlerContactsToday??-1,null,'metric'],
       ['Chats: Missed',r=>r.performanceMissed??'Not reported',r=>r.performanceMissed??-1,null,'metric'],
       ['Chats: Callback',()=> 'Not reported',null,null,'metric']
@@ -303,7 +304,7 @@
       $('chat-agents-meta')?.remove();
       $('chat-agents-search')?.closest('.vb-ops-tools')?.remove();
       agent.querySelector('.vb-ops-table-block')?.remove();
-      table(agent,'chat-agents',separate?separateColumns:wxcc?comparisonColumns:combinedColumns,[],wxcc&&!separate?[['Agent status',4],['Calls',4],['Chats',3]]:null);
+      table(agent,'chat-agents',separate?separateColumns:wxcc?comparisonColumns:combinedColumns,[],wxcc&&!separate?[['Agent status',5],['Calls',4],['Chats',3]]:null);
       const note=agent.querySelector('.vb-chat-session-note');
       if(note)agent.insertBefore(agent.querySelector('.vb-ops-table-block'),note);
       const options=$('agent-performance-options');

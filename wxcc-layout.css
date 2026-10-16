@@ -37,7 +37,7 @@ body.wxcc-layout.wallboard-mode .wxcc-pinned-header{display:none}
 .wxcc-layout .wxcc-comparison th button:focus-visible{outline:2px solid #185342;outline-offset:-2px}
 .wxcc-layout .wxcc-comparison td{white-space:normal;font-weight:400;font-variant-numeric:tabular-nums}
 .wxcc-layout .wxcc-comparison td:first-child{white-space:pre-line;text-align:left;line-height:1.45}
-.wxcc-layout .wxcc-comparison tr> :nth-child(5),.wxcc-layout .wxcc-comparison tr> :nth-child(9){border-left:2px solid #bdcfc7}
+.wxcc-layout .wxcc-comparison tr> :nth-child(6),.wxcc-layout .wxcc-comparison tr> :nth-child(10){border-left:2px solid #bdcfc7}
 .wxcc-layout .wxcc-comparison tbody tr:nth-child(even) td:not([data-state]):not(.vb-channel-cell){background:#f3f7f5}
 .wxcc-layout .wxcc-comparison tbody tr:hover td:not([data-state]):not(.vb-channel-cell){background:#e5f1ec}
 .wxcc-layout .wxcc-comparison #chat-agents-body .vb-channel-cell{min-width:0;max-width:none}
@@ -64,3 +64,31 @@ body.wxcc-layout.dark-mode .wxcc-comparison tbody tr:hover td:not([data-state]):
 .wxcc-layout .wxcc-comparison .vb-channel-slots{font-size:12px;font-weight:400;white-space:nowrap}
 .wxcc-layout .wxcc-comparison .vb-channel-slots::before{content:'('}
 .wxcc-layout .wxcc-comparison .vb-channel-slots::after{content:')'}
+
+/* Shared state label above independent channel activity, in one compact cell. */
+.wxcc-layout .wxcc-comparison .wxcc-agent-status{padding:5px 7px}
+.wxcc-layout .wxcc-comparison .wxcc-state-label{max-width:150px;margin:0 auto 3px;padding:4px 8px;border-radius:4px;line-height:1.25;font-weight:600;color:#fff;background:#6b7280}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=available]{background:var(--vb-green,#15803d);color:#fff}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=engaged],.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=offered]{background:var(--vb-red,#b91c1c);color:#fff}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=idle]{background:#facc15;color:#111827}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=wrapup]{background:var(--vb-amber,#f59e0b);color:#111827}
+.wxcc-layout .wxcc-comparison .wxcc-agent-status .vb-channel-cell{padding:0!important}
+.wxcc-layout .wxcc-comparison .wxcc-agent-status .vb-channel-activity{min-height:28px}
+.wxcc-layout .wxcc-comparison .vb-channel:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:4px}
+
+/* Match the production table's plain headers and compact, centered grid. */
+.wxcc-layout #vbChatAgents table.wxcc-comparison{min-width:1180px}
+.wxcc-layout #vbChatAgents table.wxcc-comparison thead button{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0;font-size:12px;color:inherit}
+.wxcc-layout .wxcc-comparison td:first-child{text-align:center;white-space:normal}
+.wxcc-layout .wxcc-comparison .wxcc-agent-status{padding:4px 6px}
+.wxcc-layout .wxcc-comparison .wxcc-state-label{padding:2px 6px;margin-bottom:2px;border-radius:2px}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=available]{background:#15803d;color:#fff}
+.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=engaged],.wxcc-layout .wxcc-comparison .wxcc-state-label[data-state=offered]{background:#d92d20;color:#fff}
+.wxcc-layout .wxcc-comparison .wxcc-agent-status .vb-channel-activity{min-height:24px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon{width:22px;height:22px;flex-basis:22px}
+body.wxcc-layout.dark-mode #agent-performance-panel{background:#10231b;color:#e0ece5}
+body.wxcc-layout.dark-mode #agent-performance-options{background:#10231b;color:#e0ece5}
+body.wxcc-layout.dark-mode #agent-performance-panel .vb-ops-paging{color:#c6d8cd}
+.wxcc-layout .wxcc-comparison #chat-agents-body td{text-align:center;min-width:0;max-width:none;white-space:normal}
+body.wxcc-layout.dark-mode #agent-performance-panel{background:#10231b!important;color:#e0ece5!important}
+body.wxcc-layout.dark-mode #agent-performance-panel .vb-ops-paging span{color:#c6d8cd!important}

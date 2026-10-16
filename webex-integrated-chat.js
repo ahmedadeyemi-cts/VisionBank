@@ -244,7 +244,7 @@
     const average = Number.isFinite(totals?.avgHandleMs) && totals.avgHandleMs >= 0 ? duration(totals.avgHandleMs) : 'Not reported';
     // Callback call history does not identify who scheduled a callback from chat.
     // Keep this unknown until a verified chat scheduling source is connected.
-    return `Offered: ${metric(row.performanceOffered)}\nMissed: ${metric(row.performanceMissed)}\nHandled: ${metric(row.lastHandlerContactsToday)}\nCallback: Not reported\nWrap-Up: ${metric(row.wrapup)}\nAvg handle: ${average}`;
+    return `Handled: ${metric(row.lastHandlerContactsToday)}\nMissed: ${metric(row.performanceMissed)}\nCallback: Not reported\nAvg handle: ${average}`;
   }
   function bootstrap() {
     if(started)return;started=true;
@@ -285,7 +285,7 @@
     const viewNote=document.createElement('p');viewNote.id='agent-performance-view-note';viewNote.className='vb-ops-meta';
     viewNote.textContent='Choose one combined table or separate call and chat tables. Your choice is saved in this browser. The performance period and logged-out filter apply to both.';
     agentPanel?.querySelector('.vb-performance-controls')?.insertAdjacentElement('afterend',viewNote);
-    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Offered and Missed follow the selected performance period. Handled counts today’s contacts attributed to the last agent. Avg handle uses today’s reported chat session totals, including hold and wrap-up. Wrap-Up is the number in wrap-up now. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
+    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Missed follows the selected performance period. Handled counts today’s contacts attributed to the last agent. Avg handle uses today’s reported chat session totals, including hold and wrap-up. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
     function applyPerformanceView(){
       const separate=performanceView==='separate';
       const search=$('chat-agents-search')?.value||'';

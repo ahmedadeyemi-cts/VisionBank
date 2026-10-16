@@ -4,10 +4,10 @@ const fn=source.slice(source.indexOf('  function wxccChatSummary('),source.index
 function summary(totals,row){const ctx=vm.createContext({window:{VB_AGENT_PERFORMANCE:{rows:()=>totals}},duration:ms=>String(ms)});vm.runInContext(fn,ctx);return ctx.wxccChatSummary(row);}
 test('WXCC summary uses exact agent metrics and never equates completed chats with callbacks',()=>{
  const text=summary([{agentId:'b',chat:{avgHandleMs:999}},{agentId:'a',chat:{avgHandleMs:120000}}],{agentId:'a',performanceOffered:4,performanceMissed:1,performanceMissedDisplay:'1 (RONA 1)',lastHandlerContactsToday:3,lastHandlerCompletedStartedToday:2,wrapup:0});
- assert.equal(text,'Offered: 4\nMissed: 1\nHandled: 3\nCallback: Not reported\nWrap-Up: 0\nAvg handle: 120000');
+ assert.equal(text,'Handled: 3\nMissed: 1\nCallback: Not reported\nAvg handle: 120000');
 });
 test('unknown metrics stay unknown while reported zero stays zero',()=>{
- const text=summary([],{agentId:'a',performanceOffered:0});assert.match(text,/Offered: 0\nMissed: Not reported/);assert.match(text,/Avg handle: Not reported/);
+ const text=summary([],{agentId:'a',lastHandlerContactsToday:0});assert.match(text,/Handled: 0\nMissed: Not reported/);assert.match(text,/Avg handle: Not reported/);
 });
 test('new presentation is scoped to WXCC and old dashboard keeps its labels',()=>{
  assert.ok(source.includes("const wxcc = document.body.classList.contains('wxcc-layout')"));

@@ -68,10 +68,10 @@ export function phoneUnauthorized(){
   ]),401,{'WWW-Authenticate':'Basic realm="VisionBank Device Manager", charset="UTF-8"'});
 }
 
-export function textMenu(title,items,{cancelAction='SoftKey:Exit',timeout=120}={}){
+export function textMenu(title,items,{cancelAction='',timeout=120}={}){
   const safeItems=(Array.isArray(items)?items:[]).slice(0,30);
   return '<?xml version="1.0" encoding="UTF-8"?>\n'+
-    '<YealinkIPPhoneTextMenu style="numbered" Beep="no" wrapList="yes" Timeout="'+Number(timeout||120)+'" cancelAction="'+xmlEscape(cancelAction)+'">'+
+    '<YealinkIPPhoneTextMenu style="numbered" Beep="no" wrapList="yes" LockIn="no" destroyOnExit="yes" Timeout="'+Number(timeout||120)+'" cancelAction="'+xmlEscape(cancelAction)+'">'+
     '<Title wrap="yes">'+xmlEscape(title)+'</Title>'+
     safeItems.map(item=>'<MenuItem><Prompt>'+xmlEscape(item.prompt)+'</Prompt><URI>'+xmlEscape(item.uri)+'</URI></MenuItem>').join('')+
     '</YealinkIPPhoneTextMenu>';
@@ -86,12 +86,15 @@ export function textScreen(title,text,{timeout=0,lockIn=true,beep=false,refresh=
     '</YealinkIPPhoneTextScreen>';
 }
 
-export function inputScreen(title,prompt,url,parameter='q',{cancelAction='SoftKey:Exit',type='string'}={}){
+export function inputScreen(title,prompt,url,parameter='q',{cancelAction='',type='string'}={}){
   return '<?xml version="1.0" encoding="UTF-8"?>\n'+
-    '<YealinkIPPhoneInputScreen type="'+xmlEscape(type)+'" Beep="no" Password="no" Timeout="120" cancelAction="'+xmlEscape(cancelAction)+'">'+
+    '<YealinkIPPhoneInputScreen type="'+xmlEscape(type)+'" Beep="no" Password="no" Timeout="120" LockIn="no" destroyOnExit="yes" cancelAction="'+xmlEscape(cancelAction)+'">'+
     '<Title wrap="yes">'+xmlEscape(title)+'</Title><URL>'+xmlEscape(url)+'</URL>'+
     '<InputField type="'+xmlEscape(type)+'" password="no" editable="yes"><Prompt>'+xmlEscape(prompt)+'</Prompt>'+
-    '<Parameter>'+xmlEscape(parameter)+'</Parameter></InputField></YealinkIPPhoneInputScreen>';
+    '<Parameter>'+xmlEscape(parameter)+'</Parameter></InputField>'+
+    '<SoftKey index="1"><Label>Submit</Label><URI>SoftKey:Submit</URI></SoftKey>'+
+    '<SoftKey index="2"><Label>Backspace</Label><URI>SoftKey:BackSpace</URI></SoftKey>'+
+    '<SoftKey index="4"><Label>Exit</Label><URI>SoftKey:Exit</URI></SoftKey></YealinkIPPhoneInputScreen>';
 }
 
 export function phoneErrorMenu(code,homeUrl){

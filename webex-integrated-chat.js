@@ -86,7 +86,7 @@
       <div class="vb-ops-tools"><label>Search <input type="search" id="${id}-search" aria-label="Search ${esc(panel.querySelector('h2').textContent)}" autocomplete="off"></label>
       ${choices.length?`<label>View <select id="${id}-filter">${choices.map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('')}</select></label>`:''}
       <button type="button" id="${id}-export" disabled>Export CSV</button></div>
-      <div class="vb-ops-scroll"><table${groups?' class="wxcc-comparison"':''}>${groups?'<colgroup><col style="width:16%"><col style="width:11%"><col style="width:8%"><col style="width:14%"><col style="width:8%"></colgroup><colgroup><col span="4" style="width:6.14%"></colgroup><colgroup><col span="3" style="width:6.14%"></colgroup>':''}<thead>${groups?'<tr class="wxcc-metric-groups">'+groups.map(g=>`<th scope="colgroup" colspan="${g[1]}">${esc(g[0])}</th>`).join('')+'</tr>':''}<tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}" aria-label="Sort by ${esc(c[0])}">${esc(groups?c[0].replace(/^(Calls|Chats): /,''):c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
+      <div class="vb-ops-scroll"><table${groups?' class="wxcc-comparison"':''}>${groups?'<colgroup><col style="width:16%"><col style="width:11%"><col style="width:8%"><col style="width:14%"><col style="width:8%"></colgroup><colgroup><col span="4" style="width:7.16%"></colgroup><colgroup><col span="2" style="width:7.16%"></colgroup>':''}<thead>${groups?'<tr class="wxcc-metric-groups">'+groups.map(g=>`<th scope="colgroup" colspan="${g[1]}">${esc(g[0])}</th>`).join('')+'</tr>':''}<tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}" aria-label="Sort by ${esc(c[0])}">${esc(groups?c[0].replace(/^(Calls|Chats): /,''):c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
       <div class="vb-ops-tools vb-ops-paging"><button type="button" id="${id}-prev">Previous</button><span id="${id}-page">Unavailable</span><button type="button" id="${id}-next">Next</button></div>`;
     panel.append(container);
     const state={id,columns,rows:[],ready:false,page:1,sort:0,desc:false,filter:'all',filtered:[]};tables.set(id,state);
@@ -271,8 +271,7 @@
       ['Calls: Transferred',r=>r.voice?.transferred??'Not reported',r=>r.voice?.transferred??-1,null,'metric'],
       ['Calls: Outbound',r=>r.voice?.outbound??'Not reported',r=>r.voice?.outbound??-1,null,'metric'],
       ['Chats: Handled',r=>r.lastHandlerContactsToday??'Not reported',r=>r.lastHandlerContactsToday??-1,null,'metric'],
-      ['Chats: Missed',r=>r.performanceMissed??'Not reported',r=>r.performanceMissed??-1,null,'metric'],
-      ['Chats: Callback',()=> 'Not reported',null,null,'metric']
+      ['Chats: Missed',r=>r.performanceMissed??'Not reported',r=>r.performanceMissed??-1,null,'metric']
     ];
     const separateColumns=[
       ['Agent',r=>r.name||r.agentId],
@@ -292,7 +291,7 @@
     const viewNote=document.createElement('p');viewNote.id='agent-performance-view-note';viewNote.className='vb-ops-meta';
     viewNote.textContent='Choose one combined table or separate call and chat tables. Your choice is saved in this browser. The performance period and logged-out filter apply to both.';
     agentPanel?.querySelector('.vb-performance-controls')?.insertAdjacentElement('afterend',viewNote);
-    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Missed follows the selected performance period. Handled counts today’s contacts attributed to the last agent. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
+    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Missed follows the selected performance period. Handled counts today’s contacts attributed to the last agent. Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
     function applyPerformanceView(){
       const separate=performanceView==='separate';
       const search=$('chat-agents-search')?.value||'';
@@ -304,7 +303,7 @@
       $('chat-agents-meta')?.remove();
       $('chat-agents-search')?.closest('.vb-ops-tools')?.remove();
       agent.querySelector('.vb-ops-table-block')?.remove();
-      table(agent,'chat-agents',separate?separateColumns:wxcc?comparisonColumns:combinedColumns,[],wxcc&&!separate?[['Agent status',5],['Calls',4],['Chats',3]]:null);
+      table(agent,'chat-agents',separate?separateColumns:wxcc?comparisonColumns:combinedColumns,[],wxcc&&!separate?[['Agent status',5],['Calls',4],['Chats',2]]:null);
       const note=agent.querySelector('.vb-chat-session-note');
       if(note)agent.insertBefore(agent.querySelector('.vb-ops-table-block'),note);
       const options=$('agent-performance-options');

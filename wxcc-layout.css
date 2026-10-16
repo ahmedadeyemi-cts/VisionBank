@@ -92,3 +92,15 @@ body.wxcc-layout.dark-mode #agent-performance-panel .vb-ops-paging{color:#c6d8cd
 .wxcc-layout .wxcc-comparison #chat-agents-body td{text-align:center;min-width:0;max-width:none;white-space:normal}
 body.wxcc-layout.dark-mode #agent-performance-panel{background:#10231b!important;color:#e0ece5!important}
 body.wxcc-layout.dark-mode #agent-performance-panel .vb-ops-paging span{color:#c6d8cd!important}
+
+/* Larger, high-contrast comparison text without bold chat totals. */
+.wxcc-layout #vbChatAgents table.wxcc-comparison{font-size:16px;line-height:1.45;color:#172b22}
+.wxcc-layout #vbChatAgents table.wxcc-comparison thead button,
+.wxcc-layout .wxcc-comparison .wxcc-metric-groups th{font-size:15px;line-height:1.4}
+.wxcc-layout .wxcc-comparison #chat-agents-body td{padding:9px 7px;font-size:16px}
+.wxcc-layout .wxcc-comparison .wxcc-state-label{font-size:16px;padding:4px 6px;margin-bottom:4px}
+.wxcc-layout .wxcc-comparison .vb-channel-slots{font-size:15px;font-weight:400;color:#172b22}
+.wxcc-layout .wxcc-comparison .vb-channel-icon{width:28px;height:28px;flex-basis:28px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon svg{width:18px;height:18px}
+body.wxcc-layout.dark-mode #vbChatAgents table.wxcc-comparison,
+body.wxcc-layout.dark-mode .wxcc-comparison .vb-channel-slots{color:#f0f7f3}

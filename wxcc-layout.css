@@ -27,4 +27,40 @@ body.wxcc-layout.wallboard-mode .wxcc-pinned-header{display:none}
 .wxcc-queue-scroll{overflow-x:auto;max-width:100%}.wxcc-queue-scroll table{min-width:820px}
 @media(max-width:700px){.wxcc-pinned-header .header{gap:8px;padding:10px 14px}.wxcc-pinned-header .header-center{order:0;flex:1;min-width:160px}.wxcc-pinned-header .header-center h1{font-size:19px}.wxcc-pinned-header .header-subtitle{font-size:11px}.wxcc-pinned-header .header-right{flex:1 0 100%}.wxcc-pinned-header .enterprise-header-tools{display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;width:100%}.wxcc-pinned-header .enterprise-header-tools>button{flex-shrink:0}.wxcc-pinned-header .vb-help-trigger{flex-shrink:0}}
 
-.wxcc-layout #chat-agents-body [data-vb-chat-summary]{font-weight:400}
+
+/* Comparison layout: one metric per column, with compact and aligned agent rows. */
+.wxcc-layout .vb-ops table.wxcc-comparison{min-width:1120px;table-layout:fixed;font-size:13px}
+.wxcc-layout .wxcc-comparison th,.wxcc-layout .wxcc-comparison td{padding:9px 7px;vertical-align:middle;text-align:center}
+.wxcc-layout .wxcc-comparison .wxcc-metric-groups th{padding:6px 8px;background:#e5efeb;color:#185342;font-size:12px;letter-spacing:.03em}
+.wxcc-layout .wxcc-comparison thead tr:last-child th{padding:4px 3px}
+.wxcc-layout .wxcc-comparison th button{padding:5px 3px;background:transparent;border:0;border-radius:4px;box-shadow:none;font-size:12px;white-space:normal;color:inherit;width:100%;min-height:28px}
+.wxcc-layout .wxcc-comparison th button:focus-visible{outline:2px solid #185342;outline-offset:-2px}
+.wxcc-layout .wxcc-comparison td{white-space:normal;font-weight:400;font-variant-numeric:tabular-nums}
+.wxcc-layout .wxcc-comparison td:first-child{white-space:pre-line;text-align:left;line-height:1.45}
+.wxcc-layout .wxcc-comparison tr> :nth-child(5),.wxcc-layout .wxcc-comparison tr> :nth-child(9){border-left:2px solid #bdcfc7}
+.wxcc-layout .wxcc-comparison tbody tr:nth-child(even) td:not([data-state]):not(.vb-channel-cell){background:#f3f7f5}
+.wxcc-layout .wxcc-comparison tbody tr:hover td:not([data-state]):not(.vb-channel-cell){background:#e5f1ec}
+.wxcc-layout .wxcc-comparison #chat-agents-body .vb-channel-cell{min-width:0;max-width:none}
+.wxcc-layout .wxcc-comparison .vb-channel-cell{padding:7px!important}
+.wxcc-layout .wxcc-comparison .vb-channel-activity{gap:5px;min-height:38px}
+.wxcc-layout .wxcc-comparison .vb-channel{min-width:0;gap:4px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon{width:22px;height:22px;flex-basis:22px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon svg{width:13px;height:13px}
+.wxcc-layout .wxcc-comparison .vb-channel-name{font-size:11px}
+.wxcc-layout .wxcc-comparison .vb-channel-label,.wxcc-layout .wxcc-comparison .vb-channel-slots{font-size:10px}
+body.wxcc-layout.dark-mode .wxcc-comparison .wxcc-metric-groups th{background:#183a2e;color:#d6e9df}
+body.wxcc-layout.dark-mode .wxcc-comparison tbody tr:nth-child(even) td:not([data-state]):not(.vb-channel-cell){background:#14271f}
+body.wxcc-layout.dark-mode .wxcc-comparison tbody tr:hover td:not([data-state]):not(.vb-channel-cell){background:#214333}
+.wxcc-layout #vbChatAgents table.wxcc-comparison{min-width:1120px}
+.wxcc-layout .wxcc-comparison #chat-agents-body td[data-vb-metric]{text-align:center;white-space:normal;min-width:0;max-width:none;font-weight:400}
+.wxcc-layout .wxcc-comparison #chat-agents-body .vb-channel{min-width:0}
+/* Icons carry live colors; descriptions remain in the existing accessible labels/tooltips. */
+.wxcc-layout .wxcc-comparison .vb-channel-name,.wxcc-layout .wxcc-comparison .vb-channel-label{display:none}
+.wxcc-layout .wxcc-comparison .vb-channel[data-channel=phone] .vb-channel-copy{display:none}
+.wxcc-layout .wxcc-comparison .vb-channel-activity{justify-content:center;gap:14px;min-height:30px}
+.wxcc-layout .wxcc-comparison #chat-agents-body .vb-channel{flex:0 0 auto;gap:5px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon{width:26px;height:26px;flex-basis:26px}
+.wxcc-layout .wxcc-comparison .vb-channel-icon svg{width:15px;height:15px}
+.wxcc-layout .wxcc-comparison .vb-channel-slots{font-size:12px;font-weight:400;white-space:nowrap}
+.wxcc-layout .wxcc-comparison .vb-channel-slots::before{content:'('}
+.wxcc-layout .wxcc-comparison .vb-channel-slots::after{content:')'}

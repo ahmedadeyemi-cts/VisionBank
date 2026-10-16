@@ -79,14 +79,14 @@
     if(inside)anchor.append(el);else anchor.insertAdjacentElement('afterend',el);
     return el;
   }
-  function table(panel,id,columns,choices=[]) {
+  function table(panel,id,columns,choices=[],groups=null) {
     if(!panel)return;
     const container=document.createElement('div');container.className='vb-ops-table-block';
     container.innerHTML=`<p class="vb-ops-meta" id="${id}-meta" role="status">Waiting for reporting data.</p>
       <div class="vb-ops-tools"><label>Search <input type="search" id="${id}-search" aria-label="Search ${esc(panel.querySelector('h2').textContent)}" autocomplete="off"></label>
       ${choices.length?`<label>View <select id="${id}-filter">${choices.map(c=>`<option value="${esc(c[0])}">${esc(c[1])}</option>`).join('')}</select></label>`:''}
       <button type="button" id="${id}-export" disabled>Export CSV</button></div>
-      <div class="vb-ops-scroll"><table><thead><tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}">${esc(c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
+      <div class="vb-ops-scroll"><table${groups?' class="wxcc-comparison"':''}>${groups?'<colgroup><col style="width:18%"><col style="width:12%"><col style="width:12%"><col style="width:9%"></colgroup><colgroup><col span="4" style="width:7%"></colgroup><colgroup><col span="3" style="width:7%"></colgroup>':''}<thead>${groups?'<tr class="wxcc-metric-groups">'+groups.map(g=>`<th scope="colgroup" colspan="${g[1]}">${esc(g[0])}</th>`).join('')+'</tr>':''}<tr>${columns.map((c,i)=>`<th scope="col"${c[0]==='Customer Name'?' title="Name reported for this chat contact; self-entered, not a verified banking identity. Missing names do not block reporting."':''}><button type="button" data-col="${i}" aria-label="Sort by ${esc(c[0])}">${esc(groups?c[0].replace(/^(Calls|Chats): /,''):c[0])}</button></th>`).join('')}</tr></thead><tbody id="${id}-body"></tbody></table></div>
       <div class="vb-ops-tools vb-ops-paging"><button type="button" id="${id}-prev">Previous</button><span id="${id}-page">Unavailable</span><button type="button" id="${id}-next">Next</button></div>`;
     panel.append(container);
     const state={id,columns,rows:[],ready:false,page:1,sort:0,desc:false,filter:'all',filtered:[]};tables.set(id,state);
@@ -110,15 +110,16 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='chat-summary'?' data-vb-chat-summary="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='metric'?' data-vb-metric="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     if(s.id==='chat-agents' && window.VB_CHANNEL_ACTIVITY){
       const byId=new Map(rows.map(r=>[String(r.agentId),r]));
       for(const tr of $(s.id+'-body').querySelectorAll('tr[data-vb-agent-id]'))window.VB_CHANNEL_ACTIVITY.render(tr.querySelector('[data-vb-channel-cell]'),byId.get(tr.dataset.vbAgentId)?.channelActivity);
+      if($(s.id+'-body').closest('.wxcc-comparison'))for(const item of $(s.id+'-body').querySelectorAll('.vb-channel')){item.tabIndex=0;item.setAttribute('role','img');const slots=item.querySelector('.vb-channel-slots');if(slots)slots.textContent=slots.textContent.replace(/\s/g,'');}
     }
     $(s.id+'-page').textContent=ready?`${rows.length} records · Page ${s.page} of ${pages}`:'Unavailable';
     $(s.id+'-prev').disabled=!ready||s.page<=1;$(s.id+'-next').disabled=!ready||s.page>=pages;
     $(s.id+'-export').disabled=!ready||!rows.length;
-    $(s.id+'-body').closest('table').querySelectorAll('th').forEach((th,i)=>th.setAttribute('aria-sort',i===s.sort?(s.desc?'descending':'ascending'):'none'));
+    $(s.id+'-body').closest('table').querySelectorAll('thead tr:last-child th').forEach((th,i)=>th.setAttribute('aria-sort',i===s.sort?(s.desc?'descending':'ascending'):'none'));
   }
   function fill(id,rows,ready,meta) {
     const t=tables.get(id);if(!t)return;t.rows=rows;t.ready=ready;$(id+'-meta').textContent=meta;renderTable(t);
@@ -238,14 +239,6 @@
       row.channelActivity=window.VB_CHANNEL_ACTIVITY?.model(agent,current,chat,row.agentId);
     }
   }
-  function wxccChatSummary(row) {
-    const metric = value => Number.isFinite(value) && value >= 0 ? value : 'Not reported';
-    const totals = window.VB_AGENT_PERFORMANCE?.rows()?.find(agent => String(agent.agentId) === String(row.agentId))?.chat;
-    const average = Number.isFinite(totals?.avgHandleMs) && totals.avgHandleMs >= 0 ? duration(totals.avgHandleMs) : 'Not reported';
-    // Callback call history does not identify who scheduled a callback from chat.
-    // Keep this unknown until a verified chat scheduling source is connected.
-    return `Handled: ${metric(row.lastHandlerContactsToday)}\nMissed: ${metric(row.performanceMissed)}\nCallback: Not reported\nAvg handle: ${average}`;
-  }
   function bootstrap() {
     if(started)return;started=true;
     const agentPanel=$('agent-body')?.closest('.panel'), globalPanel=$('global-error')?.closest('.panel');
@@ -264,8 +257,21 @@
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Time in state',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
       ['Calls',r=>`Inbound: ${r.voice?.inbound??'Not reported'}\nMissed: ${r.voice?.missed??'Not reported'}\nOutbound: ${r.voice?.outbound??'Not reported'}\nTransferred: ${r.voice?.transferred??'Not reported'}\nAvg handle: ${r.voice?.avgHandle??'Not reported'}`,r=>r.voice?.inbound??-1],
-      ['Chats',r=>wxcc ? wxccChatSummary(r) : `Offered: ${r.performanceOffered??'Not reported'}\nMissed / RONA: ${r.performanceMissedDisplay??'Not reported'}\nHandled today: ${r.lastHandlerContactsToday??'Not reported'}\nCompleted today*: ${r.lastHandlerCompletedStartedToday??'Not reported'}\nWrap-up now: ${r.wrapup??'Not reported'}`,r=>r.performanceOffered??-1,null,wxcc?'chat-summary':'missed'],
+      ['Chats',r=>`Offered: ${r.performanceOffered??'Not reported'}\nMissed / RONA: ${r.performanceMissedDisplay??'Not reported'}\nHandled today: ${r.lastHandlerContactsToday??'Not reported'}\nCompleted today*: ${r.lastHandlerCompletedStartedToday??'Not reported'}\nWrap-up now: ${r.wrapup??'Not reported'}`,r=>r.performanceOffered??-1,null,'missed'],
       ['Start time (Central)',r=>r.currentVoice?(document.querySelector('input[name="startDateMode"]:checked')?.value==='reporting'&&r.voice?.sessionRolledOver?r.voice.reportingStartCentral:r.voice?.sessionStartCentral)||'Not reported':'—']
+    ];
+    const comparisonColumns=[
+      ['Agent',r=>[r.name||r.agentId,[r.voice?.team,r.voice?.number?`Ext. ${r.voice.number}`:null].filter(Boolean).join(' · ')].filter(Boolean).join('\n')],
+      ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
+      ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
+      ['Time in state',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
+      ['Calls: Inbound',r=>r.voice?.inbound??'Not reported',r=>r.voice?.inbound??-1,null,'metric'],
+      ['Calls: Missed',r=>r.voice?.missed??'Not reported',r=>r.voice?.missed??-1,null,'metric'],
+      ['Calls: Outbound',r=>r.voice?.outbound??'Not reported',r=>r.voice?.outbound??-1,null,'metric'],
+      ['Calls: Transferred',r=>r.voice?.transferred??'Not reported',r=>r.voice?.transferred??-1,null,'metric'],
+      ['Chats: Handled',r=>r.lastHandlerContactsToday??'Not reported',r=>r.lastHandlerContactsToday??-1,null,'metric'],
+      ['Chats: Missed',r=>r.performanceMissed??'Not reported',r=>r.performanceMissed??-1,null,'metric'],
+      ['Chats: Callback',()=> 'Not reported',null,null,'metric']
     ];
     const separateColumns=[
       ['Agent',r=>r.name||r.agentId],
@@ -285,7 +291,7 @@
     const viewNote=document.createElement('p');viewNote.id='agent-performance-view-note';viewNote.className='vb-ops-meta';
     viewNote.textContent='Choose one combined table or separate call and chat tables. Your choice is saved in this browser. The performance period and logged-out filter apply to both.';
     agentPanel?.querySelector('.vb-performance-controls')?.insertAdjacentElement('afterend',viewNote);
-    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Missed follows the selected performance period. Handled counts today’s contacts attributed to the last agent. Avg handle uses today’s reported chat session totals, including hold and wrap-up. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
+    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Missed follows the selected performance period. Handled counts today’s contacts attributed to the last agent. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
     function applyPerformanceView(){
       const separate=performanceView==='separate';
       const search=$('chat-agents-search')?.value||'';
@@ -297,7 +303,7 @@
       $('chat-agents-meta')?.remove();
       $('chat-agents-search')?.closest('.vb-ops-tools')?.remove();
       agent.querySelector('.vb-ops-table-block')?.remove();
-      table(agent,'chat-agents',separate?separateColumns:combinedColumns);
+      table(agent,'chat-agents',separate?separateColumns:wxcc?comparisonColumns:combinedColumns,[],wxcc&&!separate?[['Agent status',4],['Calls',4],['Chats',3]]:null);
       const note=agent.querySelector('.vb-chat-session-note');
       if(note)agent.insertBefore(agent.querySelector('.vb-ops-table-block'),note);
       const options=$('agent-performance-options');

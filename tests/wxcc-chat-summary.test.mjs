@@ -1,17 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../webex-integrated-chat.js',import.meta.url),'utf8');
-const fn=source.slice(source.indexOf('  function wxccChatSummary('),source.indexOf('  function bootstrap()'));
-function summary(totals,row){const ctx=vm.createContext({window:{VB_AGENT_PERFORMANCE:{rows:()=>totals}},duration:ms=>String(ms)});vm.runInContext(fn,ctx);return ctx.wxccChatSummary(row);}
-test('WXCC summary uses exact agent metrics and never equates completed chats with callbacks',()=>{
- const text=summary([{agentId:'b',chat:{avgHandleMs:999}},{agentId:'a',chat:{avgHandleMs:120000}}],{agentId:'a',performanceOffered:4,performanceMissed:1,performanceMissedDisplay:'1 (RONA 1)',lastHandlerContactsToday:3,lastHandlerCompletedStartedToday:2,wrapup:0});
- assert.equal(text,'Handled: 3\nMissed: 1\nCallback: Not reported\nAvg handle: 120000');
+const block=source.slice(source.indexOf('    const comparisonColumns=['),source.indexOf('    const separateColumns=['));
+const context=vm.createContext({window:{}});vm.runInContext(block+'\nglobalThis.columns=comparisonColumns;',context);
+const values=row=>context.columns.map(c=>c[1](row));
+test('comparison keeps call and chat metrics distinct and callbacks unknown',()=>{
+ const row={agentId:'a',name:'Agent',voice:{inbound:12,missed:2,outbound:3,transferred:1},performanceMissed:4,lastHandlerContactsToday:5,lastHandlerCompletedStartedToday:9};
+ assert.deepEqual(Array.from(values(row)).slice(4),[12,2,3,1,5,4,'Not reported']);
 });
-test('unknown metrics stay unknown while reported zero stays zero',()=>{
- const text=summary([],{agentId:'a',lastHandlerContactsToday:0});assert.match(text,/Handled: 0\nMissed: Not reported/);assert.match(text,/Avg handle: Not reported/);
-});
-test('new presentation is scoped to WXCC and old dashboard keeps its labels',()=>{
- assert.ok(source.includes("const wxcc = document.body.classList.contains('wxcc-layout')"));
- assert.ok(source.includes("r=>wxcc ? wxccChatSummary(r) : `Offered:"));
- assert.ok(source.includes('Completed today*:'));
- assert.ok(fs.readFileSync(new URL('../wxcc-layout.css',import.meta.url),'utf8').includes('[data-vb-chat-summary]{font-weight:400}'));
+test('missing totals remain unknown and reported zero stays zero',()=>{
+ assert.deepEqual(Array.from(values({voice:{inbound:0},lastHandlerContactsToday:0})).slice(4),[0,'Not reported','Not reported','Not reported',0,'Not reported','Not reported']);
 });

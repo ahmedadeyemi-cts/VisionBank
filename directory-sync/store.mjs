@@ -1,5 +1,5 @@
 import {removeApprovedLegacy} from './legacy-cleanup.mjs';
-import {DIRECTORY_KEY,planSync} from './sync.mjs';
+import {DIRECTORY_KEY,planSync,SYNC_VERSION} from './sync.mjs';
 export class DirectoryStore {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(request){return this.ctx.blockConcurrencyWhile(async()=>{
@@ -26,9 +26,9 @@ export class DirectoryStore {
     if(body.revision!==state.revision)return Response.json({error:'The directory changed since you loaded it. Reload before saving so newer updates are not overwritten.'},{status:409});
     if(!Array.isArray(body.contacts)||body.contacts.length>5000)throw Error('Invalid directory');next=body.contacts;
    }else if(path==='/directory/sync'){
-    if(!Array.isArray(body.sources)||!body.sources.length||body.sources.some(s=>!s.id||!['PEOPLE','PLACE'].includes(s.type)))throw Error('Incomplete source');
+    if(!Array.isArray(body.sources)||!body.sources.length||body.sources.some(s=>!s.id||!['PEOPLE','PLACE','VOICE_MESSAGING','VOICEMAIL_GROUP','VIRTUAL_LINE','CALL_QUEUE','CONTACT_CENTER_ADAPTER','AUTO_ATTENDANT','PAGING_GROUP'].includes(s.type)))throw Error('Incomplete source');
     const p=planSync(state.contacts,body.sources);next=p.rows;
-    summary={state:'ready',source:'Webex',intervalHours:3,completedAt:Date.now(),matched:p.matched,updated:p.changes.filter(c=>c.fields.some(f=>f!=='webexDirectoryId')).length,deleted:p.deleted.length,protected:p.protectedCount,unmatched:p.unmatched.length,ambiguous:p.ambiguous.length};
+    summary={version:body.version===SYNC_VERSION?SYNC_VERSION:1,added:p.added.length,state:'ready',source:'Webex',intervalHours:3,completedAt:Date.now(),matched:p.matched,updated:p.changes.filter(c=>c.fields.some(f=>f!=='webexDirectoryId')).length,deleted:p.deleted.length,protected:p.protectedCount,unmatched:p.unmatched.length,ambiguous:p.ambiguous.length};
    }else return Response.json({error:'not-found'},{status:404});
    if(JSON.stringify(next)!==JSON.stringify(state.contacts)){
     await storage.put('directory-backup:'+state.revision,state);

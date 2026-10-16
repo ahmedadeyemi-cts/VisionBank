@@ -26,3 +26,5 @@ body.wxcc-layout.wallboard-mode .wxcc-pinned-header{display:none}
 
 .wxcc-queue-scroll{overflow-x:auto;max-width:100%}.wxcc-queue-scroll table{min-width:820px}
 @media(max-width:700px){.wxcc-pinned-header .header{gap:8px;padding:10px 14px}.wxcc-pinned-header .header-center{order:0;flex:1;min-width:160px}.wxcc-pinned-header .header-center h1{font-size:19px}.wxcc-pinned-header .header-subtitle{font-size:11px}.wxcc-pinned-header .header-right{flex:1 0 100%}.wxcc-pinned-header .enterprise-header-tools{display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;width:100%}.wxcc-pinned-header .enterprise-header-tools>button{flex-shrink:0}.wxcc-pinned-header .vb-help-trigger{flex-shrink:0}}
+
+.wxcc-layout #chat-agents-body [data-vb-chat-summary]{font-weight:400}

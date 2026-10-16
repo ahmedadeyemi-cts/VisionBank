@@ -110,7 +110,7 @@
     const getter=s.columns[s.sort][2]||s.columns[s.sort][1];
     rows.sort((a,b)=>{let x=getter(a),y=getter(b);const v=typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),undefined,{numeric:true});return s.desc?-v:v;});
     s.filtered=rows;const pages=Math.max(1,Math.ceil(rows.length/25));s.page=Math.max(1,Math.min(s.page,pages));
-    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
+    $(s.id+'-body').innerHTML=rows.length?rows.slice((s.page-1)*25,s.page*25).map(r=>`<tr${s.id==='chat-agents'?` data-vb-agent-id="${esc(r.agentId)}"`:''}>`+s.columns.map(c=>{const tone=typeof c[3]==='function'?c[3](r):null;const attr=['available','engaged','wrapup','idle','unknown'].includes(tone)?` class="vb-agent-state" data-state="${tone}"`:'';const marker=c[0]==='Agent state'?' data-vb-overall-state="true"':c[4]==='chat-summary'?' data-vb-chat-summary="true"':c[4]==='channel'?' data-vb-channel-cell="true"':c[4]==='missed'?` data-vb-chat-missed="${Number(r.performanceMissed)>0?'true':'false'}"`:c[4]==='offered'?' data-vb-chat-offered="true"':'';return `<td${attr}${marker}>${esc(c[1](r)??'Unavailable')}</td>`;}).join('')+'</tr>').join(''):`<tr><td colspan="${s.columns.length}" class="vb-ops-empty">${ready?'No matching records in the stated reporting scope.':'Unavailable — no zero totals have been substituted.'}</td></tr>`;
     if(s.id==='chat-agents' && window.VB_CHANNEL_ACTIVITY){
       const byId=new Map(rows.map(r=>[String(r.agentId),r]));
       for(const tr of $(s.id+'-body').querySelectorAll('tr[data-vb-agent-id]'))window.VB_CHANNEL_ACTIVITY.render(tr.querySelector('[data-vb-channel-cell]'),byId.get(tr.dataset.vbAgentId)?.channelActivity);
@@ -238,6 +238,14 @@
       row.channelActivity=window.VB_CHANNEL_ACTIVITY?.model(agent,current,chat,row.agentId);
     }
   }
+  function wxccChatSummary(row) {
+    const metric = value => Number.isFinite(value) && value >= 0 ? value : 'Not reported';
+    const totals = window.VB_AGENT_PERFORMANCE?.rows()?.find(agent => String(agent.agentId) === String(row.agentId))?.chat;
+    const average = Number.isFinite(totals?.avgHandleMs) && totals.avgHandleMs >= 0 ? duration(totals.avgHandleMs) : 'Not reported';
+    // Callback call history does not identify who scheduled a callback from chat.
+    // Keep this unknown until a verified chat scheduling source is connected.
+    return `Offered: ${metric(row.performanceOffered)}\nMissed: ${metric(row.performanceMissed)}\nHandled: ${metric(row.lastHandlerContactsToday)}\nCallback: Not reported\nWrap-Up: ${metric(row.wrapup)}\nAvg handle: ${average}`;
+  }
   function bootstrap() {
     if(started)return;started=true;
     const agentPanel=$('agent-body')?.closest('.panel'), globalPanel=$('global-error')?.closest('.panel');
@@ -249,13 +257,14 @@
       agentPanel.querySelector('h2').textContent='Agent Performance — Calls & Chats';
       agent.querySelector('h2').hidden=true;
     }
+    const wxcc = document.body.classList.contains('wxcc-layout');
     const combinedColumns=[
       ['Agent',r=>[r.name||r.agentId,r.voice?.team,r.voice?.number].filter(Boolean).join('\n')],
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Time in state',r=>r.currentVoice?r.voice?.duration||'Not reported':'Not reported'],
       ['Calls',r=>`Inbound: ${r.voice?.inbound??'Not reported'}\nMissed: ${r.voice?.missed??'Not reported'}\nOutbound: ${r.voice?.outbound??'Not reported'}\nTransferred: ${r.voice?.transferred??'Not reported'}\nAvg handle: ${r.voice?.avgHandle??'Not reported'}`,r=>r.voice?.inbound??-1],
-      ['Chats',r=>`Offered: ${r.performanceOffered??'Not reported'}\nMissed / RONA: ${r.performanceMissedDisplay??'Not reported'}\nHandled today: ${r.lastHandlerContactsToday??'Not reported'}\nCompleted today*: ${r.lastHandlerCompletedStartedToday??'Not reported'}\nWrap-up now: ${r.wrapup??'Not reported'}`,r=>r.performanceOffered??-1,null,'missed'],
+      ['Chats',r=>wxcc ? wxccChatSummary(r) : `Offered: ${r.performanceOffered??'Not reported'}\nMissed / RONA: ${r.performanceMissedDisplay??'Not reported'}\nHandled today: ${r.lastHandlerContactsToday??'Not reported'}\nCompleted today*: ${r.lastHandlerCompletedStartedToday??'Not reported'}\nWrap-up now: ${r.wrapup??'Not reported'}`,r=>r.performanceOffered??-1,null,wxcc?'chat-summary':'missed'],
       ['Start time (Central)',r=>r.currentVoice?(document.querySelector('input[name="startDateMode"]:checked')?.value==='reporting'&&r.voice?.sessionRolledOver?r.voice.reportingStartCentral:r.voice?.sessionStartCentral)||'Not reported':'—']
     ];
     const separateColumns=[
@@ -264,7 +273,7 @@
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
       ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
       ['Offered (selected period)',r=>r.performanceOffered??'Not reported',r=>r.performanceOffered??-1,null,'offered'],
-      ['Missed / RONA (selected period)',r=>r.performanceMissedDisplay??'Not reported',r=>r.performanceMissed??-1,null,'missed'],
+      [wxcc?'Missed (selected period)':'Missed / RONA (selected period)',r=>r.performanceMissedDisplay??'Not reported',r=>r.performanceMissed??-1,null,'missed'],
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],
       ['Completed (started today)',r=>r.lastHandlerCompletedStartedToday??'Not reported'],['Data source',r=>r.dataSource],['Chat slot state (reported)',r=>r.routingState]
     ];
@@ -276,6 +285,7 @@
     const viewNote=document.createElement('p');viewNote.id='agent-performance-view-note';viewNote.className='vb-ops-meta';
     viewNote.textContent='Choose one combined table or separate call and chat tables. Your choice is saved in this browser. The performance period and logged-out filter apply to both.';
     agentPanel?.querySelector('.vb-performance-controls')?.insertAdjacentElement('afterend',viewNote);
+    if(wxcc){const scope=document.createElement('p');scope.className='vb-ops-meta';scope.textContent='Chats: Offered and Missed follow the selected performance period. Handled counts today’s contacts attributed to the last agent. Avg handle uses today’s reported chat session totals, including hold and wrap-up. Wrap-Up is the number in wrap-up now. Callback will count callbacks scheduled through chat once that scheduling source is connected; Not reported means the count is unavailable.';viewNote.insertAdjacentElement('afterend',scope);}
     function applyPerformanceView(){
       const separate=performanceView==='separate';
       const search=$('chat-agents-search')?.value||'';

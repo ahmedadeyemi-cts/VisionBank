@@ -49,11 +49,32 @@ const locationFilter = document.getElementById("locationFilter");
 let contacts = [];
 let directoryRevision=null,directoryDirty=false;
 const syncDirectoryBtn=document.getElementById('syncDirectoryBtn');
-function showSyncStatus(sync){
- const el=document.getElementById('directorySyncStatus');if(!el)return;
- const intro='Webex sync runs every 3 hours. WG entries are never changed by sync. ';
- el.textContent=intro+(sync?.state==='ready'?`Last synced: ${new Date(sync.completedAt).toLocaleString()}. ${sync.added||0} added, ${sync.updated} updated, ${sync.deleted||0} removed, ${sync.protected} WG entries protected. ${sync.unmatched+sync.ambiguous} entries have no unique Webex match and were left unchanged.`:sync?.state==='error'?'Last sync could not complete. '+sync.message:'Waiting for the first sync.');
+let lastDirectorySync=null;
+function nextDirectorySync(after){
+ const d=new Date(after);d.setUTCMinutes(17,0,0);d.setUTCHours(Math.floor(d.getUTCHours()/3)*3);
+ if(d.getTime()<=after)d.setUTCHours(d.getUTCHours()+3);
+ return d.getTime();
 }
+function showSyncStatus(sync){lastDirectorySync=sync;renderSyncClock();}
+function renderSyncClock(){
+ const el=document.getElementById('directorySyncStatus');if(!el)return;
+ const sync=lastDirectorySync,now=Date.now();
+ const format=t=>new Date(t).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'long'});
+ const last=sync?.completedAt?format(sync.completedAt):'Not yet completed';
+ const next=nextDirectorySync(sync?.completedAt||now),remaining=Math.max(0,Math.ceil((next-now)/1000));
+ const countdown=remaining?`${Math.floor(remaining/3600)}h ${Math.floor(remaining%3600/60)}m ${remaining%60}s`:'Awaiting sync confirmation';
+ document.getElementById('directoryLastSync').textContent=last;
+ document.getElementById('directoryNextSync').textContent=format(next);
+ document.getElementById('directorySyncCountdown').textContent=countdown;
+ const intro='Runs every 3 hours. Times are shown in your local time zone. WG entries stay unchanged. FAX_, Contact Center RTMS and Voice Messaging Group entries are excluded. ';
+ el.textContent=intro+(sync?.state==='error'?'Last attempt failed: '+sync.message+'. The last successful sync time is shown above.':sync?.completedAt?`${sync.added||0} added, ${sync.updated||0} updated, ${sync.deleted||0} removed. ${sync.protected||0} WG entries protected.`:'Waiting for the first successful sync.');
+}
+setInterval(renderSyncClock,1000);
+// Read status only: never replace unsaved directory edits during background checks.
+setInterval(async()=>{
+ if(document.hidden||appView.classList.contains('hidden'))return;
+ try{const response=await fetch(`${SECURITY_BASE}/api/directory/get`,{headers:authHeaders()});if(!response.ok)return;const data=await response.json();if(data.success)showSyncStatus(data.sync);}catch{/* Keep the last confirmed sync time. */}
+},60000);
 directoryTableBody?.addEventListener('input',()=>{directoryDirty=true;});
 syncDirectoryBtn?.addEventListener('click',async()=>{
  if(directoryDirty){directoryStatus.textContent='Save your directory edits before syncing, or reload this page to discard them.';return;}

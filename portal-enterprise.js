@@ -48,7 +48,7 @@
     return path.toLowerCase();
   }
 
-  const page = normalizePath(location.pathname);
+  const page = normalizePath(location.pathname) === "wxcc" ? "webex" : normalizePath(location.pathname);
   const themeProfiles = {
     index:       { bodyClass: "dark-mode", key: "dashboard-dark-mode", darkValue: "1", lightValue: "0" },
     dashboard:   { bodyClass: "dark-mode", key: "dashboard-dark-mode", darkValue: "1", lightValue: "0" },

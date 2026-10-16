@@ -1,0 +1,28 @@
+/* This alternate layout shares every data source and action with webex.html. */
+.wxcc-pinned-header{position:sticky;top:0;z-index:45;background:#fff;box-shadow:0 3px 12px #0001}
+.wxcc-pinned-header>.header{position:static;box-shadow:none}
+.wxcc-pinned-header #dashboard-section-links{margin:0;padding:7px 20px;max-width:none;border:0;border-radius:0;background:#f1f6f4}
+.wxcc-pinned-header .vb-section-links{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;overflow-x:auto;white-space:nowrap;width:100%;padding:2px 0}
+.wxcc-pinned-header .vb-section-links a{color:#174e42;flex-shrink:0}
+.wxcc-layout main [id]{scroll-margin-top:var(--wxcc-anchor-offset,160px)}
+/* Retain headings for screen-reader navigation without repeating visible titles. */
+.wxcc-layout #queue-panel>h2,.wxcc-layout #agent-performance-panel>h2,.wxcc-layout #voice-statistics-panel>h2{position:absolute!important;width:1px;height:1px;padding:0!important;margin:-1px!important;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.wxcc-layout .wxcc-hidden-workload,.wxcc-layout #vbVoiceStatistics>details{display:none!important}
+.wxcc-layout #vbVoiceStatistics>.vb-voice-meta:last-child{text-align:right;margin:12px 0 0}
+.wxcc-layout #vbChatStats{padding:0;margin:18px 0 0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.wxcc-layout #vbChatStats>h2{font:700 14px system-ui,sans-serif;text-align:left;margin:16px 0 9px!important;color:inherit}
+.wxcc-layout #chat-cards{gap:10px}
+.wxcc-layout #chat-cards .vb-ops-card{min-height:96px;padding:14px 10px;border-radius:16px}
+.wxcc-layout #chat-cards strong{font-size:27px;line-height:1.2}
+.wxcc-layout #chat-cards span{font-size:13px;line-height:1.35}
+.wxcc-layout #abandonedCallbackSettingsPanel{max-width:none;margin:12px 0}
+.wxcc-layout #abandonedCallsPanel .daily-report-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+body.wxcc-layout.dark-mode .wxcc-pinned-header{background:#101f1c}
+body.wxcc-layout.dark-mode #dashboard-section-links{background:#142b25}
+body.wxcc-layout.dark-mode .vb-section-links a,body.wxcc-layout.dark-mode .vb-section-links span{color:#e2eee9}
+body.wxcc-layout.wallboard-mode .wxcc-pinned-header{display:none}
+@media(max-width:700px){.wxcc-pinned-header #dashboard-section-links{padding:7px 12px}.wxcc-layout #chat-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.wxcc-layout #chat-cards strong{font-size:24px}}
+@media(max-width:400px){.wxcc-layout #chat-cards{grid-template-columns:1fr}}
+
+.wxcc-queue-scroll{overflow-x:auto;max-width:100%}.wxcc-queue-scroll table{min-width:820px}
+@media(max-width:700px){.wxcc-pinned-header .header{gap:8px;padding:10px 14px}.wxcc-pinned-header .header-center{order:0;flex:1;min-width:160px}.wxcc-pinned-header .header-center h1{font-size:19px}.wxcc-pinned-header .header-subtitle{font-size:11px}.wxcc-pinned-header .header-right{flex:1 0 100%}.wxcc-pinned-header .enterprise-header-tools{display:flex;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;width:100%}.wxcc-pinned-header .enterprise-header-tools>button{flex-shrink:0}.wxcc-pinned-header .vb-help-trigger{flex-shrink:0}}

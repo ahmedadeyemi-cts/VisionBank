@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://chat-widget.produs1.ciscoccservice.com; style-src 'self' 'unsafe-inline' https://chat-widget.produs1.ciscoccservice.com; img-src 'self' data: https:; font-src 'self' data: https://chat-widget.produs1.ciscoccservice.com; connect-src 'self' https: wss:; media-src 'self' data: blob: https:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; upgrade-insecure-requests">
+    <meta name="referrer" content="no-referrer">
+    <title>VisionBank® | Webex Contact Center Dashboard</title>
+    <meta name="webex-dashboard-build" content="2026.10.13-v11" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/VisionBank-Logo.png" />
+
+    <link rel="stylesheet" href="webex.css?v=20261013-loginfilter1" />
+    <link rel="stylesheet" href="webex-reports.css?v=20261015-followup2" />
+    <link rel="stylesheet" href="webex-chat.css?v=20260924-v2" />
+    <link rel="stylesheet" href="webex-enterprise-analytics.css?v=20261013-enterprise4" />
+
+    <!-- ======================================= -->
+    <!-- VISIONBANK SECURITY PRE-CHECK INTEGRATION  -->
+  <!--  Use this Link to check who has been denied: https://visionbank-security.ahmedadeyemi.workers.dev/security/check -->
+    <!-- ======================================= -->
+    <script src="portal-session.js?v=20261005-license1"></script>
+    <script src="portal-auth-fetch.js?v=20261013-daily1"></script>
+    <script src="portal-security-precheck.js?v=20261003-r1" defer></script>
+    <link rel="stylesheet" href="webex-integrated-chat.css?v=20261013-chatmetrics1">
+<link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
+<link rel="stylesheet" href="webex-channel-activity.css?v=20260929-channels1">
+<link rel="stylesheet" href="webex-voice-statistics.css?v=20261001-completion-audit1">
+<link rel="stylesheet" href="webex-abandoned-callback-settings.css?v=20261001-token-manager1">
+<link rel="stylesheet" href="webex-abandoned-selection.css?v=20261004-chat-callback-ui1">
+<link rel="stylesheet" href="portal-enterprise.css?v=20261006-shell6">
+<link rel="stylesheet" href="webex-performance-controls.css?v=20261015-compact1">
+<link rel="stylesheet" href="portal-help.css?v=20261013-help1">
+<link rel="stylesheet" href="wxcc-layout.css?v=20261016-layout1">
+</head>
+
+<body class="wxcc-layout">
+
+<!-- ACCESS DENIED OVERLAY (visible until Cloudflare approves) -->
+<div id="access-denied-overlay" class="access-denied-overlay">
+  <div class="access-denied-card">
+    <h1>Access Restricted</h1>
+    <p id="access-denied-message">
+      Your access is currently unavailable. Please contact the IT Team for assistance.
+    </p>
+    <p class="access-denied-note">
+      If you believe this is in error, contact the VisionBank IT Team.
+    </p>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="wxcc-pinned-header">
+<header class="header">
+  <div class="header-left">
+    <img src="assets/VisionBank-Logo.png" alt="VisionBank" class="logo" />
+  </div>
+
+  <div class="header-center">
+    <h1>Webex Dashboard</h1>
+    <div class="header-subtitle">VisionBank® Webex Contact Center</div>
+  </div>
+
+  <div class="header-right dashboard-header-actions">
+    <div class="enterprise-header-tools">
+      <button id="openAgentControls" class="dashboard-settings-btn" type="button">Webex Agent</button>
+      <button id="dashboardSettingsToggle" class="dashboard-settings-btn">Dashboard Settings</button>
+      <button id="alertSettingsToggle" class="alert-settings-btn">Alert Settings</button>
+      <button id="alertHistoryToggle" class="alert-history-btn">Alert History</button>
+      <button id="darkModeToggle" class="dark-toggle" title="Toggle light / dark mode">🌙 Dark mode</button>
+    </div>
+  </div>
+</header>
+<div class="vb-callback-toolbar" id="dashboard-section-links"><nav class="vb-section-links" aria-label="Jump to dashboard section"><span>Jump to:</span><a href="#queue-panel">Queues</a><a href="#agent-performance-panel">Agents</a><a href="#voice-statistics-panel">Voice stats</a><a href="#vbChatStats">Chat stats</a><a href="#enterpriseAnalyticsPanel">Analytics</a><a href="#answeredCallsPanel">Answered calls</a><a href="#vbHandledChats">Handled chats</a><a href="#abandonedCallsPanel">Abandoned calls</a><a href="#vbAbandonedChats">Abandoned chats</a><a href="#vbCallbackWorkspace">Callback workspace</a><a href="#vbCallbacks">Callback history</a></nav></div>
+</div>
+
+<!-- MESSAGE OF THE DAY BANNER -->
+<div id="motdBanner" class="motd-banner hidden"></div>
+
+<!-- =============================== -->
+<!-- ALERT PANELS + POPUP -->
+<!-- =============================== -->
+<div class="alert-panels-wrapper">
+
+  <!-- GLOBAL WEBEX DASHBOARD SETTINGS PANEL -->
+  <div id="dashboardSettingsPanel" class="dashboard-settings-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Dashboard Settings</h3>
+    </div>
+    <div class="alert-panel-body">
+      <p class="dashboard-settings-intro">
+        These settings are shared globally. Changes automatically apply to every open Webex Dashboard on its next refresh (about 10 seconds).
+      </p>
+
+      <div class="dashboard-settings-group">
+        <h4>Visible Queue Types</h4>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showTelephonyQueues" />
+          <span>
+            <strong>Telephony Queues</strong>
+            <small>Shown by default.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showEmailQueues" />
+          <span>
+            <strong>Email Queues</strong>
+            <small>Includes queues identified as email.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showOutboundQueue" />
+          <span>
+            <strong>Outbound Calling Queue</strong>
+            <small>Controls the Webex Outdial Queue-1 display.</small>
+          </span>
+        </label>
+
+        <label class="dashboard-setting-option">
+          <input type="checkbox" id="showChatQueues" />
+          <span>
+            <strong>Chat / Social Queues</strong>
+            <small>Includes Webex chat and social queues.</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="dashboard-settings-group">
+        <h4>Queue Display Name</h4>
+        <label class="dashboard-settings-field" for="outboundQueueDisplayName">
+          Outdial Queue-1 display name
+          <input
+            id="outboundQueueDisplayName"
+            type="text"
+            maxlength="80"
+            value="Outbound Calling Queue"
+          />
+        </label>
+      </div>
+
+      <div class="dashboard-settings-group">
+        <h4>Individual Queue Visibility</h4>
+        <p class="dashboard-settings-help">
+          Check a queue to show it on the dashboard or uncheck it to hide it. These choices are shared with every open dashboard.
+        </p>
+        <div id="dashboardQueueSummary" class="dashboard-queue-summary">
+          Loading queue configuration...
+        </div>
+      </div>
+
+      <div class="dashboard-settings-group" id="agentIndicatorSettings">
+        <h4>Agent State Indicators</h4>
+        <p class="dashboard-settings-help">Shared across Webex dashboards. Every reported Idle reason is yellow automatically. These indicators never change an agent's Webex state.</p>
+        <label class="dashboard-setting-option"><input type="checkbox" id="agentLoginReminderEnabled" checked><span><strong>Show Logged In reminder</strong><small>Highlight agents still in the configured login Idle reason.</small></span></label>
+        <label class="dashboard-setting-option"><input type="checkbox" id="agentLoginReminderAnimate" checked><span><strong>Animate login reminders</strong><small>Two gentle outline pulses, four seconds total. Reduce Motion is always respected.</small></span></label>
+        <label class="dashboard-settings-field">Reminder after (seconds)<input id="agentLoginReminderGrace" type="number" min="15" max="900" step="1" value="60" required></label>
+        <label class="dashboard-settings-field">Login Idle reason name<input id="agentLoginReasonName" type="text" maxlength="80" value="Logged In" required></label>
+        <label class="dashboard-settings-field">Login Idle reason ID (optional)<input id="agentLoginReasonId" type="text" maxlength="128" autocomplete="off" placeholder="Blank: match the configured name exactly"></label>
+        <p class="dashboard-settings-help">A supplied reason ID takes priority over its name. Current Idle evidence is required; a signed-in session or old reason alone never triggers a reminder. The animation plays once per state transition on this browser.</p>
+      </div>
+
+      <div class="dashboard-settings-group" id="missedInteractionRecoverySettings">
+        <h4>Missed Interaction Recovery — Organization Default</h4>
+        <p class="dashboard-settings-help">
+          This sets the default behavior for every agent desktop. An agent's explicit Auto-ready override on that browser takes precedence. Choosing “Use organization default” on the desktop removes the local override.
+        </p>
+        <label class="dashboard-settings-field" for="missedInteractionRecoveryMode">
+          Default after a missed interaction (voice, chat, SMS, email, or social messaging)
+          <select id="missedInteractionRecoveryMode">
+            <option value="auto-after-60">Return agent to Available automatically</option>
+            <option value="webex-default">Use Webex default behavior</option>
+          </select>
+        </label>
+        <label class="dashboard-settings-field" for="missedInteractionRecoverySeconds">
+          Auto-return delay (seconds)
+          <input id="missedInteractionRecoverySeconds" type="number" min="15" max="600" step="1" value="60" required>
+        </label>
+        <p class="dashboard-settings-help">
+          Automatic recovery only applies to Webex RONA/missed-interaction Idle and is rechecked before any state change. Lunch, Meeting, Training, manual Idle, active work, and wrap-up are never changed.
+        </p>
+      </div>
+
+      <div class="dashboard-settings-actions">
+        <button id="saveDashboardSettingsBtn" class="btn-primary">
+          Save Dashboard Settings
+        </button>
+        <span id="dashboardSettingsStatus" class="dashboard-settings-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERT SETTINGS PANEL -->
+  <div id="alertSettingsPanel" class="alert-settings-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert Settings</h3>
+    </div>
+    <div class="alert-panel-body">
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableQueueAlerts" />
+          Enable queue audio alerts
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enableVoiceAlerts" />
+          Enable voice message
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label>
+          <input type="checkbox" id="enablePopupAlerts" />
+          Enable popup toast
+        </label>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertToneSelect">Alert tone</label>
+        <select id="alertToneSelect">
+          <option value="soft">Soft chime</option>
+          <option value="bright">Bright bell</option>
+          <option value="pulse">Pulse beep</option>
+          <option value="ping">Ping tone</option>
+          <option value="alarm">Alarm tone</option>
+        </select>
+      </div>
+
+      <div class="alert-row">
+        <label for="alertVolume">Volume</label>
+        <input type="range" id="alertVolume" min="0" max="100" step="5" />
+      </div>
+
+      <div class="alert-row">
+        <label for="alertCooldown">Alert cooldown (seconds)</label>
+        <input type="number" id="alertCooldown" min="10" max="300" step="5" />
+      </div>
+       <!-- =============================== -->
+<!-- MOTD Add -->
+<!-- =============================== -->
+         <hr class="alert-panel-divider" />
+
+<h4>Message of the Day</h4>
+
+<div class="alert-row">
+  <label for="motdText">Message</label>
+  <textarea
+    id="motdText"
+    rows="3"
+    placeholder="Enter message for call center staff..."
+  ></textarea>
+</div>
+
+<div class="alert-row">
+  <label for="motdDuration">Display duration (minutes)</label>
+  <input
+    type="number"
+    id="motdDuration"
+    min="1"
+    max="1440"
+    step="5"
+    value="60"
+  />
+</div>
+
+<div class="alert-row">
+  <button id="motdSaveButton" class="btn-primary">
+    Save Message
+  </button>
+  <button id="motdClearButton" class="btn-secondary">
+    Clear Message
+  </button>
+</div>
+<!-- =============================== -->
+<!-- MOTD End -->
+<!-- =============================== -->
+<div class="alert-row alert-wallboard-row">
+  <label>
+    <input type="checkbox" id="wallboardMode" />
+    Wallboard mode (full-screen dashboard)
+  </label>
+  <button id="exitWallboardButton" class="exit-wallboard-btn hidden">
+    Exit wallboard mode
+  </button>
+</div>
+      <p class="wallboard-hint">
+        Press ESC to exit wallboard mode.
+      </p>
+
+<div class="alert-row alert-test-row">
+  <button
+    id="alertTestButton"
+    class="test-alert-btn"
+  >
+    🔊 Test Alert Audio
+  </button>
+</div>
+
+      <hr class="alert-panel-divider" />
+
+      <div class="alert-queue-overrides">
+        <h4>Per-queue tone overrides</h4>
+        <div id="queueToneOverrides" class="queue-overrides-body">
+          <div class="queue-override-empty">
+            No queues loaded yet.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERT HISTORY PANEL -->
+  <div id="alertHistoryPanel" class="alert-history-panel hidden">
+    <div class="alert-panel-header">
+      <h3>Alert History</h3>
+    </div>
+    <div class="alert-panel-body">
+      <div id="alertHistoryList" class="alert-history-list">
+        <div class="history-empty">No alerts yet.</div>
+      </div>
+      <button id="clearAlertHistory" class="btn-secondary">
+        Clear history
+      </button>
+    </div>
+  </div>
+
+  <!-- QUEUE ALERT POPUP (BOTTOM CENTER) -->
+  <div id="queueAlertPopup" class="queue-alert-popup">
+    You have calls waiting
+  </div>
+</div>
+
+<main class="main">
+
+  <!-- CURRENT QUEUE STATUS (TOP) -->
+  <section class="panel" id="queue-panel">
+    <h2>Current Queue Status</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Queue</th>
+          <th>Calls</th>
+          <th>Agents</th>
+          <th>Max Wait</th>
+          <th>Avg Wait</th>
+        </tr>
+      </thead>
+      <tbody id="queue-body">
+        <tr>
+          <td colspan="5" class="loading">Loading queue status…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- AGENT PERFORMANCE (MIDDLE) -->
+  <section class="panel" id="agent-performance-panel">
+    <h2>Agent Performance</h2>
+    <details id="agent-performance-options" class="vb-performance-options"><summary>Performance options, search &amp; notes</summary>
+      <div class="agent-startdate-toggle vb-performance-controls">
+  <label class="vb-performance-period"><span>Performance period:</span><select id="agent-performance-period"><option value="today" selected>Today (Central)</option><option value="session">Current session</option></select></label>
+  <button type="button" data-vb-hide-logged-out aria-pressed="false" title="Hide history-only agents while keeping signed-in agents in every state visible">Hide logged-out agents</button>
+  <div class="vb-performance-start-date"><span class="toggle-label">Start date display:</span>
+
+  <label class="toggle-option">
+    <input
+      type="radio"
+      name="startDateMode"
+      value="session"
+    />
+    Session Start
+  </label>
+
+  <label class="toggle-option">
+    <input
+      type="radio"
+      name="startDateMode"
+      value="reporting"
+    />
+    Reporting Start
+  </label>
+  </div>
+</div>
+
+    <p id="agent-login-filter-note" role="status"></p>
+    <p id="agent-performance-note" role="status">Loading daily performance…</p>
+    </details>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Webex Agent</th>
+          <th>Team</th>
+          <th>Number</th>
+          <th>Availability</th>
+          <th>Duration</th>  
+          <th>Inbound</th>
+          <th>Missed</th>
+          <th>Transferred</th>
+          <th>Outbound</th>
+          <th>Avg Handle</th>
+          <th>Start Date</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body">
+        <tr>
+          <td colspan="11" class="loading">Loading agent data…</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- REALTIME GLOBAL STATISTICS (BOTTOM) -->
+  <section class="panel" id="voice-statistics-panel">
+    <h2>Realtime Global Statistics</h2>
+    <div id="global-error" class="error"></div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-queued">--</div>
+        <div class="stat-label">Total Calls Queued</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-transferred">--</div>
+        <div class="stat-label">Total Calls Answered</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-abandoned">--</div>
+        <div class="stat-label">Total Calls Abandoned</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-max-wait">--</div>
+        <div class="stat-label">Maximum Queue Wait Time</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-service-level">--%</div>
+        <div class="stat-label">Service Level</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-total-received">--</div>
+        <div class="stat-label">Total Calls Received</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-answer-rate">--%</div>
+        <div class="stat-label">Answer Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-abandon-rate">--%</div>
+        <div class="stat-label">Abandon Rate</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-registered">--</div>
+        <div class="stat-label">Callbacks Registered</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-value" id="gs-callbacks-waiting">--</div>
+        <div class="stat-label">Callbacks Waiting</div>
+      </div>
+
+      <div class="stat-card entry-point-stat-card">
+        <div class="stat-value" id="gs-entry-point-1">--</div>
+        <div class="stat-label" id="gs-entry-point-label-1">Calls by Entry Point</div>
+      </div>
+
+      <div class="stat-card entry-point-stat-card">
+        <div class="stat-value" id="gs-entry-point-2">--</div>
+        <div class="stat-label" id="gs-entry-point-label-2">Calls by Entry Point</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
+  <!-- ENTERPRISE OPERATIONS & ANALYTICS -->
+  <!-- ===================================================== -->
+  <section class="panel enterprise-analytics" id="enterpriseAnalyticsPanel" aria-labelledby="enterpriseAnalyticsTitle">
+    <div class="ea-heading">
+      <div>
+        <h2 id="enterpriseAnalyticsTitle">Enterprise Operations & Analytics</h2>
+        <p>Supervisor visibility across agent activity, queue pressure, daily demand, and callbacks.</p>
+      </div>
+      <button id="enterpriseAnalyticsRefresh" class="daily-report-button secondary" type="button">Refresh Analytics</button>
+    </div>
+    <div class="ea-status-row">
+      <span id="enterpriseAnalyticsStatus" class="ea-status">Loading enterprise analytics…</span>
+      <span><span id="eaRealtimeFreshness">Realtime snapshot unavailable</span> · <span id="eaDailyFreshness">Daily reporting unavailable</span></span>
+    </div>
+    <div class="ea-tabs" role="tablist" aria-label="Enterprise analytics views">
+      <button class="ea-tab active" type="button" data-ea-tab="overview">Command Center</button>
+      <button class="ea-tab" type="button" data-ea-tab="people">Top Performers</button>
+      <button class="ea-tab" type="button" data-ea-tab="demand">Demand & Trends</button>
+      <button class="ea-tab" type="button" data-ea-tab="hourly">Activity by Hour</button>
+      <button class="ea-tab" type="button" data-ea-tab="daycompare">Today vs Yesterday</button>
+      <button class="ea-tab" type="button" data-ea-tab="weekcompare">This Week vs Last Week</button>
+      <button class="ea-tab" type="button" data-ea-tab="monthcompare">This Month vs Last Month</button>
+    </div>
+    <div data-ea-view="overview">
+      <div class="ea-kpis">
+        <div class="ea-kpi"><strong id="eaAgentsLoggedIn">—</strong><span>Agents logged in</span></div>
+        <div class="ea-kpi"><strong id="eaAgentsAvailable">—</strong><span>Available now</span></div>
+        <div class="ea-kpi"><strong id="eaAgentsEngaged">—</strong><span>Engaged now</span></div>
+        <div class="ea-kpi"><strong id="eaCallsWaiting">—</strong><span>Calls waiting</span></div>
+        <div class="ea-kpi"><strong id="eaServiceLevel">—</strong><span>Service level</span></div>
+        <div class="ea-kpi"><strong id="eaAnswerRate">—</strong><span>Answer rate</span></div>
+        <div class="ea-kpi"><strong id="eaAbandonRate">—</strong><span>Abandon rate</span></div>
+        <div class="ea-kpi"><strong id="eaMaxWait">—</strong><span>Maximum wait</span></div>
+        <div class="ea-kpi"><strong id="eaCallbacksRegistered">—</strong><span>Callbacks registered</span></div>
+        <div class="ea-kpi"><strong id="eaCallbacksWaiting">—</strong><span>Callbacks waiting</span></div>
+      </div>
+      <div class="ea-grid">
+        <div class="ea-card"><h3>Agent state distribution</h3><div id="eaStateDistribution"></div></div>
+        <div class="ea-card"><h3>Queue pressure</h3><div id="eaQueuePressure"></div></div>
+      </div>
+    </div>
+    <div data-ea-view="people" hidden>
+      <div class="ea-card">
+        <h3>Current agent activity ranking</h3>
+        <p class="ea-ranking-note">Ranked by current-session handled contact volume (inbound + outbound). This is an activity view, not a quality, customer-satisfaction, or employee-performance score.</p>
+        <div class="ea-table-wrap"><table class="ea-table"><thead><tr><th>#</th><th>Agent</th><th>State</th><th>Inbound</th><th>Outbound</th><th>Missed</th><th>Transferred</th><th>Avg Handle</th></tr></thead><tbody id="eaLeaderboardRows"></tbody></table></div>
+      </div>
+    </div>
+    <div data-ea-view="demand" hidden>
+      <div class="ea-kpis">
+        <div class="ea-kpi"><strong id="eaTodayReceived">—</strong><span>Received today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayAnswered">—</strong><span>Answered today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayAbandoned">—</strong><span>Abandoned today</span></div>
+        <div class="ea-kpi"><strong id="eaTodayTransferred">—</strong><span>Transferred out</span></div>
+        <div class="ea-kpi"><strong id="eaAvgTalk">—</strong><span>Average talk time</span></div>
+        <div class="ea-kpi"><strong id="eaAvgQueue">—</strong><span>Average queue/IVR time</span></div>
+      </div>
+      <div class="ea-card"><h3>Hourly answered vs abandoned</h3><div class="ea-legend"><span><i class="answered"></i>Answered</span><span><i class="abandoned"></i>Abandoned</span></div><div id="eaHourlyChart" class="ea-hourly"></div></div>
+    </div>
+
+    <div data-ea-view="hourly" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>Activity by hour — today</h3>
+          <p>Contacts started by Central Time hour. This view separates Chat, inbound Voice calls, and outbound calls so supervisors can identify the busiest hours of the day. Inbound Voice uses the same received-call cohort as Today's Answered Calls so the totals reconcile.</p>
+        </div>
+        <span id="eaTrendFreshness" class="ea-trend-freshness">Historical trend data has not loaded yet.</span>
+      </div>
+      <div class="ea-kpis ea-busiest-kpis">
+        <div class="ea-kpi"><strong id="eaBusiestCombined">—</strong><span>Busiest combined hour</span><small id="eaBusiestCombinedCount">— contacts</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestChat">—</strong><span>Busiest Chat hour</span><small id="eaBusiestChatCount">— chats</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestInbound">—</strong><span>Busiest inbound-call hour</span><small id="eaBusiestInboundCount">— inbound calls</small></div>
+        <div class="ea-kpi"><strong id="eaBusiestOutbound">—</strong><span>Busiest outbound hour</span><small id="eaBusiestOutboundCount">— outbound calls</small></div>
+      </div>
+      <div class="ea-card">
+        <div class="ea-legend ea-activity-legend">
+          <span><i class="chat"></i>Chat</span>
+          <span><i class="inbound"></i>Inbound Calls</span>
+          <span><i class="outbound"></i>Outbound Calls</span>
+        </div>
+        <div id="eaActivityHourly" class="ea-activity-hours"><p class="ea-empty">Open this tab to load hourly activity.</p></div>
+      </div>
+    </div>
+
+    <div data-ea-view="daycompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>Today vs yesterday</h3>
+          <p>Compares today through the current Central Time with yesterday through the same time of day, so a partial day is not compared with a full day.</p>
+        </div>
+      </div>
+      <div id="eaDayCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Channel comparison</h3>
+        <div class="ea-table-wrap">
+          <table class="ea-table ea-compare-table">
+            <thead><tr><th>Activity</th><th>Today</th><th>Yesterday — same time</th><th>Difference</th><th>Change</th></tr></thead>
+            <tbody id="eaDayCompareRows"><tr><td colspan="5" class="ea-empty">Comparison data has not loaded yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div data-ea-view="weekcompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>This week vs last week</h3>
+          <p>Compares this week-to-date with the same elapsed Central Time period last week. This avoids comparing an incomplete week with a full seven-day week.</p>
+        </div>
+      </div>
+      <div id="eaWeekCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Week-over-week by day</h3>
+        <div class="ea-week-legend"><span><i class="current"></i>This week</span><span><i class="previous"></i>Last week — same elapsed period</span></div>
+        <div id="eaWeekdayCompare" class="ea-weekday-compare"><p class="ea-empty">Weekly trend data has not loaded yet.</p></div>
+      </div>
+    </div>
+
+    <div data-ea-view="monthcompare" hidden>
+      <div class="ea-trend-intro">
+        <div>
+          <h3>This month vs last month</h3>
+          <p>Compares this month-to-date with the same elapsed Central Time position last month. If the prior month is shorter, the comparison is capped at that month’s final day.</p>
+        </div>
+      </div>
+      <div id="eaMonthCompareCards" class="ea-compare-grid"><p class="ea-empty">Open this tab to load the comparison.</p></div>
+      <div class="ea-card">
+        <h3>Month-over-month channel comparison</h3>
+        <div class="ea-table-wrap">
+          <table class="ea-table ea-compare-table">
+            <thead><tr><th>Activity</th><th>This month to date</th><th>Last month — same elapsed period</th><th>Difference</th><th>Change</th></tr></thead>
+            <tbody id="eaMonthCompareRows"><tr><td colspan="5" class="ea-empty">Monthly comparison data has not loaded yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
+  <!-- DAILY WEBEX REPORTING - AMERICA/CHICAGO BUSINESS DAY -->
+  <!-- ===================================================== -->
+  <section class="panel daily-report-panel" id="answeredCallsPanel">
+    <div class="daily-report-header">
+      <div class="daily-report-title-wrap">
+        <h2>Today's Answered Calls</h2>
+        <span id="answeredCallsMeta" class="daily-report-meta">America/Chicago business day</span>
+      </div>
+      <div class="daily-report-actions">
+        <button id="refreshDailyReports" class="daily-report-button secondary" type="button">
+          Refresh Daily Reports
+        </button>
+        <button id="exportAnsweredCalls" class="daily-report-button" type="button">
+          Export Answered Calls
+        </button>
+      </div>
+    </div>
+
+    <div class="daily-report-summary" aria-label="Today's Webex call summary">
+      <div class="stat-card">
+        <div class="stat-value" id="dailyTotalReceived">--</div>
+        <div class="stat-label">Total Calls Received Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="dailyAnswered">--</div>
+        <div class="stat-label">Answered Calls Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="dailyAbandoned">--</div>
+        <div class="stat-label">Abandoned Calls Today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="dailyAnswerRate">--%</div>
+        <div class="stat-label">Answer Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="dailyAbandonRate">--%</div>
+        <div class="stat-label">Abandon Rate</div>
+      </div>
+    </div>
+
+    <div class="daily-report-toolbar">
+      <label class="daily-report-search" for="answeredCallsSearch">
+        <input
+          id="answeredCallsSearch"
+          type="search"
+          autocomplete="off"
+          placeholder="Search ANI, DNIS, agent name, or transfer destination"
+          aria-label="Search today's answered calls"
+        />
+      </label>
+      <span id="answeredRecordCount" class="daily-report-count">0 records</span>
+    </div>
+
+    <div class="daily-report-table-wrap">
+      <table id="answeredCallsTable" class="data-table daily-report-table">
+        <thead>
+          <tr>
+            <th data-sort="ani">Customer Number (ANI)</th>
+            <th data-sort="dnis">Called Number (DNIS)</th>
+            <th data-sort="agentName">Agent Name</th>
+            <th data-sort="startEpoch">Start Time (CST/CDT)</th>
+            <th data-sort="endEpoch">End Time (CST/CDT)</th>
+            <th data-sort="ivrQueueMs">IVR / Queue Time</th>
+            <th data-sort="talkMs">Talk Time</th>
+            <th data-sort="totalDurationMs">Total Call Duration</th>
+            <th data-sort="transferred">Transferred</th>
+            <th data-sort="transferredTo">Transferred To</th>
+          </tr>
+        </thead>
+        <tbody id="answeredCallsBody">
+          <tr><td colspan="10" class="loading">Loading today's answered calls…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="daily-report-pagination" aria-label="Answered calls pagination">
+      <button id="answeredPrevPage" class="daily-report-page-button" type="button">Previous</button>
+      <span id="answeredPageStatus" class="daily-report-page-status">Page 1 of 1</span>
+      <button id="answeredNextPage" class="daily-report-page-button" type="button">Next</button>
+    </div>
+  </section>
+
+  <section class="panel daily-report-panel" id="abandonedCallsPanel">
+    <div class="daily-report-header">
+      <div class="daily-report-title-wrap">
+        <h2>Today's Abandoned Calls</h2>
+        <span id="abandonedCallsMeta" class="daily-report-meta">America/Chicago business day</span>
+      </div>
+      <div class="daily-report-actions">
+<button type="button" id="abandonedCallbackSettingsToggle" class="vb-callback-settings-btn" aria-controls="abandonedCallbackSettingsPanel" aria-expanded="false">Abandoned Callback Settings</button>
+        <button id="exportAbandonedCalls" class="daily-report-button" type="button">
+          Export Abandoned Calls
+        </button>
+      </div>
+    </div>
+
+    <section id="abandonedCallbackSettingsPanel" class="vb-callback-panel" hidden aria-labelledby="abandonedCallbackSettingsTitle">
+  <div class="vb-callback-heading"><h2 id="abandonedCallbackSettingsTitle">Abandoned Callback Settings</h2>
+    <button type="button" id="abandonedCallbackClose" aria-label="Close abandoned callback settings">Close</button></div>
+  <p>Shared settings persist until explicitly changed. No separate login is required on an approved dashboard connection.</p>
+  <p id="abandonedCallbackLoadStatus" role="status" aria-live="polite">Open this panel to load the saved settings.</p>
+  <p id="abandonedCallbackProcessing" class="vb-callback-notice"></p>
+  <form id="abandonedCallbackForm"><fieldset id="abandonedCallbackFields" disabled>
+    <legend class="vb-callback-sr">Callback configuration</legend>
+    <label class="vb-callback-switch"><input type="checkbox" id="abandonedCallbackEnabled" role="switch"> Enable abandoned callbacks</label>
+    <p>Disabling stops new callbacks when execution is connected. Existing Webex schedules are not automatically canceled. Active calls are never ended.</p>
+    <div class="vb-callback-grid">
+      <label>Voice queue<select id="abandonedCallbackQueue"><option value="">Select one Voice queue</option></select></label>
+      <label>Scheduling mode<select id="abandonedCallbackMode"><option value="manual">Staff select one, several, or all eligible abandoned calls</option>
+        <option value="automatic-new-abandoned">Automatically schedule new eligible abandoned calls</option></select></label>
+    </div>
+    <label class="vb-callback-attempts">Callback entry point<select id="abandonedCallbackEntryPoint" aria-describedby="abandonedCallbackEntryPointHelp abandonedCallbackEntryPointStatus"><option value="">Select the Webex callback entry point</option></select></label>
+      <p id="abandonedCallbackEntryPointHelp">Select the same outbound entry point used in Control Hub → Channels → Settings. Saved by Webex ID, not by name. Rename the entry point in Control Hub; this list follows its current name. Selecting a different entry point here does not change Webex routing.</p>
+      <p id="abandonedCallbackEntryPointStatus" role="status"></p>
+    <label class="vb-callback-attempts">Maximum callback attempts<input id="abandonedCallbackMaxAttempts" type="number" min="1" max="10" step="1" value="3" required aria-describedby="abandonedCallbackAttemptsHelp"></label>
+    <p id="abandonedCallbackAttemptsHelp">Total customer-dial attempts, including the first call. Default: 3 (first call plus up to 2 retries). Your saved choice must match a verified Webex retry policy before new schedules run. This does not change organization-wide Webex settings.</p>
+    <p class="vb-callback-policy"><strong>One callback schedule per original missed call · Configurable attempt limit · Any available agent</strong><br>
+      Agent message: <span id="abandonedCallbackAgentMessage">Callback for missed call from customer</span></p>
+    <details><summary>Timing and excluded dates</summary><div class="vb-callback-grid">
+      <label>Minimum delay (minutes)<input id="abandonedCallbackDelay" type="number" min="30" max="1440" step="1" required></label>
+      <label>Callback window (minutes)<input id="abandonedCallbackWindow" type="number" min="30" max="480" step="1" required></label>
+      <label>Calling starts — Central<input id="abandonedCallbackStart" type="time" required></label>
+      <label>Calling ends — Central<input id="abandonedCallbackEnd" type="time" required></label>
+    </div><fieldset class="vb-callback-days"><legend>Calling days — America/Chicago</legend>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="1">Mon</label><label><input type="checkbox" name="abandonedCallbackDay" value="2">Tue</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="3">Wed</label><label><input type="checkbox" name="abandonedCallbackDay" value="4">Thu</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="5">Fri</label><label><input type="checkbox" name="abandonedCallbackDay" value="6">Sat</label>
+      <label><input type="checkbox" name="abandonedCallbackDay" value="0">Sun</label></fieldset>
+      <label>Excluded dates (YYYY-MM-DD, one per line)<textarea id="abandonedCallbackExcluded" rows="3" maxlength="704"></textarea></label>
+    </details><div class="vb-callback-actions"><button type="submit" id="abandonedCallbackSave">Save settings</button></div>
+  </fieldset></form>
+
+  <details id="abandonedCallbackSecurity" class="vb-callback-security"><summary>Flow Integration &amp; Security</summary>
+    <p>Manage the private token used by the Webex callback flow to read its saved callback policy. The token is shown only when generated or rotated.</p>
+    <div class="vb-callback-security-status"><strong>Callback Policy Token:</strong> <span id="abandonedCallbackTokenStatus">Checking…</span></div>
+    <p id="abandonedCallbackTokenMeta"></p>
+    <div class="vb-callback-actions vb-callback-security-actions">
+      <button type="button" id="abandonedCallbackGenerateToken">Generate / Rotate Token</button>
+      <button type="button" id="abandonedCallbackCopyToken" hidden>Copy Token</button>
+      <button type="button" id="abandonedCallbackTestToken">Test Connection</button>
+    </div>
+    <div id="abandonedCallbackTokenReveal" class="vb-callback-token-reveal" hidden>
+      <label>New token — copy this into <code>CB_PolicyToken</code><input id="abandonedCallbackTokenValue" type="text" readonly autocomplete="off" spellcheck="false"></label>
+      <p><strong>Copy it now.</strong> For security, reopening this page will not reveal the token again.</p>
+    </div>
+    <p id="abandonedCallbackTokenMessage" role="status" aria-live="polite"></p>
+  </details>
+  <div class="vb-callback-audit"><h3>Last changed by</h3>
+    <p>Identifies the source connection, not a verified individual. Computer names are shown only when a trusted source provides them.</p>
+    <dl id="abandonedCallbackLastChange"></dl>
+  </div>
+  <details id="abandonedCallbackHistory"><summary>Change history</summary>
+    <p id="abandonedCallbackHistoryStatus" role="status"></p>
+    <div class="vb-callback-table"><table><thead><tr><th>When — CST/CDT</th><th>Change</th><th>Source IP</th><th>Browser / OS</th><th>Computer</th><th>Version</th></tr></thead>
+      <tbody id="abandonedCallbackHistoryRows"></tbody></table></div>
+    <button type="button" id="abandonedCallbackOlder" hidden>Older changes</button>
+  </details>
+</section>
+<div class="daily-report-toolbar">
+      <label class="daily-report-search" for="abandonedCallsSearch">
+        <input
+          id="abandonedCallsSearch"
+          type="search"
+          autocomplete="off"
+          placeholder="Search ANI, DNIS, status, agent, or time"
+          aria-label="Search today's abandoned calls"
+        />
+      </label>
+      <label class="daily-report-followup-filter" for="abandonedFollowupFilter">
+        <span>Follow-up</span>
+        <select id="abandonedFollowupFilter" aria-label="Filter abandoned calls by follow-up status">
+          <option value="all">All abandoned calls</option>
+          <option value="needs-followup">Needs follow-up</option>
+          <option value="manual-done">Marked done</option>
+          <option value="outbound-attempt">Outbound call placed</option>
+          <option value="returned-unresolved">Returned — unresolved</option>
+          <option value="helped">Called back — helped</option>
+          <option value="review">Needs review</option>
+        </select>
+      </label>
+      <span id="abandonedRecordCount" class="daily-report-count">0 records</span>
+    </div>
+
+<div id="abandonedFollowupSummary" class="vb-followup-summary" role="status" aria-live="polite">Return-call correlation will appear when today's reports load.</div>
+<p class="vb-followup-method">Select calls, then choose Mark Done if someone has already followed up. Reopen corrects a mistaken mark. Webex outbound calls are matched to the most recent earlier abandoned call with the same full customer number today. An outbound attempt does not prove the customer was helped. Hover over the status for details. Marking done does not cancel an existing scheduled callback.</p>
+
+<div class="vb-cb-selection" aria-label="Prepare abandoned callbacks">
+  <div class="vb-cb-buttons">
+    <button id="vbCallbackSelectMatching" type="button" disabled>Select all matching across pages</button>
+    <button id="vbCallbackClearSelection" type="button" disabled>Clear selection</button>
+    <button id="vbCallbackScheduleSelected" type="button" disabled>Schedule selected (0)</button>
+    <button id="vbCallbackScheduleAll" type="button" disabled>Schedule all eligible today</button>
+    <button id="vbCallbackMarkDone" type="button" disabled>Mark Done</button>
+    <button id="vbCallbackReopen" type="button" disabled>Reopen</button>
+  </div>
+  <p id="vbCallbackSelectionStatus" role="status">Waiting for the abandoned-call report.</p>
+  <small>Filter to choose a group, or clear the search to include all of today's results across pages. Scheduling opens a preparation panel; it never submits merely by selecting rows.</small>
+</div>
+<dialog id="vbCallbackFollowupDialog" class="vb-cb-plan" aria-labelledby="vbCallbackFollowupTitle">
+  <div class="vb-cb-plan-heading"><h2 id="vbCallbackFollowupTitle">Mark selected calls done</h2><button id="vbCallbackFollowupClose" type="button">Cancel</button></div>
+  <form id="vbCallbackFollowupForm">
+    <p id="vbCallbackFollowupDescription"></p>
+    <label>Your name / person who followed up <input id="vbCallbackFollowupName" required minlength="2" maxlength="120" autocomplete="name"></label>
+    <label>Note (optional) <input id="vbCallbackFollowupNote" maxlength="500" placeholder="For example: Called customer and answered their question"></label>
+    <p>Names entered here are recorded as manual entries. A matched Webex call shows its reported agent and actual call time separately. Existing scheduled callbacks are not canceled.</p>
+    <p id="vbCallbackFollowupStatus" role="status"></p>
+    <button id="vbCallbackFollowupSave" type="submit">Mark Done</button>
+  </form>
+</dialog>
+<dialog id="vbCallbackPlan" class="vb-cb-plan" aria-labelledby="vbCallbackPlanTitle">
+  <div class="vb-cb-plan-heading"><h2 id="vbCallbackPlanTitle">Prepare callbacks</h2>
+    <button id="vbCallbackPlanClose" type="button" aria-label="Close callback preparation">Close</button></div>
+  <p class="vb-cb-preview-notice"><strong>Preview before scheduling.</strong> Only Schedule submits a callback. Bulk remains held until the single-call pilot passes.</p>
+  <p id="vbCallbackQueue"></p>
+  <details class="vb-cb-readiness"><summary>Callback readiness and remaining setup</summary><div id="vbCallbackReadiness"></div></details>
+  <p>Agent message: <strong>Callback for missed call from customer</strong></p>
+  <form id="vbCallbackPlanForm">
+    <div class="vb-cb-time-fields">
+      <label>Callback date — Central<input id="vbCallbackDate" type="date" required></label>
+      <label>Window starts — Central<input id="vbCallbackTime" type="time" required></label>
+    </div>
+    <p>Window ends: <output id="vbCallbackWindowEnd">Not set</output></p>
+    <p id="vbCallbackWindowRules">Webex scheduling: at least 30 minutes ahead; within 31 calendar days; a 30-minute to 8-hour window within your saved calling hours. Times use America/Chicago.</p>
+    <p id="vbCallbackWindowGuidance" role="status" aria-live="polite"></p>
+    <div class="vb-cb-buttons"><button id="vbCallbackOpenSettings" type="button">Open Abandoned Callback Settings</button><button id="vbCallbackRecheck" type="button">Recheck readiness</button><button id="vbCallbackNextWindow" type="button">Use next permitted window</button></div>
+    <p id="vbCallbackPlanStatus" role="status" aria-live="polite"></p>
+    <p id="vbCallbackDraftStatus" role="status">Not saved. Save plan keeps this selection without scheduling a call.</p>
+    <div class="vb-cb-buttons"><button id="vbCallbackSavePlan" type="button" disabled>Save plan — no calls</button><button id="vbCallbackPreview" type="submit" disabled>Preview batch</button>
+      <button id="vbCallbackExecute" type="button" disabled title="The scheduled-callback flow and requested attempt limit must be ready before calling">Scheduling paused</button></div>
+  </form>
+  <div class="vb-cb-preview-table"><table><thead><tr><th>Original Contact ID</th><th>Callback number</th><th>Preview result</th><th>Reason / remaining checks</th></tr></thead>
+    <tbody id="vbCallbackPlanRows"></tbody></table></div>
+  <p class="vb-cb-note">One callback per original call. Repeated numbers in a batch are grouped. Native duplicate checks run during preview and again before submission. Saving a plan does not schedule a call. An original abandoned call remains abandoned after any follow-up.</p>
+</dialog>
+
+    <div class="daily-report-table-wrap">
+      <table id="abandonedCallsTable" class="data-table daily-report-table">
+        <thead>
+          <tr>
+            <th data-sort="ani">ANI</th>
+            <th data-sort="dnis">Called Number (DNIS)</th>
+            <th data-sort="startEpoch">Start Time (CST/CDT)</th>
+            <th data-sort="totalDurationMs">Total Call Duration</th>
+            <th data-sort="totalIvrQueueMs">Total IVR / Queue Duration</th>
+            <th data-sort="timeToAbandonMs">Time to Abandon</th>
+            <th data-sort="abandonmentStage">Abandonment Stage</th>
+            <th data-sort="agentName">Agent Name</th>
+            <th data-sort="followupCode">Follow-up Status</th>
+            <th data-sort="followupEpoch">Follow-up / Call Time</th>
+            <th data-sort="followupAgent">Handled By</th>
+          </tr>
+        </thead>
+        <tbody id="abandonedCallsBody">
+          <tr><td colspan="11" class="loading">Loading today's abandoned calls…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="daily-report-pagination" aria-label="Abandoned calls pagination">
+      <button id="abandonedPrevPage" class="daily-report-page-button" type="button">Previous</button>
+      <span id="abandonedPageStatus" class="daily-report-page-status">Page 1 of 1</span>
+      <button id="abandonedNextPage" class="daily-report-page-button" type="button">Next</button>
+    </div>
+  </section>
+
+<section class="panel daily-report-panel vb-cb-workspace" id="vbCallbackWorkspace" aria-labelledby="vbCallbackWorkspaceTitle">
+  <div class="daily-report-header"><h2 id="vbCallbackWorkspaceTitle">Callback Workspace</h2><button id="vbCallbackRefreshWorkspace" type="button" disabled>Refresh workspace</button></div>
+  <p id="vbCallbackWorkspaceStatus" role="status">Waiting for approved dashboard access.</p>
+  <details open><summary>Saved callback plans — today and future</summary><div class="daily-report-table-wrap"><table class="data-table"><thead><tr><th>Calls</th><th>Proposed window — Central</th><th>Requested attempts</th><th>Status</th><th>Last saved — Central</th><th>Actions</th></tr></thead><tbody id="vbCallbackSavedPlans"></tbody></table></div><button id="vbCallbackMorePlans" class="vb-cb-more" type="button" disabled hidden>More saved plans</button></details>
+  <details open><summary>Callback requests — today and confirmed upcoming</summary><div class="daily-report-table-wrap"><table class="data-table"><thead><tr><th>Callback number</th><th>Scheduled window — Central</th><th>Status</th><th>Attempts reported / requested</th><th>Webex confirmation</th><th>Actions</th></tr></thead><tbody id="vbCallbackRegister"></tbody></table></div><button id="vbCallbackMoreRecords" class="vb-cb-more" type="button" disabled hidden>More callback requests</button></details>
+  <p class="vb-cb-note">Scheduled means Webex confirmed creation, not that the customer was reached. Missing native schedules and elapsed windows are never treated as completed calls.</p>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-left">
+    <span>VisionBank® Webex Contact Center</span>
+  </div>
+
+  <div class="footer-center">
+    <span id="securityStatus" class="security-status">
+      Running security checks…
+    </span>
+  </div>
+
+  <div class="footer-right">
+    <img src="assets/US-Signal-Logo.png" alt="US Signal" class="footer-us-logo" />
+    <span class="footer-text">
+      Created and maintained by Ahmed Adeyemi, ©2025. US Signal
+    </span>
+  </div>
+</footer>
+
+
+<!-- ===================================================== -->
+<!-- VISIONBANK LIVE CHAT - CISCO WEBEX CONNECT (THIS PAGE ONLY) -->
+<!-- ===================================================== -->
+<div
+  id="divicw"
+  data-bind="8CD75B30-6A95-471D-98BB-FC4FA4E6681D"
+  data-org=""
+  data-guid="27064816-2e3e-42a9-add4-74f11f24fd74"
+  aria-label="VisionBank live agent chat"
+></div>
+<script src="portal-enterprise.js?v=20261016-wxcc1"></script>
+<script src="webex-report-health.js?v=20261001-completion-audit1"></script>
+<script src="webex-agent-performance.js?v=20261015-followup2"></script>
+<script src="webex.js?v=20261013-loginfilter1"></script>
+<script src="webex-reports.js?v=20261015-followup2"></script>
+<script src="webex-chat.js?v=20260924-v2"></script>
+<script src="webex-agent-indicators.js?v=20260929-channels1"></script>
+<script src="webex-channel-activity.js?v=20260929-channels1"></script>
+<script src="webex-voice-statistics.js?v=20261001-completion-audit1"></script>
+<script src="webex-integrated-chat.js?v=20261015-compact1"></script>
+<script src="webex-enterprise-analytics.js?v=20261013-enterprise4"></script>
+<script type="module" src="webex-abandoned-callback-settings.js?v=20261001-token-manager1"></script>
+<script type="module" src="webex-abandoned-selection.js?v=20261015-followup2"></script>
+<script src="portal-help.js?v=20261016-wxcc1"></script>
+<script src="wxcc-layout.js?v=20261016-layout1"></script>
+</body>
+</html>

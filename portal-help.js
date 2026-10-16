@@ -196,7 +196,7 @@
   ]
 };
   const page = (location.pathname.split('/').pop() || 'index').replace(/\.html$/i, '').toLowerCase();
-  const guide = guides[page === 'dashboard' ? 'index' : page];
+  const guide = guides[page === 'wxcc' ? 'webex' : page === 'dashboard' ? 'index' : page];
   if (!guide || document.getElementById('vb-page-help')) return;
   const header = document.querySelector('header');
   if (!header) return;

@@ -1,7 +1,7 @@
 /* VisionBank channel activity: display only. No network calls, timers, credentials or agent actions. */
 (function (root) {
   'use strict';
-  const BUILD = '2026.09.29-channel-activity-1';
+  const BUILD = '2026.10.16-channel-activity-2';
   const text = v => typeof v === 'string' ? v.trim() : '';
   const key = v => text(v).toLowerCase().replace(/[ _]/g, '-');
   const count = n => Number.isInteger(n) && n >= 0;
@@ -73,7 +73,13 @@
       const total=live.active+live.wrapup+live.offered;
       chat={...chat,...live,known:true,limit:chat.known&&total<=chat.limit?chat.limit:null,source:'current Chat contacts'};
     }
-    return {phone:channelView('phone',voice,state),chat:channelView('chat',chat,state)};
+    // A fresh session with a usable voice channel may explicitly report no Chat channel.
+    // This is session evidence, not an administrative provisioning assertion.
+    const reportedAbsent = valid && voice.known && !chat.known &&
+      recent(agent?.chatChannel?.observedAt,now) &&
+      agent.chatChannel.source === 'agentSession.channelInfo' &&
+      agent.chatChannel.reason === 'channel-not-returned';
+    return {phone:channelView('phone',voice,state),chat:{...channelView('chat',chat,state),reportedAbsent}};
   }
   function summary(m) {
     return m ? `Phone: ${m.phone.label}; Chat: ${m.chat.label}${m.chat.slots?' ('+m.chat.slots+' active / slots)':''}` : 'Phone: Not reported; Chat: Not reported';
@@ -96,7 +102,9 @@
     const signature=JSON.stringify(data);if(cell.dataset.vbChannelRender===signature)return;
     cell.dataset.vbChannelRender=signature;cell.title='Reported channel activity; no routing or agent-state changes.';
     const doc=cell.ownerDocument,group=doc.createElement('div');group.className='vb-channel-activity';group.setAttribute('role','group');group.setAttribute('aria-label','Phone and Chat activity');
-    for(const v of [data.phone,data.chat]) {
+    const hideChat=doc.body?.classList.contains('wxcc-layout') && data.chat.reportedAbsent;
+    if(hideChat)group.setAttribute('aria-label','Phone activity');
+    for(const v of hideChat?[data.phone]:[data.phone,data.chat]) {
       const item=doc.createElement('span');item.className='vb-channel';item.dataset.channel=v.type;item.dataset.tone=v.tone;item.title=v.tooltip;
       item.setAttribute('aria-label',`${v.name}: ${v.label}${v.slots?', '+v.slots+' active chats / slots':''}`);
       const badge=doc.createElement('span');badge.className='vb-channel-icon';badge.append(icon(doc,v.type));

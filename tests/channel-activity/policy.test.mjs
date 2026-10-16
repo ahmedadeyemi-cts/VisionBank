@@ -32,3 +32,24 @@ test('inputs not mutated; summary retains explicit meanings and counts',()=>{con
 test('channel feature has no network, interval, storage, tokens or agent write',()=>{for(const s of ['fetch(','XMLHttpRequest','setInterval','localStorage','sessionStorage','stateChange','getToken(','endV2','sendMessage','wrangler'])assert.ok(!source.includes(s),s);});
 test('assets load exactly once and before the integration',()=>{const s=fs.readFileSync(new URL('../../webex.html',import.meta.url),'utf8');assert.equal((s.match(/src="webex-channel-activity.js/g)||[]).length,1);assert.equal((s.match(/href="webex-channel-activity.css/g)||[]).length,1);assert.ok(s.indexOf('src="webex-channel-activity.js')<s.indexOf('src="webex-integrated-chat.js'));});
 test('channel HTML is built with DOM text nodes not report-provided markup',()=>{assert.ok(!source.includes('innerHTML'));assert.ok(source.includes('textContent=v.label'));});
+
+test('fresh session without a reported Chat channel can omit its icon',()=>{
+ const f=fixture();f.a.chatChannel={source:'agentSession.channelInfo',reason:'channel-not-returned',observedAt:now};
+ assert.equal(model(f).chat.reportedAbsent,true);
+ f.a.chatChannel.observedAt=now-45000;assert.equal(model(f).chat.reportedAbsent,false);
+ f.a.chatChannel.observedAt=now;f.d.success=false;assert.equal(model(f).chat.reportedAbsent,false);
+});
+test('missing and invalid channel data do not assert absent capability',()=>{
+ const f=fixture();delete f.a.chatChannel;assert.equal(model(f).chat.reportedAbsent,false);
+ f.a.chatChannel={source:'agentSession.channelInfo',reason:'invalid-or-conflicting-channel-slots',observedAt:now};assert.equal(model(f).chat.reportedAbsent,false);
+});
+test('positive live chat work keeps icon despite missing session channel',()=>{
+ const f=fixture();f.a.chatChannel={source:'agentSession.channelInfo',reason:'channel-not-returned',observedAt:now};
+ const m=model(f,live([{agentId:'a',contactId:'c1',status:'Active'}]));
+ assert.equal(m.chat.reportedAbsent,false);assert.equal(m.chat.slots,'1 / —');
+});
+test('per-agent limits and refreshed limits are dynamic',()=>{
+ const a=fixture(),b=fixture();a.a.chatChannel=channel(2,1);b.a.chatChannel=channel(7,3);
+ assert.equal(model(a).chat.slots,'1 / 2');assert.equal(model(b).chat.slots,'3 / 7');
+ a.a.chatChannel=channel(4,1);assert.equal(model(a).chat.slots,'1 / 4');
+});

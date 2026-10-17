@@ -28,7 +28,7 @@ test('phone enrollment creates a short device-bound Button 7 URL with no XML use
   const env={LOGS:new MemoryKV(),SESSIONS:new MemoryKV()},result=await enroll(env);
   assert.equal(result.lineKey,7);
   assert.match(result.xmlUrl,/^https:\/\/worker\.example\/p\/[A-Za-z0-9]{22}$/);
-  assert.equal(result.buttonUrl,result.xmlUrl+'?m=$mac&i=$ip');
+  assert.equal(result.buttonUrl,result.xmlUrl);
   assert.ok(result.buttonUrl.length<=99);
   assert.match(result.provisioning,/linekey\.7\.type = 27/);
   assert.match(result.provisioning,/linekey\.7\.label = Manage Ext/);

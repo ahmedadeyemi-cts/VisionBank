@@ -21,6 +21,26 @@ export class DirectoryStore {
    if(request.method==='GET'&&path==='/directory/get')return Response.json({success:true,...state,count:state.contacts.length});
    if(request.method!=='POST')return Response.json({error:'method-not-allowed'},{status:405});
    const body=await request.json();let next,summary;
+   if(path.startsWith('/directory/address-book/')){
+    const now=Date.now(),key='address-book-control';
+    const control=await storage.get(key)||{managed:{},token:null,expiresAt:0};
+    if(path==='/directory/address-book/begin'){
+     if(control.token&&control.expiresAt>now)return Response.json({acquired:false,status:state.addressBookSync});
+     control.token=crypto.randomUUID();control.expiresAt=now+300000;
+     state.addressBookSync={...state.addressBookSync,state:'syncing',attemptedAt:now,message:'Updating CEG Address Book…'};
+     await storage.put(key,control);await storage.put('directory-state',state);
+     return Response.json({acquired:true,token:control.token,managed:control.managed,contacts:state.contacts});
+    }
+    if(!body.token||control.token!==body.token||control.expiresAt<=now)return Response.json({error:'Address-book sync lease expired; retry next sync'},{status:409});
+    if(!['/directory/address-book/checkpoint','/directory/address-book/finish'].includes(path))return Response.json({error:'not-found'},{status:404});
+    control.managed=body.managed;control.expiresAt=now+300000;
+    if(path.endsWith('/finish')){
+     control.token=null;control.expiresAt=0;
+     state.addressBookSync={...state.addressBookSync,...body.status};
+     await storage.put('directory-state',state);
+    }
+    await storage.put(key,control);return Response.json({success:true});
+   }
    if(path==='/directory/error'){state.sync={...state.sync,state:'error',attemptedAt:Date.now(),message:String(body.message).slice(0,180)};await storage.put('directory-state',state);return Response.json({success:true});}
    if(path==='/directory/save'){
     if(body.revision!==state.revision)return Response.json({error:'The directory changed since you loaded it. Reload before saving so newer updates are not overwritten.'},{status:409});
@@ -33,7 +53,7 @@ export class DirectoryStore {
    if(JSON.stringify(next)!==JSON.stringify(state.contacts)){
     await storage.put('directory-backup:'+state.revision,state);
     // This object serializes sync and manual saves; revision checks reject stale editors.
-    state={contacts:next,revision:state.revision+1,sync:summary||state.sync};await storage.put('directory-state',state);
+    state={...state,contacts:next,revision:state.revision+1,sync:summary||state.sync};await storage.put('directory-state',state);
    }else if(summary){state.sync=summary;await storage.put('directory-state',state);}
    await this.env.DIRECTORY_KV.put(DIRECTORY_KEY,JSON.stringify(state.contacts));
    return Response.json({success:true,...state,count:state.contacts.length});

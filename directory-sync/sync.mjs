@@ -1,6 +1,7 @@
+import {syncAddressBook} from './address-book.mjs';
 export const CRON='17 */3 * * *';
 export const DIRECTORY_KEY='visionbank-directory';
-export const SYNC_VERSION=3;
+export const SYNC_VERSION=4;
 export const STATUS_KEY='visionbank-directory-sync-status';
 const clean=v=>String(v??'').trim(),key=v=>clean(v).toLowerCase().replace(/\s+/g,' '),digits=v=>clean(v).replace(/\D/g,'');
 export const protectedEntry=c=>/^wg/i.test(clean(c.firstName));
@@ -79,7 +80,12 @@ export async function fetchSources(env,webexFetch){
 export function directoryStore(env){return env.ABANDONED_CALLBACK_SETTINGS.get(env.ABANDONED_CALLBACK_SETTINGS.idFromName(env.WEBEX_ORG_ID+':directory:v1'));}
 export async function storeRequest(env,path,body){const r=await directoryStore(env).fetch(new Request('https://internal/directory/'+path,{method:body?'POST':'GET',...(body?{body:JSON.stringify(body),headers:{'Content-Type':'application/json'}}:{})}));const data=await r.json();if(!r.ok){const e=new Error(data.error||'Directory storage unavailable');e.status=r.status;throw e;}return data;}
 export async function runDirectorySync(env,webexFetch){
- try{const sources=await fetchSources(env,webexFetch);return await storeRequest(env,'sync',{sources,version:SYNC_VERSION});}
+ try{
+  const sources=await fetchSources(env,webexFetch);
+  const result=await storeRequest(env,'sync',{sources,version:SYNC_VERSION});
+  const addressBookSync=await syncAddressBook(env,webexFetch,(path,body)=>storeRequest(env,path,body));
+  return {...result,addressBookSync};
+ }
  catch(error){await storeRequest(env,'error',{message:String(error.message).slice(0,180)});throw error;}
 }
 // Bootstrap once through the existing maintenance trigger; regular sync uses CRON.

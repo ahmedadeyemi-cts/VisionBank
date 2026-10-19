@@ -50,12 +50,13 @@ let contacts = [];
 let directoryRevision=null,directoryDirty=false;
 const syncDirectoryBtn=document.getElementById('syncDirectoryBtn');
 let lastDirectorySync=null;
+let lastAddressBookSync=null;
 function nextDirectorySync(after){
  const d=new Date(after);d.setUTCMinutes(17,0,0);d.setUTCHours(Math.floor(d.getUTCHours()/3)*3);
  if(d.getTime()<=after)d.setUTCHours(d.getUTCHours()+3);
  return d.getTime();
 }
-function showSyncStatus(sync){lastDirectorySync=sync;renderSyncClock();}
+function showSyncStatus(sync,addressBookSync){lastDirectorySync=sync;lastAddressBookSync=addressBookSync||null;renderSyncClock();}
 function renderSyncClock(){
  const el=document.getElementById('directorySyncStatus');if(!el)return;
  const sync=lastDirectorySync,now=Date.now();
@@ -68,12 +69,23 @@ function renderSyncClock(){
  document.getElementById('directorySyncCountdown').textContent=countdown;
  const intro='Runs every 3 hours. Times are shown in your local time zone. WG entries stay unchanged. FAX_, Contact Center RTMS and Voice Messaging Group entries are excluded. ';
  el.textContent=intro+(sync?.state==='error'?'Last attempt failed: '+sync.message+'. The last successful sync time is shown above.':sync?.completedAt?`${sync.added||0} added, ${sync.updated||0} updated, ${sync.deleted||0} removed. ${sync.protected||0} WG entries protected.`:'Waiting for the first successful sync.');
+
+ const address=document.getElementById('addressBookSyncStatus');
+ if(address){
+  const a=lastAddressBookSync;
+  const success=a?.completedAt?' Last confirmed: '+format(a.completedAt)+'.':'';
+  address.textContent=!a?'CEG Address Book: waiting for first sync.':
+   a.state==='syncing'?'CEG Address Book: syncing…'+success:
+   a.state==='error'?'CEG Address Book: '+a.message+'.'+success:
+   'CEG Address Book: '+(a.added||0)+' added, '+(a.updated||0)+' updated.'+
+    (a.state==='attention'?' '+(a.conflicts||0)+' conflicts and '+(a.skipped||0)+' invalid entries need review.':'')+success;
+ }
 }
 setInterval(renderSyncClock,1000);
 // Read status only: never replace unsaved directory edits during background checks.
 setInterval(async()=>{
  if(document.hidden||appView.classList.contains('hidden'))return;
- try{const response=await fetch(`${SECURITY_BASE}/api/directory/get`,{headers:authHeaders()});if(!response.ok)return;const data=await response.json();if(data.success)showSyncStatus(data.sync);}catch{/* Keep the last confirmed sync time. */}
+ try{const response=await fetch(`${SECURITY_BASE}/api/directory/get`,{headers:authHeaders()});if(!response.ok)return;const data=await response.json();if(data.success)showSyncStatus(data.sync,data.addressBookSync);}catch{/* Keep the last confirmed sync time. */}
 },60000);
 directoryTableBody?.addEventListener('input',()=>{directoryDirty=true;});
 syncDirectoryBtn?.addEventListener('click',async()=>{
@@ -81,7 +93,7 @@ syncDirectoryBtn?.addEventListener('click',async()=>{
  const controls=[...appView.querySelectorAll('input,button,select')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);
  directoryStatus.textContent='Syncing users and workspaces from Webex…';
  try{const response=await fetch(`${SECURITY_BASE}/api/directory/sync`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:'{}'});const data=await response.json();if(!response.ok||!data.success)throw Error(data.error||'Sync failed');
- contacts=data.contacts;directoryRevision=data.revision;directoryDirty=false;populateLocationFilter();renderDirectory();showSyncStatus(data.sync);directoryStatus.textContent='Sync complete. The phone directory has been updated.';
+ contacts=data.contacts;directoryRevision=data.revision;directoryDirty=false;populateLocationFilter();renderDirectory();showSyncStatus(data.sync,data.addressBookSync);directoryStatus.textContent=data.addressBookSync?.state==='ready'?'Sync complete. The directory and CEG Address Book are updated.':'Directory updated. See the CEG Address Book sync status below.';
  }catch(error){directoryStatus.textContent='Unable to sync: '+error.message;}
  finally{controls.forEach(([el,disabled])=>el.disabled=disabled);}
 });
@@ -181,7 +193,7 @@ async function loadDirectory() {
     }
 
     contacts = Array.isArray(data.contacts) ? data.contacts : [];
-    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync);
+    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync,data.addressBookSync);
     populateLocationFilter();
     renderDirectory();
 
@@ -211,7 +223,7 @@ async function saveDirectory() {
     }
 
     contacts = Array.isArray(data.contacts) ? data.contacts : [];
-    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync);
+    directoryRevision=data.revision;directoryDirty=false;showSyncStatus(data.sync,data.addressBookSync);
     renderDirectory();
 
     directoryStatus.textContent = `Directory saved. ${data.count || contacts.length} contacts published.`;

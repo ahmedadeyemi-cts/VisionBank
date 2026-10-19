@@ -68,28 +68,12 @@ function webexReportActivities(task) {
 }
 
 function webexReportIsConnectedActivity(activity) {
-  const values = [
-    activity?.eventName,
-    activity?.previousState,
-    activity?.nextState,
-    activity?.activityType,
-    activity?.activityName
-  ].map(webexReportLower);
-
-  return values.some(value => {
-    if (!value || value.includes("disconnect")) return false;
-    return (
-      value === "connected" ||
-      value === "connect" ||
-      value === "ctq-accepted" ||
-      value.includes("ctq-accepted") ||
-      value.includes("ctq accepted") ||
-      value.includes("agent-connected") ||
-      value.includes("agent connected") ||
-      value.includes("agent-connect") ||
-      value.includes("connected-to-agent")
-    );
-  });
+  // "connect" is an agent-offer attempt, including offers that end in RONA.
+  // Only a completed connection event proves an answer. Adjacent states describe
+  // transitions, not the start/duration of this activity's connected segment.
+  const connected = new Set(["connected", "agent-connected", "agent connected", "connected-to-agent"]);
+  return [activity?.eventName, activity?.activityType, activity?.activityName]
+    .some(value => connected.has(webexReportLower(value)));
 }
 
 function webexReportHasAnswerSignal(task, taskLegs = [], carActivities = []) {

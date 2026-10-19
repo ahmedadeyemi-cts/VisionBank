@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  if (window.top !== window.self) {
+  if (window.top !== window.self && !window.VBFramePolicy?.isAllowedEmbed()) {
     document.documentElement.style.display = "none";
     try { window.top.location = window.self.location.href; } catch {}
   }

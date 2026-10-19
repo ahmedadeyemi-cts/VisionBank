@@ -6,7 +6,7 @@ const source=fs.readFileSync(new URL('../../webex-channel-activity.js',import.me
 const c=vm.createContext({});vm.runInContext(source,c);const api=c.VB_CHANNEL_ACTIVITY;
 const now=1800000000000;
 const channel=(limit=1,active=0,wrapup=0,offered=0)=>({source:'agentSession.channelInfo',reason:'',observedAt:now,reportedSlotCount:limit,activeSlots:active,wrapupSlots:wrapup,offeredSlots:offered,availableSlots:limit-active-wrapup-offered,routingState:active?'engaged':wrapup?'wrapup':offered?'reserved':'available'});
-function fixture(category='available',label='Available'){const a={agentId:'a',voiceChannel:channel(),chatChannel:channel(5),stateIndicator:{revision:4,category,label,observedAt:now,idleVerified:category==='idle'}};return {a,d:{success:true,generatedAtEpoch:now,agents:[a]}};}
+function fixture(category='available',label='Available'){const a={agentId:'a',chatCapacity:{status:'ready',source:'webex-multimedia-profile',limit:5,observedAt:now},voiceChannel:channel(),chatChannel:channel(5),stateIndicator:{revision:4,category,label,observedAt:now,idleVerified:category==='idle'}};return {a,d:{success:true,generatedAtEpoch:now,agents:[a]}};}
 const model=(f,r=null)=>api.model(f.a,f.d,r,f.a.agentId,now);
 const live=(rows,at=now)=>({liveStatus:'ready',liveObservedAt:at,liveRows:rows,summary:Object.fromEntries([['active','Active'],['wrapup','Wrap-up'],['offeredNow','Offered']].map(([k,v])=>[k,{status:'ready',value:rows.filter(r=>r.status===v).length}]))});
 test('available, no work -> independently green',()=>{const m=model(fixture());assert.equal(m.phone.tone,'available');assert.equal(m.chat.tone,'available');assert.equal(m.chat.slots,'0 / 5');});
@@ -18,7 +18,7 @@ test('wrap-up belongs to only its channel',()=>{const f=fixture('wrapup','Wrap-u
 test('active work wins over Idle and concurrent wrap-up',()=>{const f=fixture('idle','Lunch');f.a.voiceChannel=channel(1,1);f.a.chatChannel=channel(5,2,1);const m=model(f);assert.equal(m.phone.tone,'engaged');assert.equal(m.chat.tone,'engaged');assert.equal(m.chat.wrapup,1);});
 test('held Voice cannot appear free',()=>{const f=fixture('engaged','Engaged');f.a.voiceChannel=channel(1,1);f.a.voiceChannel.routingState='held';assert.equal(model(f).phone.tone,'engaged');});
 test('offered Voice/Chat never appears idle or green',()=>{const f=fixture('offered','Reserved');f.a.voiceChannel=channel(1,0,0,1);f.a.chatChannel=channel(5,0,0,1);const m=model(f);assert.equal(m.phone.label,'Offered');assert.equal(m.phone.tone,'engaged');assert.equal(m.chat.tone,'engaged');});
-test('no fixed five-slot assumption',()=>{const f=fixture();f.a.chatChannel=channel(3,2);assert.equal(model(f).chat.slots,'2 / 3');});
+test('no fixed five-slot assumption',()=>{const f=fixture();f.a.chatChannel=channel(3,2);f.a.chatCapacity.limit=3;assert.equal(model(f).chat.slots,'2 / 3');});
 test('absent counters or inconsistent capacity never green',()=>{for(const edit of [a=>delete a.voiceChannel.activeSlots,a=>a.voiceChannel.activeSlots=-1,a=>a.voiceChannel.activeSlots=2,a=>a.voiceChannel.availableSlots=null,a=>a.voiceChannel.routingState=null,a=>a.voiceChannel.reason='invalid']){const f=fixture();edit(f.a);assert.equal(model(f).phone.tone,'unknown');}});
 test('old dashboard and old channel snapshots expire separately',()=>{const f=fixture();f.a.voiceChannel.observedAt=now-45000;assert.equal(model(f).phone.tone,'unknown');assert.equal(model(f).chat.tone,'available');f.d.generatedAtEpoch=now-45001;assert.equal(model(f).chat.tone,'unknown');});
 test('large future skew is unknown',()=>{const f=fixture();f.d.generatedAtEpoch=now+6000;assert.equal(model(f).phone.tone,'unknown');});
@@ -46,10 +46,13 @@ test('missing and invalid channel data do not assert absent capability',()=>{
 test('positive live chat work keeps icon despite missing session channel',()=>{
  const f=fixture();f.a.chatChannel={source:'agentSession.channelInfo',reason:'channel-not-returned',observedAt:now};
  const m=model(f,live([{agentId:'a',contactId:'c1',status:'Active'}]));
- assert.equal(m.chat.reportedAbsent,false);assert.equal(m.chat.slots,'1 / —');
+ assert.equal(m.chat.reportedAbsent,false);assert.equal(m.chat.slots,'1 / 5');
 });
 test('per-agent limits and refreshed limits are dynamic',()=>{
- const a=fixture(),b=fixture();a.a.chatChannel=channel(2,1);b.a.chatChannel=channel(7,3);
+ const a=fixture(),b=fixture();a.a.chatChannel=channel(5,1);b.a.chatChannel=channel(7,3);a.a.chatCapacity.limit=2;b.a.chatCapacity.limit=7;
  assert.equal(model(a).chat.slots,'1 / 2');assert.equal(model(b).chat.slots,'3 / 7');
- a.a.chatChannel=channel(4,1);assert.equal(model(a).chat.slots,'1 / 4');
+ a.a.chatCapacity.limit=4;assert.equal(model(a).chat.slots,'1 / 4');
 });
+test('profile limit wins over reported slot count and never defaults to five',()=>{const f=fixture();f.a.chatCapacity.limit=1;assert.equal(model(f).chat.slots,'0 / 1');delete f.a.chatCapacity;assert.equal(model(f).chat.slots,'0 / —');});
+test('zero profile capacity hides idle chat, but preserves positive activity',()=>{const f=fixture();f.a.chatCapacity.limit=0;assert.equal(model(f).chat.reportedAbsent,true);f.a.chatChannel=channel(5,1);assert.equal(model(f).chat.reportedAbsent,false);assert.equal(model(f).chat.active,1);});
+test('expired profile capacity is unknown even with fresh reporting slots',()=>{const f=fixture();f.a.chatCapacity.observedAt=now-120001;assert.equal(model(f).chat.slots,'0 / —');});

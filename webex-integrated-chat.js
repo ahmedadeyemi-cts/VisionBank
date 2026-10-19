@@ -150,14 +150,15 @@
       row.rawRouting = sessionFresh ? text(a.chatChannel?.routingState) : '';
       row.overall = sessionFresh && recent(a.agentStatus?.observedAt,45000) ? text(a.agentStatus.state) : '';
       row.overallTone = sessionFresh && ['available','engaged','wrapup','idle','unknown'].includes(a.agentStatus?.tone) ? a.agentStatus.tone : 'unknown';
-      row.slotLimit = sessionFresh && Number.isInteger(a.chatChannel?.reportedSlotCount) ? a.chatChannel.reportedSlotCount : null;
+      row.slotLimit = sessionFresh && a.chatCapacity?.status==='ready' && a.chatCapacity.source==='webex-multimedia-profile' && recent(a.chatCapacity.observedAt,120000) && Number.isSafeInteger(a.chatCapacity.limit) && a.chatCapacity.limit>=0 ? a.chatCapacity.limit : null;
+      row.reportedSlots = sessionFresh && Number.isInteger(a.chatChannel?.reportedSlotCount) ? a.chatChannel.reportedSlotCount : null;
       row.slotActive = sessionFresh && Number.isInteger(a.chatChannel?.activeSlots) ? a.chatChannel.activeSlots : null;
       row.slotWrapup = sessionFresh && Number.isInteger(a.chatChannel?.wrapupSlots) ? a.chatChannel.wrapupSlots : null;
       row.offeredSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.offeredCount) && a.chatChannel.offeredCount>=0 ? a.chatChannel.offeredCount : null;
       row.missedSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.missedCount) && a.chatChannel.missedCount>=0 ? a.chatChannel.missedCount : null;
       row.ronaSession = sessionFresh && Number.isSafeInteger(a.chatChannel?.ronaCount) && a.chatChannel.ronaCount>=0 ? a.chatChannel.ronaCount : null;
       row.slotNewer = sessionFresh && recent(a.chatChannel?.observedAt,45000) && a.chatChannel.observedAt >= (liveReport?.liveObservedAt || 0);
-      row.slotCountsKnown = row.slotNewer && a.chatChannel?.source==='agentSession.channelInfo' && !text(a.chatChannel.reason) && [row.slotActive,row.slotWrapup].every(n=>Number.isSafeInteger(n)&&n>=0) && Number.isSafeInteger(row.slotLimit)&&row.slotLimit>0&&row.slotActive+row.slotWrapup<=row.slotLimit;
+      row.slotCountsKnown = row.slotNewer && a.chatChannel?.source==='agentSession.channelInfo' && !text(a.chatChannel.reason) && [row.slotActive,row.slotWrapup].every(n=>Number.isSafeInteger(n)&&n>=0) && Number.isSafeInteger(row.reportedSlots)&&row.reportedSlots>0&&row.slotActive+row.slotWrapup<=row.reportedSlots;
     }
     if (dailyFresh) for (const r of dailyReport.rows) {
       if (r.handled !== true) continue;
@@ -277,7 +278,7 @@
       ['Agent',r=>r.name||r.agentId],
       ['Agent state',r=>r.overall||'Not reported',null,r=>r.overallTone||'unknown'],
       ['Channel activity',r=>window.VB_CHANNEL_ACTIVITY?.summary(r.channelActivity)||'Phone: Not reported; Chat: Not reported',null,null,'channel'],
-      ['Active chats / slots',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
+      ['Active chats / configured limit',r=>r.slotLimit ? `${r.active??'—'} / ${r.slotLimit}` : r.active??'—'],['Wrap-up',r=>r.wrapup??'—'],
       ['Offered (selected period)',r=>r.performanceOffered??'Not reported',r=>r.performanceOffered??-1,null,'offered'],
       [wxcc?'Missed (selected period)':'Missed / RONA (selected period)',r=>r.performanceMissedDisplay??'Not reported',r=>r.performanceMissed??-1,null,'missed'],
       ['Handled today (last agent)',r=>r.lastHandlerContactsToday??'Not reported'],

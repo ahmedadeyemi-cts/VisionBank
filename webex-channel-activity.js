@@ -58,7 +58,7 @@
     const slots=type==='chat' && data.known && count(data.active)
       ? `${data.active} / ${count(data.limit)&&data.limit>0?data.limit:'—'}` : '';
     const details=data.known?`${data.active} active, ${data.wrapup} in wrap-up, ${data.offered} offered`:'Current channel information is unavailable or stale';
-    const tooltip=`${name}: ${label}. ${details}. `+(slots?`Active chats / reported slots: ${slots}. `:'')+
+    const tooltip=`${name}: ${label}. ${details}. `+(slots?`Active chats / configured limit: ${slots}. `:'')+
       (tone==='idle'?`Agent state: ${state.label || 'Idle'}. `:'')+
       'Activity is separate from the shared agent state. No work does not guarantee routing eligibility.';
     return {type,name,tone,label,slots,active:data.known?data.active:null,wrapup:data.known?data.wrapup:null,
@@ -73,16 +73,20 @@
       const total=live.active+live.wrapup+live.offered;
       chat={...chat,...live,known:true,limit:chat.known&&total<=chat.limit?chat.limit:null,source:'current Chat contacts'};
     }
+    const capacity=agent?.chatCapacity;
+    const configured=valid && capacity?.status==='ready' && capacity.source==='webex-multimedia-profile' &&
+      Number.isFinite(capacity.observedAt) && now-capacity.observedAt>=-5000 && now-capacity.observedAt<120000 && count(capacity.limit);
+    chat={...chat,limit:configured?capacity.limit:null};
     // A fresh session with a usable voice channel may explicitly report no Chat channel.
     // This is session evidence, not an administrative provisioning assertion.
-    const reportedAbsent = valid && voice.known && !chat.known &&
+    const reportedAbsent = (configured && capacity.limit===0 && !(chat.active>0 || chat.wrapup>0 || chat.offered>0)) || valid && voice.known && !chat.known &&
       recent(agent?.chatChannel?.observedAt,now) &&
       agent.chatChannel.source === 'agentSession.channelInfo' &&
       agent.chatChannel.reason === 'channel-not-returned';
     return {phone:channelView('phone',voice,state),chat:{...channelView('chat',chat,state),reportedAbsent}};
   }
   function summary(m) {
-    return m ? `Phone: ${m.phone.label}; Chat: ${m.chat.label}${m.chat.slots?' ('+m.chat.slots+' active / slots)':''}` : 'Phone: Not reported; Chat: Not reported';
+    return m ? `Phone: ${m.phone.label}; Chat: ${m.chat.label}${m.chat.slots?' ('+m.chat.slots+' active / configured limit)':''}` : 'Phone: Not reported; Chat: Not reported';
   }
   const svgPaths={
     phone:'M6.6 2.7 9.2 6.6 7.5 8.3c1.5 3 3.2 4.7 6.2 6.2l1.7-1.7 3.9 2.6c.6.4.8 1 .5 1.7-.8 2-2.1 3-4 2.3C8.2 17 3 11.8.6 4.2c-.6-1.9.4-3.2 2.4-4 .6-.3 1.3-.1 1.7.5Z',
@@ -106,7 +110,7 @@
     if(hideChat)group.setAttribute('aria-label','Phone activity');
     for(const v of hideChat?[data.phone]:[data.phone,data.chat]) {
       const item=doc.createElement('span');item.className='vb-channel';item.dataset.channel=v.type;item.dataset.tone=v.tone;item.title=v.tooltip;
-      item.setAttribute('aria-label',`${v.name}: ${v.label}${v.slots?', '+v.slots+' active chats / slots':''}`);
+      item.setAttribute('aria-label',`${v.name}: ${v.label}${v.slots?', '+v.slots+' active chats / configured limit':''}`);
       const badge=doc.createElement('span');badge.className='vb-channel-icon';badge.append(icon(doc,v.type));
       const copy=doc.createElement('span');copy.className='vb-channel-copy';
       const title=doc.createElement('span');title.className='vb-channel-name';title.textContent=v.name;
@@ -123,7 +127,7 @@
     for(const [tone,label]of [['available','No work reported'],['engaged','In use / offered'],['idle','Agent Idle'],['wrapup','Wrap-up'],['unknown','Not reported']]){
       const item=doc.createElement('span'),swatch=doc.createElement('span');item.className='vb-channel-legend-item';item.dataset.tone=tone;swatch.className='vb-channel-swatch';swatch.setAttribute('aria-hidden','true');item.append(swatch,doc.createTextNode(label));el.append(item);
     }
-    const note=doc.createElement('small');note.textContent='Phone and Chat are independent activity indicators. Chat counts are active / reported slots, not guaranteed free capacity.';el.append(note);anchor.append(el);
+    const note=doc.createElement('small');note.textContent='Phone and Chat are independent activity indicators. Chat counts are active / configured profile limit. A dash means the profile limit is unavailable.';el.append(note);anchor.append(el);
   }
   root.VB_CHANNEL_ACTIVITY={BUILD,model,summary,render,legend};
 })(typeof window!=='undefined'?window:globalThis);

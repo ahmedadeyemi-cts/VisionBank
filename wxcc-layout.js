@@ -1,6 +1,7 @@
 /* Layout-only companion to the shared Webex reporting and controls. */
 (()=>{'use strict';
  const $=id=>document.getElementById(id);
+ if(new URLSearchParams(location.search).get('view')==='agent-desktop')document.body.classList.add('wxcc-desktop-view');
  const queueTable=$('queue-body')?.closest('table');
  if(queueTable){const scroll=document.createElement('div');scroll.className='wxcc-queue-scroll';scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Current queue status; scroll horizontally for more columns');queueTable.before(scroll);scroll.append(queueTable);}
  function arrange(){

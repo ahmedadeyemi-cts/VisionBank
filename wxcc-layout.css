@@ -104,3 +104,9 @@ body.wxcc-layout.dark-mode #agent-performance-panel .vb-ops-paging span{color:#c
 .wxcc-layout .wxcc-comparison .vb-channel-icon svg{width:18px;height:18px}
 body.wxcc-layout.dark-mode #vbChatAgents table.wxcc-comparison,
 body.wxcc-layout.dark-mode .wxcc-comparison .vb-channel-slots{color:#f0f7f3}
+
+/* Embedded Agent Desktop overview: the same live queues and agent reporting. */
+body.wxcc-desktop-view .wxcc-pinned-header,body.wxcc-desktop-view .footer{display:none!important}
+body.wxcc-desktop-view main > :not(#queue-panel):not(#agent-performance-panel){display:none!important}
+body.wxcc-desktop-view main{margin:0!important;padding:12px!important;max-width:none!important}
+body.wxcc-desktop-view{--wxcc-anchor-offset:12px}

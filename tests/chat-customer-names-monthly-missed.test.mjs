@@ -67,7 +67,7 @@ test('production Worker release manifest preserves runtime shape and keeps analy
 test('asset versions force browsers to load the customer-name, Chat metrics and month release',()=>{
   const html=read('webex.html');
   assert.match(html,/webex-integrated-chat\.css\?v=20261013-chatmetrics1/);
-  assert.match(html,/webex-integrated-chat\.js\?v=20261015-compact1/);
+  assert.match(html,/webex-integrated-chat\.js\?v=20261019-capacity1/);
   assert.match(html,/webex-enterprise-analytics\.css\?v=20261013-enterprise4/);
   assert.match(html,/webex-enterprise-analytics\.js\?v=20261013-enterprise4/);
 });

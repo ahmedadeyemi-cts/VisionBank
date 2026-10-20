@@ -3,6 +3,7 @@
  */
 (() => {
   'use strict';
+  const embedded=window.VBFramePolicy?.isAllowedEmbed()===true;
   const BUILD='2026.09.24-chat-integrated-2';
   const ownScript=document.currentScript;
   const origin=ownScript?.dataset.chatApi||'https://visionbank-security.ahmedadeyemi.workers.dev';
@@ -33,7 +34,7 @@
     return Number.isFinite(at)?Math.max(1000,at-Date.now()):5000;
   };
   async function requestCustomerNames() {
-    if(!approved()||document.hidden||namesInFlight||Date.now()<nextNameAttempt)return;
+    if(embedded||!approved()||document.hidden||namesInFlight||Date.now()<nextNameAttempt)return;
     const now=Date.now(),records=[...(daily?.rows||[]),...(daily?.completedRows||[]),...(live?.liveRows||[])];
     const ids=[...new Set(records.map(r=>r.contactId).filter(id=>typeof id==='string'&&/^[a-f0-9-]{36}$/i.test(id)))].filter(id=>{
       const entry=customerNames.get(id);
@@ -322,6 +323,7 @@
     window.VB_CHANNEL_ACTIVITY?.legend(agent);
     const options=$('agent-performance-options');
     for(const node of agent.querySelectorAll('.vb-chat-session-note,.vb-channel-legend'))options?.append(node);
+    if(!embedded){
     const stats=appendPanel('vbChatStats','Chat Statistics',globalPanel,true);
     if(stats)stats.insertAdjacentHTML('beforeend',`<p class="vb-ops-meta" id="chat-freshness" role="status"></p><div class="vb-ops-cards" id="chat-cards"></div><p class="vb-ops-meta" id="chat-mean-note"></p>`);
     const fields=[['Customer Name',nameFor],['Contact ID',r=>r.contactId],['Queue',r=>r.queue||'Unavailable'],['Agent (reported)',r=>r.agent||'Unavailable'],
@@ -337,6 +339,7 @@
       ['Queue',r=>r.queue||'Unavailable'],['Agent',r=>r.agent||'Unavailable'],['Reported outcome',r=>r.status||'Not reported'],
       ['Reported retries',r=>r.reportedRetryCount??'Unavailable'],['Source interaction link',()=> 'Not available in history response']
     ]);
+    }
     render();tick();setInterval(tick,1000);
   }
   function renderQueues() {
@@ -389,6 +392,7 @@
     fill('chat-agents', window.VB_AGENT_PERFORMANCE?.filterRows(presentation.rows,base)||presentation.rows, approved() && (presentation.liveFresh || presentation.dailyFresh || presentation.sessionFresh || window.VB_AGENT_PERFORMANCE?.ready()),
       `${window.VB_AGENT_PERFORMANCE?.filterMessage(base)||''} Reported sessions: ${presentation.sessionFresh?time(base.generatedAtEpoch):'Not reported / stale'} · Chat workload: ${liveOK?time(live.liveObservedAt):'Not reported / stale'}. “Not reported” is missing data, not an unavailable agent. History-only rows show past work, not current sign-in. ${$('agent-performance-view')?.value==='separate'?'Calls and chats appear in separate tables.':'Calls and chats share one agent row.'} A free chat slot does not guarantee that Webex will route a chat to the agent.`);
     renderAgentActivity(presentation);
+    if(embedded){renderQueues();window.VB_AGENT_INDICATORS?.decorate(presentation,approved()?base:null,approved()?live:null);return;}
     const filter=tables.get('chat-handled')?.filter||'all';let handled=[],handledOK=false,note='';
     if(filter==='active'){handled=(live?.liveRows?.filter(r=>r.status==='Active')||[]).map(r=>({...r,connectedAt:daily?.rows?.find(d=>d.contactId===r.contactId)?.connectedAt??null}));handledOK=liveOK;note=`Currently connected contacts from the 30-day snapshot · ${time(live?.liveObservedAt)}`;}
     else if(filter==='completed'){handled=daily?.completedRows?.filter(r=>r.handled===true)||[];handledOK=completedOK;note=`Handled contacts ending today, including starts in prior 30 days · ${time(daily?.completedObservedAt)}`;}

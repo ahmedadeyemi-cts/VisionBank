@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  // The embedded overview has no customer chat, call-history or analytics panels.
+  if (window.VBFramePolicy?.isAllowedEmbed()) return;
 
   const CHAT_ROOT_ID = "divicw";
   const CHAT_SCRIPT_ID = "visionbank-webex-connect-livechat";

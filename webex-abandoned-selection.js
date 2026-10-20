@@ -198,6 +198,7 @@ function observeAccess() {
   accessObserver.observe(document.body, {attributes: true, attributeFilter: ['class']});
 }
 function init() {
+  if(window.VBFramePolicy?.isAllowedEmbed())return;
   if (!id('ScheduleSelected')) return;
   window.VB_ABANDONED_SELECTION = Object.freeze({render, invalidate});
   workspace=createCallbackWorkspace({api,accessReady,openPlan:async planId=>{const data=await api('plans?id='+planId);if(data.plan.status!=='draft')throw new Error('Only a saved draft plan can be edited.');await openPlan(false,data.plan);},onRecord:r=>{ledger.set(r.contactId,r);applyLedger();}});

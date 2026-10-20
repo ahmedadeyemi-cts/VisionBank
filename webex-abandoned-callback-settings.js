@@ -109,6 +109,7 @@ async function testToken(){const token=byId('TokenValue').value;if(!token){text(
 function revoke(){clearTokenReveal();state=null;dirty=false;pending=null;byId('Fields').disabled=true;
   byId('LastChange').replaceChildren();byId('HistoryRows').replaceChildren();text('Processing','');text('LoadStatus','Dashboard access is not approved.');}
 function init(){
+  if(window.VBFramePolicy?.isAllowedEmbed())return;
   const button=byId('SettingsToggle'),panel=byId('SettingsPanel');if(!button||!panel)return;
   const close=()=>{clearTokenReveal();panel.hidden=true;button.setAttribute('aria-expanded','false');clearInterval(timer);timer=null;button.focus();};
   button.addEventListener('click',()=>{

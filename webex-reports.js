@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  // The embedded overview has no customer chat, call-history or analytics panels.
+  if (window.VBFramePolicy?.isAllowedEmbed()) return;
 
   const REPORTS_API_BASE = "https://visionbank-security.ahmedadeyemi.workers.dev";
   const REPORTS_ENDPOINT = `${REPORTS_API_BASE}/api/webex/daily-reports`;

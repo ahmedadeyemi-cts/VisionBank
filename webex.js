@@ -39,6 +39,15 @@ let webexDashboardCache = null;
 let webexDashboardCacheAt = 0;
 let webexDashboardPromise = null;
 const WEBEX_CACHE_MS = 3000;
+const WEBEX_EMBEDDED = window.VBFramePolicy?.isAllowedEmbed()===true;
+const WEBEX_EMBED_CACHE_KEY = "vb-embedded-dashboard-v1";
+function restoreEmbeddedSnapshot(){
+  if(!WEBEX_EMBEDDED||window.VB_SECURITY?.allowed!==true)return;
+  try{const data=JSON.parse(sessionStorage.getItem(WEBEX_EMBED_CACHE_KEY)||"null");const age=Date.now()-data?.generatedAtEpoch;
+    if(data?.success===true&&age>=0&&age<30000&&Array.isArray(data.agents)&&Array.isArray(data.queues)&&data.statistics){webexDashboardCache=data;webexDashboardCacheAt=Date.now();showWebexReportingStatus("Reporting snapshot: "+(data.generatedAtCentral||"recent response")+". Refreshes automatically.");}
+    else sessionStorage.removeItem(WEBEX_EMBED_CACHE_KEY);
+  }catch{}
+}
 
 const WEBEX_FETCH_TIMEOUT_MS = 45000;
 const WEBEX_TRANSIENT_RETRY_MS = 750;
@@ -133,13 +142,19 @@ async function fetchWebexDashboard(force = false) {
         const data = await fetchWebexDashboardOnce();
         webexDashboardCache = data;
         webexDashboardCacheAt = Date.now();
+        if(WEBEX_EMBEDDED&&window.VB_SECURITY?.allowed===true)try{sessionStorage.setItem(WEBEX_EMBED_CACHE_KEY,JSON.stringify(data));}catch{}
         showWebexReportingStatus(`Reporting snapshot: ${data.generatedAtCentral || 'time unavailable'}. Refreshes automatically.`);
         return data;
       } catch (err) {
         lastError = err;
+        if([401,403].includes(err?.httpStatus)){webexDashboardCache=null;try{sessionStorage.removeItem(WEBEX_EMBED_CACHE_KEY);}catch{}}
         showWebexReportingStatus(webexDashboardCache
           ? `Reporting refresh delayed. Showing the last response from ${webexDashboardCache.generatedAtCentral || 'time unavailable'}, not a new live snapshot. Retrying automatically.`
           : `Reporting unavailable (${window.VB_REPORT_HEALTH?.failure||'retry window'}). Retrying automatically; no zero totals have been substituted.`);
+        if(WEBEX_EMBEDDED&&err?.httpStatus===503&&attempt===0&&!document.hidden){
+          const delay=Math.max(1000,err.retryAfterMs||5000);
+          if(delay<=15000){showWebexReportingStatus('Reporting service is refreshing. Retrying automatically…');await new Promise(resolve=>setTimeout(resolve,delay+Math.floor(Math.random()*500)));if(window.VB_SECURITY?.allowed===true&&!document.hidden)continue;}
+        }
         if (!isTransientWebexFetchError(err) || err?.httpStatus || attempt === 1 || document.hidden) {
           throw err;
         }
@@ -643,8 +658,7 @@ async function saveDashboardSettings() {
     lastDashboardSettingsUpdatedAt = data.settings?.updatedAt || null;
     if (status) status.textContent = "Saved. Dashboards and agent desktops will pick up the organization default shortly. Existing agent overrides remain in effect.";
 
-    invalidateWebexDashboardCache();
-    await refreshAll();
+    await refreshAll(true);
   } catch (err) {
     console.error("Dashboard settings save error:", err);
     if (status) status.textContent = `Save failed: ${err.message}`;
@@ -1508,11 +1522,12 @@ async function loadAgentStatus() {
 // ===============================
 let webexRefreshPromise = null;
 
-async function refreshAll() {
+async function refreshAll(force = false) {
+  if(WEBEX_EMBEDDED&&document.hidden)return;
   if (webexRefreshPromise) return webexRefreshPromise;
 
   webexRefreshPromise = (async () => {
-    invalidateWebexDashboardCache();
+    if(force)invalidateWebexDashboardCache();
     await Promise.all([
       loadQueueStatus(),
       loadAgentStatus(),
@@ -1537,8 +1552,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDarkMode();
   initAlertSettingsUI();
   initDashboardSettingsUI();
-  loadMotd();                 // loads + renders
-  setInterval(loadMotd, 60000);
+  if(!WEBEX_EMBEDDED){loadMotd();setInterval(loadMotd,60000);}
+  restoreEmbeddedSnapshot();
 
 // ===============================
 // Agent Start Date Toggle

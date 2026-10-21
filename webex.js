@@ -246,118 +246,98 @@ function formatReportingStart() {
 // ===============================
 // MOTD (Message of the Day)
 // ===============================
+let motdWritePending = false;
+let motdRevision = 0;
+const MOTD_DRAFT_KEY = 'vb_motd_draft_v1';
+
+function motdFeedback(message, signIn = false) {
+  const status = document.getElementById('motdStatus');
+  if (status) { status.textContent = message; status.hidden = false; }
+  const link = document.getElementById('motdSignIn');
+  if (link) link.hidden = !signIn;
+}
+function motdBusy(busy) {
+  motdWritePending = busy;
+  for (const id of ['motdSaveButton', 'motdClearButton']) {
+    const button = document.getElementById(id);
+    if (button) button.disabled = busy;
+  }
+}
+function motdFailure(status, code) {
+  if (status === 401 || code === 'session-required') {
+    motdFeedback('Sign in to the portal with an admin or analyst account to change this message. Your draft has been kept.', true);
+  } else if (code === 'role-denied') {
+    motdFeedback('Your account cannot change this message. An admin or analyst account is required. Your draft has been kept.');
+  } else if (status === 403) {
+    motdFeedback('Access was denied. Check the permitted network, business hours and account access. Your draft has been kept.');
+  } else {
+    motdFeedback('The server did not confirm this change' + (status ? ' (HTTP ' + status + ')' : '') + '. Your draft has been kept. Check the current message before retrying.');
+  }
+}
 async function loadMotd() {
+  if (motdWritePending) return;
+  const revision = motdRevision;
+  try {
+    const res = await fetch(MOTD_API, {method:'GET', mode:'cors', credentials:'omit'});
+    if (!res.ok) return;
+    const data = await res.json();
+    if (motdWritePending || revision !== motdRevision) return;
+    motdState = data.message && Number.isFinite(Number(data.expiresAt))
+      ? {message:String(data.message), expiresAt:Number(data.expiresAt)}
+      : {message:'', expiresAt:null};
+    renderMotd();
+  } catch { /* Retain the last confirmed message during a transient read failure. */ }
+}
+async function writeMotd(payload, clearing = false) {
+  if (motdWritePending) return false;
+  if (!window.VBPortalSession?.get()) { motdFailure(401, 'session-required'); return false; }
+  motdRevision++;
+  motdBusy(true);
+  motdFeedback(clearing ? 'Clearing message…' : 'Saving message…');
   try {
     const res = await fetch(MOTD_API, {
-      method: "GET",
-      mode: "cors",
-      credentials: "omit"
+      method:'POST', mode:'cors',
+      headers:window.VBPortalSession.authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify(payload), signal:AbortSignal.timeout(15000)
     });
-
-    if (!res.ok) return;
-
-    const data = await res.json();
-    if (!data.message || !data.expiresAt) {
-      motdState = { message: "", expiresAt: null };
-      renderMotd();
-      return;
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || (clearing ? data.cleared !== true : data.success !== true)) {
+      motdFailure(res.status, data.error); return false;
     }
-
-    motdState = {
-      message: data.message,
-      expiresAt: Number(data.expiresAt)
-    };
-
+    motdState = clearing ? {message:'', expiresAt:null} : payload;
     renderMotd();
-  } catch (e) {
-    console.warn("MOTD fetch failed:", e);
-  }
+    motdFeedback(clearing ? 'Message cleared.' : 'Message saved.');
+    try { sessionStorage.removeItem(MOTD_DRAFT_KEY); } catch {}
+    return true;
+  } catch { motdFailure(0, 'network'); return false; }
+  finally { motdBusy(false); }
 }
 async function saveMotd(message, durationMinutes) {
-  const expiresAt = Date.now() + durationMinutes * 60 * 1000;
-
-  try {
-    const res = await fetch(MOTD_API, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ message, expiresAt })
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error("MOTD not persisted");
-    }
-
-    // ✅ Only render after confirmed KV write
-    motdState = { message, expiresAt };
-    renderMotd();
-
-  } catch (err) {
-    console.error("MOTD save failed:", err);
-    alert("Failed to save Message of the Day. It was NOT persisted.");
+  const minutes = Number(durationMinutes);
+  if (!String(message).trim() || !Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
+    motdFeedback('Enter a message and a duration between 1 and 1440 minutes.'); return false;
   }
+  return writeMotd({message:String(message).trim(), expiresAt:Date.now() + minutes * 60000});
 }
-
-async function clearMotd() {
-  try {
-    await fetch(MOTD_API, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({})
-    });
-  } catch (e) {
-    console.warn("MOTD clear failed:", e);
-  }
-
-  motdState = { message: "", expiresAt: null };
-  renderMotd();
-}
+async function clearMotd() { return writeMotd({}, true); }
 
 function renderMotd() {
-  const banner = document.getElementById("motdBanner");
+  const banner = document.getElementById('motdBanner');
   if (!banner) return;
-
-  // Clear any existing countdown timer
-  if (motdInterval) {
-    clearInterval(motdInterval);
-    motdInterval = null;
-  }
-
-  if (!motdState.message || !motdState.expiresAt) {
-    banner.classList.add("hidden");
-    banner.textContent = "";
-    return;
-  }
-
+  if (motdInterval) { clearInterval(motdInterval); motdInterval = null; }
   const update = () => {
-    const remaining = motdState.expiresAt - Date.now();
-
-    if (remaining <= 0) {
-      clearMotd();
-      return;
+    const remaining = Number(motdState.expiresAt) - Date.now();
+    if (!motdState.message || !Number.isFinite(remaining) || remaining <= 0) {
+      // Expiry is display-only. Viewing a dashboard must never issue a write.
+      banner.classList.add('hidden'); banner.textContent = '';
+      if (motdInterval) clearInterval(motdInterval);
+      motdInterval = null; return false;
     }
-
-    banner.textContent =
-      `${motdState.message} (expires in ${formatCountdown(remaining)})`;
-
-    banner.classList.remove("hidden");
+    banner.textContent = motdState.message + ' (expires in ' + formatCountdown(remaining) + ')';
+    banner.classList.remove('hidden'); return true;
   };
-
-  // Run immediately
-  update();
-
-  // Update countdown every second
-  motdInterval = setInterval(update, 1000);
+  if (update()) motdInterval = setInterval(update, 1000);
 }
 
 function formatTime(sec) {
@@ -1138,20 +1118,37 @@ if (clearHistoryBtn) {
 if (motdSaveBtn && motdTextEl && motdDurationEl) {
   motdSaveBtn.addEventListener("click", () => {
     const msg = motdTextEl.value.trim();
-    const mins = Number(motdDurationEl.value) || 60;
+    const mins = Number(motdDurationEl.value);
 
     if (!msg) return;
 
-    saveMotd(msg, Math.max(1, mins));
+    saveMotd(msg, mins);
   });
 }
 
 if (motdClearBtn) {
-  motdClearBtn.addEventListener("click", () => {
-    clearMotd();
-    if (motdTextEl) motdTextEl.value = "";
+  motdClearBtn.addEventListener("click", async () => {
+    if (await clearMotd()) { if (motdTextEl) motdTextEl.value = ""; }
   });
 }
+  const motdSignIn = document.getElementById('motdSignIn');
+  if (motdSignIn) motdSignIn.addEventListener('click', () => {
+    try {
+      sessionStorage.setItem(MOTD_DRAFT_KEY, JSON.stringify({message:motdTextEl?.value || '', minutes:motdDurationEl?.value || '60', path:location.pathname, savedAt:Date.now()}));
+      sessionStorage.setItem('vb_return_to', location.pathname + location.search + location.hash);
+    } catch {}
+  });
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(MOTD_DRAFT_KEY) || 'null');
+    if (draft && draft.path === location.pathname && Date.now() - draft.savedAt < 3600000) {
+      if (motdTextEl) motdTextEl.value = draft.message;
+      if (motdDurationEl) motdDurationEl.value = draft.minutes;
+      motdFeedback('Your message draft has been restored. Select Save Message when ready.');
+      const panel = document.getElementById('alertSettingsPanel');
+      if (panel) panel.classList.remove('hidden');
+    }
+    sessionStorage.removeItem(MOTD_DRAFT_KEY);
+  } catch {}
   // Toggle panels
   if (settingsToggle && settingsPanel) {
     settingsToggle.onclick = (e) => {

@@ -53,5 +53,5 @@ test('public Agent Desktop policy response does not expose private dashboard or 
 test('dashboard asset version is bumped for the shared policy controls',()=>{
   const html=read('webex.html');
   assert.match(html,/webex\.css\?v=20261013-loginfilter1/);
-  assert.match(html,/webex\.js\?v=20261013-loginfilter1/);
+  assert.match(html,/webex\.js\?v=20261021-refresh1/);
 });

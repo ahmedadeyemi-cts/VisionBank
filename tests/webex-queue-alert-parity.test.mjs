@@ -25,8 +25,8 @@ test('Webex waiting badges use the same 0 green, 1 yellow, 2+ red visual contrac
 
 test('Webex queue alert renderer is cache-busted for the parity fix',()=>{
   const html=read('webex.html');
-  assert.match(html,/webex-integrated-chat\.js\?v=20261021-refresh1/);
+  assert.match(html,/webex-integrated-chat\.js\?v=20261021-resume1/);
   assert.match(html,/portal-enterprise\.css\?v=20261006-shell6/);
 });
 
-test('embedded queue renderer loads the embedded performance release',()=>{assert.match(read('wxcc.html'),/webex-integrated-chat\.js\?v=20261021-refresh1/);});
+test('embedded queue renderer loads the embedded performance release',()=>{assert.match(read('wxcc.html'),/webex-integrated-chat\.js\?v=20261021-resume1/);});

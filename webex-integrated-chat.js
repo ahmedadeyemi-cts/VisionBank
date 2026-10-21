@@ -422,7 +422,7 @@
       if(view==='live'){if(!Array.isArray(x.liveRows)||!x.queueSnapshot){clear=true;throw new Error('invalid-live');}live=x;}
       else{if(!Array.isArray(x.rows)||!Array.isArray(x.completedRows)||!x.summary){clear=true;throw new Error('invalid-daily');}daily=x;}
       chatRefreshFailures[view]=0;chatRefreshErrors[view]=false;
-      nextChatAttempt[view]=Date.now()+(view==='live'?15000:60000);
+      nextChatAttempt[view]=Date.now()+(view==='live'?5000:60000);
     }catch{
       if(clear){if(view==='live')live=null;else daily=null;}
       // Last valid snapshots may remain only within the existing freshness limits.

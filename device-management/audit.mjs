@@ -166,6 +166,9 @@ export async function listIssueRecords(env,{cursor=''}={}){
         webexStatus:clean(m.webexStatus,80),phonismStatus:clean(m.phonismStatus,80),
         extension:clean(c.requestedExtension||c.afterLine2?.extension||c.temporaryLine2?.extension,32),
         stage:clean(c.stage||legacy?.[1]||'',100),errorCode:/^[a-z0-9-]+$/i.test(code)?code:'',
+        lineNumber:Number.isSafeInteger(c.lineNumber)?c.lineNumber:null,
+        lastRetryAt:clean(c.lastRetryAt||'',40),nextRetryAt:clean(c.nextRetryAt||'',40),
+        upstreamStatus:Number.isInteger(c.upstreamStatus)?c.upstreamStatus:null,providerFailure:clean(c.providerFailure||'',80),
         reason,detailAvailable:Boolean(record),severity:m.result==='rolled-back'?'warning':'error'};
     }));rows.push(...batch);
   }

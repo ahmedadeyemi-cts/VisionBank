@@ -28,7 +28,9 @@ export async function putLease(env,lease){
   const expires=Date.parse(lease.expiresAt||'');
   if(!permanent&&!Number.isFinite(expires))throw new DeviceManagementError('invalid-lease-expiry');
   const ttl=Math.max(3600,Math.ceil((expires-Date.now())/1000)+24*60*60);
-  await env.LOGS.put(PREFIX+lease.leaseId,JSON.stringify(lease),{...(permanent?{}:{expirationTtl:ttl}),metadata:{
+  // Unfinished jobs must survive provider outages and missed maintenance runs.
+  const unfinished=['active','pending-verification','restore-sync-pending','restore-reboot-pending','external-change-sync-pending','external-change-reboot-pending'].includes(lease.status||'active');
+  await env.LOGS.put(PREFIX+lease.leaseId,JSON.stringify(lease),{...(permanent||unfinished?{}:{expirationTtl:ttl}),metadata:{
     leaseId:lease.leaseId,status:lease.status||'active',deviceId:clean(lease.device?.id),mac:clean(lease.device?.mac,32),
     locationId:clean(lease.location?.id),locationName:clean(lease.location?.name),expiresAt:lease.expiresAt,
     operatorName:clean(lease.operator?.name,100),operatorEmail:clean(lease.operator?.email,254)

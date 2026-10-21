@@ -769,7 +769,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/xml'){
       const items=[];
       for(const item of phoneLeases){
-        items.push({prompt:'Line '+(item.lineNumber||2)+': '+phoneMemberLabel(item.temporaryLine2),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
+        items.push({prompt:(item.status==='active'&&!item.manualEndRequestedAt?'Line ':'Removing extension from Line ')+(item.lineNumber||2)+': '+phoneMemberLabel(item.temporaryLine2),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
         items.push({prompt:item.permanent?'Permanent - no expiration':('Auto-remove: '+new Date(item.expiresAt).toLocaleString('en-US',{timeZone:'America/Chicago'})+' Central'),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
         items.push({prompt:phoneLeaseStatus(item),uri:phoneRouteUrl(request,'status',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
         if(item.status==='active')items.push({prompt:(item.permanent?'Remove':'Sign Out')+' Line '+(item.lineNumber||2),uri:phoneRouteUrl(request,'signout',{lease:item.leaseId},accessToken,fleetKey,normalizedFleetMac)});
@@ -782,7 +782,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
     if(part==='phone/status'){
       await loadLine2();
       const items=[
-        {prompt:(lease?.temporaryLine2||line2Row)?'Current Line '+(lease?.lineNumber||2)+': '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
+        {prompt:(lease?.temporaryLine2||line2Row)?(lease&&(lease.status!=='active'||lease.manualEndRequestedAt)?'Removing extension from Line ':'Current Line ')+(lease?.lineNumber||2)+': '+phoneMemberLabel(lease?.temporaryLine2||line2Row):'Current Line 2: None',uri:home}
       ];
       if(lease){
         const verification=await verifyLease({env,webexFetch,orgId:org,leaseId:lease.leaseId,phonismReader}).catch(()=>null);

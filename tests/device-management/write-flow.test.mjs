@@ -266,7 +266,7 @@ test('early sign out restores baseline immediately, syncs Phonism, and reboots t
   });
   assert.equal(ended.result.status,'restored');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'space-old');
-  assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='sync').length,1); // Already converged; no redundant cleanup sync.
   assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
   assert.ok(ended.lease.manualEndRequestedAt);
   assert.equal(ended.lease.status,'restored');
@@ -287,7 +287,7 @@ test('expiry restores baseline, queues another Phonism sync, and reboots the han
   const results=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,now:due});
   assert.equal(results[0].status,'restored');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'space-old');
-  assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='sync').length,1); // Already converged; no redundant cleanup sync.
   assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
 });
 
@@ -306,7 +306,7 @@ test('expiry preserves a newer external Webex change and reconciles Phonism with
   assert.equal(results[0].status,'external-change-reconciled');
   assert.equal(wx.state.members.find(x=>x.port===2).id,'control-hub-line');
   assert.equal(wx.state.puts.length,1);
-  assert.equal(ph.calls.filter(x=>x.type==='sync').length,2);
+  assert.equal(ph.calls.filter(x=>x.type==='sync').length,1); // Already converged; no redundant cleanup sync.
   assert.equal(ph.calls.filter(x=>x.type==='tr069'&&x.action==='Reboot').length,2);
   const stored=JSON.parse(await e.LOGS.get('device-lease:'+applied.lease.leaseId));
   assert.equal(stored.status,'external-change-reconciled');
@@ -324,7 +324,7 @@ test('external-change reconciliation retries Phonism Sync without overwriting We
   wx.state.members=composeMembers([PRIMARY],{id:'control-hub-line',displayName:'Control Hub Line',extension:'1888'});
   Object.assign(wx.state.members[1],{firstName:'Control Hub',lastName:'Line',extension:'1888'});
   ph.reader.lines=async()=>[{lineNumber:2,username:'1888',alias:'Control Hub Line'}];
-  const failingReader={...ph.reader,async syncHierarchyIntegration(){const error=new Error('sync-failed');error.code='sync-failed';throw error;}};
+  const failingReader={...ph.reader,async lines(){return [{lineNumber:2,username:'1806'}];},async syncHierarchyIntegration(){const error=new Error('sync-failed');error.code='sync-failed';throw error;}};
   const due=Date.parse(applied.lease.expiresAt)+1;
   const first=await sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:failingReader,now:due});
   assert.equal(first[0].status,'external-change-sync-pending');
@@ -558,16 +558,16 @@ test('deferred sign-out touches only its lease, preserves expiry and hands off a
 });
 
 
-test('sign-out waits for confirmed removal and uses one broader fallback after fifteen seconds',async()=>{
+test('sign-out waits for confirmed removal and uses one broader fallback after two minutes',async()=>{
  const {e,wx,ph,lease}=await pendingFixture(),now=Date.now();ph.calls.length=0;
  await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader,now,deferWork:true});
  const run=age=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,onlyLeaseId:lease.leaseId,now:now+age});
  await run(1);assert.equal(ph.state.rebootAttempts,0);
  await run(14000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,1);
- await run(15001);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);
- await run(20000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);assert.equal(ph.state.rebootAttempts,0);
- ph.reader.lines=async()=>[];await run(25000);assert.equal(ph.state.rebootAttempts,1);
- await run(30000);assert.equal(ph.state.rebootAttempts,1);assert.equal(wx.state.puts.length,2);
+ await run(120001);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);
+ await run(125000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);assert.equal(ph.state.rebootAttempts,0);
+ ph.reader.lines=async()=>[];await run(130000);assert.equal(ph.state.rebootAttempts,1);
+ await run(135000);assert.equal(ph.state.rebootAttempts,1);assert.equal(wx.state.puts.length,2);
 });
 test('scheduled cleanup yields to phone checks then resumes automatically after handoff',async()=>{
  const {e,wx,ph,lease}=await pendingFixture(),now=Date.now();

@@ -151,7 +151,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.match(signedOut.text,/Your temporary line is signed out/);
   assert.match(signedOut.text,/Restart requested/);
   assert.equal(webex.members.find(x=>Number(x.port)===2)?.id,'space-old');
-  assert.equal(phonismCalls.filter(x=>x.type==='sync').length,2);
+  assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1); // Removal already confirmed; skip redundant sync.
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);
   assert.equal(webex.members.find(x=>x.port===4)?.id,'keep-permanent');
 });

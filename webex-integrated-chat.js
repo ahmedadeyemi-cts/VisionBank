@@ -17,6 +17,31 @@
   const value=m=>m?.status==='ready'&&Number.isFinite(m.value)?m.value:'Unavailable';
   const fresh=(stamp,age)=>Number.isFinite(stamp)&&Date.now()-stamp>=-5000&&Date.now()-stamp<age;
   let live=null,daily=null,base=null,started=false,lastLiveAttempt=0,lastDailyAttempt=0,inLive=null,inDaily=null;
+  // Preserve the displayed snapshot during a bounded foreground refresh, never as live data.
+  let resumeUntil=0,hadVisibleSnapshot=false;
+  function holdResumeSnapshot() {
+    if(!approved())return false;
+    if(document.hidden)return true;
+    const hold=hadVisibleSnapshot&&Date.now()<resumeUntil&&base?.success===true&&
+      fresh(base.generatedAtEpoch,300000)&&!fresh(base.generatedAtEpoch,45000);
+    for(const id of ['queue-body','chat-agents-body'])$(id)?.setAttribute('aria-busy',String(hold));
+    if(hold){
+      const message=`Updating reports — showing the previous snapshot from ${time(base.generatedAtEpoch)}. These values are not live.`;
+      if(typeof showWebexReportingStatus==='function')showWebexReportingStatus(message);
+      if($('vb-queue-note'))$('vb-queue-note').textContent=message;
+      if($('chat-agents-meta'))$('chat-agents-meta').textContent=message;
+      if($('chat-agents-export'))$('chat-agents-export').disabled=true;
+      $('queue-panel')?.classList.remove('queue-alert-active');
+      for(const row of $('queue-body')?.querySelectorAll('.queue-hot,.queue-critical')||[])row.classList.remove('queue-hot','queue-critical');
+    }
+    return hold;
+  }
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){resumeUntil=0;return;}
+    resumeUntil=Date.now()+30000;
+    // Do not reset server backoff windows; tick starts every eligible request immediately.
+    tick();
+  },true);
   const tables=new Map();
   const customerNames=new Map();let namesInFlight=null,nextNameAttempt=0,namesController=null;
   const nameFor=r=>{
@@ -343,6 +368,7 @@
     render();tick();setInterval(tick,1000);
   }
   function renderQueues() {
+    if(holdResumeSnapshot())return;
     const body=$('queue-body');if(!body||!Array.isArray(base?.queues))return;
     const table=body.closest('table');if(!table)return;
     const current=approved()&&fresh(base.generatedAtEpoch,45000);
@@ -364,7 +390,8 @@
     $('queue-panel')?.classList.toggle('queue-alert-active',current&&base.queues.some(q=>q.operationsRevision===3&&q.countStatus==='ready'&&q.waiting>0));
   }
   function render() {
-    if(!started)return;
+    if(!started||holdResumeSnapshot())return;
+    if(approved()&&fresh(base?.generatedAtEpoch,45000))hadVisibleSnapshot=true;
     window.VB_VOICE_STATS?.render(approved()?base?.statistics?.voicePerformance:null,approved()?base:null);
     const liveOK=approved()&&live?.liveStatus==='ready'&&fresh(live.liveObservedAt,45000);
     const dailyOK=approved()&&daily?.dailyStatus==='ready'&&fresh(daily.dailyObservedAt,150000);
@@ -441,7 +468,7 @@
   }
   if(typeof fetchWebexDashboard==='function') {
     const retained=fetchWebexDashboard;
-    fetchWebexDashboard=async function(...args){const data=await retained(...args);if(approved()){base=data;if(started)render();}return data;};
+    fetchWebexDashboard=async function(...args){try{const data=await retained(...args);if(approved()){base=data;if(started)render();}return data;}catch(error){if([401,403].includes(error?.httpStatus)){base=null;resumeUntil=0;hadVisibleSnapshot=false;render();}throw error;}};
   }
   if(typeof loadQueueStatus==='function') {
     const retained=loadQueueStatus;
@@ -449,7 +476,7 @@
   }
   if(typeof loadAgentStatus==='function') {
     const retained=loadAgentStatus;
-    loadAgentStatus=async function(...args){const result=await retained(...args);if(started){const p=buildChatAgentPresentation(base,live,daily);enrichAgentPresentation(p);renderAgentActivity(p);window.VB_AGENT_INDICATORS?.decorate(p,approved()?base:null,approved()?live:null);}return result;};
+    loadAgentStatus=async function(...args){const result=await retained(...args);if(started&&!holdResumeSnapshot()){const p=buildChatAgentPresentation(base,live,daily);enrichAgentPresentation(p);renderAgentActivity(p);window.VB_AGENT_INDICATORS?.decorate(p,approved()?base:null,approved()?live:null);}return result;};
   }
   window.addEventListener('vb-performance-change',render);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootstrap,{once:true});else bootstrap();

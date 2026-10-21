@@ -67,6 +67,7 @@ function reportingRetryMs(value) {
   const at=Date.parse(value||'');return Number.isFinite(at)?Math.max(1000,at-Date.now()):0;
 }
 let webexRetryNotBefore=0;
+let webexRefreshFailures=0;
 
 function isTransientWebexFetchError(err) {
   return err?.name === "AbortError" ||
@@ -140,6 +141,7 @@ async function fetchWebexDashboard(force = false) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const data = await fetchWebexDashboardOnce();
+        webexRefreshFailures=0;webexRetryNotBefore=0;
         webexDashboardCache = data;
         webexDashboardCacheAt = Date.now();
         if(WEBEX_EMBEDDED&&window.VB_SECURITY?.allowed===true)try{sessionStorage.setItem(WEBEX_EMBED_CACHE_KEY,JSON.stringify(data));}catch{}
@@ -156,6 +158,8 @@ async function fetchWebexDashboard(force = false) {
           if(delay<=15000){showWebexReportingStatus('Reporting service is refreshing. Retrying automatically…');await new Promise(resolve=>setTimeout(resolve,delay+Math.floor(Math.random()*500)));if(window.VB_SECURITY?.allowed===true&&!document.hidden)continue;}
         }
         if (!isTransientWebexFetchError(err) || err?.httpStatus || attempt === 1 || document.hidden) {
+          webexRefreshFailures++;
+          webexRetryNotBefore=Math.max(webexRetryNotBefore,Date.now()+Math.min(60000,5000*2**Math.min(4,webexRefreshFailures-1)));
           throw err;
         }
         await new Promise(resolve => setTimeout(resolve, WEBEX_TRANSIENT_RETRY_MS));
@@ -1523,7 +1527,7 @@ async function loadAgentStatus() {
 let webexRefreshPromise = null;
 
 async function refreshAll(force = false) {
-  if(WEBEX_EMBEDDED&&document.hidden)return;
+  if(document.hidden||window.VB_SECURITY?.allowed!==true)return;
   if (webexRefreshPromise) return webexRefreshPromise;
 
   webexRefreshPromise = (async () => {
@@ -1584,7 +1588,7 @@ document
   });
 
   refreshAll();
-  setInterval(refreshAll, 10000);
+  setInterval(refreshAll, 5000);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshAll();
   });

@@ -1,6 +1,14 @@
 import {DeviceManagementError,leaseExpiryDecision} from './contracts.mjs';
 
 const PREFIX='device-lease:';
+const CLOSED_PREFIX='device-lease-closed:';
+const TERMINAL=new Set(['restored','superseded','external-change-reconciled']);
+async function closedLease(env,id){
+  if(!env?.LOGS?.get)return null;
+  const raw=await env.LOGS.get(CLOSED_PREFIX+id);
+  let value=null;try{value=typeof raw==='string'?JSON.parse(raw):raw;}catch{}
+  return value?.leaseId===id&&TERMINAL.has(value.status)?value:null;
+}
 const clean=(value,max=200)=>String(value??'').trim().replace(/[\u0000-\u001f\u007f]/g,' ').slice(0,max);
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -24,6 +32,13 @@ export function isPilotDevice(env,mac){
 export async function putLease(env,lease){
   if(!env?.LOGS?.put)throw new DeviceManagementError('device-lease-store-unavailable',503);
   if(!UUID.test(String(lease?.leaseId||'')))throw new DeviceManagementError('invalid-lease-id');
+  // Separate completion record prevents an eventually-consistent stale retry
+  // from reviving a finished lease. Readers also prefer this record.
+  const closed=await closedLease(env,lease.leaseId);
+  if(closed)lease=closed;
+  else if(TERMINAL.has(lease.status)){
+    await env.LOGS.put(CLOSED_PREFIX+lease.leaseId,JSON.stringify(lease));
+  }
   const permanent=lease.permanent===true&&!lease.manualEndRequestedAt;
   const expires=Date.parse(lease.expiresAt||'');
   if(!permanent&&!Number.isFinite(expires))throw new DeviceManagementError('invalid-lease-expiry');
@@ -40,6 +55,8 @@ export async function putLease(env,lease){
 
 export async function getLease(env,leaseId){
   if(!UUID.test(String(leaseId||''))||!env?.LOGS?.get)return null;
+  const closed=await closedLease(env,leaseId);
+  if(closed)return closed;
   const raw=await env.LOGS.get(PREFIX+leaseId);
   if(!raw)return null;
   try{return typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}

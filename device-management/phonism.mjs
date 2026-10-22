@@ -97,7 +97,9 @@ async function readJson(response){
     error.upstreamStatus=response.status;
     error.providerResponseType=(response.headers.get('content-type')||'').split(';')[0].slice(0,80);
     error.providerDenial=/invalid api key|api key.*(?:invalid|expired|revoked)/i.test(raw)?'invalid-api-key':/cloudflare|captcha|verify you are human|request blocked|web application firewall/i.test(raw)?'security-filter':/access denied|forbidden|not authorized|permission denied/i.test(raw)?'access-denied':null;
-    error.providerFailure=authentication?'authentication':response.status===429?'rate-limited':
+    error.providerServer=(response.headers.get('server')||'').replace(/[^a-zA-Z0-9 ._/-]/g,'').slice(0,80)||null;
+    error.providerRequestId=(response.headers.get('cf-ray')||response.headers.get('x-amz-cf-id')||response.headers.get('x-request-id')||'').replace(/[^a-zA-Z0-9_=/+.-]/g,'').slice(0,180)||null;
+    error.providerFailure=response.status===403&&error.providerResponseType==='text/html'?'upstream-access-denied':authentication?'authentication':response.status===429?'rate-limited':
       response.status===404?'not-found':response.status>=500?'provider-unavailable':
       !response.ok?'request-rejected':!valid?'invalid-response':'provider-rejected';
     // Persist only classifications; upstream bodies can contain SIP credentials.

@@ -20,7 +20,7 @@ test('malformed response cannot confirm an empty line',async()=>{
 test('403 diagnostics distinguish an HTML security response without retaining its body',async()=>{
  const reader=createPhonismReader({fetcher:async()=>new Response('<html>Cloudflare request blocked secret</html>',{status:403,headers:{'content-type':'text/html; charset=utf-8'}})});
  await assert.rejects(()=>reader.lines({},'123'),error=>{
-  assert.equal(error.providerResponseType,'text/html');assert.equal(error.providerDenial,'security-filter');
+  assert.equal(error.providerFailure,'upstream-access-denied');assert.equal(error.providerResponseType,'text/html');assert.equal(error.providerDenial,'security-filter');
   assert.ok(!JSON.stringify(error).includes('secret'));return true;
  });
 });

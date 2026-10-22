@@ -39,11 +39,37 @@ function safePath(path){
   return path;
 }
 
+// Both foreground actions and scheduled cleanup use this transport.
+// When configured, fail closed rather than falling back to geographically random egress.
+async function phonismTransport(env,path,options){
+  const relay=String(env?.PHONISM_RELAY_URL||'').trim();
+  const token=String(env?.PHONISM_RELAY_TOKEN||'');
+  let base=PHONISM_BASE,headers=options.headers;
+  if(relay||token){
+    let url;try{url=new URL(relay);}catch{}
+    if(!url||url.protocol!=='https:'||url.username||url.password||url.search||url.hash||
+       url.pathname!=='/'||url.port||token.length<32)
+      throw new DeviceManagementError('phonism-relay-not-configured',503);
+    base=url.origin+'/api/v3';
+    headers={...headers,Authorization:'Bearer '+token};
+  }
+  const response=await fetch(base+safePath(path),{...options,headers});
+  if(relay&&(response.headers.get('x-phonism-relay-error')||
+      (response.status>=500&&!response.headers.get('x-phonism-relay-request-id')))){
+    const error=new DeviceManagementError('phonism-relay-unavailable',503);
+    error.upstreamStatus=response.status;
+    error.providerFailure='relay-unavailable';
+    // Do not retry here: a timed out write may already have reached Phonism.
+    throw error;
+  }
+  return response;
+}
+
 export async function defaultPhonismFetch(env,path,{method='GET',signal,fresh=false}={}){
   if(method!=='GET')throw new DeviceManagementError('phonism-read-only',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  const response=await fetch(PHONISM_BASE+safePath(path),{
+  const response=await phonismTransport(env,path,{
     method:'GET',redirect:'manual',signal,
     headers:{Accept:'application/json','x-api-key':key,...(fresh?{'Cache-Control':'no-cache'}:{})}
   });
@@ -55,17 +81,17 @@ async function phonismWrite(env,path,{method='PUT',body,retrySync=false,timeoutM
   if(!['PUT','POST'].includes(method))throw new DeviceManagementError('phonism-write-method-denied',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  const url=PHONISM_BASE+safePath(path);
   for(let attempt=1;attempt<=(retrySync&&!singleAttempt?3:1);attempt++){
     let response;
     try{
-      response=await fetch(url,{
+      response=await phonismTransport(env,path,{
         method,redirect:'manual',
         ...(retrySync?{signal:AbortSignal.timeout(Math.min(10000,Math.max(1000,Number(timeoutMs)||10000)))}:{}),
         headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},
         body:JSON.stringify(body||{})
       });
     }catch(cause){
+      if(cause instanceof DeviceManagementError)throw cause;
       // An unknown transport outcome must not blindly repeat a potentially accepted job.
       const error=new DeviceManagementError('phonism-write-failed',502);
       error.providerFailure=cause?.name==='TimeoutError'||cause?.name==='AbortError'?'timeout':'transport';

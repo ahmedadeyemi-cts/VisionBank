@@ -39,11 +39,31 @@ function safePath(path){
   return path;
 }
 
+// Deployment opts in explicitly; missing bindings never fall back to global egress.
+async function phonismTransport(env,path,options){
+  safePath(path);
+  if(env?.PHONISM_TRANSPORT!=='cloudflare-us'){
+    if(env?.PHONISM_TRANSPORT)throw new DeviceManagementError('phonism-transport-invalid',503);
+    return fetch(PHONISM_BASE+path,options);
+  }
+  if(!env?.PHONISM_US?.jurisdiction)throw new DeviceManagementError('phonism-us-not-configured',503);
+  const namespace=env.PHONISM_US.jurisdiction('us');
+  const stub=namespace.get(namespace.idFromName('visionbank'));
+  const response=await stub.fetch(new Request('https://phonism.internal'+path,options));
+  // Missing provenance or a local failure means the upstream outcome is unknown.
+  // In particular, do not repeat a sync/reboot after a platform timeout.
+  if(response.headers.has('x-phonism-us-error')||!response.headers.has('x-phonism-us-request-id')){
+    await response.body?.cancel();
+    throw new DeviceManagementError('phonism-us-unavailable',502);
+  }
+  return response;
+}
+
 export async function defaultPhonismFetch(env,path,{method='GET',signal,fresh=false}={}){
   if(method!=='GET')throw new DeviceManagementError('phonism-read-only',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  const response=await fetch(PHONISM_BASE+safePath(path),{
+  const response=await phonismTransport(env,path,{
     method:'GET',redirect:'manual',signal,
     headers:{Accept:'application/json','x-api-key':key,...(fresh?{'Cache-Control':'no-cache'}:{})}
   });
@@ -55,11 +75,11 @@ async function phonismWrite(env,path,{method='PUT',body,retrySync=false,timeoutM
   if(!['PUT','POST'].includes(method))throw new DeviceManagementError('phonism-write-method-denied',405);
   const key=String(env?.PHONISM_API_KEY||'');
   if(key.length<16)throw new DeviceManagementError('phonism-api-key-not-configured',503);
-  const url=PHONISM_BASE+safePath(path);
+  safePath(path);
   for(let attempt=1;attempt<=(retrySync&&!singleAttempt?3:1);attempt++){
     let response;
     try{
-      response=await fetch(url,{
+      response=await phonismTransport(env,path,{
         method,redirect:'manual',
         ...(retrySync?{signal:AbortSignal.timeout(Math.min(10000,Math.max(1000,Number(timeoutMs)||10000)))}:{}),
         headers:{Accept:'application/json','Content-Type':'application/json','x-api-key':key},

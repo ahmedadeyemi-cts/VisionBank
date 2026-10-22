@@ -460,7 +460,7 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
    const code=error?.code||'cleanup-sync-check-failed';
    const log=lease.recovery.cleanupSyncError!==code||!lease.recovery.cleanupFailureLoggedAt||lease.recovery.cleanupUpstreamStatus!==(error?.upstreamStatus||null)||lease.recovery.cleanupProviderFailure!==(error?.providerFailure||null);
    lease.recovery={...lease.recovery,cleanupSyncPending:true,cleanupSyncConfirmed:false,cleanupSyncError:code,
-     cleanupLastFailureAt:at,cleanupFailureLoggedAt:log?at:lease.recovery.cleanupFailureLoggedAt,cleanupUpstreamStatus:error?.upstreamStatus||null,cleanupProviderFailure:error?.providerFailure||null,cleanupResponseType:error?.providerResponseType||null,cleanupDenial:error?.providerDenial||null};
+     cleanupLastFailureAt:at,cleanupFailureLoggedAt:log?at:lease.recovery.cleanupFailureLoggedAt,cleanupUpstreamStatus:error?.upstreamStatus||null,cleanupProviderFailure:error?.providerFailure||null,cleanupResponseType:error?.providerResponseType||null,cleanupDenial:error?.providerDenial||null,cleanupProviderServer:error?.providerServer||null,cleanupProviderRequestId:error?.providerRequestId||null};
    await putLease(env,lease);
    if(log)await writeAuditRecord(env,buildAuditRecord({eventType:'device-sync-failure',action:'cleanup-sync-retry',
      systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,

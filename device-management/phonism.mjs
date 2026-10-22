@@ -88,15 +88,18 @@ async function phonismWrite(env,path,{method='PUT',body,retrySync=false,timeoutM
 }
 
 async function readJson(response){
-  let body={};try{body=await response.json();}catch{}
-  if(!response.ok||!body||!Array.isArray(body.errors)){
-    const status=response.status===401||response.status===403?503:502;
-    throw new DeviceManagementError('phonism-read-unavailable',status);
-  }
-  if(body.errors.length){
-    const joined=body.errors.map(x=>String(x||'').toLowerCase()).join(' ');
-    if(joined.includes('api key'))throw new DeviceManagementError('phonism-authentication-failed',503);
-    throw new DeviceManagementError('phonism-read-unavailable',502);
+  let body=null;try{body=await response.json();}catch{}
+  const valid=body&&Array.isArray(body.errors);
+  if(!response.ok||!valid||body.errors.length){
+    const authentication=response.status===401||response.status===403||
+      (valid&&body.errors.some(x=>String(x||'').toLowerCase().includes('api key')));
+    const error=new DeviceManagementError(authentication&&response.ok?'phonism-authentication-failed':'phonism-read-unavailable',authentication?503:502);
+    error.upstreamStatus=response.status;
+    error.providerFailure=authentication?'authentication':response.status===429?'rate-limited':
+      response.status===404?'not-found':response.status>=500?'provider-unavailable':
+      !response.ok?'request-rejected':!valid?'invalid-response':'provider-rejected';
+    // Persist only classifications; upstream bodies can contain SIP credentials.
+    throw error;
   }
   return body;
 }

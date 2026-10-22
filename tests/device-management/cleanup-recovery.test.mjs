@@ -79,3 +79,12 @@ test('explicitly rejected restart retries automatically without rewriting assign
  await f.run();await f.run(5000);assert.equal(f.state.reboots,1);
  assert.equal((await f.run(60001))[0].status,'restored');assert.equal(f.state.reboots,2);assert.equal(f.state.puts,0);
 });
+test('same cleanup read failure remains one issue while changed failures are recorded',async()=>{
+ const f=await fixture();let status=404;
+ f.reader.lines=async()=>{throw Object.assign(Error('offline'),{code:'phonism-read-unavailable',upstreamStatus:status,providerFailure:status===404?'not-found':'provider-unavailable'});};
+ await f.run();await f.run(300001);await f.run(600002);
+ assert.equal((await listIssueRecords(f.env)).rows.length,1);
+ assert.equal((await f.stored()).recovery.cleanupLastCheckedAt,new Date(f.now+600002).toISOString());
+ status=503;await f.run(660000);
+ assert.equal((await listIssueRecords(f.env)).rows.length,2);assert.equal(f.state.reboots,0);
+});

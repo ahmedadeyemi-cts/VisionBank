@@ -454,7 +454,7 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
    lease.recovery.cleanupSyncAcceptedAt=at;
  }catch(error){
    const code=error?.code||'cleanup-sync-check-failed';
-   const log=lease.recovery.cleanupSyncError!==code||!lease.recovery.cleanupFailureLoggedAt||now-Date.parse(lease.recovery.cleanupFailureLoggedAt)>=300000;
+   const log=lease.recovery.cleanupSyncError!==code||!lease.recovery.cleanupFailureLoggedAt||lease.recovery.cleanupUpstreamStatus!==(error?.upstreamStatus||null)||lease.recovery.cleanupProviderFailure!==(error?.providerFailure||null);
    lease.recovery={...lease.recovery,cleanupSyncPending:true,cleanupSyncConfirmed:false,cleanupSyncError:code,
      cleanupLastFailureAt:at,cleanupFailureLoggedAt:log?at:lease.recovery.cleanupFailureLoggedAt,cleanupUpstreamStatus:error?.upstreamStatus||null,cleanupProviderFailure:error?.providerFailure||null};
    await putLease(env,lease);

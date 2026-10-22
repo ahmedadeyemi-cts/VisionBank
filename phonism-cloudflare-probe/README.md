@@ -1,32 +1,41 @@
 # Cloudflare US Durable Object investigation
 
-Prepared October 22, 2026. This is a read-only connectivity probe, not a production relay.
+## Result: authenticated read passed
 
-Verified:
-- Cloudflare documents jurisdiction("us") for Durable Objects.
-- SQLite-backed Durable Objects are available on Free and Paid Workers plans.
-- This account already has an unrelated SQLite-backed Durable Object.
-- Wrangler 4.138.0 deploy --dry-run passes.
-- Six local tests pass for jurisdiction enforcement, method/route restrictions, six-request cap, fixed GET target, credential/body redaction, and failure classification.
+On October 22, 2026 at 19:24:01 UTC (12:24 PM Pacific), the isolated probe returned:
+- Durable Object jurisdiction: us
+- Supplementary Cloudflare network trace: US / DEN
+- Phonism GET /api/v3/phones/313135/lines: HTTP 200
+- Valid JSON API envelope, zero API errors
+- Phonism response Ray ID: a4eae136af85e763-DEN
+- Probe duration: 1,409 ms
 
-Not verified:
-- Account plan and remaining included usage. The existing API authorization gets HTTP 403 reading subscriptions; browser GitHub sign-in was rejected by Cloudflare after mobile approval.
-- Live deployment and runtime support in this account.
-- Phonism acceptance of authenticated requests from the US-restricted object.
-- Outbound country as observed by Phonism. A Cloudflare trace is only supplementary evidence, not proof of the vendor's classification.
-- End-to-end unattended expiry.
+See result.json for sanitized evidence. No raw response, SIP credentials or API key was retained.
 
-No resources deployed, subscriptions changed, production versions promoted, line writes or reboots performed.
+The user supplied account screenshots confirming an existing Workers Paid subscription and current billable usage within included limits, including Durable Objects. No plan upgrade or new paid subscription was created. This bounded test does not establish that unlimited future production usage will remain within the allowance.
 
-Next steps:
-1. Verify account Workers plan and current Durable Object usage against included allowance before any live invocation.
-2. Deploy only this standalone internal probe (workers.dev and preview URLs disabled; no routes or cron).
-3. Use a short-lived authenticated zero-traffic candidate of the existing Worker to call the probe through an internal service binding, using the existing server-side Phonism secret without exporting it. Do not expose raw upstream responses or secret values.
-4. Inspect sanitized result and ask Phonism to confirm the logged origin if needed.
-5. Remove the temporary candidate access and probe when testing finishes.
-6. Only if verified, prepare a separate production change and unattended 15-minute expiry test.
+## Isolation and cleanup
 
-Phonism target is fixed to GET /api/v3/phones/313135/lines. No user-controlled destination, method or phone ID is accepted. The probe has a six-invocation cap and no repeating timers or alarms. It returns status, a success boolean, jurisdiction and safe correlation/location diagnostics only.
+A standalone SQLite-backed Durable Object used jurisdiction("us"), with workers.dev and preview URLs disabled and no routes or schedules. A zero-production-traffic version of the existing Worker called it through an internal service binding, using the existing Phonism secret without exporting the secret. Its temporary access was protected by a randomly generated token hash and a ten-minute expiry.
+
+The probe allowed only a fixed GET of phone 313135, capped at six invocations. One authenticated invocation was made. It could not update lines, sync or reboot phones.
+
+The temporary probe Worker was deleted after testing. Production remained on version c75d3d16-3437-4213-8813-41b4952efc73 at 100% throughout. The temporary version must NEVER be promoted; it is a diagnostics-only handler.
+
+## Validation
+
+- Wrangler 4.138.0 deployment dry run passed.
+- Six local tests passed: US jurisdiction enforcement, method/route restrictions, cap, fixed GET, credential/body redaction, failure classification.
+- Live unauthenticated access to the temporary test route was rejected.
+- Live authenticated Phonism read succeeded.
+
+## Still required before production adoption
+
+Adapt the shared Phonism transport to an internal US-jurisdiction Durable Object, covering both scheduled and interactive operations. Preserve lease baselines, terminal markers, permanent assignments and verification-before-reboot gates. Add bounded timeouts, request/response limits and no retry of ambiguous writes.
+
+Review the production change through a PR; validate and deploy separately. Then run a complete unattended 15-minute expiry on an authorized test handset and confirm physical removal.
+
+US runtime placement plus this successful read is good evidence for this approach. The vendor's country classification and future usage must remain observable. This result alone does not certify production expiry or every possible future egress path.
 
 References:
 - https://developers.cloudflare.com/durable-objects/reference/data-location/

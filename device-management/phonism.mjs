@@ -88,13 +88,15 @@ async function phonismWrite(env,path,{method='PUT',body,retrySync=false,timeoutM
 }
 
 async function readJson(response){
-  let body=null;try{body=await response.json();}catch{}
+  let body=null,raw='';try{raw=await response.text();body=JSON.parse(raw);}catch{}
   const valid=body&&Array.isArray(body.errors);
   if(!response.ok||!valid||body.errors.length){
     const authentication=response.status===401||response.status===403||
       (valid&&body.errors.some(x=>String(x||'').toLowerCase().includes('api key')));
     const error=new DeviceManagementError(authentication&&response.ok?'phonism-authentication-failed':'phonism-read-unavailable',authentication?503:502);
     error.upstreamStatus=response.status;
+    error.providerResponseType=(response.headers.get('content-type')||'').split(';')[0].slice(0,80);
+    error.providerDenial=/invalid api key|api key.*(?:invalid|expired|revoked)/i.test(raw)?'invalid-api-key':/cloudflare|captcha|verify you are human|request blocked|web application firewall/i.test(raw)?'security-filter':/access denied|forbidden|not authorized|permission denied/i.test(raw)?'access-denied':null;
     error.providerFailure=authentication?'authentication':response.status===429?'rate-limited':
       response.status===404?'not-found':response.status>=500?'provider-unavailable':
       !response.ok?'request-rejected':!valid?'invalid-response':'provider-rejected';

@@ -48,7 +48,7 @@ test('failed sync records actionable issue then recovers when provider catches u
 });
 test('unavailable line reads never imply successful removal or trigger a reboot',async()=>{
  const f=await fixture();f.reader.lines=async()=>{throw Object.assign(Error('offline'),{code:'phonism-read-unavailable'});};
- await f.run();assert.equal((await f.stored()).status,'restore-sync-pending');assert.equal(f.state.reboots,0);assert.equal(f.state.syncs,0);
+ await f.run();assert.equal((await f.stored()).status,'restore-sync-pending');assert.equal(f.state.reboots,0);assert.equal(f.state.syncs,1);
  assert.equal((await listIssueRecords(f.env)).rows[0].errorCode,'phonism-read-unavailable');
 });
 test('unknown restart outcome is not resent and completes after later provisioning evidence',async()=>{
@@ -87,4 +87,19 @@ test('same cleanup read failure remains one issue while changed failures are rec
  assert.equal((await f.stored()).recovery.cleanupLastCheckedAt,new Date(f.now+600002).toISOString());
  status=503;await f.run(660000);
  assert.equal((await listIssueRecords(f.env)).rows.length,2);assert.equal(f.state.reboots,0);
+});
+
+test('403 on expiry read still requests sync, throttles retries, and waits for confirmation',async()=>{
+ const f=await fixture({model:'T57W',line:2,status:'active'});
+ // This fixture's manually occupied line 2 is not applicable to this case.
+ f.state.members=f.state.members.filter(m=>m.id!=='manual');
+ f.reader.lines=async()=>{throw Object.assign(Error('forbidden'),{code:'phonism-read-unavailable',upstreamStatus:403,providerFailure:'authentication'});};
+ await f.run();assert.equal(f.state.puts,1);assert.equal(f.state.syncs,1);assert.equal(f.state.reboots,0);
+ assert.equal((await f.stored()).status,'restore-sync-pending');
+ assert.ok((await f.stored()).recovery.cleanupSyncAcceptedAt);
+ await f.run(30000);assert.equal(f.state.syncs,1);assert.equal(f.state.reboots,0);
+ await f.run(60001);assert.equal(f.state.syncs,2);assert.equal(f.state.puts,1);
+ f.reader.lines=async()=>[];
+ assert.equal((await f.run(120000))[0].status,'restored');assert.equal(f.state.reboots,1);
+ await f.run(180000);assert.equal(f.state.reboots,1);
 });

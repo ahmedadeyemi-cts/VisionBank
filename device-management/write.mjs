@@ -435,14 +435,15 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
  try{
    // A previously failed/ambiguous request may already have completed. Never
    // require another accepted sync before checking the actual configuration.
-   const lines=await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),2000);
-   if(phonismLineMatchesTarget(lines,target,lease.lineNumber||2)){
+   let lines=null,readError=null;
+   try{lines=await boundedProviderCall(()=>phonismReader.lines(env,lease.phonismPhoneId),2000);}catch(error){readError=error;}
+   if(!readError&&phonismLineMatchesTarget(lines,target,lease.lineNumber||2)){
      lease.recovery={...lease.recovery,cleanupSyncConfirmed:true,cleanupSyncPending:false,cleanupSyncError:null};
      return;
    }
    lease.recovery.cleanupSyncConfirmed=false;
    // Continue checking on every maintenance pass, but bound provider writes.
-   if(Date.parse(lease.recovery.cleanupNextSyncAt||'')>now)return;
+   if(Date.parse(lease.recovery.cleanupNextSyncAt||'')>now){if(readError)throw readError;return;}
    const attempts=Number(lease.recovery.cleanupSyncAttempts||0)+1;
    lease.recovery={...lease.recovery,cleanupSyncAttempts:attempts,cleanupLastSyncAttemptAt:at,
      cleanupNextSyncAt:new Date(now+Math.min(300000,60000*2**Math.min(attempts-1,3))).toISOString()};
@@ -452,11 +453,14 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
      assetTypes:['Device'],singleAttempt:true,timeoutMs:3000
    });
    lease.recovery.cleanupSyncAcceptedAt=at;
+   // A failed read cannot suppress the authorized sync. It still prevents
+   // completion/reboot until a subsequent read confirms the configuration.
+   if(readError)throw readError;
  }catch(error){
    const code=error?.code||'cleanup-sync-check-failed';
    const log=lease.recovery.cleanupSyncError!==code||!lease.recovery.cleanupFailureLoggedAt||lease.recovery.cleanupUpstreamStatus!==(error?.upstreamStatus||null)||lease.recovery.cleanupProviderFailure!==(error?.providerFailure||null);
    lease.recovery={...lease.recovery,cleanupSyncPending:true,cleanupSyncConfirmed:false,cleanupSyncError:code,
-     cleanupLastFailureAt:at,cleanupFailureLoggedAt:log?at:lease.recovery.cleanupFailureLoggedAt,cleanupUpstreamStatus:error?.upstreamStatus||null,cleanupProviderFailure:error?.providerFailure||null};
+     cleanupLastFailureAt:at,cleanupFailureLoggedAt:log?at:lease.recovery.cleanupFailureLoggedAt,cleanupUpstreamStatus:error?.upstreamStatus||null,cleanupProviderFailure:error?.providerFailure||null,cleanupResponseType:error?.providerResponseType||null,cleanupDenial:error?.providerDenial||null};
    await putLease(env,lease);
    if(log)await writeAuditRecord(env,buildAuditRecord({eventType:'device-sync-failure',action:'cleanup-sync-retry',
      systemActor:automatedActor(lease.operator),device:lease.device,location:lease.location,

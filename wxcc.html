@@ -23,7 +23,7 @@
     <script src="portal-frame-policy.js?v=20261019-embed1"></script>
     <script src="portal-session.js?v=20261019-embed1"></script>
     <script src="portal-auth-fetch.js?v=20261013-daily1"></script>
-    <script src="portal-security-precheck.js?v=20261019-embed1" defer></script>
+    <script src="portal-security-precheck.js?v=20261103-sync1" defer></script>
     <link rel="stylesheet" href="webex-integrated-chat.css?v=20261013-chatmetrics1">
 <link rel="stylesheet" href="webex-agent-indicators.css?v=20260925-indicators4">
 <link rel="stylesheet" href="webex-channel-activity.css?v=20260929-channels1">
@@ -34,16 +34,18 @@
 <link rel="stylesheet" href="webex-performance-controls.css?v=20261015-compact1">
 <link rel="stylesheet" href="portal-help.css?v=20261013-help1">
 <link rel="stylesheet" href="wxcc-layout.css?v=20261019-desktop1">
+<link rel="stylesheet" href="dashboard-syncing.css?v=20261103-sync1">
 </head>
 
 <body class="wxcc-layout">
 
-<!-- ACCESS DENIED OVERLAY (visible until Cloudflare approves) -->
-<div id="access-denied-overlay" class="access-denied-overlay">
+<!-- Keep the dashboard covered until security approves. Pending is not denied. -->
+<div id="access-denied-overlay" class="access-denied-overlay" data-security-state="checking" role="status" aria-live="polite" aria-busy="true">
   <div class="access-denied-card">
-    <h1>Access Restricted</h1>
+    <img class="dashboard-syncing-logo" src="assets/visionbank.png" alt="VisionBank" width="160" height="144">
+    <h1>Syncing Dashboard...</h1>
     <p id="access-denied-message">
-      Your access is currently unavailable. Please contact the IT Team for assistance.
+      Checking dashboard access.
     </p>
     <p class="access-denied-note">
       If you believe this is in error, contact the VisionBank IT Team.

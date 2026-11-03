@@ -15,7 +15,15 @@
     container.appendChild(row);
   }
 
+  function setDeniedState(overlay) {
+    if (!overlay?.hasAttribute("data-security-state")) return;
+    overlay.dataset.securityState = "denied";
+    overlay.setAttribute("aria-busy", "false");
+    overlay.querySelector("h1").textContent = "Access Restricted";
+  }
+
   function showDenied(overlay, message, text) {
+    setDeniedState(overlay);
     if (message) {
       message.replaceChildren();
       const strong = document.createElement("strong");
@@ -27,6 +35,7 @@
   }
 
   function renderDenied(overlay, message, data) {
+    setDeniedState(overlay);
     if (!message) return showDenied(overlay, message, "Access has been restricted.");
     const info = data?.info || {};
     const geo = info.geo || {};
@@ -67,11 +76,14 @@
     const message = document.getElementById("access-denied-message");
     const status = document.getElementById("securityStatus");
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
       const response = await fetch("https://visionbank-security.ahmedadeyemi.workers.dev/security/check", {
         method: "GET",
         mode: "cors",
-        credentials: "omit"
+        credentials: "omit",
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -88,6 +100,7 @@
       }
 
       overlay?.classList.add("hidden");
+      overlay?.setAttribute("aria-busy", "false");
       document.body.classList.add("security-approved");
 
       if (status && data.info) {
@@ -104,7 +117,9 @@
       }
     } catch (error) {
       console.error("Security check failed:", error);
-      showDenied(overlay, message, "Unable to contact security service.");
+      showDenied(overlay, message, error?.name === "AbortError" ? "The access check timed out. Please refresh to try again." : "Unable to contact security service.");
+    } finally {
+      clearTimeout(timeout);
     }
 
     const agentControls = document.getElementById("openAgentControls");

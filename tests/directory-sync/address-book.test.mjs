@@ -5,22 +5,28 @@ const id='11111111-1111-1111-1111-111111111111',org='22222222-2222-2222-2222-222
 const contact={webexDirectoryId:'person-1',name:'Test Person',phone:'15155551234',extension:'1234'};
 test('updates unique legacy name even if extension changed; preserves unrelated manual entries',()=>{
  const p=planAddressBook([contact],[{id,name:'Test Person',number:'4321',version:2},{id:'manual',name:'External Vendor',number:'5555'}]);
- assert.equal(p.actions.length,1);assert.equal(p.actions[0].item.id,id);assert.equal(p.actions[0].item.number,'+15155551234');assert.equal(p.preserved,1);
+ assert.equal(p.actions.length,1);assert.equal(p.actions[0].item.id,id);assert.equal(p.actions[0].item.number,'1234');assert.equal(p.preserved,1);
 });
 test('stable identity supports renames, protects manual edits, and repeats without writes',()=>{
  const managed={'person-1':{id,name:'Old Name',number:'1234'}};
  assert.equal(planAddressBook([contact],[{id,name:'Old Name',number:'1234'}],managed).actions[0].item.name,'Test Person');
  assert.equal(planAddressBook([contact],[{id,name:'Manual Edit',number:'1234'}],managed).conflicts.length,1);
- const e={id,name:contact.name,number:'+15155551234'};
+ const e={id,name:contact.name,number:'1234'};
  assert.equal(planAddressBook([contact],[e],{'person-1':e}).actions.length,0);
 });
 test('duplicate names, invalid numbers and local-only contacts never cause guessed updates',()=>{
  const p=planAddressBook([contact,{...contact,webexDirectoryId:'other'}, {...contact,webexDirectoryId:'bad',name:'Invalid',phone:'123'}, {name:'Manual',phone:'15155551234'}],[]);
  assert.equal(p.actions.length,0);assert.equal(p.conflicts.length,2);assert.equal(p.skipped.length,1);
 });
-test('extension-only rows keep extension and international numbers keep country code',()=>{
+test('CEG Address Book always uses exactly four-digit internal extensions',()=>{
  assert.equal(planAddressBook([{...contact,phone:''}],[]).actions[0].item.number,'1234');
- assert.equal(planAddressBook([{...contact,phone:'442079460000'}],[]).actions[0].item.number,'+442079460000');
+ assert.equal(planAddressBook([{...contact,phone:'442079460000'}],[]).actions[0].item.number,'1234');
+ assert.equal(planAddressBook([{...contact,extension:'0042',phone:'15155551234'}],[]).actions[0].item.number,'0042');
+ for(const extension of ['','100','12345','+1234','12-34','abcd']){
+   const result=planAddressBook([{...contact,extension}],[]);
+   assert.equal(result.actions.length,0,extension);
+   assert.equal(result.skipped.length,1,extension);
+ }
 });
 test('pagination requires complete stable pages and distinct IDs',async()=>{
  const page=(data,p,total=2)=>({data,meta:{page:p,totalPages:2,totalRecords:total}});
@@ -64,4 +70,23 @@ test('successful create is read back and repeat sync has no bulk writes',async()
  const env={WEBEX_ORG_ID:org,WEBEX_AUTH_KV:{get:async()=>null}};
  assert.equal((await syncAddressBook(env,fetch,h.call)).state,'ready');
  assert.equal((await syncAddressBook(env,fetch,h.call)).state,'ready');assert.equal(writes,1);
+});
+
+test('E.164 book entry is migrated to internal extension without touching unrelated entries',()=>{
+ const existing={id,name:contact.name,number:'+15155551234',version:7};
+ const other={id:'manual-entry',name:'Unmanaged Contact',number:'+15155559000'};
+ const managed={'person-1':{id,name:contact.name,number:'+15155551234'}};
+ const p=planAddressBook([contact],[existing,other],managed);
+ assert.equal(p.actions.length,1);
+ assert.equal(p.actions[0].kind,'updated');
+ assert.equal(p.actions[0].item.id,id);
+ assert.equal(p.actions[0].item.version,7);
+ assert.equal(p.actions[0].item.number,'1234');
+ assert.equal(p.preserved,1);
+ assert.equal(planAddressBook([contact],[{...existing,number:'1234'},other],{'person-1':{id,name:contact.name,number:'1234'}}).actions.length,0);
+});
+test('missing extension does not erase existing book number or guess from E164',()=>{
+ const p=planAddressBook([{...contact,extension:''}],[{id,name:contact.name,number:'+15155551234'}],{'person-1':{id,name:contact.name,number:'+15155551234'}});
+ assert.equal(p.actions.length,0);
+ assert.deepEqual(p.skipped,['person-1']);
 });

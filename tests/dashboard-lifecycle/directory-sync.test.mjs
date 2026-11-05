@@ -15,3 +15,37 @@ test('extension-only additions keep leading zeros, and unassigned identities are
 test('assigned service numbers include voicemail and virtual lines but exclude hunts and unassigned inventory',()=>{const nums=['VOICE_MESSAGING','VIRTUAL_LINE','HUNT_GROUP',null].map((type,i)=>({extension:'00'+i,owner:type?{id:'owner'+i,type,firstName:'Service',lastName:String(i)}:undefined,location:{id:'l'}}));const sources=sourceRows({people:[],workspaces:[],locations:[{id:'l',name:'MAIN'}],numbers:nums});assert.equal(sources.length,2);assert.equal(planSync([],sources).added.length,2);assert.equal(sources[0].location,'MAIN');});
 test('WG records stay byte-for-byte unchanged during additions and source duplicate IDs fail',()=>{const wg={...contact,firstName:'WG Main'};const p=planSync([wg],[{...source,id:'new'}]);assert.deepEqual(p.rows[0],wg);assert.equal(p.added.length,1);assert.throws(()=>planSync([],[source,source]),/Duplicate/);});
 test('excluded categories are removed and never readded; WG and other voicemail groups remain',()=>{const names=['FAX_15155550101','Contact Center RTMS','Voice Messaging Group VM - MAIN'];const sources=names.map((name,i)=>({...source,id:'excluded-'+i,name,firstName:name,lastName:''}));const contacts=sources.map(s=>({...s,webexDirectoryId:s.id}));const wg={...contacts[0],firstName:'WG Fax',name:'FAX_Protected'};const vm={...source,id:'allowed-vm',name:'VMGroup CEG Voicemail',firstName:'VMGroup',lastName:'CEG Voicemail'};const p=planSync([...contacts,wg],[...sources,vm]);assert.equal(p.excluded.length,3);assert.equal(p.rows.length,2);assert.deepEqual(p.rows[0],wg);assert.equal(p.rows[1].webexDirectoryId,vm.id);assert.equal(planSync(p.rows,[...sources,vm]).added.length,0);});
+
+test('Service App directory enumerates assigned people using complete phone-number identities',async()=>{
+ const ids=['p1','p2'];
+ const env={WEBEX_ORG_ID:'11111111-1111-4111-8111-111111111111'};
+ const seen=[];
+ const fetch=async(_env,url)=>{
+  seen.push(url);
+  const parsed=new URL(url);
+  if(parsed.pathname.endsWith('/people')){
+   assert.equal(parsed.searchParams.get('id'),'p1,p2');
+   return Response.json({items:ids.map((id,i)=>({id,displayName:'Person '+i,firstName:'Person',lastName:String(i),emails:['test'+i+'@example.test']}))});
+  }
+  if(parsed.pathname.endsWith('/workspaces'))return Response.json({items:[{id:'w1',displayName:'Office',locationId:'loc'}]});
+  if(parsed.pathname.endsWith('/numbers'))return Response.json({phoneNumbers:ids.map((id,i)=>({owner:{type:'PEOPLE',id},phoneNumberType:'PRIMARY',extension:'100'+i,phoneNumber:'+1515555010'+i})),});
+  if(parsed.pathname.endsWith('/locations'))return Response.json({items:[{id:'loc',name:'MAIN'}]});
+  throw Error('Unexpected API path '+parsed.pathname);
+ };
+ const result=await fetchSources(env,fetch);
+ assert.equal(result.length,2);
+ assert.equal(seen.filter(x=>x.includes('/people?')).length,1);
+ assert.ok(result.every(x=>x.type==='PEOPLE'));
+});
+test('incomplete Service App person lookup fails closed',async()=>{
+ const env={WEBEX_ORG_ID:'11111111-1111-4111-8111-111111111111'};
+ const fetch=async(_env,url)=>{
+  const path=new URL(url).pathname;
+  if(path.endsWith('/workspaces'))return Response.json({items:[{id:'w1'}]});
+  if(path.endsWith('/numbers'))return Response.json({phoneNumbers:[{owner:{id:'p1',type:'PEOPLE'},extension:'1001'}]});
+  if(path.endsWith('/locations'))return Response.json({items:[{id:'loc'}]});
+  if(path.endsWith('/people'))return Response.json({items:[]});
+  throw Error('Unexpected path');
+ };
+ await assert.rejects(fetchSources(env,fetch),/Incomplete Webex People ID enumeration/);
+});

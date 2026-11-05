@@ -33,7 +33,7 @@ const legacyInFlight = new Map();
 async function fetchApi(path) {
   if (legacyInFlight.has(path)) return legacyInFlight.get(path);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(new DOMException("Realtime API request exceeded 60 seconds", "TimeoutError")), 60000);
   const request = (async () => {
     try {
       const res = await fetch(`${API_BASE}${path}`, {
@@ -853,13 +853,13 @@ async function loadQueueStatus() {
   const panel = document.getElementById("queue-panel");
   if (!body) return;
 
-  body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
+  if (body.dataset.vbLoaded !== "true") body.innerHTML = `<tr><td colspan="5" class="loading">Loading queue status...</td></tr>`;
 
   try {
     const data = await fetchApi("/status/queues");
 
     if (!data || !data.QueueStatus || data.QueueStatus.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+      if (body.dataset.vbLoaded !== "true") body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
       if (panel) panel.classList.remove("queue-alert-active");
       return;
     }
@@ -913,6 +913,7 @@ async function loadQueueStatus() {
 
 
     body.innerHTML = rowsHtml;
+    body.dataset.vbLoaded = "true";
 
     lastQueueSnapshot = { totalCalls, totalAgents };
 
@@ -936,7 +937,7 @@ async function loadQueueStatus() {
     updateQueueToneOverrides(queues);
   } catch (err) {
     console.error("Queue load error:", err);
-    body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status.</td></tr>`;
+    if (body.dataset.vbLoaded !== "true") body.innerHTML = `<tr><td colspan="5" class="error">Unable to load queue status (${err?.name === "TimeoutError" ? "request timed out" : err?.httpStatus ? `HTTP ${err.httpStatus}` : "network error"}). Retrying automatically.</td></tr>`;
   }
 }
 // ===============================
@@ -1093,18 +1094,23 @@ tr.innerHTML = `
     });
   } catch (err) {
     console.error("Agent load error:", err);
-    const reason = err?.httpStatus ? `HTTP ${err.httpStatus}` : err?.name === "AbortError" ? "request timed out" : "network or response error";
-    body.innerHTML = `<tr><td colspan="11" class="error">Legacy agent data unavailable (${reason}). Retrying automatically. This does not mean all agents are signed out.</td></tr>`;
+    const reason = err?.httpStatus ? `HTTP ${err.httpStatus}` : (err?.name === "AbortError" || err?.name === "TimeoutError") ? "request timed out" : "network or response error";
+    if (!body.querySelector('[data-vb-loaded="true"]')) body.innerHTML = `<tr><td colspan="11" class="error">Legacy agent data unavailable (${reason}). Retrying automatically. This does not mean all agents are signed out.</td></tr>`;
   }
 }
 
 // ===============================
 // MAIN REFRESH LOOP
 // ===============================
-function refreshAll() {
-  loadQueueStatus();
-  loadAgentStatus();
-  loadGlobalStats();
+let refreshInProgress = false;
+async function refreshAll() {
+  if (refreshInProgress) return;
+  refreshInProgress = true;
+  try {
+    await Promise.allSettled([loadQueueStatus(), loadAgentStatus(), loadGlobalStats()]);
+  } finally {
+    refreshInProgress = false;
+  }
 }
 
 // ===============================

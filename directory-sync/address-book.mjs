@@ -3,6 +3,16 @@ export const ADDRESS_BOOK_ID='b404018a-eecb-4671-ba18-7a18b259cff0';
 const clean=v=>String(v??'').trim(),digits=v=>clean(v).replace(/\D/g,'');
 const nameKey=v=>clean(v).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/&/g,' and ').replace(/[^a-zA-Z0-9._\-\s]/g,'').replace(/\s+/g,' ').trim();
 const norm=v=>nameKey(v).toLowerCase();
+// Source-ID scoped CEG labels: these do not rename Webex or the canonical directory.
+// Review/adjust here rather than merging distinct numbers under a shared name.
+const CEG_OVERRIDES=new Map([
+ ['Y2lzY29zcGFyazovL3VzL1BFT1BMRS8wNDExZjE2NS1lNDMzLTQ2NmUtOWRkNy1hNzQzZjhkZGZkNmM',{name:'Ames Duff Drive Up - User'}],
+ ['Y2lzY29zcGFyazovL3VybjpURUFNOnVzLXdlc3QtMl9yL1BMQUNFLzE3Y2RiYWJkLTE2MjQtNDk1YS1hNTMxLWQyMjg0YjAyOWRhYQ==',{name:'Ames Duff Drive Up - Workspace'}],
+ ['Y2lzY29zcGFyazovL3VzL1BFT1BMRS9jNmYzNTk0Ny00YjAzLTQ2OTItOGMxMC1mZmE5ZDQyOTJjNTc',{name:'Kelsey Gribbins - User'}],
+ ['service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS8xMTg1ZWRiMS1iOWZmLTQxODUtOTBiOC0wZDRiMjQxMGI0OWU:15155006243',{name:'Kelsey Gribbins - Virtual Line',legacyName:'Kelsey Gribbins',legacyNumber:'6243'}],
+ ['service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS9iNWRjMDlhOC0zNWI5LTQzYTUtOTAyNC02NTUwYzdhNWRjNDA:15159564220',{exclude:'No 4-digit extension'}],
+ ['service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS85Y2UyMzg3YS0zMDhhLTQyZGYtOTRlNC1iYjM2MjQ4MjZiMjA:15159670500',{exclude:'No 4-digit extension'}]
+]);
 export function dialNumber(c){
  // CEG Address Book is an internal dialing book, never an E.164 phone book.
  // Require exactly four extension digits; do not infer an extension from a DID.
@@ -10,13 +20,15 @@ export function dialNumber(c){
  return /^\d{4}$/.test(extension)?extension:'';
 }
 export function planAddressBook(contacts,entries,managed={}){
- const desired=[],skipped=[];
+ const desired=[],skipped=[],excluded=[];
  for(const c of contacts){
-  const name=nameKey(c.name||[c.firstName,c.lastName].filter(Boolean).join(' ')),number=dialNumber(c);
   // Only authoritative directory identities are managed; local-only rows remain untouched.
   if(!c.webexDirectoryId)continue;
+  const override=CEG_OVERRIDES.get(c.webexDirectoryId);
+  if(override?.exclude){excluded.push(c.webexDirectoryId);continue;}
+  const name=nameKey(override?.name||c.name||[c.firstName,c.lastName].filter(Boolean).join(' ')),number=dialNumber(c);
   if(!name||name.length>80||!number){skipped.push(c.webexDirectoryId);continue;}
-  desired.push({sourceId:c.webexDirectoryId,name,number,extension:digits(c.extension)});
+  desired.push({sourceId:c.webexDirectoryId,name,number,extension:digits(c.extension),legacyName:override?.legacyName,legacyNumber:override?.legacyNumber});
  }
  const actions=[],links={},conflicts=[];
  const sourceCounts=new Map(),nameCounts=new Map(),used=new Set();
@@ -29,6 +41,13 @@ export function planAddressBook(contacts,entries,managed={}){
    const matches=entries.filter(e=>norm(e.name)===norm(c.name));
    if(matches.length===1)entry=matches[0];
    else if(matches.length){conflicts.push(c.sourceId);continue;}
+   // Adopt only the explicitly approved old 6243 virtual-line entry.
+   // Never claim an entry by name alone or overwrite a manual edit.
+   if(!entry&&c.legacyName&&c.number===c.legacyNumber){
+    const legacy=entries.filter(e=>norm(e.name)===norm(c.legacyName)&&e.number===c.legacyNumber);
+    if(legacy.length>1){conflicts.push(c.sourceId);continue;}
+    if(legacy.length===1)entry=legacy[0];
+   }
   }
   if(entry&&used.has(entry.id)){conflicts.push(c.sourceId);continue;}
   if(entry){
@@ -37,7 +56,7 @@ export function planAddressBook(contacts,entries,managed={}){
   }
   actions.push({sourceId:c.sourceId,kind:entry?'updated':'added',item:{...(entry?{id:entry.id,version:entry.version}:{}),name:c.name,number:c.number}});
  }
- return {actions,links,conflicts,skipped,preserved:entries.filter(e=>!used.has(e.id)).length};
+ return {actions,links,conflicts,skipped,excluded,preserved:entries.filter(e=>!used.has(e.id)).length};
 }
 export async function listEntries(request,base){
  const rows=[],ids=new Set();let total=null;
@@ -96,7 +115,7 @@ export async function syncAddressBook(env,webexFetch,store){
   }
   const verified=await listEntries(request,base);
   for(const action of plan.actions){const link=managed[action.sourceId];if(!verified.some(e=>e.id===link?.id&&e.name===action.item.name&&e.number===action.item.number))throw Error('Address-book read-back has not confirmed all changes');}
-  const status={state:plan.conflicts.length||plan.skipped.length?'attention':'ready',completedAt:Date.now(),added,updated,conflicts:plan.conflicts.length,skipped:plan.skipped.length,preserved:plan.preserved,bookId:ADDRESS_BOOK_ID,message:plan.conflicts.length||plan.skipped.length?'Some directory entries need review; existing contacts were preserved.':'CEG Address Book is synchronized.'};
+  const status={state:plan.conflicts.length||plan.skipped.length?'attention':'ready',completedAt:Date.now(),added,updated,conflicts:plan.conflicts.length,skipped:plan.skipped.length,preserved:plan.preserved,excluded:plan.excluded.length,bookId:ADDRESS_BOOK_ID,message:plan.conflicts.length||plan.skipped.length?'Some directory entries need review; existing contacts were preserved.':'CEG Address Book is synchronized.'};
   await store('address-book/finish',{token,managed,status});
   return status;
  }catch(error){

@@ -90,3 +90,50 @@ test('missing extension does not erase existing book number or guess from E164',
  assert.equal(p.actions.length,0);
  assert.deepEqual(p.skipped,['person-1']);
 });
+
+test('source-specific CEG aliases resolve the four approved duplicate identities',()=>{
+ const sources=[
+  ['Y2lzY29zcGFyazovL3VzL1BFT1BMRS8wNDExZjE2NS1lNDMzLTQ2NmUtOWRkNy1hNzQzZjhkZGZkNmM','Ames Duff Drive Up','1141','Ames Duff Drive Up - User'],
+  ['Y2lzY29zcGFyazovL3VybjpURUFNOnVzLXdlc3QtMl9yL1BMQUNFLzE3Y2RiYWJkLTE2MjQtNDk1YS1hNTMxLWQyMjg0YjAyOWRhYQ==','Ames Duff Drive Up','4014','Ames Duff Drive Up - Workspace'],
+  ['Y2lzY29zcGFyazovL3VzL1BFT1BMRS9jNmYzNTk0Ny00YjAzLTQ2OTItOGMxMC1mZmE5ZDQyOTJjNTc','Kelsey Gribbins','1703','Kelsey Gribbins - User'],
+  ['service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS8xMTg1ZWRiMS1iOWZmLTQxODUtOTBiOC0wZDRiMjQxMGI0OWU:15155006243','Kelsey Gribbins','6243','Kelsey Gribbins - Virtual Line']
+ ];
+ const contacts=sources.map(([webexDirectoryId,name,extension])=>({webexDirectoryId,name,extension,phone:'+15155559999'}));
+ const existing={id,version:2,name:'Kelsey Gribbins',number:'6243'};
+ const manual={id:'manual',name:'Unrelated Manual Contact',number:'1111'};
+ const plan=planAddressBook(contacts,[existing,manual],{});
+ assert.equal(plan.conflicts.length,0);
+ assert.equal(plan.skipped.length,0);
+ assert.equal(plan.actions.length,4);
+ for(const [sourceId,,ext,alias] of sources)assert.deepEqual(plan.actions.find(x=>x.sourceId===sourceId)?.item?.number,ext);
+ assert.deepEqual(new Set(plan.actions.map(x=>x.item.name)),new Set(sources.map(x=>x[3])));
+ const adopted=plan.actions.find(x=>x.sourceId===sources[3][0]);
+ assert.equal(adopted.kind,'updated');
+ assert.equal(adopted.item.id,id);
+ assert.equal(adopted.item.version,2);
+ assert.equal(plan.preserved,1);
+ const after=plan.actions.map((a,i)=>({...a.item,id:a.item.id||'generated-'+i,version:3}));
+ const managed=Object.fromEntries(plan.actions.map((a,i)=>[a.sourceId,{id:after[i].id,name:a.item.name,number:a.item.number}]));
+ assert.equal(planAddressBook(contacts,[...after,manual],managed).actions.length,0);
+});
+test('two no-extension virtual lines are excluded without using their E164 numbers',()=>{
+ const excludedIds=[
+  'service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS9iNWRjMDlhOC0zNWI5LTQzYTUtOTAyNC02NTUwYzdhNWRjNDA:15159564220',
+  'service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS85Y2UyMzg3YS0zMDhhLTQyZGYtOTRlNC1iYjM2MjQ4MjZiMjA:15159670500'
+ ];
+ const contacts=excludedIds.map((webexDirectoryId,i)=>({webexDirectoryId,name:i?'Teller Bank':'Operations Account Verify2',phone:'15155550000',extension:''}));
+ const p=planAddressBook(contacts,[{id,name:'Manual Contact',number:'5555'}],{});
+ assert.equal(p.actions.length,0);
+ assert.equal(p.conflicts.length,0);
+ assert.equal(p.skipped.length,0);
+ assert.deepEqual(p.excluded,excludedIds);
+ assert.equal(p.preserved,1);
+});
+test('legacy Kelsey name with a different number is not adopted',()=>{
+ const who='service:VIRTUAL_LINE:Y2lzY29zcGFyazovL3VzL1ZJUlRVQUxfTElORS8xMTg1ZWRiMS1iOWZmLTQxODUtOTBiOC0wZDRiMjQxMGI0OWU:15155006243';
+ const p=planAddressBook([{webexDirectoryId:who,name:'Kelsey Gribbins',extension:'6243'}],[{id,name:'Kelsey Gribbins',number:'9999'}],{});
+ assert.equal(p.actions.length,1);
+ assert.equal(p.actions[0].kind,'added');
+ assert.equal(p.actions[0].item.id,undefined);
+ assert.equal(p.preserved,1);
+});

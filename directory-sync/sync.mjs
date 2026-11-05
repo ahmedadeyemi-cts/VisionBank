@@ -67,7 +67,7 @@ export async function fetchSources(env,webexFetch){
  const raw=clean(env.WEBEX_ORG_ID);if(!raw)throw Error('Webex organization missing');
  const org=/^[0-9a-f-]{36}$/i.test(raw)?btoa('ciscospark://us/ORGANIZATION/'+raw):raw;
  async function read(path,arrayKey){
-  let url='https://webexapis.com/v1/'+path+'&orgId='+encodeURIComponent(org);const rows=[],seen=new Set();
+  let url='https://webexapis.com/v1/'+path+(path.startsWith('people?id=')?'':'&orgId='+encodeURIComponent(org));const rows=[],seen=new Set();
   while(url){if(seen.has(url)||seen.size>=50)throw Error('Incomplete Webex pagination');seen.add(url);const u=new URL(url);if(u.origin!=='https://webexapis.com'||!u.pathname.startsWith('/v1/'))throw Error('Unexpected Webex pagination');
    const r=await webexFetch(env,url,{method:'GET'});if(!r.ok)throw Error('Webex directory read HTTP '+r.status);const p=await r.json();if(!Array.isArray(p[arrayKey]))throw Error('Incomplete Webex directory response');if(arrayKey==='items'&&p[arrayKey].some(x=>!x?.id))throw Error('Incomplete Webex identity');rows.push(...p[arrayKey]);
    url=(r.headers.get('link')||'').match(/<([^>]+)>;\s*rel="next"/i)?.[1]||null;

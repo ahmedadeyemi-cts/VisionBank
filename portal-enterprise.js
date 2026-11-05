@@ -7,6 +7,30 @@
   const LICENSE_WORKER = window.VBPortalSession?.workerOrigin || "";
   const LICENSE_RETURN_KEY = "vb_return_to";
 
+  // The root dashboard is a view-only page. A licensing failure must not
+  // misdirect ordinary viewers into the administrator authentication screen.
+  // Keep enforcement fail-closed; do not display operational data on denial.
+  const isRootDashboard = location.pathname === "/" || location.pathname === "/index.html";
+  function showDashboardLicenseNotice(reason) {
+    if (!isRootDashboard) return false;
+    if (document.getElementById("vb-dashboard-license-notice")) return true;
+    const notice = document.createElement("section");
+    notice.id = "vb-dashboard-license-notice";
+    notice.setAttribute("role", "alert");
+    notice.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#f3f7f5;color:#173b30;display:flex;align-items:center;justify-content:center;padding:24px;font:16px system-ui,sans-serif;";
+    const panel = document.createElement("div");
+    panel.style.cssText = "max-width:560px;width:100%;background:white;border:1px solid #cfded7;border-radius:14px;padding:30px;box-shadow:0 12px 36px #142e2426;";
+    const title = document.createElement("h2");
+    title.textContent = "VisionBank Dashboard temporarily unavailable";
+    title.style.cssText = "margin:0 0 12px;font-size:23px;";
+    const detail = document.createElement("p");
+    detail.textContent = "The dashboard access service could not approve this request (" + reason + "). No administrator login is required for viewing the dashboard. Please contact your IT team if this continues.";
+    detail.style.cssText = "line-height:1.55;margin:0;";
+    panel.append(title, detail);
+    notice.append(panel);
+    document.body.append(notice);
+    return true;
+  }
   async function validatePortalLicense() {
     try {
       if (!LICENSE_WORKER) return;
@@ -24,6 +48,7 @@
             sessionStorage.setItem(LICENSE_RETURN_KEY, returnPath);
           }
         } catch {}
+        if (showDashboardLicenseNotice(data.reason || data.status || "license_required")) return;
         const target = new URL("security.html", location.href);
         target.searchParams.set("view","licensing");
         target.searchParams.set("reason",data.reason || data.status || "license_required");
@@ -31,6 +56,7 @@
       }
     } catch (error) {
       console.error("VisionBank license check failed:", error);
+      if (showDashboardLicenseNotice("license_status_unavailable")) return;
       const target = new URL("security.html", location.href);
       target.searchParams.set("view","licensing");
       target.searchParams.set("reason","license_status_unavailable");

@@ -73,7 +73,28 @@ export async function fetchSources(env,webexFetch){
    url=(r.headers.get('link')||'').match(/<([^>]+)>;\s*rel="next"/i)?.[1]||null;
   }return rows;
  }
- const [people,workspaces,numbers,locations]=await Promise.all([read('people?callingData=true&max=100','items'),read('workspaces?max=100','items'),read('telephony/config/numbers?max=100','phoneNumbers'),read('locations?max=100','items')]);
+ // Service App tokens can read the calling inventory but may not enumerate
+ // every person without an email/name/role/id filter. Discover assigned person
+ // IDs from the complete calling-number inventory instead of broad user listing.
+ // Never use partial inventory: it could incorrectly delete linked contacts.
+ const [workspaces,numbers,locations]=await Promise.all([
+   read('workspaces?max=100','items'),
+   read('telephony/config/numbers?max=100','phoneNumbers'),
+   read('locations?max=100','items')
+ ]);
+ const personIds=[...new Set(numbers.filter(n=>n.owner?.type==='PEOPLE'&&n.owner.id).map(n=>n.owner.id))];
+ if(!personIds.length)throw Error('No assigned Webex Calling people found; directory left unchanged');
+ const people=[];
+ for(let start=0;start<personIds.length;start+=75){
+   const ids=personIds.slice(start,start+75);
+   const batch=await read('people?callingData=true&max=100&id='+encodeURIComponent(ids.join(',')),'items');
+   const found=new Set(batch.map(p=>p.id));
+   if(found.size!==ids.length||batch.length!==ids.length||ids.some(id=>!found.has(id)))
+     throw Error('Incomplete Webex People ID enumeration; directory left unchanged');
+   people.push(...batch);
+ }
+ if(new Set(people.map(p=>p.id)).size!==people.length)
+   throw Error('Duplicate Webex People identities; directory left unchanged');
  if(!people.length||!workspaces.length||!numbers.length||!locations.length)throw Error('Webex directory source is empty');
  return sourceRows({people,workspaces,numbers,locations});
 }

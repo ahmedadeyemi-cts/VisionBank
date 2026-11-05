@@ -25,6 +25,7 @@ test('Service App directory enumerates assigned people using complete phone-numb
   const parsed=new URL(url);
   if(parsed.pathname.endsWith('/people')){
    assert.equal(parsed.searchParams.get('id'),'p1,p2');
+   assert.deepEqual([...parsed.searchParams.keys()],['id']);
    return Response.json({items:ids.map((id,i)=>({id,displayName:'Person '+i,firstName:'Person',lastName:String(i),emails:['test'+i+'@example.test']}))});
   }
   if(parsed.pathname.endsWith('/workspaces'))return Response.json({items:[{id:'w1',displayName:'Office',locationId:'loc'}]});

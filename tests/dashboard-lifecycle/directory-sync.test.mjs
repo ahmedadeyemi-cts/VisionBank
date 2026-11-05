@@ -33,9 +33,10 @@ test('Service App directory enumerates assigned people using complete phone-numb
   throw Error('Unexpected API path '+parsed.pathname);
  };
  const result=await fetchSources(env,fetch);
- assert.equal(result.length,2);
+ assert.equal(result.length,3); // two people plus the discovered workspace
  assert.equal(seen.filter(x=>x.includes('/people?')).length,1);
- assert.ok(result.every(x=>x.type==='PEOPLE'));
+ assert.equal(result.filter(x=>x.type==='PEOPLE').length,2);
+ assert.equal(result.filter(x=>x.type==='PLACE').length,1);
 });
 test('incomplete Service App person lookup fails closed',async()=>{
  const env={WEBEX_ORG_ID:'11111111-1111-4111-8111-111111111111'};

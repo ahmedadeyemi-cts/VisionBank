@@ -4,11 +4,10 @@ const clean=v=>String(v??'').trim(),digits=v=>clean(v).replace(/\D/g,'');
 const nameKey=v=>clean(v).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/&/g,' and ').replace(/[^a-zA-Z0-9._\-\s]/g,'').replace(/\s+/g,' ').trim();
 const norm=v=>nameKey(v).toLowerCase();
 export function dialNumber(c){
- const phone=digits(c.phone),extension=digits(c.extension);
- if(phone.length===10)return '+1'+phone;
- if(phone.length>=11&&phone.length<=15)return '+'+phone;
- if(!phone&&/^\d{2,8}$/.test(extension))return extension;
- return '';
+ // CEG Address Book is an internal dialing book, never an E.164 phone book.
+ // Require exactly four extension digits; do not infer an extension from a DID.
+ const extension=clean(c.extension);
+ return /^\d{4}$/.test(extension)?extension:'';
 }
 export function planAddressBook(contacts,entries,managed={}){
  const desired=[],skipped=[];

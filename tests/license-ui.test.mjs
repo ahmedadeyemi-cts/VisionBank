@@ -62,5 +62,15 @@ test('all current non-Security enterprise pages cache-bust the licensing shell',
 
 test('Security license assets are cache-busted',()=>{
   assert.ok(securityHtml.includes('security.css?v=20261005-license2'));
-  assert.ok(securityHtml.includes('security.js?v=20261005-license2'));
+  assert.ok(securityHtml.includes('security.js?v=20261105-authority-save1'));
+});
+
+test('Authority save preserves existing enforcement unless the admin explicitly changes it',()=>{
+  const start=securityJs.indexOf('function licenseConfigFromForm(');
+  const end=securityJs.indexOf('function renderLicenseConsole()',start);
+  const body=securityJs.slice(start,end);
+  assert.ok(body.includes('enforcementOverride === null'), 'save respects unchanged enforcement');
+  assert.ok(body.includes('? {}'), 'ordinary URL save does not send enforcementEnabled');
+  assert.ok(body.includes('enforcementEnabled: enforcementOverride === true'), 'explicit toggle retains enforcement control');
+  assert.ok(!body.includes('current.enforcementEnabled === true'), 'must not repeat current enforcement as a new enable request');
 });

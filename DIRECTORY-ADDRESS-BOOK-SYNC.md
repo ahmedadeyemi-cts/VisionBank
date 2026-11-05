@@ -2,7 +2,7 @@
 
 Directory refresh remains on `17 */3 * * *` (UTC), and **Sync now** runs the same pipeline. After a successful canonical directory sync, the main Worker updates CEG Address Book `b404018a-eecb-4671-ba18-7a18b259cff0`. Version 4 bootstraps this once through the existing maintenance task.
 
-Only Webex-linked directory contacts are managed. Full phone numbers are preferred (US 10-digit numbers gain +1; international numbers retain their country code), with extension fallback when there is no phone number. Names are normalized to the API's supported character set. Initial adoption requires unique normalized names on both sides; later updates use persisted Webex identity-to-entry-ID mappings. Duplicate names, invalid numbers, and manually changed managed entries are held for review. Unmatched/manual address-book entries are preserved. This release does not delete address-book entries.
+Only Webex-linked directory contacts are managed. CEG Address Book uses the exact four-digit internal extension (including leading zeros) and never copies E.164/direct inward dialing numbers. Contacts without a valid four-digit internal extension are skipped without changing any existing Address Book entries. Names are normalized to the API's supported character set. Initial adoption requires unique normalized names on both sides; later updates use persisted Webex identity-to-entry-ID mappings. Duplicate names, invalid numbers, and manually changed managed entries are held for review. Unmatched/manual address-book entries are preserved. This release does not delete address-book entries.
 
 The companion directory object stores a five-minute renewable lease and mapping checkpoints. Scheduled/manual address-book runs cannot overlap. Bulk writes include current resource versions, process each 207 item status, and checkpoint successes. A complete paginated read-back confirms writes before successful completion. Errors retain the last confirmed completion time and do not erase the successful directory refresh.
 
@@ -16,3 +16,7 @@ API contract checked against Cisco documentation on 2026-10-19:
 - cjp:config_read and cjp:config_write plus Contact Center user-profile permissions are required.
 
 Deployment: patch only directory-sync/sync.mjs in the current main, sync.mjs/store.mjs in the current companion, and add address-book.mjs to both. Preserve all other live modules, bindings, migrations and schedules. Deploy companion before main. Publish directory.html/directory.js through the existing Render deployment. Rollback uses saved live versions; do not restore stale directory data or unrelated Worker files.
+
+## 2026-11-05 extension-only update
+
+This code change is prepared in a separate branch. The live CEG Address Book was inspected read-only: 331 entries, including 196 E.164/full numbers and 135 four-digit extensions. Existing managed entries with E.164 will be updated to internal extensions on a future successful sync, subject to the existing conflict and identity checks; manual/unmanaged entries will not be touched. **Before promoting the Worker module to production, review the live planned actions and preserve a snapshot.** GitHub commits alone do not update the running Cloudflare Worker. Preserve other production Worker modules, bindings, and schedules during any rollout.

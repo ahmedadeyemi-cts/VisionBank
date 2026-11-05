@@ -87,7 +87,7 @@ export async function fetchSources(env,webexFetch){
  const people=[];
  for(let start=0;start<personIds.length;start+=75){
    const ids=personIds.slice(start,start+75);
-   const batch=await read('people?callingData=true&max=100&id='+encodeURIComponent(ids.join(',')),'items');
+   const batch=await read('people?id='+encodeURIComponent(ids.join(',')),'items');
    const found=new Set(batch.map(p=>p.id));
    if(found.size!==ids.length||batch.length!==ids.length||ids.some(id=>!found.has(id)))
      throw Error('Incomplete Webex People ID enumeration; directory left unchanged');

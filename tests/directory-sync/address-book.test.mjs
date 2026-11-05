@@ -15,7 +15,7 @@ test('stable identity supports renames, protects manual edits, and repeats witho
  assert.equal(planAddressBook([contact],[e],{'person-1':e}).actions.length,0);
 });
 test('duplicate names, invalid numbers and local-only contacts never cause guessed updates',()=>{
- const p=planAddressBook([contact,{...contact,webexDirectoryId:'other'}, {...contact,webexDirectoryId:'bad',name:'Invalid',phone:'123'}, {name:'Manual',phone:'15155551234'}],[]);
+ const p=planAddressBook([contact,{...contact,webexDirectoryId:'other'}, {...contact,webexDirectoryId:'bad',name:'Invalid',phone:'123',extension:'123'}, {name:'Manual',phone:'15155551234'}],[]);
  assert.equal(p.actions.length,0);assert.equal(p.conflicts.length,2);assert.equal(p.skipped.length,1);
 });
 test('CEG Address Book always uses exactly four-digit internal extensions',()=>{

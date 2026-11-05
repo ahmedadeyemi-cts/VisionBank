@@ -887,9 +887,11 @@ function licenseConfigFromForm(enforcementOverride = null) {
     return {
         activeSource: document.getElementById("security-license-source")?.value || current.activeSource || "primary",
         installationName: document.getElementById("security-license-installation-name")?.value.trim() || "VisionBank Production",
-        enforcementEnabled: enforcementOverride === null
-            ? current.enforcementEnabled === true
-            : enforcementOverride === true,
+        // Authority edits must not re-request license enforcement. Only an
+        // explicit enforcement toggle may send this field to the backend.
+        ...(enforcementOverride === null
+            ? {}
+            : {enforcementEnabled: enforcementOverride === true}),
         primary: {
             repository: document.getElementById("security-license-primary-repo")?.value.trim() || "",
             authorityUrl: document.getElementById("security-license-primary-url")?.value.trim() || ""

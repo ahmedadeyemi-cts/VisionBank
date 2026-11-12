@@ -10,9 +10,11 @@ class MemoryKV{
   async put(key,value,options={}){this.map.set(key,{value,metadata:options.metadata||null});}
   async get(key){return this.map.get(key)?.value??null;}
   async delete(key){this.map.delete(key);}
-  async list({prefix='',limit=1000}={}){
-    const keys=[...this.map.entries()].filter(([k])=>k.startsWith(prefix)).slice(0,limit).map(([name,v])=>({name,metadata:v.metadata}));
-    return {keys,list_complete:true};
+  async list({prefix='',limit=1000,cursor}={}){
+    const all=[...this.map.entries()].filter(([k])=>k.startsWith(prefix));
+    const offset=Number(cursor)||0;
+    const keys=all.slice(offset,offset+limit).map(([name,v])=>({name,metadata:v.metadata}));
+    return {keys,list_complete:offset+limit>=all.length,cursor:String(offset+limit)};
   }
 }
 
@@ -641,7 +643,7 @@ test('permanent assignment survives future cleanup and is removable only by expl
 });
 
 
-test('temporary sign-in automatically restores the same member from another temporary phone before applying the new phone',async()=>{
+for(const priorRecords of [0,1000])test('temporary sign-in restores prior phone with '+priorRecords+' preceding records',async()=>{
   const e={SESSIONS:new MemoryKV(),LOGS:new MemoryKV(),DEVICE_WRITE_SCOPE:'organization'};
   const oldDevice={id:'call-old',displayName:'Old Temporary Phone',mac:'AA:BB:CC:DD:EE:01'};
   const oldPrimary={...PRIMARY,id:'old-primary',firstName:'Old',lastName:'Owner',extension:'3001'};
@@ -679,6 +681,7 @@ test('temporary sign-in automatically restores the same member from another temp
     durationMinutes:540,operator:{name:'Old User',email:'old@visionbank.com'},phonismPhoneId:'old-phone',
     phonismTenantId:'old-tenant',phonismCompanyId:'40',phonismDomainId:'50'
   });
+  for(let i=0;i<priorRecords;i++)await putLease(e,{...oldLease,leaseId:`aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12,'0')}`,temporaryLine2:{memberId:'unrelated-'+i}});
   await putLease(e,oldLease);
 
   const preview=await createWritePreview({
@@ -773,4 +776,66 @@ test('999-day validation and permanent storage do not use a fake expiration',asy
  const lease=createLease({device:DEVICE,location:LOCATION,durationMinutes:'permanent',lineNumber:3});
  await putLease({LOGS:{put:async(_key,_value,opts)=>{options=opts;}}},lease);
  assert.equal('expirationTtl' in options,false);
+});
+
+for(const failure of ['sync','reboot'])test('handoff blocks '+failure+' failure and repeated attempts until recovery completes',async()=>{
+  const e={SESSIONS:new MemoryKV(),LOGS:new MemoryKV(),DEVICE_WRITE_SCOPE:'organization'};
+  const oldDevice={id:'call-old',displayName:'Old Temporary Phone',mac:'AA:BB:CC:DD:EE:01'};
+  const oldPrimary={...PRIMARY,id:'old-primary',firstName:'Old',lastName:'Owner',extension:'3001'};
+  const oldTarget={...TARGET,port:2,primaryOwner:false,lineType:'SHARED_CALL_APPEARANCE',memberType:'PEOPLE',displayName:TARGET.name};
+  const states=new Map([
+    ['call-old',[structuredClone(oldPrimary),structuredClone(oldTarget)]],
+    ['call-1',[structuredClone(PRIMARY)]]
+  ]);
+  const puts=[];
+  const fetch=async(_env,url,options={})=>{
+    const u=new URL(url),match=u.pathname.match(/^\/v1\/telephony\/config\/devices\/([^/]+)\/members$/);
+    if(!match)return Response.json({message:'not found'},{status:404});
+    const id=decodeURIComponent(match[1]),method=options.method||'GET';
+    if(!states.has(id))return Response.json({message:'not found'},{status:404});
+    if(method==='GET')return Response.json({members:structuredClone(states.get(id)),maxLineCount:4});
+    if(method==='PUT'){
+      const body=JSON.parse(options.body);puts.push({deviceId:id,members:structuredClone(body.members)});states.set(id,structuredClone(body.members));
+      return new Response(null,{status:204});
+    }
+    return Response.json({message:'bad method'},{status:405});
+  };
+  const calls=[];let failing=true;
+  const phonismReader={
+    async syncHierarchyIntegration(_env,companyId,body){if(failing&&failure==='sync')throw new Error('sync-failed');calls.push({type:'sync',companyId,body});return {accepted:true,status:202};},
+    async lines(_env,phoneId){
+      if(phoneId==='new-phone')return [{lineNumber:2,username:'1806',alias:'Ryan Dea',registrationStatus:'not-monitored'}];
+      if(failing&&failure==='sync')return [{lineNumber:2,username:'1806',alias:'Ryan Dea'}];
+      return [];
+    },
+    async tr069Action(_env,phoneId,action){if(failing&&failure==='reboot')throw new Error('reboot-failed');calls.push({type:'reboot',phoneId,action});return {accepted:true,status:200};}
+  };
+
+  const oldLease=createLease({
+    device:oldDevice,location:{id:'loc-old',name:'OLD'},baselineLine2:null,
+    temporaryLine2:{memberId:TARGET.id,name:TARGET.name,extension:TARGET.extension,type:'PEOPLE',locationId:TARGET.locationId,locationName:TARGET.locationName},
+    durationMinutes:540,operator:{name:'Old User',email:'old@visionbank.com'},phonismPhoneId:'old-phone',
+    phonismTenantId:'old-tenant',phonismCompanyId:'40',phonismDomainId:'50'
+  });
+  await putLease(e,oldLease);
+
+  const preview=await createWritePreview({
+    env:e,session:SESSION,device:DEVICE,location:LOCATION,currentMembers:states.get('call-1'),
+    targetMember:TARGET,durationMinutes:15,reason:'Move temporary sign-in',
+    phonismContext:{phoneId:'new-phone',tenantId:'123',companyId:'40',domainId:'50'}
+  });
+  const apply=()=>applyWritePreview({env:e,request:request(),session:SESSION,webexFetch:fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader});
+  for(let attempt=0;attempt<2;attempt++){
+    await assert.rejects(apply,error=>error.code==='temporary-handoff-signout-failed');
+    assert.equal(puts.some(p=>p.deviceId==='call-1'),false,'destination must never be written while cleanup is pending');
+    if(attempt===0)assert.equal((await getLease(e,oldLease.leaseId)).status,failure==='sync'?'restore-sync-pending':'restore-reboot-pending');
+    else assert.ok(['restore-sync-pending','restore-reboot-pending'].includes((await getLease(e,oldLease.leaseId)).status));
+  }
+  failing=false;
+  const pending=await getLease(e,oldLease.leaseId);
+  pending.recovery={...pending.recovery,cleanupRebootRetryAt:null,cleanupNextSyncAt:null};
+  await putLease(e,pending);
+  await apply();
+  assert.equal((await getLease(e,oldLease.leaseId)).status,'restored');
+  assert.equal(states.get('call-1').some(m=>m.id===TARGET.id),true);
 });

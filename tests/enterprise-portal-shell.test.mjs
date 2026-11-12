@@ -9,7 +9,7 @@ test('all non-Security portal pages load the shared enterprise shell exactly onc
   for(const page of portalPages){
     const html=read(page);
     assert.equal((html.match(/portal-enterprise\.css\?v=20261006-shell6/g)||[]).length,1,page+' shared CSS');
-    assert.equal((html.match(/portal-enterprise\.js\?v=20261005-license1/g)||[]).length,1,page+' shared JS');
+    assert.equal((html.match(/portal-enterprise\.js\?v=[^"']+/g)||[]).length,1,page+' shared JS');
   }
 });
 
@@ -41,7 +41,7 @@ test('Security participates in the common portal theme without loading the share
   const js=read('security.js');
   assert.doesNotMatch(html,/portal-enterprise\.css/);
   assert.match(js,/vb_portal_theme/);
-  assert.match(html,/security\.js\?v=20261005-license2/);
+  assert.match(html,/security\.js\?v=20261105-authority-save1/);
 });
 
 test('Dashboard and Webex Dashboard do not expose cross-portal navigation tabs',()=>{

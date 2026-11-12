@@ -51,6 +51,8 @@ export function phoneDurationLabel(minutes){
   const value=validateTemporaryDuration(minutes);
   if(value==='permanent')return 'Permanent';
   if(value===540)return 'All Day (9 hours)';
+  if(value===10080)return '7 Days';
+  if(value===43200)return '30 Days';
   if(value>=1440&&value%1440===0)return value/1440+(value===1440?' day':' days');
   if(value<60)return value+' minutes';
   const hours=value/60;
@@ -110,6 +112,7 @@ export function phoneErrorMenu(code,homeUrl){
     'phone-lines-full':'All supported phone lines are occupied. Remove an extension before adding another.',
     'phone-line-capacity-unavailable':'Unable to confirm available phone lines. Please try again.',
     'target-member-not-available':'That extension or number is no longer available for this phone.',
+    'temporary-handoff-signout-failed':'The previous temporary phone could not be signed out. Please try again or contact support.',
     'device-state-changed-review-again':'The phone assignment changed. Start again and review the current lines.',
     'device-write-not-enabled':'Phone self-service is not enabled for this device.',
     'phonism-enterprise-sync-company-required':'Phonism Sync is not ready for this phone.',

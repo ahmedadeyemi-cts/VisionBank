@@ -66,8 +66,8 @@ test('phone duration menu runs from 15 minutes through 30 days',()=>{
   assert.equal(phoneDurationLabel(60),'1 hour');
   assert.equal(phoneDurationLabel(720),'12 hours');
   assert.equal(phoneDurationLabel(1440),'1 day');
-  assert.equal(phoneDurationLabel(10080),'7 days');
-  assert.equal(phoneDurationLabel(43200),'30 days');
+  assert.equal(phoneDurationLabel(10080),'7 Days');
+  assert.equal(phoneDurationLabel(43200),'30 Days');
 });
 
 test('XML input asks for extension or phone number and safely escapes values',()=>{

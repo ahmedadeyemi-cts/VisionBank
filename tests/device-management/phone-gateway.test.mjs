@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createDeviceManagementHandler} from '../../device-management/gateway.mjs';
 import {createPhoneEnrollment} from '../../device-management/phone-selfservice.mjs';
 import {sweepExpiredLeases} from '../../device-management/write.mjs';
+import {createLease,putLease} from '../../device-management/lease.mjs';
 
 class MemoryKV{
   constructor(){this.map=new Map();}
@@ -85,7 +86,7 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
   assert.match(duration.text,/15 minutes/);
   assert.match(duration.text,/All Day \(9 hours\)/);assert.match(duration.text,/Permanent/);assert.doesNotMatch(duration.text,/12 hours/);
-  for(const label of [/7 days/,/30 days/])assert.match(duration.text,label);
+  for(const label of [/7 Days/,/30 Days/])assert.match(duration.text,label);
 
   assert.match(duration.text,/Custom Days/);
   assert.match(duration.text,/cancelAction=""/);
@@ -97,7 +98,8 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   }
   for(const days of [1,2,10,30,31,180,365,999]){
     const customConfirm=await xml(handler,env,'https://worker.example/p/'+token+'?a=c&member=user-2&q=4102&locationId=loc-a&days='+days);
-    assert.equal(customConfirm.status,200);assert.ok(customConfirm.text.includes('Save - '+days+(days===1?' day':' days')));
+    assert.equal(customConfirm.status,200);const expectedLabel=days===30?'30 Days':days+(days===1?' day':' days');
+    assert.ok(customConfirm.text.includes('Save - '+expectedLabel));
     const customIntent=customConfirm.text.match(/intent=([0-9a-f-]{36})/i)[1];
     assert.equal(JSON.parse(await env.SESSIONS.get('device-phone-intent:'+customIntent)).durationMinutes,days*1440);
   }
@@ -154,6 +156,46 @@ test('Button 7 path adds a temporary Line 2 and supports early Sign Out with aut
   assert.equal(phonismCalls.filter(x=>x.type==='sync').length,1); // Removal already confirmed; skip redundant sync.
   assert.equal(phonismCalls.filter(x=>x.type==='reboot').length,2);
   assert.equal(webex.members.find(x=>x.port===4)?.id,'keep-permanent');
+});
+
+
+for(const permanent of [false,true])test((permanent?'permanent':'temporary')+' managed assignment remains selectable from another phone when Webex availableMembers omits it',async()=>{
+  const env={WEBEX_ORG_ID:'org-1',DEVICE_WRITE_SCOPE:'organization',LOGS:new MemoryKV(),SESSIONS:new MemoryKV()};
+  const enrollment=await createPhoneEnrollment(env,{
+    device:{id:'call-new',displayName:'New Phone',mac:MAC,model:'T57W'},
+    location:{id:'loc-a',name:'CLIVE'},phonismPhoneId:'900-new',admin:{},
+    baseUrl:'https://worker.example/api/webex/device-management',shortBaseUrl:'https://worker.example/p'
+  });
+  const lease=createLease({
+    device:{id:'call-old',displayName:permanent?'Permanent Phone':'Old Temporary Phone',mac:'AA:BB:CC:DD:EE:11'},
+    location:{id:'loc-a',name:'CLIVE'},baselineLine2:null,
+    temporaryLine2:{memberId:'user-2',name:'Temporary User',extension:'4102',phoneNumber:'+15155554102',type:'PEOPLE',locationId:'loc-a',locationName:'CLIVE'},
+    durationMinutes:permanent?'permanent':540,operator:{name:'Old User',email:'old@visionbank.com'},
+    phonismPhoneId:'900-old',phonismTenantId:'101',phonismCompanyId:'500',phonismDomainId:'40'
+  });
+  await putLease(env,lease);
+
+  const webexFetch=async(_env,url)=>{
+    const u=new URL(url);
+    if(u.pathname==='/v1/telephony/config/devices/call-new/availableMembers')return json({members:[]});
+    if(u.pathname==='/v1/telephony/config/numbers')return json({phoneNumbers:[]});
+    return json({message:'not found'},404);
+  };
+  const handler=createDeviceManagementHandler({
+    webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],
+    phonismReader:{async discover(){throw new Error('not-needed');}}
+  });
+  const token=enrollment.xmlUrl.split('/').at(-1);
+  const search=await xml(handler,env,'https://worker.example/p/'+token+'?a=search&q=4102');
+  assert.equal(search.status,200);
+  assert.match(search.text,/4102 - Temporary User/);
+  const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
+  assert.equal(duration.status,200);
+  assert.match(duration.text,/15 minutes/);
+  assert.match(duration.text,/All Day \(9 hours\)/);
+  assert.match(duration.text,/7 Days/);
+  assert.match(duration.text,/30 Days/);
+  assert.match(duration.text,/Permanent/);
 });
 
 test('Button 7 token is bound to the enrolled MAC when the Yealink supplies $mac',async()=>{

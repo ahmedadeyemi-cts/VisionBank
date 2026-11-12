@@ -34,5 +34,5 @@ test('Fleet Key UI assets are cache-busted',()=>{
   assert.ok(deviceHtml.includes('device.css?v=20261014-issues1'));
   assert.ok(deviceHtml.includes('device.js?v=20261015-expiry1'));
   assert.ok(securityHtml.includes('security.css?v=20261005-license2'));
-  assert.ok(securityHtml.includes('security.js?v=20261005-license2'));
+  assert.ok(securityHtml.includes('security.js?v=20261105-authority-save1'));
 });

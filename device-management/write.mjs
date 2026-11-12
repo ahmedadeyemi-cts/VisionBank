@@ -211,6 +211,32 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   if(freshHash!==preview.currentHash)throw new DeviceManagementError('device-state-changed-review-again',409);
 
   if(preview.allocateLine&&firstAvailableLine(current.members,current.maxLineCount,preview.targetMember?.lineWeight)!==preview.lineNumber)throw new DeviceManagementError('device-state-changed-review-again',409);
+
+  const handoffs=[];
+  if(preview.targetMember?.id&&preview.durationMinutes!=='permanent'){
+    const leases=await listLeases(env,{limit:1000});
+    const conflicts=leases.filter(lease=>
+      lease?.status==='active'&&lease?.permanent!==true&&
+      String(lease?.temporaryLine2?.memberId||'')===String(preview.targetMember.id)&&
+      String(lease?.device?.id||'')!==String(preview.device.id)
+    );
+    for(const conflict of conflicts){
+      const ended=await endTemporaryLease({
+        env,request,session,webexFetch,orgId,leaseId:conflict.leaseId,phonismReader,
+        endMode:'handoff',
+        handoffTarget:{deviceId:preview.device.id,deviceName:preview.device.displayName||'',locationId:preview.location.id,locationName:preview.location.name||''}
+      });
+      const status=String(ended?.result?.status||'');
+      if(!status||status==='retry-pending')throw new DeviceManagementError('temporary-handoff-signout-failed',409);
+      handoffs.push({
+        leaseId:conflict.leaseId,
+        fromDeviceId:conflict.device?.id||null,
+        fromDeviceName:conflict.device?.name||'',
+        status
+      });
+    }
+  }
+
   const desired=composeMembers(current.members,preview.targetMember,preview.lineNumber||2);
   let webexSaved=false,phonismQueued=false,rolledBack=false;
   try{
@@ -335,7 +361,7 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   }
 
   if(env?.SESSIONS?.delete)await env.SESSIONS.delete(PREVIEW_PREFIX+preview.mutationId);
-  return {lease,audit,rebootQueued,rebootError};
+  return {lease,audit,rebootQueued,rebootError,handoffs};
 }
 
 export async function verifyLease({env,webexFetch,orgId,leaseId,phonismReader=createPhonismReader()}){
@@ -605,26 +631,41 @@ async function finishExternalReconcile({env,lease,phonismReader,webexFetch,orgId
   return {leaseId:lease.leaseId,status:'external-change-reconciled'};
 }
 
-export async function endTemporaryLease({env,request,session,webexFetch,orgId,leaseId,phonismReader=createPhonismReader(),now=Date.now(),deferWork=false}){
+export async function endTemporaryLease({env,request,session,webexFetch,orgId,leaseId,phonismReader=createPhonismReader(),now=Date.now(),deferWork=false,endMode='manual',handoffTarget=null}){
   const lease=await getLease(env,leaseId);
   if(!lease)throw new DeviceManagementError('lease-not-found',404);
   if(!isPilotDevice(env,lease.device?.mac))throw new DeviceManagementError('device-write-not-enabled',403);
   if(lease.manualEndRequestedAt&&deferWork)return {lease,result:{status:lease.status}};
   if(lease.status!=='active')throw new DeviceManagementError('lease-not-active',409);
-  lease.manualEndRequestedAt=new Date(now).toISOString();
+  const handoff=endMode==='handoff';
+  if(handoff&&lease.permanent===true)throw new DeviceManagementError('permanent-assignment-not-handoff',409);
+  const stamp=new Date(now).toISOString();
+  lease.manualEndRequestedAt=stamp;
   lease.manualEndRequestedBy={
     type:session?.actorType==='device'?'device':'human',
     name:clean(session?.operator?.name||'',100),
     email:clean(session?.operator?.email||'',254)
   };
+  if(handoff){
+    lease.handoffRequestedAt=stamp;
+    lease.handoffTarget={
+      deviceId:clean(handoffTarget?.deviceId||'',180)||null,
+      deviceName:clean(handoffTarget?.deviceName||'',160),
+      locationId:clean(handoffTarget?.locationId||'',180)||null,
+      locationName:clean(handoffTarget?.locationName||'',120)
+    };
+  }
   lease.expiresAt=new Date(lease.permanent?now:Math.min(now,leaseEnd(lease))).toISOString();
   if(deferWork)lease.recovery={...(lease.recovery||{}),phoneCleanupUntil:new Date(now+300000).toISOString()};
   await putLease(env,lease);
   await writeAuditRecord(env,buildAuditRecord({
-    eventType:'temporary-line-signout',action:'signout-requested',request,session,
+    eventType:handoff?'temporary-line-handoff':'temporary-line-signout',
+    action:handoff?'handoff-signout-requested':'signout-requested',request,session,
     device:lease.device,location:lease.location,
-    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2},
-    reason:'Phone user requested early sign out of the temporary Line 2 assignment.',
+    change:{leaseId:lease.leaseId,temporaryLine2:lease.temporaryLine2,...(handoff?{handoffTarget:lease.handoffTarget}:{})},
+    reason:handoff
+      ?'The same extension is signing into another phone. The prior platform-managed temporary assignment is being restored before the new sign-in continues.'
+      :'Phone user requested early sign out of the temporary Line 2 assignment.',
     webexStatus:'pending-restore',phonismStatus:'pending-sync',result:'pending',originalAuditId:lease.auditId,now
   }));
   if(deferWork)return {lease,result:{status:'signout-requested'}};
@@ -633,7 +674,6 @@ export async function endTemporaryLease({env,request,session,webexFetch,orgId,le
   if(!result)throw new DeviceManagementError('temporary-line-signout-not-completed',503);
   return {result,lease:await getLease(env,lease.leaseId)};
 }
-
 
 async function resumePendingLineSync({env,lease,webexFetch,orgId,phonismReader,now,phoneDeadline=null}){
   // Do not overlap the initial request's bounded work.

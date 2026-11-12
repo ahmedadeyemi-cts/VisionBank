@@ -129,6 +129,48 @@ async function searchEligibleMembers({webexFetch,env,org,deviceId,query='',locat
   return {members,truncated:attempts.some(x=>x.truncated)};
 }
 
+
+async function managedAssignmentCandidates(env,{query='',locationId=null,excludeDeviceId=null}={}){
+  const q=display(query||'',160).toLowerCase();
+  if(!q)return [];
+  const leases=await listLeases(env,{limit:1000}).catch(()=>[]);
+  const unique=new Map();
+  for(const lease of leases){
+    if(lease?.status!=='active')continue;
+    if(String(lease?.device?.id||'')===String(excludeDeviceId||''))continue;
+    const line=lease?.temporaryLine2;
+    if(!line?.memberId||!line?.locationId)continue;
+    if(locationId&&String(line.locationId)!==String(locationId))continue;
+    const row={
+      id:String(line.memberId),
+      name:display(line.name||'',160),
+      type:ownerType({memberType:line.type})||'PEOPLE',
+      extension:display(line.extension||'',32),
+      phoneNumber:display(line.phoneNumber||'',64),
+      locationId:String(line.locationId),
+      locationName:display(line.locationName||'',120),
+      available:true,
+      availability:lease.permanent===true?'permanent-shared':'temporary-handoff',
+      temporaryHandoff:lease.permanent!==true,
+      permanentExisting:lease.permanent===true,
+      handoffFromDeviceId:lease.device?.id||null,
+      handoffFromDeviceName:display(lease.device?.name||'',160),
+      handoffLeaseId:lease.leaseId
+    };
+    if(!memberSearchText(row).includes(q))continue;
+    if(!unique.has(row.id))unique.set(row.id,row);
+  }
+  return [...unique.values()];
+}
+
+async function searchEligibleMembersWithHandoff({webexFetch,env,org,deviceId,query='',locationId=null}){
+  const searched=await searchEligibleMembers({webexFetch,env,org,deviceId,query,locationId});
+  const managed=await managedAssignmentCandidates(env,{query,locationId,excludeDeviceId:deviceId});
+  const unique=new Map(searched.members.map(member=>[String(member.id),member]));
+  for(const member of managed)if(!unique.has(String(member.id)))unique.set(String(member.id),member);
+  return {members:[...unique.values()],truncated:searched.truncated};
+}
+
 function numberOwnerRow(value){
   const owner=value?.owner||{},location=locationOf({location:value?.location});
   const type=ownerType({memberType:owner.type||owner.ownerType});
@@ -556,7 +598,7 @@ function activePhoneLease(index,enrollment){
 }
 
 async function phoneMember({webexFetch,env,org,enrollment,intent}){
-  const searched=await searchEligibleMembers({
+  const searched=await searchEligibleMembersWithHandoff({
     webexFetch,env,org,deviceId:enrollment.device.id,
     query:intent.memberQuery||'',locationId:intent.memberLocationId||null
   });
@@ -819,7 +861,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const q=display(new URL(request.url).searchParams.get('q')||'',80);
       if(!q)return phoneXmlResponse(inputScreen('Add Extension','Extension or phone number',searchUrl,'q',{type:'number',cancelAction:''}));
-      const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
+      const searched=await searchEligibleMembersWithHandoff({webexFetch,env,org,deviceId:enrollment.device.id,query:q});
       const rows=searched.members.filter(member=>member?.id).slice(0,8);
       if(!rows.length)return phoneXmlResponse(textMenu('No Matching Extensions',[
         {prompt:'Search again',uri:searchUrl},{prompt:'Return',uri:home}
@@ -836,7 +878,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       if(changing)throw new DeviceManagementError('phone-active-lease',409);
       const url=new URL(request.url),memberId=id(url.searchParams.get('member')),q=display(url.searchParams.get('q')||'',80),locationId=id(url.searchParams.get('locationId'));
       if(!memberId)throw new DeviceManagementError('target-member-not-available',409);
-      const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
+      const searched=await searchEligibleMembersWithHandoff({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
       const target=searched.members.find(member=>String(member.id)===String(memberId));
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const items=phoneDurationOptions().map(minutes=>({
@@ -868,7 +910,7 @@ async function handlePhoneSelfServiceRoute({request,env,part,webexFetch,phonismR
       }
       const minutes=custom?Number(days)*1440:url.searchParams.get('minutes')==='permanent'?'permanent':Number(url.searchParams.get('minutes'));
       if(!custom&&minutes!=='permanent'&&!phoneDurationOptions().includes(minutes))throw new DeviceManagementError('invalid-temporary-duration');
-      const searched=await searchEligibleMembers({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
+      const searched=await searchEligibleMembersWithHandoff({webexFetch,env,org,deviceId:enrollment.device.id,query:q,locationId});
       const target=searched.members.find(member=>String(member.id)===String(memberId));
       if(!target)throw new DeviceManagementError('target-member-not-available',409);
       const intent=await createPhoneIntent(env,enrollment,{memberId,targetMember:target,memberQuery:q,memberLocationId:target.locationId,durationMinutes:minutes});
@@ -1320,7 +1362,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         const query=display(url.searchParams.get('q')||'',160);
         const limit=memberResultLimit(url.searchParams.get('limit'));
         const includeAppearances=url.searchParams.get('details')==='1';
-        const searched=await searchEligibleMembers({webexFetch,env,org,deviceId,query});
+        const searched=await searchEligibleMembersWithHandoff({webexFetch,env,org,deviceId,query});
         const eligibleMatches=searched.members
           .map(m=>({...m,available:true,availability:'available'}))
           .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))||String(a.extension||'').localeCompare(String(b.extension||'')));
@@ -1354,7 +1396,7 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
         let targetMember=null;
         if(body.targetLine2MemberId){
           const lookup=display(body.targetLine2Search||'',160);
-          const searched=await searchEligibleMembers({
+          const searched=await searchEligibleMembersWithHandoff({
             webexFetch,env,org,deviceId,query:lookup,locationId:lookup?id(body.targetLine2LocationId):null
           });
           targetMember=searched.members.find(m=>String(m.id)===String(body.targetLine2MemberId))||null;
@@ -1387,7 +1429,8 @@ export function createDeviceManagementHandler({webexFetch,checkAccess,loadIpRule
           return output({success:true,
             message:result.syncPending?'Webex saved the assignment. Phonism is still syncing; restart is deferred until the requested line is confirmed. Automatic retry runs within about 1 minute.':result.rebootQueued?'Webex updated, Phonism Sync queued, and phone reboot queued. Refreshing and verifying the new temporary line.':'Webex updated and Phonism Sync queued, but the automatic reboot could not be queued. The line change remains saved; Reboot & Reverify is available.',
             leaseId:result.lease.leaseId,expiresAt:result.lease.expiresAt,verification:result.lease.verification,
-            syncPending:result.syncPending===true,rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!result.syncPending,rebootError:result.rebootError||null},200,headers);
+            syncPending:result.syncPending===true,rebootQueued:result.rebootQueued===true,rebootAvailable:Boolean(result.lease.phonismPhoneId)&&!result.syncPending,rebootError:result.rebootError||null,
+            handoffCount:Array.isArray(result.handoffs)?result.handoffs.length:0,handoffs:result.handoffs||[]},200,headers);
         }catch(error){
           if(error?.code==='target-appearance-limit'&&error?.targetMember?.memberId&&error?.location?.id){
             const appearances=await findMemberAppearances({

@@ -69,7 +69,7 @@ test('one fleet-template URL auto-enrolls a matching Phonism/Webex phone and off
   assert.equal(search.status,200);
   assert.match(search.text,/Extension or phone number/);
   const duration=await xml(handler,env,base+'/d?member=user-2&q=4102&locationId=loc-a');
-  assert.match(duration.text,/15 minutes/);
+  assert.doesNotMatch(duration.text,/15 minutes/);
   assert.match(duration.text,/All Day \(9 hours\)/);
 });
 
@@ -302,9 +302,9 @@ test('fleet fast Save acknowledges immediately and completes background apply ac
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=540',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - All Day \(9 hours\)/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');
@@ -355,7 +355,7 @@ test('background phone Save failure is persisted with the exact failing stage',a
   const handler=createDeviceManagementHandler({webexFetch,checkAccess:async()=>({allowed:true}),loadIpRules:async()=>['approved'],phonismReader});
   const base='https://visionbank-security.ahmedadeyemi.workers.dev/x/'+FLEET+'/805e0cec1993';
 
-  const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
+  const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=540',model);
   assert.equal(confirm.status,200);
   const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
   assert.ok(match);
@@ -474,9 +474,9 @@ test('fleet Save succeeds across models when Phonism inventory loses Webex IDs',
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=540',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - All Day \(9 hours\)/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');
@@ -538,9 +538,9 @@ test('background save recovers generic device 404 via org inventory across Yeali
     assert.match(search.text,/4102 - Temporary User/,model+' target result');
     assert.doesNotMatch(search.text,/visionbank-dashboard\.onrender\.com/,model+' search response never exposes Render');
 
-    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=15',model);
+    const confirm=await xml(handler,env,base+'/c?member=user-2&q=4102&locationId=loc-a&minutes=540',model);
     assert.equal(confirm.status,200,model+' confirm status');
-    assert.match(confirm.text,/Save - 15 minutes/,model+' Save label');
+    assert.match(confirm.text,/Save - All Day \(9 hours\)/,model+' Save label');
     assert.doesNotMatch(confirm.text,/visionbank-dashboard\.onrender\.com/,model+' confirm response never exposes Render');
     const match=confirm.text.match(/intent=([0-9a-f-]{36})/i);
     assert.ok(match,model+' intent');

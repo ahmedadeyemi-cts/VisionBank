@@ -1,6 +1,6 @@
 # Handset Add Extension options
 
-The handset menu offers 15 Minutes (retained for testing), All Day (9 hours from assignment), 7 Days, 30 Days, Custom Days (whole days 1–999), and Permanent. Other hourly presets are removed from the handset menu. Existing leases keep their original expiration.
+The handset menu offers All Day (9 hours from assignment), 7 Days, 30 Days, Custom Days (whole days 1–999), and Permanent. Other hourly presets are removed from the handset menu. Existing leases keep their original expiration.
 
 Handset additions use the first available supported line starting at 2, accounting for occupied line weights and the Webex-reported maxLineCount. Missing capacity or a full phone fails before a write. Fresh membership and capacity are checked before applying. Existing secondary assignments are preserved.
 

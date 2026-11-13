@@ -1,0 +1,39 @@
+name: Deploy handoff destination provisioning
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-handoff-destination.yml'
+      - 'scripts/release-handoff-destination-ci.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: guarded-cloudflare-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Checkout reviewed main
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Cloudflare credential is configured
+        shell: bash
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN is not configured in this repository."
+            exit 1
+          fi
+
+      - name: Run guarded Worker release
+        run: node scripts/release-handoff-destination-ci.mjs

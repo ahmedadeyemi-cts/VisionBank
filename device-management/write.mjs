@@ -476,9 +476,13 @@ async function queueCleanupSync({env,lease,phonismReader,now}){
    await putLease(env,lease);
    await phonismReader.syncHierarchyIntegration(env,lease.phonismCompanyId,{
      tenantId:lease.phonismTenantId,targetCompanyId:lease.phonismDomainId,
-     assetTypes:['Device'],singleAttempt:true,timeoutMs:3000
+     assetTypes:['People','Workspace','Device'],singleAttempt:true,timeoutMs:3000
    });
    lease.recovery.cleanupSyncAcceptedAt=at;
+   // Cleanup/removal must regenerate the complete user/workspace/device view before reboot.
+   // Mark the broad cleanup sync as consumed so the two-minute fallback cannot duplicate it.
+   lease.recovery.cleanupFullSyncAttemptedAt=lease.recovery.cleanupFullSyncAttemptedAt||at;
+   lease.recovery.cleanupFullSyncAcceptedAt=lease.recovery.cleanupFullSyncAcceptedAt||at;
    // A failed read cannot suppress the authorized sync. It still prevents
    // completion/reboot until a subsequent read confirms the configuration.
    if(readError)throw readError;

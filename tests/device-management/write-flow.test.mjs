@@ -690,6 +690,10 @@ test('temporary sign-in automatically restores the same member from another temp
     env:e,request:request(),session:SESSION,webexFetch:fetch,orgId:ORG,mutationId:preview.mutationId,phonismReader
   });
 
+  const destinationSync=calls.filter(x=>x.type==='sync').at(-1);
+  assert.deepEqual(destinationSync.body.assetTypes,['People','Workspace','Device']);
+  assert.equal(result.lease.recovery.syncStrategy,'handoff-full');
+  assert.equal(result.lease.recovery.handoffCount,1);
   assert.equal(result.handoffs.length,1);
   assert.equal(result.handoffs[0].leaseId,oldLease.leaseId);
   assert.equal(result.handoffs[0].fromDeviceId,'call-old');
@@ -747,6 +751,7 @@ test('permanent assignment on another phone is never auto-signed-out by a new te
   });
 
   assert.deepEqual(result.handoffs,[]);
+  assert.equal(result.lease.recovery.syncStrategy,'device-first');
   assert.equal(states.get('call-old').some(m=>String(m.id)===TARGET.id),true,'permanent phone remains assigned');
   assert.equal(states.get('call-1').some(m=>String(m.id)===TARGET.id),true,'new temporary phone also receives the extension');
   assert.equal(puts.some(x=>x.deviceId==='call-old'),false,'old permanent phone is never written');

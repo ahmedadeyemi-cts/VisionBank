@@ -191,7 +191,7 @@ for(const permanent of [false,true])test((permanent?'permanent':'temporary')+' m
   assert.match(search.text,/4102 - Temporary User/);
   const duration=await xml(handler,env,'https://worker.example/p/'+token+'?a=duration&member=user-2&q=4102&locationId=loc-a');
   assert.equal(duration.status,200);
-  assert.match(duration.text,/15 minutes/);
+  assert.doesNotMatch(duration.text,/15 minutes/);
   assert.match(duration.text,/All Day \(9 hours\)/);
   assert.match(duration.text,/7 Days/);
   assert.match(duration.text,/30 Days/);

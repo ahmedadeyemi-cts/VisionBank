@@ -244,9 +244,10 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
     webexSaved=true;
 
     const pc=preview.phonismContext||{};
+    const syncAssetTypes=handoffs.length?['People','Workspace','Device']:['Device'];
     await phonismReader.syncHierarchyIntegration(env,pc.companyId,{
       tenantId:pc.tenantId,targetCompanyId:pc.domainId,
-      assetTypes:['Device']
+      assetTypes:syncAssetTypes
     });
     phonismQueued=true;
   }catch(error){
@@ -287,7 +288,8 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   lease.baselineMember=preview.baselineMember||null;
   lease.timing={saveRequestedAt:saveRequestedAt||lease.startsAt,webexAndSyncSavedAt:lease.startsAt};
   // Persist before waiting: scheduled maintenance can recover a terminated request.
-  lease.recovery={syncStrategy:'device-first',syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false};
+  lease.recovery={syncStrategy:handoffs.length?'handoff-full':'device-first',syncPending:true,syncPendingSince:new Date().toISOString(),automaticReboot:true,rebootAttempted:false,
+    handoffCount:handoffs.length,handoffSources:handoffs};
   lease.verification.state='sync-pending';
   await putLease(env,lease);
 

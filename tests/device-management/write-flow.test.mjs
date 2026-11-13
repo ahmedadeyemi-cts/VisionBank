@@ -558,14 +558,14 @@ test('deferred sign-out touches only its lease, preserves expiry and hands off a
 });
 
 
-test('sign-out waits for confirmed removal and uses one broader fallback after two minutes',async()=>{
+test('sign-out uses full cleanup sync immediately and does not duplicate it at two minutes',async()=>{
  const {e,wx,ph,lease}=await pendingFixture(),now=Date.now();ph.calls.length=0;
  await endTemporaryLease({env:e,request:request(),session:SESSION,webexFetch:wx.fetch,orgId:ORG,leaseId:lease.leaseId,phonismReader:ph.reader,now,deferWork:true});
  const run=age=>sweepExpiredLeases({env:e,webexFetch:wx.fetch,orgId:ORG,phonismReader:ph.reader,onlyLeaseId:lease.leaseId,now:now+age});
  await run(1);assert.equal(ph.state.rebootAttempts,0);
  await run(14000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,1);
- await run(120001);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);
- await run(125000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,2);assert.equal(ph.state.rebootAttempts,0);
+ await run(120001);assert.equal(ph.calls.filter(c=>c.type==='sync').length,1);
+ await run(125000);assert.equal(ph.calls.filter(c=>c.type==='sync').length,1);assert.equal(ph.state.rebootAttempts,0);
  ph.reader.lines=async()=>[];await run(130000);assert.equal(ph.state.rebootAttempts,1);
  await run(135000);assert.equal(ph.state.rebootAttempts,1);assert.equal(wx.state.puts.length,2);
 });

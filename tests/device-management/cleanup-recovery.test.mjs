@@ -69,10 +69,10 @@ test('accepted but stalled cleanup is checked frequently and resynced with backo
  const f=await fixture();f.state.lines=[{lineNumber:3,username:'1133'}];
  await f.run();assert.equal(f.state.syncs,1);
  await f.run(5000);await f.run(30000);assert.equal(f.state.syncs,1);assert.equal(f.state.reboots,0);
- await f.run(120000);assert.equal(f.state.syncs,2); // One broader fallback.
- await f.run(300001);assert.equal(f.state.syncs,3); // Bounded recovery continues.
+ await f.run(120000);assert.equal(f.state.syncs,1); // Initial cleanup already used the broad sync.
+ await f.run(300001);assert.equal(f.state.syncs,2); // Bounded recovery continues after five minutes.
  f.state.lines=[];assert.equal((await f.run(360000))[0].status,'restored');
- assert.equal(f.state.syncs,3);assert.equal(f.state.reboots,1);
+ assert.equal(f.state.syncs,2);assert.equal(f.state.reboots,1);
 });
 test('explicitly rejected restart retries automatically without rewriting assignments',async()=>{
  const f=await fixture();f.reader.tr069Action=async()=>{f.state.reboots++;if(f.state.reboots===1)throw Object.assign(Error('unavailable'),{code:'phonism-write-failed',providerFailure:'provider-unavailable',upstreamStatus:503});};

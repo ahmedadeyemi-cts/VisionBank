@@ -216,18 +216,20 @@ export async function applyWritePreview({env,request,session,webexFetch,orgId,mu
   if(preview.targetMember?.id&&preview.durationMinutes!=='permanent'){
     const leases=await listLeases(env,{limit:1000});
     const conflicts=leases.filter(lease=>
-      lease?.status==='active'&&lease?.permanent!==true&&
+      !['restored','superseded','external-change-reconciled'].includes(lease?.status)&&lease?.permanent!==true&&
       String(lease?.temporaryLine2?.memberId||'')===String(preview.targetMember.id)&&
       String(lease?.device?.id||'')!==String(preview.device.id)
     );
     for(const conflict of conflicts){
-      const ended=await endTemporaryLease({
+      // Unfinished cleanup remains a conflict on every retry. Let the existing
+      // recovery state machine finish it rather than treating it as signed out.
+      const ended=conflict.status==='active'?await endTemporaryLease({
         env,request,session,webexFetch,orgId,leaseId:conflict.leaseId,phonismReader,
         endMode:'handoff',
         handoffTarget:{deviceId:preview.device.id,deviceName:preview.device.displayName||'',locationId:preview.location.id,locationName:preview.location.name||''}
-      });
+      }):{result:(await sweepExpiredLeases({env,webexFetch,orgId,phonismReader,onlyLeaseId:conflict.leaseId})).find(row=>row.leaseId===conflict.leaseId)};
       const status=String(ended?.result?.status||'');
-      if(!status||status==='retry-pending')throw new DeviceManagementError('temporary-handoff-signout-failed',409);
+      if(!['restored','superseded','external-change-reconciled'].includes(status))throw new DeviceManagementError('temporary-handoff-signout-failed',409);
       handoffs.push({
         leaseId:conflict.leaseId,
         fromDeviceId:conflict.device?.id||null,

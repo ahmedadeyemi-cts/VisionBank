@@ -478,7 +478,7 @@ async function loadReport() {
 
   try {
     const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}&_=${Date.now()}`, {
-      headers: authHeaders({ "Cache-Control": "no-cache" }),
+      headers: authHeaders(),
       cache: "no-store"
     });
 

@@ -390,6 +390,19 @@ function formatCentralTime(utcDate) {
     hour12: true
   });
 }
+function getCentralDateKey(utcDate) {
+  if (!utcDate) return "";
+  const date = new Date(utcDate);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(date);
+  const part = type => parts.find(item => item.type === type)?.value || "";
+  const year = part("year"), month = part("month"), day = part("day");
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
 // =====================================================
 // DATE HELPERS
 // =====================================================
@@ -754,7 +767,7 @@ function renderReport(records, range) {
       longestDuration = duration;
     }
 
-    const day = (vm.CreationDateUtc || "").split("T")[0];
+    const day = getCentralDateKey(vm.CreationDateUtc);
 
     if (day) {
       perDayCounts[day] = (perDayCounts[day] || 0) + 1;

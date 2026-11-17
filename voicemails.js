@@ -477,7 +477,7 @@ async function loadReport() {
   const range = reportRange.value;
 
   try {
-    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}`, { headers: authHeaders() });
+    const res = await fetch(`${REPORT_API}?range=${encodeURIComponent(range)}&_=${Date.now()}`, {\n      headers: authHeaders({ "Cache-Control": "no-cache" }),\n      cache: "no-store"\n    });
 
     if (!res.ok) {
       throw new Error(`Report failed: HTTP ${res.status}`);

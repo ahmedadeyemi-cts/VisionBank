@@ -38,7 +38,8 @@ let motdInterval = null;
 let webexDashboardCache = null;
 let webexDashboardCacheAt = 0;
 let webexDashboardPromise = null;
-const WEBEX_CACHE_MS = 3000;
+const WEBEX_CACHE_MS = 1000;
+const WEBEX_REFRESH_MS = 3000;
 const WEBEX_EMBEDDED = window.VBFramePolicy?.isAllowedEmbed()===true;
 const WEBEX_EMBED_CACHE_KEY = "vb-embedded-dashboard-v1";
 function restoreEmbeddedSnapshot(){
@@ -1585,7 +1586,7 @@ document
   });
 
   refreshAll();
-  setInterval(refreshAll, 5000);
+  setInterval(refreshAll, WEBEX_REFRESH_MS);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshAll();
   });

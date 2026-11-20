@@ -64,12 +64,20 @@ export async function getLease(env,leaseId){
 
 export async function listLeases(env,{limit=200}={}){
   if(!env?.LOGS?.list)throw new DeviceManagementError('device-lease-store-unavailable',503);
-  const listed=await env.LOGS.list({prefix:PREFIX,limit:Math.min(Math.max(Number(limit)||200,1),1000)});
-  const leases=[];
-  for(const key of listed.keys||[]){
-    const lease=await getLease(env,key.name.slice(PREFIX.length));
-    if(lease)leases.push(lease);
-  }
+  const pageSize=Math.min(Math.max(Number(limit)||200,1),1000);
+  const leases=[],seenCursors=new Set();
+  let cursor;
+  do{
+    const listed=await env.LOGS.list({prefix:PREFIX,limit:pageSize,...(cursor?{cursor}:{})});
+    for(const key of listed.keys||[]){
+      const lease=await getLease(env,key.name.slice(PREFIX.length));
+      if(lease)leases.push(lease);
+    }
+    if(listed.list_complete!==false)break;
+    // Never treat a partial or malformed page as a complete conflict scan.
+    if(!listed.cursor||seenCursors.has(listed.cursor))throw new DeviceManagementError('device-lease-list-incomplete',503);
+    cursor=listed.cursor;seenCursors.add(cursor);
+  }while(true);
   return leases.sort((a,b)=>String(a.expiresAt||'').localeCompare(String(b.expiresAt||'')));
 }
 
